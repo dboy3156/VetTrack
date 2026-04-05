@@ -45,8 +45,14 @@ export async function requireAuth(
   const isDev = !process.env.CLERK_SECRET_KEY;
 
   if (isDev) {
-    req.authUser = DEV_USER;
-    Sentry.setUser({ id: DEV_USER.id, email: DEV_USER.email });
+    // Tests can pass x-dev-role-override to simulate a different role (dev only)
+    const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
+    const devUser: AuthUser =
+      overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
+        ? { ...DEV_USER, role: overrideRole }
+        : DEV_USER;
+    req.authUser = devUser;
+    Sentry.setUser({ id: devUser.id, email: devUser.email });
     return next();
   }
 

@@ -61,9 +61,10 @@ tsx server/seed.ts   # Seed sample data
   - Viewer (10): read-only access
 - **CORS**: Locked to `REPLIT_DEV_DOMAIN` in dev and `ALLOWED_ORIGIN` in prod (not open)
 - **Rate Limiting** (`express-rate-limit`):
-  - Global: 200 req/min/IP on all `/api/*` routes
-  - Scan actions: 15/min/IP
-  - Checkout/return: 30/min/IP
+  - Global: 100 req/min/IP on all `/api/*` routes
+  - Scan actions: 10/min/IP on POST /api/equipment/:id/scan
+  - Checkout/return: 20/min/IP on POST /api/equipment/:id/checkout|return
+  - Auth-sensitive: 5/min/IP on POST /api/push/subscribe and POST /api/users/sync
 - **XSS**: Global body sanitization via `xss` library
 - **Helmet**: Security headers including CSP, X-Frame-Options, HSTS
 - **Undo token TTL**: 90 seconds (server + frontend countdown)

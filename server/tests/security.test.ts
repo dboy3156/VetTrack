@@ -126,29 +126,80 @@ async function testRetryAfterHeader() {
   }
 }
 
-// ─── Test 6: Alert-ack POST requires technician+ (role-gate) ─────────────────
-async function testAlertAckRoleGate() {
-  console.log("\n[6] Role Gate — POST /api/alert-acks requires technician+ (dev mode = admin, should pass)");
-  // In dev mode the hardcoded user is admin, so this should succeed (or 400 for missing body)
-  const r = await post("/api/alert-acks", {});
+// ─── Test 6: VIEWER gets 403 on alert-ack POST ───────────────────────────────
+async function testAlertAckViewerDenied() {
+  console.log("\n[6] Role Gate — viewer gets 403 on POST /api/alert-acks (requires technician+)");
+  const r = await post("/api/alert-acks", {}, {
+    headers: {
+      "Content-Type": "application/json",
+      "x-dev-role-override": "viewer",
+    },
+  });
   if (r.status === 403) {
-    fail("Admin was blocked by role gate — unexpected");
-  } else if (r.status === 400 || r.status === 201) {
-    ok(`Role gate passed for admin (status=${r.status})`);
+    ok("Viewer correctly denied with 403 on POST /api/alert-acks");
   } else {
-    ok(`Role gate did not block admin (status=${r.status})`);
+    fail(`Expected 403 for viewer, got ${r.status}`);
   }
 }
 
-// ─── Test 7: WhatsApp alert POST requires technician+ ────────────────────────
-async function testWhatsAppRoleGate() {
-  console.log("\n[7] Role Gate — POST /api/whatsapp/alert requires technician+ (dev mode = admin, should pass)");
-  const r = await post("/api/whatsapp/alert", {});
-  // Missing body should give 400, not 403 (admin dev user passes role gate)
+// ─── Test 7: ADMIN passes role gate on alert-ack POST ────────────────────────
+async function testAlertAckAdminAllowed() {
+  console.log("\n[7] Role Gate — admin passes POST /api/alert-acks (not blocked by role gate)");
+  const r = await post("/api/alert-acks", {});
   if (r.status === 403) {
-    fail("Admin was unexpectedly blocked by role gate");
+    fail("Admin was blocked by role gate — unexpected");
   } else {
-    ok(`Role gate passed for admin (status=${r.status})`);
+    ok(`Admin not blocked by role gate (status=${r.status})`);
+  }
+}
+
+// ─── Test 8: VIEWER gets 403 on whatsapp/alert POST ─────────────────────────
+async function testWhatsAppViewerDenied() {
+  console.log("\n[8] Role Gate — viewer gets 403 on POST /api/whatsapp/alert (requires technician+)");
+  const r = await post("/api/whatsapp/alert", {}, {
+    headers: {
+      "Content-Type": "application/json",
+      "x-dev-role-override": "viewer",
+    },
+  });
+  if (r.status === 403) {
+    ok("Viewer correctly denied with 403 on POST /api/whatsapp/alert");
+  } else {
+    fail(`Expected 403 for viewer, got ${r.status}`);
+  }
+}
+
+// ─── Test 9: TECHNICIAN passes role gate on whatsapp/alert POST ──────────────
+async function testWhatsAppTechnicianAllowed() {
+  console.log("\n[9] Role Gate — technician passes POST /api/whatsapp/alert");
+  const r = await post("/api/whatsapp/alert", {}, {
+    headers: {
+      "Content-Type": "application/json",
+      "x-dev-role-override": "technician",
+    },
+  });
+  if (r.status === 403) {
+    fail("Technician was blocked — should have technician+ access");
+  } else {
+    ok(`Technician passed role gate (status=${r.status})`);
+  }
+}
+
+// ─── Test 10: Auth-sensitive rate limiter on push/subscribe ──────────────────
+async function testAuthSensitiveRateLimit() {
+  console.log("\n[10] Rate Limit — POST /api/push/subscribe 5/min auth-sensitive limit (burst 7)");
+  let hit429 = false;
+  for (let i = 0; i < 7; i++) {
+    const r = await post("/api/push/subscribe", { endpoint: "fake", keys: {} });
+    if (r.status === 429) {
+      hit429 = true;
+      break;
+    }
+  }
+  if (hit429) {
+    ok("Got 429 after exceeding auth-sensitive rate limit (5/min)");
+  } else {
+    fail("No 429 received — auth-sensitive rate limiter may not be working");
   }
 }
 
@@ -167,13 +218,18 @@ async function run() {
     process.exit(1);
   }
 
+  // Role gate tests MUST run before burst tests (burst exhausts global rate limiter)
   await testCorsRejected();
+  await testAlertAckViewerDenied();
+  await testAlertAckAdminAllowed();
+  await testWhatsAppViewerDenied();
+  await testWhatsAppTechnicianAllowed();
+  // Burst tests consume the rate limit budget — run last
   await testGlobalRateLimit();
   await testScanRateLimit();
   await testCheckoutRateLimit();
   await testRetryAfterHeader();
-  await testAlertAckRoleGate();
-  await testWhatsAppRoleGate();
+  await testAuthSensitiveRateLimit();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
