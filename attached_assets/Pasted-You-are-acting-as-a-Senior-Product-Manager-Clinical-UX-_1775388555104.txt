@@ -1,0 +1,115 @@
+You are acting as a Senior Product Manager + Clinical UX Designer + Frontend Engineer.
+
+Your task is to analyze, clean, and upgrade the entire app, with a deep focus on:
+	1.	Settings system (full redesign + implementation)
+	2.	Removing useless or non-functional features across the entire app
+
+The goal is a clean, practical, production-level clinical tool.
+
+⸻
+
+1. Settings System (Full Overhaul)
+
+Redesign and fully implement Settings with ONLY:
+
+Display
+	•	Dark / Light mode
+	•	Display size (compact / comfortable)
+	•	Dimmer (brightness slider, must visibly affect UI)
+
+Sound
+	•	Master ON/OFF
+	•	Critical alerts ON/OFF
+	•	Must play real sounds (no placeholders)
+
+Date & Time
+	•	Time format
+	•	Date format
+
+Reset
+	•	Reset all settings (with confirmation)
+
+Account
+	•	Logout (must work)
+
+⸻
+
+2. Quick Settings (Fast Access)
+
+Add a Quick Settings panel:
+	•	Dark mode
+	•	Display size
+	•	Sound ON/OFF
+	•	Critical alerts
+
+Requirements:
+	•	Accessible from top bar
+	•	1–2 taps
+	•	Instant apply (no save)
+
+⸻
+
+3. Strict Cleanup Rule (Across ENTIRE App)
+
+Scan the whole codebase and identify:
+	•	Features that:
+	•	Do nothing
+	•	Are partially implemented
+	•	Feel unnecessary in real workflow
+
+For each one:
+	•	Either fully implement it
+	•	Or remove it completely
+
+No “fake features” allowed.
+
+⸻
+
+4. Human Language (Global Fix)
+
+Across the entire app:
+	•	Replace technical labels with clear human language
+	•	Make all UI text:
+	•	Short
+	•	Direct
+	•	Instantly understandable
+
+⸻
+
+5. Functional Validation (Critical)
+
+After changes:
+	•	Verify:
+	•	Every button does something
+	•	Every toggle has a visible effect
+	•	No dead states
+	•	No broken flows
+
+If something fails → fix or remove it
+
+⸻
+
+6. Code Requirements
+	•	Centralized logic (no duplication)
+	•	Settings state shared across:
+	•	Settings page
+	•	Quick Settings
+	•	Clean, scalable structure
+
+⸻
+
+7. Output
+	•	First:
+	•	What was removed
+	•	What was fixed
+	•	What was added
+	•	Then:
+	•	Implement ALL changes in code
+
+⸻
+
+8. Standard
+	•	Feels like a real hospital tool
+	•	No unnecessary features
+	•	No confusion
+	•	Works under pressure

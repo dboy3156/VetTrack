@@ -1,0 +1,106 @@
+You are acting as a Senior Engineer (Frontend + Backend) + Product Manager.
+
+Your task is to design and implement a real Push Notifications system for VetTrack, a veterinary hospital logistics and workflow management app.
+
+This is NOT a medical records system.
+Do NOT introduce clinical entities like “patients” unless they already exist in the codebase.
+
+⸻
+
+1. Domain Alignment (Critical)
+	•	Analyze the codebase and identify real entities used in the app (e.g. tasks, logs, equipment, status updates)
+	•	Use ONLY existing entities
+	•	Do NOT invent new domain concepts
+
+⸻
+
+2. Trigger Events (Logistics Only)
+
+Send notifications ONLY for real operational events such as:
+	•	Task marked as urgent
+	•	Status change (e.g. pending → urgent / delayed / completed)
+	•	New important log entry requiring attention
+	•	Workflow issues or critical system updates
+	•	Equipment-related alerts (if exists)
+
+Avoid anything unrelated to actual app usage.
+
+⸻
+
+3. Notification Content
+	•	Short
+	•	Clear
+	•	Operational
+
+Examples:
+	•	“Task #124 – Marked as urgent”
+	•	“New log update – Action required”
+	•	“Equipment alert – Check required”
+
+No long text. No medical assumptions.
+
+⸻
+
+4. Full System Flow (Must Be Complete)
+
+You MUST implement:
+	•	Notification permission request
+	•	Device registration (token/subscription)
+	•	Storage of subscriptions
+	•	Event-based trigger system
+
+No mock or partial implementation.
+
+⸻
+
+5. Technology Choice
+
+Use:
+	•	Firebase Cloud Messaging (preferred)
+OR
+	•	Web Push (Service Worker)
+
+Choose based on project structure and explain briefly.
+
+⸻
+
+6. Behavior Rules
+	•	No duplicate notifications
+	•	No spam
+	•	Immediate delivery
+	•	Works in background on mobile
+
+⸻
+
+7. Settings Integration
+
+Connect to existing app settings:
+	•	If sound is OFF → send silent notification
+	•	If alerts are OFF → do not send
+
+Settings must fully control behavior.
+
+⸻
+
+8. Validation (Strict)
+
+Verify:
+	•	Notifications are received on real devices
+	•	Triggers match actual app logic
+	•	No fake entities were introduced
+
+If something fails → fix it
+
+⸻
+
+9. Output
+	•	First: list detected entities in the app (tasks, logs, etc.)
+	•	Then: implement the full system
+
+⸻
+
+10. Standard
+	•	Matches real app domain
+	•	Fully functional
+	•	No invented logic
+	•	Reliable in daily workflow
