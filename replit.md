@@ -48,6 +48,7 @@ tsx server/seed.ts   # Seed sample data
 6. **WhatsApp Escalation** — Opens wa.me with pre-filled alert message
 7. **Analytics** — Status distribution pie chart, 30-day scan activity, top problem equipment
 8. **Full Offline-First** — All core actions (checkout, return, scan, status update) work offline with optimistic UI updates. Pending actions are queued in IndexedDB and automatically synced when connectivity returns. Conflict resolution uses last-write-wins by timestamp. UI shows pending/synced/failed states via subtle header indicators.
+9. **Settings System** — Centralized settings persisted to localStorage. Quick Settings panel (gear icon in top bar) for instant access to dark mode, density, sound, and language. Full Settings page at `/settings` with all sections: Display, Sound, Language & Input, Date & Time, Reset (with confirmation dialog), and Account (logout). Dark mode applies `dark` class to `<html>`; density applies `data-density` attribute.
 
 ## Auth
 - **Dev mode** (no Clerk keys): Admin user hardcoded, all routes accessible
@@ -84,14 +85,17 @@ src/
   hooks/
     use-auth.tsx    # Auth context (Clerk or dev mode)
     use-sync.tsx    # Sync state context (pending count, failed count, trigger sync)
+    use-settings.tsx # Settings context (dark mode, density, sound, language, date/time)
     use-toast.ts    # Toast state
   components/
-    layout.tsx              # Top header + bottom nav + mobile menu
+    layout.tsx              # Top header + bottom nav + mobile menu + Quick Settings panel
+    settings-controls.tsx  # Reusable SettingsToggle, SettingsSelect, SettingsSectionHeader
     shift-summary-sheet.tsx # Bottom sheet: checked-out items, today's issues, unack'd alerts, copy to clipboard
     ui/                     # shadcn UI components
       error-card.tsx        # Inline error card with optional retry button
       empty-state.tsx       # Reusable empty state with icon, message, action
   pages/
+    settings.tsx         # Full Settings page (/settings) — all sections + reset + logout
     home.tsx             # Dashboard with stats + alerts preview + Shift Summary button
     equipment-list.tsx   # Filterable list with bulk ops + location chip row filter
     equipment-detail.tsx # Detail + scan dialog + QR + history

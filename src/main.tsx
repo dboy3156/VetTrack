@@ -6,6 +6,7 @@ import "./index.css";
 import App from "./App";
 import { DevAuthProvider } from "@/hooks/use-auth";
 import { SyncProvider } from "@/hooks/use-sync";
+import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
 
@@ -25,10 +26,12 @@ function Root() {
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <DevAuthProvider>
-          <SyncProvider>
-            <App />
-            <Toaster richColors position="top-center" />
-          </SyncProvider>
+          <SettingsProvider>
+            <SyncProvider>
+              <App />
+              <Toaster richColors position="top-center" />
+            </SyncProvider>
+          </SettingsProvider>
         </DevAuthProvider>
       </QueryClientProvider>
     </HelmetProvider>

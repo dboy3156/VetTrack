@@ -19,6 +19,7 @@ const DemoGuidePage = lazy(() => import("@/pages/demo-guide"));
 const ManagementDashboardPage = lazy(() => import("@/pages/management-dashboard"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 const VideoPage = lazy(() => import("@/pages/video"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
 
 function PageLoader() {
   return (
@@ -104,6 +105,7 @@ export default function App() {
           <Route path="/demo-guide" component={DemoGuidePage} />
           <Route path="/dashboard" component={ManagementDashboardPage} />
           <Route path="/video" component={VideoPage} />
+          <Route path="/settings" component={SettingsPage} />
           <Route component={NotFoundPage} />
         </Switch>
       </Suspense>

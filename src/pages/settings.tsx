@@ -1,0 +1,213 @@
+import { useState } from "react";
+import { Layout } from "@/components/layout";
+import { SettingsSectionHeader, SettingsToggle, SettingsSelect } from "@/components/settings-controls";
+import { useSettings } from "@/hooks/use-settings";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Moon,
+  Volume2,
+  BellRing,
+  Globe,
+  Clock,
+  Calendar,
+  RotateCcw,
+  LogOut,
+  Sun,
+  AlignJustify,
+} from "lucide-react";
+import { useLocation } from "wouter";
+
+export default function SettingsPage() {
+  const { settings, update, reset } = useSettings();
+  const { name, email } = useAuth();
+  const [, navigate] = useLocation();
+
+  const handleLogout = () => {
+    navigate("/landing");
+  };
+
+  return (
+    <Layout title="Settings">
+      <div className="space-y-6 pb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Customize your VetTrack experience</p>
+        </div>
+
+        {/* Display */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="Display" />
+          <div className="space-y-2">
+            <SettingsToggle
+              icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              label="Dark Mode"
+              description="Reduce eye strain in low light"
+              checked={settings.darkMode}
+              onCheckedChange={(v) => update({ darkMode: v })}
+              data-testid="settings-dark-mode"
+            />
+            <SettingsSelect
+              icon={<AlignJustify className="w-5 h-5" />}
+              label="UI Density"
+              description="Adjust spacing and padding"
+              value={settings.density}
+              options={[
+                { value: "comfortable", label: "Comfortable" },
+                { value: "compact", label: "Compact" },
+              ]}
+              onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
+              data-testid="settings-density"
+            />
+          </div>
+        </section>
+
+        {/* Sound */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="Sound" />
+          <div className="space-y-2">
+            <SettingsToggle
+              icon={<Volume2 className="w-5 h-5" />}
+              label="Master Sound"
+              description="Enable or disable all sounds"
+              checked={settings.soundEnabled}
+              onCheckedChange={(v) => update({ soundEnabled: v })}
+              data-testid="settings-sound"
+            />
+            <SettingsToggle
+              icon={<BellRing className="w-5 h-5" />}
+              label="Critical Alerts Sound"
+              description="Play audio for urgent equipment alerts"
+              checked={settings.criticalAlertsSound}
+              onCheckedChange={(v) => update({ criticalAlertsSound: v })}
+              data-testid="settings-critical-sound"
+            />
+          </div>
+        </section>
+
+        {/* Language & Input */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="Language & Input" />
+          <div className="space-y-2">
+            <SettingsSelect
+              icon={<Globe className="w-5 h-5" />}
+              label="Language"
+              description="Display language for the interface"
+              value={settings.language}
+              options={[
+                { value: "en", label: "English" },
+                { value: "es", label: "Español" },
+                { value: "fr", label: "Français" },
+                { value: "de", label: "Deutsch" },
+              ]}
+              onValueChange={(v) => update({ language: v as "en" | "es" | "fr" | "de" })}
+              data-testid="settings-language"
+            />
+          </div>
+        </section>
+
+        {/* Date & Time */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="Date & Time" />
+          <div className="space-y-2">
+            <SettingsSelect
+              icon={<Clock className="w-5 h-5" />}
+              label="Time Format"
+              description="How times are displayed"
+              value={settings.timeFormat}
+              options={[
+                { value: "12h", label: "12-hour (AM/PM)" },
+                { value: "24h", label: "24-hour" },
+              ]}
+              onValueChange={(v) => update({ timeFormat: v as "12h" | "24h" })}
+              data-testid="settings-time-format"
+            />
+            <SettingsSelect
+              icon={<Calendar className="w-5 h-5" />}
+              label="Date Format"
+              description="How dates are displayed"
+              value={settings.dateFormat}
+              options={[
+                { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
+                { value: "DD/MM/YYYY", label: "DD/MM/YYYY" },
+                { value: "YYYY-MM-DD", label: "YYYY-MM-DD" },
+              ]}
+              onValueChange={(v) => update({ dateFormat: v as "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD" })}
+              data-testid="settings-date-format"
+            />
+          </div>
+        </section>
+
+        {/* Reset */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="Reset" />
+          <div className="rounded-xl bg-muted/40 px-4 py-4">
+            <p className="text-sm text-foreground font-medium mb-1">Reset to Defaults</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Restore all settings to their original values. This cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2" data-testid="settings-reset-btn">
+                  <RotateCcw className="w-4 h-4" />
+                  Reset to Defaults
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset all settings?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will restore all settings to their default values, including dark mode, sound, and display preferences. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={reset}
+                    className="bg-destructive hover:bg-destructive/90"
+                    data-testid="settings-reset-confirm"
+                  >
+                    Reset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </section>
+
+        {/* Account */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="Account" />
+          <div className="rounded-xl bg-muted/40 px-4 py-4 space-y-3">
+            {(name || email) && (
+              <div>
+                {name && <p className="text-sm font-medium text-foreground">{name}</p>}
+                {email && <p className="text-xs text-muted-foreground">{email}</p>}
+              </div>
+            )}
+            <Button
+              variant="destructive"
+              className="gap-2 w-full sm:w-auto"
+              onClick={handleLogout}
+              data-testid="settings-logout"
+            >
+              <LogOut className="w-4 h-4" />
+              Log Out
+            </Button>
+          </div>
+        </section>
+      </div>
+    </Layout>
+  );
+}
