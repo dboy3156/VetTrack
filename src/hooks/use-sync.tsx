@@ -1,5 +1,11 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
-import { getPendingCount, getFailedCount, getAllPendingSync, updatePendingSync, removePendingSync, type PendingSync } from "@/lib/offline-db";
+import { liveQuery } from "dexie";
+import {
+  offlineDb,
+  updatePendingSync,
+  removePendingSync,
+  type PendingSync,
+} from "@/lib/offline-db";
 import { onSyncStateChange, processQueue } from "@/lib/sync-engine";
 
 interface SyncState {
@@ -36,12 +42,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const prevPendingRef = useRef(0);
   const justSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const refresh = useCallback(async () => {
-    const [p, f, all] = await Promise.all([
-      getPendingCount(),
-      getFailedCount(),
-      getAllPendingSync(),
-    ]);
+  const applyAll = useCallback((all: PendingSync[]) => {
+    const p = all.filter((i) => i.status === "pending").length;
+    const f = all.filter((i) => i.status === "failed").length;
 
     if (prevPendingRef.current > 0 && p === 0 && f === 0) {
       setJustSynced(true);
@@ -56,37 +59,47 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setItems(all.filter((i) => i.status === "pending" || i.status === "failed"));
   }, []);
 
+  useEffect(() => {
+    const observable = liveQuery(() =>
+      offlineDb.pendingSync.orderBy("createdAt").toArray()
+    );
+
+    const subscription = observable.subscribe({
+      next: (all) => applyAll(all),
+      error: () => {},
+    });
+
+    return () => subscription.unsubscribe();
+  }, [applyAll]);
+
+  useEffect(() => {
+    const unsubscribeSyncEngine = onSyncStateChange(() => {});
+    return unsubscribeSyncEngine;
+  }, []);
+
   const triggerSync = useCallback(async () => {
     setIsSyncing(true);
     try {
       await processQueue();
     } finally {
       setIsSyncing(false);
-      await refresh();
     }
-  }, [refresh]);
+  }, []);
 
   const retry = useCallback(async (id: number) => {
     await updatePendingSync(id, { status: "pending", retries: 0, errorMessage: undefined });
-    processQueue().finally(() => refresh());
-    await refresh();
-  }, [refresh]);
+    processQueue().catch(() => {});
+  }, []);
 
   const discard = useCallback(async (id: number) => {
     await removePendingSync(id);
-    await refresh();
-  }, [refresh]);
+  }, []);
 
   useEffect(() => {
-    refresh();
-    const unsubscribe = onSyncStateChange(refresh);
-    const interval = setInterval(refresh, 2000);
     return () => {
-      unsubscribe();
-      clearInterval(interval);
       if (justSyncedTimerRef.current) clearTimeout(justSyncedTimerRef.current);
     };
-  }, [refresh]);
+  }, []);
 
   return (
     <SyncContext.Provider value={{ pendingCount, failedCount, isSyncing, justSynced, recentItems, items, triggerSync, retry, discard }}>
@@ -97,4 +110,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
 export function useSync() {
   return useContext(SyncContext);
+}
+
+export function useSyncQueue() {
+  const { pendingCount, failedCount, items, retry, discard } = useContext(SyncContext);
+  return { pendingCount, failedCount, items, retry, discard };
 }

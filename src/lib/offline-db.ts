@@ -75,8 +75,14 @@ export async function getCachedFolders(): Promise<Folder[]> {
   return offlineDb.folders.toArray();
 }
 
+export function emitSyncChange() {
+  window.dispatchEvent(new CustomEvent("vettrack:pendingsync-change"));
+}
+
 export async function addPendingSync(op: Omit<PendingSync, "id">) {
-  return offlineDb.pendingSync.add(op);
+  const id = await offlineDb.pendingSync.add(op);
+  emitSyncChange();
+  return id;
 }
 
 export async function getPendingSync(): Promise<PendingSync[]> {
@@ -91,11 +97,14 @@ export async function getAllPendingSync(): Promise<PendingSync[]> {
 }
 
 export async function updatePendingSync(id: number, updates: Partial<PendingSync>) {
-  return offlineDb.pendingSync.update(id, updates);
+  const result = await offlineDb.pendingSync.update(id, updates);
+  emitSyncChange();
+  return result;
 }
 
 export async function removePendingSync(id: number) {
-  return offlineDb.pendingSync.delete(id);
+  await offlineDb.pendingSync.delete(id);
+  emitSyncChange();
 }
 
 export async function getPendingCount(): Promise<number> {

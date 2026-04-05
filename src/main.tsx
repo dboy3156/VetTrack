@@ -10,6 +10,7 @@ import { SyncProvider } from "@/hooks/use-sync";
 import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
+import { addPendingSync, removePendingSync } from "@/lib/offline-db";
 import { GlobalServerErrorBanner } from "@/components/ui/server-error-banner";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -50,6 +51,13 @@ const queryClient = new QueryClient({
 });
 
 initSyncEngine(queryClient);
+
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__vettrack_test = {
+    addPendingSync,
+    removePendingSync,
+  };
+}
 
 function Root() {
   return (
