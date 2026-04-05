@@ -363,8 +363,8 @@ export default function HomePage() {
                           <p className="font-medium text-sm truncate">{item.equipmentName}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {item.type === "scan"
-                              ? `Scanned as ${item.status}`
-                              : `Moved to ${item.toFolder || "unfiled"}`}
+                              ? (item.note ?? `Scanned as ${item.status}`)
+                              : (item.note ?? `Moved to ${item.toFolder || "unfiled"}`)}
                           </p>
                         </div>
                         <div className="text-right shrink-0">

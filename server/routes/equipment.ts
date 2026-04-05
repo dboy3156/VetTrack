@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
-import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
+import { db, equipment, folders, scanLogs, transferLogs, undoTokens, bulkAuditLog } from "../db.js";
 import { eq, inArray, desc, and, lt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
@@ -979,25 +979,30 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
     const actorName = req.authUser!.name || req.authUser!.email;
 
     await db.transaction(async (tx) => {
-      // Write tombstone scan log per item before deletion (audit trail)
+      // Collect item info before deletion, then write tombstones to bulkAuditLog.
+      // bulkAuditLog has NO FK to vt_equipment, so records survive the cascade delete.
+      const items = await tx
+        .select({ id: equipment.id, name: equipment.name, status: equipment.status })
+        .from(equipment)
+        .where(inArray(equipment.id, typedIds));
+
       const now = new Date();
-      for (const id of typedIds) {
-        const [item] = await tx
-          .select({ id: equipment.id, status: equipment.status })
-          .from(equipment)
-          .where(eq(equipment.id, id))
-          .limit(1);
-        if (!item) continue;
-        await tx.insert(scanLogs).values({
-          id: randomUUID(),
-          equipmentId: id,
-          userId: req.authUser!.id,
-          userEmail: req.authUser!.email,
-          status: item.status,
-          note: `Bulk deleted by ${actorName}`,
-          timestamp: now,
-        });
+      if (items.length > 0) {
+        await tx.insert(bulkAuditLog).values(
+          items.map((item) => ({
+            id: randomUUID(),
+            eventType: "bulk-delete" as const,
+            equipmentId: item.id,
+            equipmentName: item.name,
+            equipmentStatus: item.status,
+            actorId: req.authUser!.id,
+            actorEmail: req.authUser!.email,
+            note: `Bulk deleted by ${actorName}`,
+            timestamp: now,
+          }))
+        );
       }
+
       await tx.delete(equipment).where(inArray(equipment.id, typedIds));
     });
 

@@ -149,6 +149,18 @@ export const supportTickets = pgTable("vt_support_tickets", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const bulkAuditLog = pgTable("vt_bulk_audit_log", {
+  id: text("id").primaryKey(),
+  eventType: varchar("event_type", { length: 30 }).notNull(),
+  equipmentId: text("equipment_id").notNull(),
+  equipmentName: text("equipment_name").notNull(),
+  equipmentStatus: varchar("equipment_status", { length: 20 }),
+  actorId: text("actor_id").notNull(),
+  actorEmail: text("actor_email").notNull(),
+  note: text("note"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
   // This function is kept as a thin wrapper for backwards compatibility.
