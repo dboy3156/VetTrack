@@ -62,8 +62,6 @@ if (import.meta.env.DEV) {
 }
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
-// Debug: log first 12 chars to verify key is present (never logs full secret)
-console.log("[VetTrack] Clerk key prefix:", CLERK_PUBLISHABLE_KEY ? CLERK_PUBLISHABLE_KEY.slice(0, 12) + "..." : "NOT SET → using DevAuth");
 
 function InnerApp() {
   return (
