@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route } from "wouter";
 import { Suspense, lazy, Component, type ReactNode } from "react";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
+const SignInPage = lazy(() => import("@/pages/signin"));
 const EquipmentListPage = lazy(() => import("@/pages/equipment-list"));
 const EquipmentDetailPage = lazy(() => import("@/pages/equipment-detail"));
 const NewEquipmentPage = lazy(() => import("@/pages/new-equipment"));
@@ -80,7 +81,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 function RootRoute() {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <PageLoader />;
-  if (!isSignedIn) return <Redirect to="/landing" />;
+  if (!isSignedIn) return <LandingPage />;
   return <HomePage />;
 }
 
@@ -91,6 +92,7 @@ export default function App() {
         <Switch>
           <Route path="/" component={RootRoute} />
           <Route path="/landing" component={LandingPage} />
+          <Route path="/signin" component={SignInPage} />
           <Route path="/equipment" component={EquipmentListPage} />
           <Route path="/equipment/new" component={NewEquipmentPage} />
           <Route path="/equipment/:id" component={EquipmentDetailPage} />

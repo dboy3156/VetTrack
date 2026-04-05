@@ -21,7 +21,7 @@ export default function LandingPage() {
         <title>VetTrack — Veterinary Equipment QR Tracking System</title>
         <meta
           name="description"
-          content="VetTrack is the mobile-first QR tracking system built for veterinary hospitals and ER clinics. Scan, assign, and manage equipment in real time — even offline. Try it free."
+          content="VetTrack — veterinary equipment QR tracking for vet hospitals and ER clinics. Real-time status, offline sync, alerts, and shift handoffs from any phone."
         />
         <meta
           name="keywords"
@@ -61,7 +61,7 @@ export default function LandingPage() {
                 Watch demo
               </Link>
               <Link
-                href="/"
+                href="/signin"
                 className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
               >
                 Sign In
@@ -81,8 +81,8 @@ export default function LandingPage() {
               </div>
 
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight mb-5">
-                Track Every Tool.{" "}
-                <span className="text-teal-600">Save Every Minute.</span>
+                Veterinary Equipment QR Tracking{" "}
+                <span className="text-teal-600">That Saves Every Minute.</span>
               </h1>
 
               <p className="text-lg text-gray-600 leading-relaxed mb-8 max-w-2xl mx-auto">
@@ -93,7 +93,7 @@ export default function LandingPage() {
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
-                  href="/"
+                  href="/signin"
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
                 >
                   <Scan className="w-5 h-5" />
@@ -291,7 +291,7 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
-                  href="/"
+                  href="/signin"
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-teal-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-teal-50 transition-colors shadow-sm"
                 >
                   <Scan className="w-5 h-5" />
