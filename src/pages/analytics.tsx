@@ -21,6 +21,7 @@ import {
   Legend,
 } from "recharts";
 import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   BarChart3,
   CheckCircle2,
@@ -222,7 +223,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Top problem equipment */}
-        {analytics?.topProblemEquipment && analytics.topProblemEquipment.length > 0 && (
+        {!isLoading && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -231,21 +232,31 @@ export default function AnalyticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-3">
-                {analytics.topProblemEquipment.map((item, i) => (
-                  <div key={item.equipmentId} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                        {i + 1}
-                      </span>
-                      <span className="text-sm font-medium truncate">{item.name}</span>
+              {!analytics?.topProblemEquipment || analytics.topProblemEquipment.length === 0 ? (
+                <EmptyState
+                  icon={Trophy}
+                  message="No issues reported"
+                  subMessage="Equipment with recurring issues will appear here"
+                  iconBg="bg-amber-50"
+                  iconColor="text-amber-400"
+                />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {analytics.topProblemEquipment.map((item, i) => (
+                    <div key={item.equipmentId} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                          {i + 1}
+                        </span>
+                        <span className="text-sm font-medium truncate">{item.name}</span>
+                      </div>
+                      <Badge variant="issue" className="shrink-0">
+                        {item.issueCount} issues
+                      </Badge>
                     </div>
-                    <Badge variant="issue" className="shrink-0">
-                      {item.issueCount} issues
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

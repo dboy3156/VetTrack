@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   computeDashboardCounts,
   computeCriticalItems,
@@ -345,10 +346,13 @@ export default function ManagementDashboardPage() {
                 <Skeleton className="h-8 w-full rounded-xl" />
               </div>
             ) : locationGroups.length === 0 ? (
-              <div className="flex flex-col items-center py-6 gap-2 text-center">
-                <MapPin className="w-8 h-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No location data available</p>
-              </div>
+              <EmptyState
+                icon={MapPin}
+                message="No location data available"
+                subMessage="Equipment with assigned locations will appear here"
+                iconBg="bg-muted"
+                iconColor="text-muted-foreground"
+              />
             ) : (
               <div className="flex flex-col gap-3">
                 {locationGroups.map((group) => {

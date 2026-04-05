@@ -249,13 +249,13 @@ export default function EquipmentDetailPage() {
     enabled: !!id,
   });
 
-  const { data: scanLogs } = useQuery({
+  const { data: scanLogs, isLoading: logsLoading } = useQuery({
     queryKey: [`/api/equipment/${id}/logs`],
     queryFn: () => api.equipment.logs(id!),
     enabled: !!id,
   });
 
-  const { data: transfers } = useQuery({
+  const { data: transfers, isLoading: transfersLoading } = useQuery({
     queryKey: [`/api/equipment/${id}/transfers`],
     queryFn: () => api.equipment.transfers(id!),
     enabled: !!id,
@@ -868,6 +868,9 @@ export default function EquipmentDetailPage() {
             <TabsTrigger value="history" className="flex-1">
               History ({scanLogs?.length ?? 0})
             </TabsTrigger>
+            <TabsTrigger value="transfers" className="flex-1">
+              Transfers ({transfers?.length ?? 0})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="details">
@@ -913,7 +916,13 @@ export default function EquipmentDetailPage() {
 
           <TabsContent value="history">
             <div className="flex flex-col gap-2">
-              {!scanLogs || scanLogs.length === 0 ? (
+              {logsLoading ? (
+                <>
+                  <Skeleton className="h-20 w-full rounded-xl" />
+                  <Skeleton className="h-20 w-full rounded-xl" />
+                  <Skeleton className="h-20 w-full rounded-xl" />
+                </>
+              ) : !scanLogs || scanLogs.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
                     <p className="text-muted-foreground text-sm">No scan history yet</p>
@@ -946,6 +955,44 @@ export default function EquipmentDetailPage() {
                         </div>
                         <p className="text-xs text-muted-foreground shrink-0">
                           {formatRelativeTime(log.timestamp.toString())}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="transfers">
+            <div className="flex flex-col gap-2">
+              {transfersLoading ? (
+                <>
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                </>
+              ) : !transfers || transfers.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <p className="text-muted-foreground text-sm">No transfers recorded</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                transfers.map((transfer) => (
+                  <Card key={transfer.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium truncate">
+                              {transfer.fromFolderName ?? "—"} → {transfer.toFolderName ?? "—"}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground shrink-0">
+                          {formatRelativeTime(transfer.timestamp.toString())}
                         </p>
                       </div>
                     </CardContent>
