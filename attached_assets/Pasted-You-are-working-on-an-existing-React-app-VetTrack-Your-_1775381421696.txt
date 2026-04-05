@@ -1,0 +1,202 @@
+You are working on an existing React app (VetTrack).
+
+Your task is to standardize the entire UI using a simple design system and make the app look tight, clean, and consistent.
+
+Do NOT add new features.
+Do NOT change logic.
+Only improve UI using consistent design rules.
+
+⸻
+
+🚨 CRITICAL RULES
+	•	Do NOT break existing functionality
+	•	Do NOT rewrite logic or hooks
+	•	Only update styles and layout
+	•	Reuse existing components where possible
+	•	Keep everything simple
+
+⸻
+
+🎯 GOAL
+
+Make the app feel like a high-quality SaaS product:
+	•	Tight spacing
+	•	Clean layout
+	•	Consistent components
+	•	Clear hierarchy
+
+⸻
+
+🔶 PART 1 — DEFINE DESIGN SYSTEM (MANDATORY)
+
+Create a simple design system and apply it everywhere.
+
+⸻
+
+1. Spacing System
+
+Use ONLY these values:
+	•	4px
+	•	8px
+	•	12px
+	•	16px
+	•	24px
+
+Rules:
+	•	No random spacing
+	•	Cards → 16 padding
+	•	Sections → 24 spacing
+	•	Small gaps → 8–12
+
+⸻
+
+2. Border Radius
+
+Use consistent radius:
+	•	Small elements → 6px
+	•	Cards / buttons → 10–12px
+
+⸻
+
+3. Typography
+
+Define consistent text styles:
+	•	Title → large, bold
+	•	Subtitle → medium
+	•	Body → regular
+	•	Caption → small
+
+Rules:
+	•	Consistent font sizes
+	•	Consistent line-height
+	•	No random font scaling
+
+⸻
+
+4. Colors (Clinical & Consistent)
+
+Define fixed color meaning:
+	•	Green → OK / available
+	•	Yellow → warning
+	•	Red → issue
+	•	Gray → neutral
+
+Do NOT mix meanings.
+
+⸻
+
+5. Shadows
+
+Use minimal shadows:
+	•	Cards → light shadow
+	•	Avoid heavy or multiple shadows
+
+⸻
+
+⸻
+
+🔶 PART 2 — APPLY SYSTEM TO UI
+
+Go through all screens:
+	•	dashboard
+	•	equipment pages
+	•	alerts
+	•	my equipment
+	•	scan flow
+
+⸻
+
+Fix:
+
+1. Spacing
+	•	Replace all random spacing
+	•	Align everything to spacing system
+
+⸻
+
+2. Alignment
+	•	Fix all misaligned elements
+	•	Ensure clean left alignment
+	•	Icons aligned with text
+
+⸻
+
+3. Components
+
+Unify:
+	•	Buttons
+	•	Cards
+	•	Inputs
+	•	Badges
+
+All must look identical across app.
+
+⸻
+
+4. Visual Hierarchy
+
+Make clear:
+	•	what is important
+	•	what is secondary
+
+Use:
+	•	size
+	•	spacing
+	•	weight
+
+⸻
+
+5. Reduce Noise
+	•	Remove extra borders
+	•	Reduce unnecessary elements
+	•	Keep UI minimal
+
+⸻
+
+6. Make UI “Tight”
+	•	Reduce empty space
+	•	Group related elements
+	•	Avoid floating elements
+
+⸻
+
+⸻
+
+🔶 PART 3 — MOBILE FIXES
+	•	Fix spacing for small screens
+	•	Prevent overflow
+	•	Ensure tap-friendly buttons
+
+⸻
+
+⸻
+
+🔶 PART 4 — FINAL PASS
+
+Scan the entire app and fix:
+	•	inconsistent spacing
+	•	misalignment
+	•	inconsistent components
+
+⸻
+
+📤 OUTPUT
+
+Explain:
+	1.	Design system created
+	2.	What was standardized
+	3.	What UI issues were fixed
+	4.	Which components were updated
+
+⸻
+
+🔥 FINAL RULE
+
+If something looks:
+	•	loose
+	•	inconsistent
+	•	not aligned
+
+→ fix it.
+
+Everything should feel tight and professional.
