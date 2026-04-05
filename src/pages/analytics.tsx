@@ -20,6 +20,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { ErrorCard } from "@/components/ui/error-card";
 import {
   BarChart3,
   CheckCircle2,
@@ -39,7 +40,7 @@ const STATUS_COLORS_HEX = {
 };
 
 export default function AnalyticsPage() {
-  const { data: analytics, isLoading, isError } = useQuery({
+  const { data: analytics, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/analytics"],
     queryFn: api.analytics.summary,
   });
@@ -79,12 +80,10 @@ export default function AnalyticsPage() {
         </h1>
 
         {isError && (
-          <Card className="border-destructive bg-destructive/5">
-            <CardContent className="p-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-              <p className="text-sm text-destructive">Failed to load analytics. Please refresh to try again.</p>
-            </CardContent>
-          </Card>
+          <ErrorCard
+            message="Failed to load analytics. Please try again."
+            onRetry={() => refetch()}
+          />
         )}
 
         {/* Summary cards */}

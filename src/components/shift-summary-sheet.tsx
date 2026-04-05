@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   MapPin,
   ClipboardCheck,
+  ArrowUpRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -68,6 +69,15 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
+  const todayCheckouts = activityData?.items.filter(
+    (item) =>
+      item.type === "scan" &&
+      item.note != null &&
+      item.note.includes("Checked out") &&
+      item.userEmail === userEmail &&
+      new Date(item.timestamp) >= todayStart
+  ) ?? [];
+
   const todayIssues = activityData?.items.filter(
     (item) =>
       item.type === "scan" &&
@@ -90,8 +100,8 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     const dateStr = format(new Date(), "MMMM d, yyyy");
     const lines: string[] = [`VetTrack Shift Summary — ${dateStr}`, ""];
 
+    lines.push("CURRENTLY CHECKED OUT:");
     if (myItems && myItems.length > 0) {
-      lines.push(`CHECKED OUT (${myItems.length} item${myItems.length !== 1 ? "s" : ""}):`);
       for (const item of myItems) {
         const loc = item.checkedOutLocation || item.location;
         const since = item.checkedOutAt
@@ -100,30 +110,38 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         lines.push(`• ${item.name}${loc ? ` — ${loc}` : ""} since ${since}`);
       }
     } else {
-      lines.push("CHECKED OUT: none");
+      lines.push("  none");
     }
 
     lines.push("");
 
+    if (todayCheckouts.length > 0) {
+      lines.push(`TODAY'S CHECKOUTS (${todayCheckouts.length}):`);
+      for (const item of todayCheckouts) {
+        lines.push(`• ${item.equipmentName} — ${formatRelativeTime(item.timestamp)}`);
+      }
+      lines.push("");
+    }
+
+    lines.push("ISSUES FLAGGED TODAY:");
     if (todayIssues.length > 0) {
-      lines.push(`ISSUES FLAGGED TODAY (${todayIssues.length}):`);
       for (const item of todayIssues) {
         lines.push(`• ${item.equipmentName}`);
       }
     } else {
-      lines.push("ISSUES FLAGGED TODAY: none");
+      lines.push("  none");
     }
 
     lines.push("");
 
+    lines.push("UNACKNOWLEDGED ALERTS:");
     if (urgentAlerts.length > 0) {
-      lines.push(`UNACKNOWLEDGED ALERTS (${urgentAlerts.length}):`);
       for (const alert of urgentAlerts) {
         const tag = alert.severity === "critical" ? "[CRITICAL]" : "[HIGH]";
         lines.push(`• ${tag} ${alert.equipmentName} — ${alert.detail}`);
       }
     } else {
-      lines.push("UNACKNOWLEDGED ALERTS: none");
+      lines.push("  none");
     }
 
     return lines.join("\n");
@@ -189,11 +207,11 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
             </div>
           ) : (
             <>
-              {/* Checked out now */}
+              {/* Currently checked out */}
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <PackageOpen className="w-4 h-4 text-blue-500" />
-                  <h3 className="text-sm font-semibold">Checked Out Now</h3>
+                  <h3 className="text-sm font-semibold">Currently Checked Out</h3>
                   <Badge variant="secondary" className="ml-auto">
                     {myItems?.length ?? 0}
                   </Badge>
@@ -223,10 +241,36 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">Nothing checked out</p>
+                    <p className="text-sm text-muted-foreground">Nothing currently checked out</p>
                   </div>
                 )}
               </div>
+
+              {/* Today's checkout events */}
+              {todayCheckouts.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <ArrowUpRight className="w-4 h-4 text-teal-500" />
+                    <h3 className="text-sm font-semibold">Today's Checkouts</h3>
+                    <Badge variant="secondary" className="ml-auto">
+                      {todayCheckouts.length}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {todayCheckouts.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-teal-50 border border-teal-200"
+                      >
+                        <p className="font-medium text-sm truncate">{item.equipmentName}</p>
+                        <p className="text-xs text-muted-foreground shrink-0">
+                          {formatRelativeTime(item.timestamp)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Issues flagged today */}
               <div>

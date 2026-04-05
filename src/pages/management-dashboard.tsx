@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ErrorCard } from "@/components/ui/error-card";
 import {
   computeDashboardCounts,
   computeCriticalItems,
@@ -113,12 +114,10 @@ export default function ManagementDashboardPage() {
         </div>
 
         {isError && (
-          <Card className="border-destructive bg-destructive/5">
-            <CardContent className="p-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-              <p className="text-sm text-destructive">Failed to load equipment data. Please refresh.</p>
-            </CardContent>
-          </Card>
+          <ErrorCard
+            message="Failed to load equipment data. Please try again."
+            onRetry={() => refetch()}
+          />
         )}
 
         {/* Summary Counts */}

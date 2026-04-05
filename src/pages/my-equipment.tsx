@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ShiftSummarySheet } from "@/components/shift-summary-sheet";
 import {
   AlertDialog,
@@ -150,17 +151,21 @@ export default function MyEquipmentPage() {
             ))}
           </div>
         ) : isError ? null : !items || items.length === 0 ? (
-          <Card className="border-2 border-dashed border-teal-200">
-            <CardContent className="p-10 text-center">
-              <div className="w-16 h-16 rounded-xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-teal-500" />
-              </div>
-              <h3 className="font-bold text-lg text-teal-700">Nothing checked out</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Equipment you check out will appear here.
-              </p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={CheckCircle2}
+            message="Nothing checked out"
+            subMessage="Equipment you check out will appear here."
+            iconBg="bg-teal-50"
+            iconColor="text-teal-500"
+            borderColor="border-teal-200"
+            action={
+              <Link href="/equipment">
+                <Button variant="outline" size="sm" className="border-teal-300 text-teal-700 hover:bg-teal-50">
+                  Browse Equipment
+                </Button>
+              </Link>
+            }
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {items.map((item) => (

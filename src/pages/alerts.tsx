@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { computeAlerts, buildWhatsAppUrl } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -157,17 +158,21 @@ export default function AlertsPage() {
             ))}
           </div>
         ) : isError ? null : alerts.length === 0 ? (
-          <Card className="border-2 border-dashed border-emerald-200">
-            <CardContent className="p-10 text-center">
-              <div className="w-16 h-16 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-emerald-500" />
-              </div>
-              <h3 className="font-bold text-lg text-emerald-700">All Clear!</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                No alerts at this time. All equipment is in good standing.
-              </p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={CheckCircle}
+            message="All Clear!"
+            subMessage="No alerts at this time. All equipment is in good standing."
+            iconBg="bg-emerald-50"
+            iconColor="text-emerald-500"
+            borderColor="border-emerald-200"
+            action={
+              <Link href="/equipment">
+                <Button variant="outline" size="sm" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                  Browse Equipment
+                </Button>
+              </Link>
+            }
+          />
         ) : (
           priorityOrder
             .filter((type) => grouped[type] && grouped[type]!.length > 0)

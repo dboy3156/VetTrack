@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -452,24 +453,33 @@ export default function EquipmentListPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <Card className="border-2 border-dashed">
-            <CardContent className="p-10 text-center">
-              <Package className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="font-medium text-muted-foreground">No equipment found</p>
-              {(search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all") && (
+          <EmptyState
+            icon={Package}
+            message="No equipment found"
+            subMessage={
+              search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all"
+                ? "Try adjusting your filters or search query."
+                : "Add your first piece of equipment to start tracking."
+            }
+            action={
+              search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all" ? (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="mt-2"
-                  onClick={() => {
-                    navigate("/equipment", { replace: true });
-                  }}
+                  onClick={() => navigate("/equipment", { replace: true })}
                 >
                   Clear all filters
                 </Button>
-              )}
-            </CardContent>
-          </Card>
+              ) : (
+                <Link href="/equipment/new">
+                  <Button size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Equipment
+                  </Button>
+                </Link>
+              )
+            }
+          />
         ) : (
           <div className="flex flex-col gap-2" data-testid="equipment-list">
             {filtered.map((eq) => (
