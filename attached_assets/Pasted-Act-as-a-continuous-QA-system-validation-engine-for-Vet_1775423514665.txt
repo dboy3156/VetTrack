@@ -1,0 +1,170 @@
+Act as a continuous QA + system validation engine for VetTrack.
+
+Use the actual system features (QR scanning, offline mode, alerts, checkout system, RBAC, reports) as the basis for all validations.
+
+Run a full validation cycle:
+	•	After every change
+	•	And periodically (simulate every few hours in production)
+
+Do NOT test abstract logic — test real workflows based on how VetTrack is used in a veterinary hospital.
+
+⸻
+
+1. Core Feature Validation (Must Always Pass)
+
+QR Scanning Flow
+
+Simulate:
+	•	Scan QR → open equipment
+	•	Update status within 5 seconds
+
+Check:
+	•	Speed (must be fast)
+	•	Correct equipment loaded
+	•	No broken links
+
+⸻
+
+Offline-First Behavior
+
+Simulate:
+	•	Perform actions without internet
+	•	Queue multiple actions
+	•	Reconnect
+
+Check:
+	•	Actions replay in correct order
+	•	No duplicates
+	•	No data loss
+
+⸻
+
+Equipment Checkout System
+
+Simulate:
+	•	Technician checks out equipment
+	•	Multiple users interacting
+
+Check:
+	•	Ownership is accurate
+	•	“My Equipment” reflects reality
+	•	“Return All” works instantly
+
+⸻
+
+Alerts System
+
+Simulate:
+	•	Critical issue triggered
+	•	Multiple users respond
+
+Check:
+	•	Alerts delivered immediately
+	•	No duplicate handling
+	•	“I’m handling this” prevents conflicts
+
+⸻
+
+RBAC (Admin vs Technician)
+
+Simulate:
+	•	Technician tries admin action
+	•	Admin manages users
+
+Check:
+	•	Permissions enforced server-side
+	•	No bypass possible
+
+⸻
+
+2. Real-World ICU Simulation
+
+Simulate:
+	•	Fast repeated scans
+	•	Multiple users scanning same equipment
+	•	Stress conditions
+
+Check:
+	•	No UI confusion
+	•	No accidental actions
+	•	No data overwrite
+
+⸻
+
+3. Failure Scenarios
+
+Simulate:
+	•	Internet disconnect mid-scan
+	•	App closed mid-action
+	•	Two users updating same item
+
+Check:
+	•	System recovery
+	•	No corrupted data
+	•	Conflict resolution works
+
+⸻
+
+4. Data Integrity
+
+Verify:
+	•	No duplicate equipment states
+	•	Ownership is always correct
+	•	Audit log matches actions
+	•	Offline sync does not break consistency
+
+⸻
+
+5. Regression Testing
+
+Ensure:
+	•	Existing flows still work after changes
+	•	New features do not break:
+	•	QR scanning
+	•	Offline sync
+	•	Alerts
+	•	Checkout
+
+⸻
+
+6. Bug Handling Loop
+
+For each issue:
+	•	Describe exact scenario
+	•	Severity:
+	•	Critical (data loss / wrong ownership / broken flow)
+	•	High (major friction)
+	•	Medium
+	•	Root cause
+	•	Fix
+	•	Re-test immediately
+
+Repeat until stable.
+
+⸻
+
+7. Output
+
+After each cycle:
+
+System Status:
+	•	Stable / At Risk / Broken
+
+Critical Issues:
+	•	Must fix before real use
+
+High Issues:
+	•	Affect workflow
+
+Summary:
+	•	Is system safe for ICU usage?
+
+⸻
+
+Goal
+
+Ensure VetTrack:
+	•	Works under real hospital pressure
+	•	Does not lose or corrupt data
+	•	Reflects reality (who holds what, what is broken)
+	•	Remains reliable even offline
