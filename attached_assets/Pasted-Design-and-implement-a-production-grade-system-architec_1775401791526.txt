@@ -1,0 +1,51 @@
+Design and implement a production-grade system architecture for VetTrack that covers cloud storage, data security, technical support workflows, and version management.
+
+Focus on the following areas:
+
+1. Cloud Storage & Infrastructure
+	•	Use a scalable cloud architecture (e.g. AWS / GCP / Firebase).
+	•	Store all application data (equipment, logs, users, QR scans) in a structured database.
+	•	Ensure real-time sync between devices with offline fallback (local cache + sync when online).
+	•	Optimize for high-load environments (ICU, multiple concurrent users).
+	•	Implement automatic backups (daily + versioned snapshots).
+
+2. Data Security
+	•	All data must be encrypted:
+	•	In transit (HTTPS / TLS)
+	•	At rest (database encryption)
+	•	Implement role-based access control (RBAC):
+	•	Admin / Vet / Technician / Viewer
+	•	Add audit logs for every critical action (who changed what and when).
+	•	Prevent unauthorized access:
+	•	Secure authentication (Clerk or similar)
+	•	Token-based sessions
+	•	Protect against common vulnerabilities (XSS, CSRF, injection).
+
+3. Technical Support System
+	•	Build an internal support mechanism:
+	•	“Report Issue” button inside the app
+	•	Automatically attach logs, device info, and user context
+	•	Create admin dashboard for:
+	•	Viewing reported issues
+	•	Tracking status (open / in progress / resolved)
+	•	Optional: integrate with external tools (Slack / Email alerts).
+
+4. Version Management & Updates
+	•	Implement version control strategy:
+	•	Clear versioning (v1, v1.1, etc.)
+	•	Changelog tracking
+	•	Enable seamless updates:
+	•	No data loss between versions
+	•	Migration handling for database changes
+	•	Add user-facing update notifications (e.g. “New version available”).
+	•	Support gradual rollout (if possible).
+
+5. Reliability & Monitoring
+	•	Add system monitoring:
+	•	Error tracking (e.g. Sentry)
+	•	Performance monitoring
+	•	Implement fallback behavior if services fail.
+	•	Ensure uptime and fast recovery.
+
+Goal:
+Create a secure, scalable, and reliable infrastructure that can support a busy veterinary hospital environment with minimal downtime and maximum data integrity.
