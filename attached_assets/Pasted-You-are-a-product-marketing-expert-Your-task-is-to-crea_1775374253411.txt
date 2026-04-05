@@ -1,0 +1,146 @@
+You are a product marketing expert.
+
+Your task is to create a real screen-recorded demo video (60–90 seconds) using the actual VetTrack app.
+
+Do NOT create animations or simulations.
+Use real app screens and real interactions.
+
+⸻
+
+Goal
+
+Show a realistic veterinary technician workflow during a shift.
+
+The video must demonstrate how the app solves:
+	•	Lost equipment
+	•	Lack of accountability
+	•	Poor communication
+
+This is NOT a feature walkthrough.
+It is a story of real usage.
+
+⸻
+
+Recording Setup
+	•	Record directly from a mobile device (preferred) or browser
+	•	Use realistic demo data:
+	•	Equipment names (e.g. “IV Pump #3”, “Monitor #2”)
+	•	Rooms (ICU, Room 4, Surgery)
+	•	Keep UI clean and readable
+	•	Avoid shaky or slow interactions
+
+⸻
+
+Structure (Follow exactly)
+
+1. Opening — Problem (0–7s)
+
+Show confusion:
+	•	Navigate between screens / empty state
+	•	Optional text overlay:
+	•	“Where is the equipment?”
+	•	“No one knows who took it”
+
+⸻
+
+2. Scan → Check-Out (7–20s)
+	•	Open scan (or select equipment if scan not ready)
+	•	Tap:
+→ “Check Out”
+
+Overlay:
+
+“Scan. Assign. Done.”
+
+⸻
+
+3. Real Usage Context (20–32s)
+	•	Show equipment assigned to:
+	•	room or patient
+
+Make it clear:
+→ this equipment is now tracked
+
+⸻
+
+4. Issue Reporting (32–47s)
+	•	Scan/select equipment
+	•	Tap “Report Issue”
+	•	Add:
+	•	note
+	•	photo
+
+Overlay:
+
+“Clear issue reporting. No guesswork.”
+
+⸻
+
+5. Alerts (47–57s)
+	•	Go to Alerts screen
+	•	Show alert appears
+	•	Tap:
+→ “I’m handling this”
+
+Overlay:
+
+“No missed problems. No duplicates.”
+
+⸻
+
+6. My Equipment (57–65s)
+	•	Open “My Equipment”
+	•	Show:
+	•	list of assigned items
+
+Overlay:
+
+“Full accountability per shift”
+
+⸻
+
+7. Return Flow (65–75s)
+	•	Scan/select equipment
+	•	Tap:
+→ “Return”
+
+Overlay:
+
+“Everything goes back”
+
+⸻
+
+8. Ending (last 3–5s)
+
+Show clean screen or logo
+
+Final text:
+
+“Nothing gets lost.”
+
+⸻
+
+Editing Guidelines
+	•	Keep cuts fast and smooth
+	•	Remove delays, loading time, hesitation
+	•	Add simple text overlays (no voiceover)
+	•	Highlight taps if needed
+
+⸻
+
+Important
+	•	Every action must look fast and natural
+	•	No unnecessary navigation
+	•	No dead time
+
+Design for a busy veterinary technician:
+→ everything should feel quick and obvious
+
+⸻
+
+Output
+
+Provide:
+	1.	Exact recording plan (what to press, in order)
+	2.	Suggested text overlays
+	3.	Editing instructions (cuts, timing)
