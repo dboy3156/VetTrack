@@ -102,6 +102,8 @@ export const alertAcks = pgTable("vt_alert_acks", {
   acknowledgedById: text("acknowledged_by_id").notNull(),
   acknowledgedByEmail: text("acknowledged_by_email").notNull(),
   acknowledgedAt: timestamp("acknowledged_at").defaultNow().notNull(),
+  remindAt: timestamp("remind_at"),
+  remindedAt: timestamp("reminded_at"),
 });
 
 export const undoTokens = pgTable("vt_undo_tokens", {

@@ -40,6 +40,7 @@ import metricsRoutes from "./routes/metrics.js";
 import supportRoutes from "./routes/support.js";
 import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
+import { startAlertReminderScheduler } from "./lib/alert-reminder.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -238,6 +239,7 @@ async function main() {
   await runMigrations();
   await initDb();
   await initVapid();
+  startAlertReminderScheduler();
 
   // Run cleanup at half the undo TTL (90s) so expired tokens are removed promptly
   setInterval(() => {

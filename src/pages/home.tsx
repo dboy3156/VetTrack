@@ -28,11 +28,12 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
 import { QrScanner } from "@/components/qr-scanner";
+import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 
 const RESUME_KEY = "vettrack_last_equipment_id";
 
 export default function HomePage() {
-  const { name, userId } = useAuth();
+  const { name, userId, email } = useAuth();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [resumeEquipmentId, setResumeEquipmentId] = useState<string | null>(null);
@@ -72,6 +73,8 @@ export default function HomePage() {
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
   });
+
+  const hasScanned = !!(activityData?.items.find((item) => item.userEmail === email && item.type === "scan"));
 
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
@@ -146,6 +149,11 @@ export default function HomePage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Onboarding walkthrough — shown once for new users with no scan history */}
+        {!isLoading && activityData !== undefined && (
+          <OnboardingWalkthrough show={!hasScanned} />
         )}
 
         {/* Scan CTA */}

@@ -33,6 +33,8 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
         and(eq(alertAcks.equipmentId, equipmentId), eq(alertAcks.alertType, alertType))
       );
 
+    const remindAt = new Date(Date.now() + 30 * 60 * 1000);
+
     const [ack] = await db
       .insert(alertAcks)
       .values({
@@ -41,6 +43,7 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
         alertType,
         acknowledgedById: req.authUser!.id,
         acknowledgedByEmail: req.authUser!.email,
+        remindAt,
       })
       .returning();
 
