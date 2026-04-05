@@ -199,6 +199,14 @@ export interface AlertAcknowledgment {
   acknowledgedAt: string;
 }
 
+export interface SystemMetrics {
+  uptime: number;
+  memoryMb: number;
+  memoryTotalMb: number;
+  activeSessions: number;
+  pendingSyncCount: number;
+}
+
 export const EQUIPMENT_CATEGORIES = [
   "Surgical",
   "Imaging",

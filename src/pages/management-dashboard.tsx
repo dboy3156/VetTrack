@@ -27,11 +27,24 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Activity,
+  Server,
+  Clock,
+  MemoryStick,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
+
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
 
 export default function ManagementDashboardPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
@@ -40,6 +53,13 @@ export default function ManagementDashboardPage() {
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
     refetchInterval: 30_000,
+  });
+
+  const { data: metrics, isLoading: metricsLoading } = useQuery({
+    queryKey: ["/api/metrics"],
+    queryFn: api.metrics.get,
+    refetchInterval: 60_000,
+    retry: false,
   });
 
   const counts = equipment ? computeDashboardCounts(equipment) : { available: 0, inUse: 0, issues: 0, missing: 0 };
@@ -349,6 +369,76 @@ export default function ManagementDashboardPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* System Health */}
+        <Card data-testid="section-system-health">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary" />
+              System Health
+              <span className="ml-auto text-xs text-muted-foreground font-normal">Updates every 60s</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {metricsLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Skeleton className="h-16 rounded-xl" />
+                <Skeleton className="h-16 rounded-xl" />
+                <Skeleton className="h-16 rounded-xl" />
+                <Skeleton className="h-16 rounded-xl" />
+              </div>
+            ) : !metrics ? (
+              <div className="flex flex-col items-center py-6 gap-2 text-center">
+                <Server className="w-8 h-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">Metrics unavailable</p>
+                <p className="text-xs text-muted-foreground">Admin access required</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Clock className="w-3.5 h-3.5" />
+                    Uptime
+                  </div>
+                  <p className="text-lg font-bold">{formatUptime(metrics.uptime)}</p>
+                </div>
+                <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MemoryStick className="w-3.5 h-3.5" />
+                    Memory
+                  </div>
+                  <p className="text-lg font-bold">{metrics.memoryMb}
+                    <span className="text-sm font-normal text-muted-foreground">/{metrics.memoryTotalMb} MB</span>
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Users className="w-3.5 h-3.5" />
+                    Sessions
+                  </div>
+                  <p className="text-lg font-bold">{metrics.activeSessions}</p>
+                </div>
+                <div className={cn(
+                  "flex flex-col gap-1 p-3 rounded-xl border",
+                  metrics.pendingSyncCount > 0
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-muted/40"
+                )}>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Server className="w-3.5 h-3.5" />
+                    Sync Queue
+                  </div>
+                  <p className={cn(
+                    "text-lg font-bold",
+                    metrics.pendingSyncCount > 0 ? "text-amber-700" : ""
+                  )}>
+                    {metrics.pendingSyncCount}
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>

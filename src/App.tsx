@@ -1,5 +1,6 @@
 import { Switch, Route } from "wouter";
-import { Suspense, lazy, Component, type ReactNode } from "react";
+import { Suspense, lazy } from "react";
+import * as Sentry from "@sentry/react";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,54 +31,51 @@ function PageLoader() {
   );
 }
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-}
-
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, info: { componentStack: string }) {
-    console.error("App error boundary caught:", error, info);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-6">
-          <div className="max-w-sm w-full text-center">
-            <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-8 h-8 text-destructive" />
-            </div>
-            <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
-            <p className="text-sm text-muted-foreground mb-6">
-              An unexpected error occurred. Please try refreshing the page.
-            </p>
-            <Button
-              onClick={() => {
-                this.setState({ hasError: false, error: undefined });
-                window.location.reload();
-              }}
-              className="gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh Page
-            </Button>
-          </div>
+function ErrorFallback({ error, resetError }: { error: Error; resetError: () => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-sm w-full text-center">
+        <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="w-8 h-8 text-destructive" />
         </div>
-      );
-    }
-
-    return this.props.children;
-  }
+        <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
+        <p className="text-sm text-muted-foreground mb-2">
+          An unexpected error occurred. Please try refreshing the page.
+        </p>
+        {error && (
+          <p className="text-xs text-muted-foreground mb-6 font-mono bg-muted rounded px-2 py-1 truncate">
+            {error.message}
+          </p>
+        )}
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={() => {
+              resetError();
+              window.location.reload();
+            }}
+            className="gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Page
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const sentryId = Sentry.lastEventId();
+              if (sentryId) {
+                Sentry.showReportDialog({ eventId: sentryId });
+              } else {
+                window.open("mailto:support@vettrack.app?subject=Error+Report", "_blank");
+              }
+            }}
+          >
+            Report Issue
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function RootRoute() {
@@ -89,7 +87,7 @@ function RootRoute() {
 
 export default function App() {
   return (
-    <ErrorBoundary>
+    <Sentry.ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>
       <UpdateBanner />
       <Suspense fallback={<PageLoader />}>
         <Switch>
@@ -111,6 +109,6 @@ export default function App() {
           <Route component={NotFoundPage} />
         </Switch>
       </Suspense>
-    </ErrorBoundary>
+    </Sentry.ErrorBoundary>
   );
 }

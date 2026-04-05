@@ -1,3 +1,14 @@
+import * as Sentry from "@sentry/node";
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "development",
+    tracesSampleRate: 1.0,
+    integrations: [Sentry.expressIntegration()],
+  });
+}
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -24,6 +35,7 @@ import storageRoutes from "./routes/storage.js";
 import alertAcksRoutes from "./routes/alert-acks.js";
 import demoSeedRoutes from "./routes/demo-seed.js";
 import pushRoutes from "./routes/push.js";
+import metricsRoutes from "./routes/metrics.js";
 import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
 
@@ -126,6 +138,14 @@ app.use("/api/storage", storageRoutes);
 app.use("/api/alert-acks", alertAcksRoutes);
 app.use("/api/demo-seed", demoSeedRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/metrics", metricsRoutes);
+
+Sentry.setupExpressErrorHandler(app);
+
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "An unexpected error occurred. Please try again." });
+});
 
 if (process.env.NODE_ENV === "production") {
   const publicDir = path.join(__dirname, "../public");

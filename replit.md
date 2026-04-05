@@ -73,6 +73,7 @@ server/
     users.ts        # User management
     whatsapp.ts     # WhatsApp alert URL generator
     storage.ts      # Object storage stub
+    metrics.ts      # GET /api/metrics — admin-only server stats
 
 src/
   main.tsx          # App entry with QueryClient + providers
@@ -96,6 +97,7 @@ src/
     ui/                     # shadcn UI components
       error-card.tsx        # Inline error card with optional retry button
       empty-state.tsx       # Reusable empty state with icon, message, action
+      server-error-banner.tsx # Dismissible global error banner (emitServerError / clearServerError)
   pages/
     settings.tsx         # Full Settings page (/settings) — all sections + reset + logout
     home.tsx             # Dashboard with stats + alerts preview + Shift Summary button
@@ -110,8 +112,18 @@ src/
     not-found.tsx        # 404
 ```
 
+## Error Tracking & Monitoring
+- **Sentry frontend** — `@sentry/react` initialized in `src/main.tsx` if `VITE_SENTRY_DSN` is set. Uses `Sentry.ErrorBoundary` in `App.tsx` with friendly fallback + "Report Issue" button
+- **Sentry backend** — `@sentry/node` initialized in `server/index.ts` if `SENTRY_DSN` is set. Uses `setupExpressErrorHandler(app)` and sets user context in `requireAuth` middleware
+- **Global error banner** — `GlobalServerErrorBanner` in `src/components/ui/server-error-banner.tsx` — fires on 5xx responses or network failure via `emitServerError()` in `src/lib/api.ts`
+- **Admin metrics endpoint** — `GET /api/metrics` (admin only) — uptime, memory, active sessions, pending sync count. Served from `server/routes/metrics.ts`
+- **System Health card** — On `/dashboard` (management dashboard), polls `/api/metrics` every 60s and shows Uptime, Memory, Sessions, Sync Queue
+- **Offline fallback** — Service worker in `public/sw.js` serves `public/offline.html` on navigation failures
+
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (set by Replit)
 - `SESSION_SECRET` — Express session secret (set)
 - `VITE_CLERK_PUBLISHABLE_KEY` — Optional: Clerk publishable key
 - `CLERK_SECRET_KEY` — Optional: Clerk secret key
+- `VITE_SENTRY_DSN` — Optional: Sentry DSN for frontend error tracking
+- `SENTRY_DSN` — Optional: Sentry DSN for backend error tracking

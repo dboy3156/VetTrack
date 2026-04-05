@@ -15,7 +15,9 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
   AlertAcknowledgment,
+  SystemMetrics,
 } from "@/types";
+import { emitServerError, clearServerError } from "@/components/ui/server-error-banner";
 import type { PendingSyncType } from "./offline-db";
 import {
   addPendingSync,
@@ -59,19 +61,29 @@ function isNetworkError(err: unknown): boolean {
 async function request<T>(
   url: string,
   init: RequestInit = {},
-  offline?: OfflineOptions
+  offline?: OfflineOptions,
+  silent?: boolean
 ): Promise<T> {
   const headers = { ...buildHeaders(), ...(init.headers as Record<string, string> | undefined) };
 
   try {
     const res = await fetch(url, { ...init, headers });
     if (!res.ok) {
+      if (!silent && res.status >= 500) {
+        emitServerError("The server encountered an error. Please try again or reload the page.");
+      } else if (!silent) {
+        clearServerError();
+      }
       const error = await res.json().catch(() => ({ error: "Request failed" }));
       throw new Error(error.error || `HTTP ${res.status}`);
     }
+    if (!silent) clearServerError();
     if (res.status === 204) return undefined as T;
     return res.json();
   } catch (err) {
+    if (!silent && isNetworkError(err)) {
+      emitServerError("Server is unreachable. You may be offline or the server is down.");
+    }
     if (isNetworkError(err) && offline) {
       const clientTimestamp = Date.now();
       await addPendingSync({
@@ -469,5 +481,8 @@ export const api = {
         "/api/push/test",
         { method: "POST" }
       ),
+  },
+  metrics: {
+    get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),
   },
 };

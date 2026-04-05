@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
+import * as Sentry from "@sentry/react";
 import "./index.css";
 import App from "./App";
 import { DevAuthProvider } from "@/hooks/use-auth";
@@ -9,6 +10,18 @@ import { SyncProvider } from "@/hooks/use-sync";
 import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
+import { GlobalServerErrorBanner } from "@/components/ui/server-error-banner";
+
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    tracesSampleRate: 1.0,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+    integrations: [],
+  });
+}
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -45,6 +58,7 @@ function Root() {
         <DevAuthProvider>
           <SettingsProvider>
             <SyncProvider>
+              <GlobalServerErrorBanner />
               <App />
               <Toaster richColors position="top-center" />
             </SyncProvider>

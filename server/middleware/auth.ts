@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import * as Sentry from "@sentry/node";
 import { db, users } from "../db.js";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -45,6 +46,7 @@ export async function requireAuth(
 
   if (isDev) {
     req.authUser = DEV_USER;
+    Sentry.setUser({ id: DEV_USER.id, email: DEV_USER.email });
     return next();
   }
 
@@ -100,6 +102,8 @@ export async function requireAuth(
       name: user.name,
       role: user.role as UserRole,
     };
+
+    Sentry.setUser({ id: user.id, email: user.email });
 
     next();
   } catch (err) {
