@@ -81,8 +81,8 @@ async function checkAndSendReminders(): Promise<void> {
       if (stillActive) {
         try {
           await sendPushToUser(ack.acknowledgedById, {
-            title: "Alert Still Active",
-            body: `Reminder: "${eqRow.name}" still has an unresolved ${ack.alertType.replace(/_/g, " ")} alert`,
+            title: "Still needs attention",
+            body: `You said you'd handle the ${ack.alertType.replace(/_/g, " ")} alert on "${eqRow.name}" — still unresolved`,
             tag: `reminder:${ack.equipmentId}:${ack.alertType}`,
             url: `/equipment/${ack.equipmentId}`,
           });

@@ -268,7 +268,7 @@ export default function AlertsPage() {
                                   <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <div className="min-w-0">
                                     <span className="text-xs text-emerald-700 font-medium truncate block">
-                                      {ack.acknowledgedByEmail}
+                                      {ack.acknowledgedByEmail.split("@")[0]}
                                     </span>
                                     <span className="text-xs text-emerald-600/70 truncate block">
                                       Handling since {formatRelativeTime(new Date(ack.acknowledgedAt))}
