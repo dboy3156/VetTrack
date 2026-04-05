@@ -78,19 +78,24 @@ async function checkAndSendReminders(): Promise<void> {
 
       const stillActive = isAlertStillActive(ack.alertType, eqRow);
 
+      if (stillActive) {
+        try {
+          await sendPushToUser(ack.acknowledgedById, {
+            title: "Alert Still Active",
+            body: `Reminder: "${eqRow.name}" still has an unresolved ${ack.alertType.replace(/_/g, " ")} alert`,
+            tag: `reminder:${ack.equipmentId}:${ack.alertType}`,
+            url: `/equipment/${ack.equipmentId}`,
+          });
+        } catch (pushErr) {
+          console.error(`Push failed for ack ${ack.id}, will retry next cycle:`, pushErr);
+          continue;
+        }
+      }
+
       await db
         .update(alertAcks)
         .set({ remindedAt: now })
         .where(eq(alertAcks.id, ack.id));
-
-      if (stillActive) {
-        await sendPushToUser(ack.acknowledgedById, {
-          title: "Alert Still Active",
-          body: `Reminder: "${eqRow.name}" still has an unresolved ${ack.alertType.replace(/_/g, " ")} alert`,
-          tag: `reminder:${ack.equipmentId}:${ack.alertType}`,
-          url: `/equipment/${ack.equipmentId}`,
-        });
-      }
     }
   } catch (err) {
     console.error("Alert reminder check failed:", err);

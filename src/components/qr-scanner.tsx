@@ -16,7 +16,6 @@ import {
   LogOut,
   Wrench,
   CheckCircle2,
-  Scan,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCachedEquipmentById } from "@/lib/offline-db";
@@ -38,8 +37,7 @@ type ScannerPhase =
   | "error"
   | "not_found"
   | "manual"
-  | "result"
-  | "action_done";
+  | "result";
 
 const DEBOUNCE_MS = 2000;
 
@@ -109,7 +107,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const [notFoundId, setNotFoundId] = useState<string | null>(null);
   const [scannedEquipment, setScannedEquipment] = useState<Equipment | null>(null);
   const [isActing, setIsActing] = useState(false);
-  const [actionDoneLabel, setActionDoneLabel] = useState("");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<number>(0);
@@ -309,12 +306,11 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.checkout(scannedEquipment.id);
-      setActionDoneLabel("Checked out!");
-      setPhase("action_done");
+      toast.success(`${scannedEquipment.name} checked out`);
+      onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Checkout failed";
       toast.error(msg);
-    } finally {
       setIsActing(false);
     }
   }
@@ -324,12 +320,39 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.return(scannedEquipment.id);
-      setActionDoneLabel("Returned successfully!");
-      setPhase("action_done");
+      toast.success(`${scannedEquipment.name} returned`);
+      onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Return failed";
       toast.error(msg);
-    } finally {
+      setIsActing(false);
+    }
+  }
+
+  async function handleMarkOk() {
+    if (!scannedEquipment) return;
+    setIsActing(true);
+    try {
+      await api.equipment.update(scannedEquipment.id, { status: "ok" });
+      toast.success(`${scannedEquipment.name} marked as OK`);
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Status update failed";
+      toast.error(msg);
+      setIsActing(false);
+    }
+  }
+
+  async function handleMarkIssue() {
+    if (!scannedEquipment) return;
+    setIsActing(true);
+    try {
+      await api.equipment.update(scannedEquipment.id, { status: "issue" });
+      toast.success(`Issue reported for ${scannedEquipment.name}`);
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Status update failed";
+      toast.error(msg);
       setIsActing(false);
     }
   }
@@ -367,8 +390,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
         </div>
       </div>
 
-      {/* Camera viewport — hidden during manual entry / result / action_done */}
-      <div className={phase === "manual" || phase === "result" || phase === "action_done" ? "hidden" : "flex-1 relative flex items-center justify-center bg-black"}>
+      {/* Camera viewport — hidden during manual entry / result */}
+      <div className={phase === "manual" || phase === "result" ? "hidden" : "flex-1 relative flex items-center justify-center bg-black"}>
         <div id={containerId} className="w-full h-full" />
 
         {/* Loading */}
@@ -619,6 +642,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
             {/* Actions */}
             <div className="flex flex-col gap-2.5">
+              {/* Checkout / Return */}
               {!isCheckedOut && (
                 <Button
                   size="lg"
@@ -652,16 +676,29 @@ export function QrScanner({ onClose }: QrScannerProps) {
                 </div>
               )}
 
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full gap-2.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                onClick={() => navigateToEquipment(scannedEquipment.id, "scan")}
-                data-testid="btn-scan-inline-report"
-              >
-                <Wrench className="w-5 h-5" />
-                Report Issue / Update Status
-              </Button>
+              {/* Status quick-actions: Mark OK / Mark Issue */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  onClick={handleMarkOk}
+                  disabled={isActing || scannedEquipment.status === "ok"}
+                  data-testid="btn-scan-inline-mark-ok"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Mark OK
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={handleMarkIssue}
+                  disabled={isActing || scannedEquipment.status === "issue"}
+                  data-testid="btn-scan-inline-mark-issue"
+                >
+                  <Wrench className="w-4 h-4" />
+                  Mark Issue
+                </Button>
+              </div>
 
               <Button
                 variant="ghost"
@@ -670,38 +707,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
                 data-testid="btn-scan-inline-details"
               >
                 View Full Details
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Action done state */}
-      {phase === "action_done" && (
-        <div className="flex-1 bg-black/95 flex flex-col justify-end" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
-          <div className="bg-white rounded-t-3xl px-5 pt-5 pb-8 w-full">
-            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-            <div className="flex flex-col items-center gap-4 py-4 text-center">
-              <CheckCircle2 className="w-14 h-14 text-emerald-500" />
-              <p className="font-bold text-lg">{actionDoneLabel || "Done!"}</p>
-              {scannedEquipment && (
-                <p className="text-muted-foreground text-sm">{scannedEquipment.name}</p>
-              )}
-              <Button
-                className="w-full gap-2"
-                onClick={handleScanAgain}
-                data-testid="btn-scan-another"
-              >
-                <Scan className="w-4 h-4" />
-                Scan Another Item
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full text-sm"
-                onClick={onClose}
-                data-testid="btn-scanner-done"
-              >
-                Done
               </Button>
             </div>
           </div>

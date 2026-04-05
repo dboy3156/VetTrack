@@ -26,6 +26,19 @@ import {
 import type { Alert, AlertType, AlertAcknowledgment } from "@/types";
 import { toast } from "sonner";
 
+function formatRelativeTime(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin === 1) return "1 minute ago";
+  if (diffMin < 60) return `${diffMin} minutes ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr === 1) return "1 hour ago";
+  if (diffHr < 24) return `${diffHr} hours ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return diffDay === 1 ? "1 day ago" : `${diffDay} days ago`;
+}
+
 const ALERT_CONFIG: Record<
   AlertType,
   { icon: React.ElementType; color: string; bg: string; label: string; severityBg: string; severityText: string }
@@ -255,10 +268,10 @@ export default function AlertsPage() {
                                   <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <div className="min-w-0">
                                     <span className="text-xs text-emerald-700 font-medium truncate block">
-                                      Handling: {ack.acknowledgedByEmail}
+                                      {ack.acknowledgedByEmail}
                                     </span>
                                     <span className="text-xs text-emerald-600/70 truncate block">
-                                      Since {new Date(ack.acknowledgedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                      Handling since {formatRelativeTime(new Date(ack.acknowledgedAt))}
                                     </span>
                                   </div>
                                 </div>
