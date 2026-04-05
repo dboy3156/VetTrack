@@ -70,7 +70,7 @@ export default function ManagementDashboardPage() {
     <Layout>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
               <LayoutDashboard className="w-6 h-6 text-primary" />
@@ -82,7 +82,7 @@ export default function ManagementDashboardPage() {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
