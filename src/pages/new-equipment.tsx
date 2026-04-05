@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Save, Loader2, Copy } from "lucide-react";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const SUBMIT_TIMEOUT_MS = 30_000;
@@ -155,14 +155,8 @@ export default function NewEquipmentPage() {
           </Button>
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">
-              {isCopy ? "New Equipment" : "Add Equipment"}
+              {isCopy ? `New Equipment (copied from ${prefill.copiedFrom})` : "Add Equipment"}
             </h1>
-            {isCopy && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Copy className="w-3 h-3" />
-                Copied from {prefill.copiedFrom}
-              </p>
-            )}
           </div>
         </div>
 

@@ -263,7 +263,7 @@ export default function EquipmentListPage() {
                 data-testid="btn-import-csv"
               >
                 <Upload className="w-4 h-4 mr-1" />
-                Import
+                Import CSV
               </Button>
             )}
             <Link href="/equipment/new">
