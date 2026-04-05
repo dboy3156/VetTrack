@@ -3,11 +3,14 @@ import type { UserRole } from "@/types";
 import { setAuthState } from "@/lib/auth-store";
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 
+export type UserStatus = "pending" | "active" | "blocked" | null;
+
 interface AuthContextType {
   userId: string | null;
   email: string | null;
   name: string | null;
   role: UserRole;
+  status: UserStatus;
   isLoaded: boolean;
   isSignedIn: boolean;
   isAdmin: boolean;
@@ -19,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   email: null,
   name: null,
   role: "technician" as UserRole,
+  status: null,
   isLoaded: false,
   isSignedIn: false,
   isAdmin: false,
@@ -30,6 +34,7 @@ const DEV_USER = {
   email: "admin@vettrack.dev",
   name: "Dev Admin",
   role: "admin" as UserRole,
+  status: "active" as UserStatus,
 };
 
 interface ProviderProps {
@@ -74,6 +79,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
     email: null,
     name: null,
     role: "technician" as UserRole,
+    status: null,
     isLoaded: false,
     isSignedIn: false,
     isAdmin: false,
@@ -99,6 +105,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             email: null,
             name: null,
             role: "technician",
+            status: null,
             isLoaded: true,
             isSignedIn: false,
             isAdmin: false,
@@ -125,6 +132,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             email,
             name,
             role: data.role ?? "technician",
+            status: data.status ?? null,
             isLoaded: true,
             isSignedIn: true,
             isAdmin: data.role === "admin",
@@ -142,6 +150,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
           email,
           name,
           role: "technician",
+          status: null,
           isLoaded: true,
           isSignedIn: true,
           isAdmin: false,

@@ -35,23 +35,30 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp } from "lucide-react";
+import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import type { SupportTicket, SupportTicketStatus } from "@/types";
+import type { SupportTicket, SupportTicketStatus, User } from "@/types";
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<"folders" | "users" | "support">("folders");
+  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support">("folders");
 
   const { data: supportUnresolved } = useQuery({
     queryKey: ["/api/support/unresolved-count"],
     queryFn: api.support.unresolvedCount,
     enabled: isAdmin,
     refetchInterval: 60_000,
+  });
+
+  const { data: pendingUsers } = useQuery({
+    queryKey: ["/api/users/pending"],
+    queryFn: api.users.listPending,
+    enabled: isAdmin,
+    refetchInterval: 30_000,
   });
 
   if (!isAdmin) {
@@ -74,6 +81,7 @@ export default function AdminPage() {
   }
 
   const unresolvedCount = supportUnresolved?.count ?? 0;
+  const pendingCount = pendingUsers?.length ?? 0;
 
   return (
     <Layout>
@@ -89,12 +97,12 @@ export default function AdminPage() {
         </h1>
 
         {/* Tab bar */}
-        <div className="flex gap-2 border-b pb-0">
+        <div className="flex gap-2 border-b pb-0 overflow-x-auto">
           <button
             onClick={() => setActiveTab("folders")}
             data-testid="admin-tab-folders"
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
               activeTab === "folders"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -104,10 +112,28 @@ export default function AdminPage() {
             Folders
           </button>
           <button
+            onClick={() => setActiveTab("pending")}
+            data-testid="admin-tab-pending"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap",
+              activeTab === "pending"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Clock className="w-4 h-4" />
+            Pending
+            {pendingCount > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setActiveTab("users")}
             data-testid="admin-tab-users"
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
               activeTab === "users"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -120,7 +146,7 @@ export default function AdminPage() {
             onClick={() => setActiveTab("support")}
             data-testid="admin-tab-support"
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors relative",
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap",
               activeTab === "support"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -137,6 +163,7 @@ export default function AdminPage() {
         </div>
 
         {activeTab === "folders" && <FoldersSection />}
+        {activeTab === "pending" && <PendingUsersSection />}
         {activeTab === "users" && <UsersSection />}
         {activeTab === "support" && <SupportSection />}
       </div>
@@ -321,6 +348,89 @@ function FoldersSection() {
   );
 }
 
+function PendingUsersSection() {
+  const queryClient = useQueryClient();
+
+  const { data: pendingUsers, isLoading } = useQuery({
+    queryKey: ["/api/users/pending"],
+    queryFn: api.users.listPending,
+  });
+
+  const updateStatusMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "active" | "blocked" }) =>
+      api.users.updateStatus(id, status),
+    onSuccess: (_, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast.success(status === "active" ? "User approved" : "User rejected");
+    },
+    onError: () => toast.error("Failed to update user status"),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="w-4 h-4 text-amber-500" />
+          Pending Users
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+          </div>
+        ) : !pendingUsers || pendingUsers.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No pending users. All sign-ups have been reviewed.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {pendingUsers.map((user) => (
+              <div
+                key={user.id}
+                data-testid={`pending-user-row-${user.id}`}
+                className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 gap-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{user.name || user.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Signed up {new Date(user.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-8 px-2.5"
+                    onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
+                    disabled={updateStatusMut.isPending}
+                    data-testid={`btn-reject-user-${user.id}`}
+                  >
+                    <XCircle className="w-3.5 h-3.5 mr-1" />
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-2.5"
+                    onClick={() => updateStatusMut.mutate({ id: user.id, status: "active" })}
+                    disabled={updateStatusMut.isPending}
+                    data-testid={`btn-approve-user-${user.id}`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 type UserRole = "admin" | "vet" | "technician" | "viewer";
 
 const ROLE_BADGE_STYLES: Record<UserRole, string> = {
@@ -348,6 +458,28 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+function StatusBadge({ status }: { status: string }) {
+  if (status === "active") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200">
+        Active
+      </span>
+    );
+  }
+  if (status === "blocked") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-red-50 text-red-700 border-red-200">
+        Blocked
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
+      Pending
+    </span>
+  );
+}
+
 function UsersSection() {
   const queryClient = useQueryClient();
 
@@ -364,6 +496,17 @@ function UsersSection() {
       toast.success("Role updated");
     },
     onError: () => toast.error("Failed to update role"),
+  });
+
+  const updateStatusMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "pending" | "active" | "blocked" }) =>
+      api.users.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
+      toast.success("Status updated");
+    },
+    onError: () => toast.error("Failed to update status"),
   });
 
   return (
@@ -386,28 +529,44 @@ function UsersSection() {
         ) : (
           <div className="flex flex-col gap-2">
             {users?.map((user) => (
-              <div key={user.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3">
+              <div key={user.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate">{user.name || user.email}</p>
                     <RoleBadge role={user.role} />
+                    <StatusBadge status={user.status} />
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                 </div>
-                <Select
-                  value={user.role}
-                  onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as UserRole })}
-                >
-                  <SelectTrigger className="w-36 h-9 text-xs shrink-0" data-testid={`select-role-${user.id}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="vet">Vet</SelectItem>
-                    <SelectItem value="technician">Technician</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <Select
+                    value={user.role}
+                    onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as UserRole })}
+                  >
+                    <SelectTrigger className="w-36 h-8 text-xs" data-testid={`select-role-${user.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="vet">Vet</SelectItem>
+                      <SelectItem value="technician">Technician</SelectItem>
+                      <SelectItem value="viewer">Viewer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={user.status}
+                    onValueChange={(status) => updateStatusMut.mutate({ id: user.id, status: status as "pending" | "active" | "blocked" })}
+                  >
+                    <SelectTrigger className="w-36 h-8 text-xs" data-testid={`select-status-${user.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="blocked">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             ))}
           </div>

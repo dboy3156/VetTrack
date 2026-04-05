@@ -443,10 +443,16 @@ export const api = {
   },
   users: {
     list: () => request<User[]>("/api/users"),
+    listPending: () => request<User[]>("/api/users/pending"),
     updateRole: (id: string, role: "admin" | "vet" | "technician" | "viewer") =>
       request<User>(
         `/api/users/${id}/role`,
         { method: "PATCH", body: JSON.stringify({ role }) }
+      ),
+    updateStatus: (id: string, status: "pending" | "active" | "blocked") =>
+      request<User>(
+        `/api/users/${id}/status`,
+        { method: "PATCH", body: JSON.stringify({ status }) }
       ),
     me: () => request<User>("/api/users/me"),
   },

@@ -13,12 +13,15 @@ export const ALERT_SEVERITY: Record<AlertType, AlertSeverity> = {
   inactive: "low",
 };
 
+export type UserStatus = "pending" | "active" | "blocked";
+
 export interface User {
   id: string;
   clerkId: string;
   email: string;
   name: string;
   role: UserRole;
+  status: UserStatus;
   createdAt: string;
 }
 

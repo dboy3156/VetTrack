@@ -1,7 +1,7 @@
 import { Switch, Route, Redirect } from "wouter";
 import { Suspense, lazy, type ReactNode } from "react";
 import * as Sentry from "@sentry/react";
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { UpdateBanner } from "@/components/update-banner";
@@ -78,17 +78,59 @@ function ErrorFallback({ error, resetError }: { error: Error; resetError: () => 
   );
 }
 
+function PendingApprovalScreen({ signOut }: { signOut: () => Promise<void> }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-sm w-full text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-8 h-8 text-amber-600" />
+        </div>
+        <h1 className="text-xl font-bold mb-2">Awaiting Approval</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Your account is pending review by an administrator. You will have access once your account is approved.
+        </p>
+        <Button variant="outline" onClick={signOut}>
+          Sign Out
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function BlockedScreen({ signOut }: { signOut: () => Promise<void> }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="max-w-sm w-full text-center">
+        <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+          <Ban className="w-8 h-8 text-destructive" />
+        </div>
+        <h1 className="text-xl font-bold mb-2">Account Suspended</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          Your account has been suspended. Please contact an administrator if you believe this is a mistake.
+        </p>
+        <Button variant="outline" onClick={signOut}>
+          Sign Out
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, status, signOut } = useAuth();
   if (!isLoaded) return <PageLoader />;
   if (!isSignedIn) return <Redirect to="/signin" />;
+  if (status === "pending") return <PendingApprovalScreen signOut={signOut} />;
+  if (status === "blocked") return <BlockedScreen signOut={signOut} />;
   return <>{children}</>;
 }
 
 function RootRoute() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, status, signOut } = useAuth();
   if (!isLoaded) return <PageLoader />;
   if (!isSignedIn) return <Redirect to="/signin" />;
+  if (status === "pending") return <PendingApprovalScreen signOut={signOut} />;
+  if (status === "blocked") return <BlockedScreen signOut={signOut} />;
   return <HomePage />;
 }
 

@@ -2,12 +2,12 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, users } from "../db.js";
 import { eq, sql } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 
 const router = Router();
 
-router.get("/me", requireAuth, async (req, res) => {
+router.get("/me", requireAuthAny, async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
     res.json(req.authUser);
@@ -23,6 +23,20 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to list users" });
+  }
+});
+
+router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const pendingUsers = await db
+      .select()
+      .from(users)
+      .where(eq(users.status, "pending"))
+      .orderBy(users.createdAt);
+    res.json(pendingUsers);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to list pending users" });
   }
 });
 
@@ -61,6 +75,27 @@ router.patch("/:id/role", requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update role" });
+  }
+});
+
+router.patch("/:id/status", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["pending", "active", "blocked"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const [user] = await db
+      .update(users)
+      .set({ status })
+      .where(eq(users.id, req.params.id))
+      .returning();
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update status" });
   }
 });
 
