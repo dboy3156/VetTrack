@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, scanLogs, transferLogs, equipment } from "../db.js";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, count } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { sql } from "drizzle-orm";
 
@@ -86,6 +86,20 @@ router.get("/", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to get activity" });
+  }
+});
+
+// GET /api/activity/my-scan-count — reliable check for onboarding eligibility
+router.get("/my-scan-count", requireAuth, async (req, res) => {
+  try {
+    const [row] = await db
+      .select({ scanCount: count() })
+      .from(scanLogs)
+      .where(eq(scanLogs.userId, req.authUser!.id));
+    res.json({ count: row?.scanCount ?? 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to get scan count" });
   }
 });
 

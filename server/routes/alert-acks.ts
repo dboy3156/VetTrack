@@ -33,7 +33,11 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
         and(eq(alertAcks.equipmentId, equipmentId), eq(alertAcks.alertType, alertType))
       );
 
-    const remindAt = new Date(Date.now() + 30 * 60 * 1000);
+    const REMINDER_DELAY_MS = Number(process.env.ALERT_REMINDER_DELAY_MS) || 30 * 60 * 1000;
+    const CRITICAL_HIGH_ALERT_TYPES = new Set(["issue", "overdue"]);
+    const remindAt = CRITICAL_HIGH_ALERT_TYPES.has(alertType)
+      ? new Date(Date.now() + REMINDER_DELAY_MS)
+      : null;
 
     const [ack] = await db
       .insert(alertAcks)

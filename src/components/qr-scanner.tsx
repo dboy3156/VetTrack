@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   X,
   Flashlight,
@@ -11,10 +12,19 @@ import {
   Camera,
   AlertCircle,
   Loader2,
+  LogIn,
+  LogOut,
+  Wrench,
+  CheckCircle2,
+  Scan,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCachedEquipmentById } from "@/lib/offline-db";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
+import { STATUS_LABELS } from "@/types";
+import type { Equipment } from "@/types";
 
 interface QrScannerProps {
   onClose: () => void;
@@ -27,7 +37,9 @@ type ScannerPhase =
   | "no_camera"
   | "error"
   | "not_found"
-  | "manual";
+  | "manual"
+  | "result"
+  | "action_done";
 
 const DEBOUNCE_MS = 2000;
 
@@ -74,26 +86,30 @@ export function extractEquipmentId(raw: string): string | null {
   }
 }
 
-async function resolveEquipmentId(id: string): Promise<boolean> {
+async function resolveEquipmentId(id: string): Promise<Equipment | null> {
   const offline = await getCachedEquipmentById(id);
-  if (offline) return true;
-  if (!navigator.onLine) return false;
+  if (offline) return offline as unknown as Equipment;
+  if (!navigator.onLine) return null;
   try {
-    await api.equipment.get(id);
-    return true;
+    const eq = await api.equipment.get(id);
+    return eq;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export function QrScanner({ onClose }: QrScannerProps) {
   const [, navigate] = useLocation();
+  const { userId, isAdmin } = useAuth();
 
   const [phase, setPhase] = useState<ScannerPhase>("init");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [notFoundId, setNotFoundId] = useState<string | null>(null);
+  const [scannedEquipment, setScannedEquipment] = useState<Equipment | null>(null);
+  const [isActing, setIsActing] = useState(false);
+  const [actionDoneLabel, setActionDoneLabel] = useState("");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<number>(0);
@@ -103,9 +119,13 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const containerId = "qr-scanner-container";
 
   const navigateToEquipment = useCallback(
-    (equipmentId: string) => {
+    (equipmentId: string, action?: string) => {
       onClose();
-      navigate(`/equipment/${equipmentId}?action=scan`);
+      if (action) {
+        navigate(`/equipment/${equipmentId}?action=${action}`);
+      } else {
+        navigate(`/equipment/${equipmentId}`);
+      }
     },
     [navigate, onClose]
   );
@@ -127,17 +147,19 @@ export function QrScanner({ onClose }: QrScannerProps) {
         return;
       }
 
-      const exists = await resolveEquipmentId(equipmentId);
-      if (!exists) {
+      const eq = await resolveEquipmentId(equipmentId);
+      if (!eq) {
         setNotFoundId(equipmentId);
         await stopScannerRef.current();
         setPhase("not_found");
         return;
       }
 
-      navigateToEquipment(equipmentId);
+      await stopScannerRef.current();
+      setScannedEquipment(eq);
+      setPhase("result");
     },
-    [navigateToEquipment]
+    []
   );
 
   const stopScanner = useCallback(async () => {
@@ -261,21 +283,56 @@ export function QrScanner({ onClose }: QrScannerProps) {
       toast.error("Invalid code format");
       return;
     }
-    const exists = await resolveEquipmentId(equipmentId);
-    if (!exists) {
+    const eq = await resolveEquipmentId(equipmentId);
+    if (!eq) {
       setNotFoundId(equipmentId);
       setPhase("not_found");
       return;
     }
-    navigateToEquipment(equipmentId);
+    setScannedEquipment(eq);
+    setPhase("result");
   };
 
   const handleScanAgain = async () => {
     setNotFoundId(null);
+    setScannedEquipment(null);
     setPhase("init");
     await stopScanner();
     setTimeout(() => startScanner(), 100);
   };
+
+  const isCheckedOut = !!(scannedEquipment?.checkedOutById);
+  const checkedOutByMe = scannedEquipment?.checkedOutById === userId;
+
+  async function handleCheckout() {
+    if (!scannedEquipment) return;
+    setIsActing(true);
+    try {
+      await api.equipment.checkout(scannedEquipment.id);
+      setActionDoneLabel("Checked out!");
+      setPhase("action_done");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Checkout failed";
+      toast.error(msg);
+    } finally {
+      setIsActing(false);
+    }
+  }
+
+  async function handleReturn() {
+    if (!scannedEquipment) return;
+    setIsActing(true);
+    try {
+      await api.equipment.return(scannedEquipment.id);
+      setActionDoneLabel("Returned successfully!");
+      setPhase("action_done");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Return failed";
+      toast.error(msg);
+    } finally {
+      setIsActing(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col" data-testid="qr-scanner-overlay">
@@ -310,8 +367,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
         </div>
       </div>
 
-      {/* Camera viewport — hidden during manual entry so the manual panel fills the space */}
-      <div className={phase === "manual" ? "hidden" : "flex-1 relative flex items-center justify-center bg-black"}>
+      {/* Camera viewport — hidden during manual entry / result / action_done */}
+      <div className={phase === "manual" || phase === "result" || phase === "action_done" ? "hidden" : "flex-1 relative flex items-center justify-center bg-black"}>
         <div id={containerId} className="w-full h-full" />
 
         {/* Loading */}
@@ -480,7 +537,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
         </div>
       )}
 
-      {/* Manual entry mode — rendered as a flex child so header cancel stays accessible */}
+      {/* Manual entry mode */}
       {phase === "manual" && (
         <div className="flex-1 bg-black/95 flex flex-col items-center justify-center p-6 gap-5">
           <p className="text-white font-bold text-xl">Enter Equipment Code</p>
@@ -516,6 +573,137 @@ export function QrScanner({ onClose }: QrScannerProps) {
             >
               Back to Camera
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline quick-action sheet — shown after successful QR resolve */}
+      {phase === "result" && scannedEquipment && (
+        <div className="flex-1 bg-black/95 flex flex-col justify-end" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+          <div className="bg-white rounded-t-3xl px-5 pt-5 pb-6 mx-0 w-full" data-testid="scan-inline-sheet">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+
+            {/* Equipment info */}
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-lg leading-tight truncate" data-testid="scan-inline-equipment-name">
+                  {scannedEquipment.name}
+                </p>
+                {scannedEquipment.serialNumber && (
+                  <p className="text-xs text-muted-foreground mt-0.5">#{scannedEquipment.serialNumber}</p>
+                )}
+                {scannedEquipment.location && (
+                  <p className="text-xs text-muted-foreground">{scannedEquipment.location}</p>
+                )}
+              </div>
+              <Badge variant={statusToBadgeVariant(scannedEquipment.status)} className="shrink-0" data-testid="scan-inline-status-badge">
+                {STATUS_LABELS[scannedEquipment.status] || scannedEquipment.status}
+              </Badge>
+            </div>
+
+            {/* Checkout info */}
+            {isCheckedOut && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
+                <p className="font-medium text-blue-800">
+                  {checkedOutByMe
+                    ? "Checked out by you"
+                    : `In use by ${scannedEquipment.checkedOutByEmail || "another user"}`}
+                </p>
+                {scannedEquipment.checkedOutLocation && (
+                  <p className="text-blue-700 text-xs mt-0.5">
+                    Location: {scannedEquipment.checkedOutLocation}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2.5">
+              {!isCheckedOut && (
+                <Button
+                  size="lg"
+                  className="w-full gap-2.5"
+                  onClick={handleCheckout}
+                  disabled={isActing}
+                  data-testid="btn-scan-inline-checkout"
+                >
+                  {isActing ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
+                  Check Out
+                </Button>
+              )}
+
+              {isCheckedOut && (checkedOutByMe || isAdmin) && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full gap-2.5"
+                  onClick={handleReturn}
+                  disabled={isActing}
+                  data-testid="btn-scan-inline-return"
+                >
+                  {isActing ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
+                  Return
+                </Button>
+              )}
+
+              {isCheckedOut && !checkedOutByMe && !isAdmin && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-sm text-amber-800">
+                  Only the person who checked this out (or an admin) can return it.
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full gap-2.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => navigateToEquipment(scannedEquipment.id, "scan")}
+                data-testid="btn-scan-inline-report"
+              >
+                <Wrench className="w-5 h-5" />
+                Report Issue / Update Status
+              </Button>
+
+              <Button
+                variant="ghost"
+                className="w-full text-sm text-muted-foreground"
+                onClick={() => navigateToEquipment(scannedEquipment.id)}
+                data-testid="btn-scan-inline-details"
+              >
+                View Full Details
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action done state */}
+      {phase === "action_done" && (
+        <div className="flex-1 bg-black/95 flex flex-col justify-end" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+          <div className="bg-white rounded-t-3xl px-5 pt-5 pb-8 w-full">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <CheckCircle2 className="w-14 h-14 text-emerald-500" />
+              <p className="font-bold text-lg">{actionDoneLabel || "Done!"}</p>
+              {scannedEquipment && (
+                <p className="text-muted-foreground text-sm">{scannedEquipment.name}</p>
+              )}
+              <Button
+                className="w-full gap-2"
+                onClick={handleScanAgain}
+                data-testid="btn-scan-another"
+              >
+                <Scan className="w-4 h-4" />
+                Scan Another Item
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full text-sm"
+                onClick={onClose}
+                data-testid="btn-scanner-done"
+              >
+                Done
+              </Button>
+            </div>
           </div>
         </div>
       )}

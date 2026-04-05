@@ -33,7 +33,7 @@ import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 const RESUME_KEY = "vettrack_last_equipment_id";
 
 export default function HomePage() {
-  const { name, userId, email } = useAuth();
+  const { name, userId } = useAuth();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [resumeEquipmentId, setResumeEquipmentId] = useState<string | null>(null);
@@ -74,7 +74,12 @@ export default function HomePage() {
     queryFn: () => api.activity.feed(),
   });
 
-  const hasScanned = !!(activityData?.items.find((item) => item.userEmail === email && item.type === "scan"));
+  const { data: scanCountData } = useQuery({
+    queryKey: ["/api/activity/my-scan-count"],
+    queryFn: api.activity.myScanCount,
+  });
+
+  const hasScanned = scanCountData !== undefined ? scanCountData.count > 0 : true;
 
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
@@ -152,7 +157,7 @@ export default function HomePage() {
         )}
 
         {/* Onboarding walkthrough — shown once for new users with no scan history */}
-        {!isLoading && activityData !== undefined && (
+        {!isLoading && scanCountData !== undefined && (
           <OnboardingWalkthrough show={!hasScanned} />
         )}
 

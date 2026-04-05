@@ -3,6 +3,9 @@ import { eq, isNull } from "drizzle-orm";
 import { sendPushToUser } from "./push.js";
 
 const ALERT_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const REMINDER_DELAY_MS = Number(process.env.ALERT_REMINDER_DELAY_MS) || 30 * 60 * 1000;
+
+const CRITICAL_HIGH_ALERT_TYPES = new Set(["issue", "overdue"]);
 
 function isAlertStillActive(alertType: string, eq_row: {
   status: string;
@@ -49,7 +52,10 @@ async function checkAndSendReminders(): Promise<void> {
       .where(isNull(alertAcks.remindedAt));
 
     const due = pendingAcks.filter(
-      (ack) => ack.remindAt && ack.remindAt <= now
+      (ack) =>
+        ack.remindAt &&
+        ack.remindAt <= now &&
+        CRITICAL_HIGH_ALERT_TYPES.has(ack.alertType)
     );
 
     if (due.length === 0) return;

@@ -253,9 +253,14 @@ export default function AlertsPage() {
                               <div className="flex items-center justify-between gap-2 bg-white/70 rounded-lg px-3 py-2 border border-white">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  <span className="text-xs text-emerald-700 font-medium truncate">
-                                    Handling: {ack.acknowledgedByEmail}
-                                  </span>
+                                  <div className="min-w-0">
+                                    <span className="text-xs text-emerald-700 font-medium truncate block">
+                                      Handling: {ack.acknowledgedByEmail}
+                                    </span>
+                                    <span className="text-xs text-emerald-600/70 truncate block">
+                                      Since {new Date(ack.acknowledgedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                  </div>
                                 </div>
                                 <Button
                                   variant="ghost"

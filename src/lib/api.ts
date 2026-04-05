@@ -435,6 +435,8 @@ export const api = {
         cursor ? `/api/activity?cursor=${cursor}` : "/api/activity",
         () => Promise.resolve({ items: [], nextCursor: null })
       ),
+    myScanCount: () =>
+      request<{ count: number }>("/api/activity/my-scan-count", {}, undefined, true),
   },
   analytics: {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
