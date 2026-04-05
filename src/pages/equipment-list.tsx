@@ -452,7 +452,7 @@ export default function EquipmentListPage() {
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : !isError && filtered.length === 0 ? (
           <EmptyState
             icon={Package}
             message="No equipment found"

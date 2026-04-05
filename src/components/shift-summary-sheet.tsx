@@ -40,31 +40,39 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
-  const { data: myItems, isLoading: myLoading } = useQuery({
+  const { data: myItems, isLoading: myLoading, isError: myError, refetch: refetchMy } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
     enabled: open,
   });
 
-  const { data: equipment, isLoading: eqLoading } = useQuery({
+  const { data: equipment, isLoading: eqLoading, isError: eqError, refetch: refetchEq } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
     enabled: open,
   });
 
-  const { data: activityData, isLoading: actLoading } = useQuery({
+  const { data: activityData, isLoading: actLoading, isError: actError, refetch: refetchAct } = useQuery({
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
     enabled: open,
   });
 
-  const { data: acks } = useQuery({
+  const { data: acks, refetch: refetchAcks } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
     enabled: open,
   });
 
   const isLoading = myLoading || eqLoading || actLoading;
+  const isError = myError || eqError || actError;
+
+  function retryAll() {
+    refetchMy();
+    refetchEq();
+    refetchAct();
+    refetchAcks();
+  }
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -204,6 +212,14 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <Skeleton className="h-16 w-full rounded-xl" />
               <Skeleton className="h-6 w-32 mt-2" />
               <Skeleton className="h-12 w-full rounded-xl" />
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <AlertTriangle className="w-8 h-8 text-destructive" />
+              <p className="text-sm text-destructive font-medium text-center">Failed to load shift data.</p>
+              <Button variant="outline" size="sm" onClick={retryAll}>
+                Retry
+              </Button>
             </div>
           ) : (
             <>

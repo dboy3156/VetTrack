@@ -98,7 +98,7 @@ export default function MyEquipmentPage() {
               data-testid="btn-shift-summary-my-eq"
             >
               <ClipboardCheck className="w-3.5 h-3.5" />
-              Summary
+              Shift Summary
             </Button>
           </div>
         </div>
