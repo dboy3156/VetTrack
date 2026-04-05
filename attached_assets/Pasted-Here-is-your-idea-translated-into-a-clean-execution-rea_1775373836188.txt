@@ -1,0 +1,133 @@
+Here is your idea translated into a clean, execution-ready prompt:
+
+⸻
+
+Prompt (Demo Video Creation):
+
+You are a product marketing and UX expert.
+
+Your task is to design a short demo video (60–90 seconds) that showcases how the app (VetTrack) is used in a real veterinary hospital environment.
+
+Do NOT just list features.
+Build a realistic usage flow that tells a clear story.
+
+⸻
+
+Goal
+
+Show how the app solves real problems in a veterinary hospital:
+	•	Equipment getting lost
+	•	Lack of accountability
+	•	Poor communication between staff
+
+The video should feel like a real shift scenario, not a feature walkthrough.
+
+⸻
+
+Structure
+
+1. Opening (5–7 seconds)
+
+Show the problem:
+	•	“Where is the equipment?”
+	•	“No one knows who took it”
+
+Keep it short and clear.
+
+⸻
+
+2. Scan → Check-Out
+	•	User scans equipment
+	•	Taps “Check Out”
+
+Overlay text:
+
+“Scan. Assign. Done.”
+
+⸻
+
+3. Real Usage Context
+	•	Equipment is being used (e.g. IV pump / monitor)
+	•	Optionally assigned to a room or patient
+
+⸻
+
+4. Issue Reporting
+	•	Scan equipment
+	•	Tap “Report Issue”
+	•	Add note + photo
+
+Overlay text:
+
+“Clear issue reporting. No guesswork.”
+
+⸻
+
+5. Alerts
+	•	Alert appears
+	•	User taps “I’m handling this”
+
+Overlay text:
+
+“No missed problems. No duplicates.”
+
+⸻
+
+6. My Equipment
+	•	Show user’s assigned equipment list
+
+Overlay text:
+
+“Full accountability per shift”
+
+⸻
+
+7. Return Flow
+	•	Scan equipment
+	•	Tap “Return”
+
+Overlay text:
+
+“Everything goes back”
+
+⸻
+
+8. Ending
+
+Strong closing line:
+
+Examples:
+	•	“Know where every tool is.”
+	•	“Nothing gets lost.”
+
+⸻
+
+Filming Guidelines
+	•	Use real app screens (screen recording preferred)
+	•	Simulate realistic data (equipment names, rooms, etc.)
+	•	Show a continuous story (not random feature jumps)
+
+⸻
+
+Important
+	•	Keep transitions fast
+	•	No unnecessary steps
+	•	Focus on clarity and real-world usage
+	•	Every scene must answer: “Why does this matter?”
+
+⸻
+
+Output
+
+Provide:
+	1.	Full video script (scene-by-scene)
+	2.	Suggested on-screen text
+	3.	Optional voiceover script
+	4.	Timing per section
+
+⸻
+
+Design this for:
+
+A busy veterinary technician —
+Everything must feel fast, obvious, and useful.

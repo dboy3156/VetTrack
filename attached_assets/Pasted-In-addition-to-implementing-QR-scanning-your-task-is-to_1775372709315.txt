@@ -1,0 +1,136 @@
+In addition to implementing QR scanning, your task is to design and improve the QR scan experience so it works reliably in a real veterinary hospital environment.
+
+Do not just implement basic scanning — optimize it for speed, reliability, and real-world usage.
+
+⸻
+
+Part 1 — Basic QR Scan Implementation
+	•	Open camera immediately when user taps “Scan”
+	•	Detect QR and extract equipmentId
+	•	Trigger the scan flow (check-out / return / issue)
+	•	Must work on mobile (iOS + Android browsers)
+
+⸻
+
+Part 2 — Improve the QR Scan UX
+
+1. Speed (critical)
+	•	Scanner must open in <1 second
+	•	Auto-scan (no “confirm” button after scan)
+	•	Immediate transition after successful scan
+
+⸻
+
+2. Zero-friction flow
+
+After scan:
+	•	Show large action buttons only:
+	•	Check Out
+	•	Return
+	•	Report Issue
+
+No typing required for default actions.
+
+⸻
+
+3. Visual feedback
+	•	Show:
+	•	equipment name
+	•	current status
+	•	Highlight if:
+	•	already checked out
+	•	has active issue
+
+User should instantly understand context.
+
+⸻
+
+4. Error handling
+
+Handle cases:
+	•	QR not recognized
+	•	Camera fails
+	•	No permission
+
+Provide:
+	•	clear message
+	•	fallback:
+→ “Enter code manually”
+
+⸻
+
+5. Low-light / real-world conditions
+
+Vet hospitals are not ideal environments.
+
+Design for:
+	•	low lighting
+	•	fast movement
+	•	partially damaged QR codes
+
+Suggestions:
+	•	auto-focus handling
+	•	scan retry logic
+	•	tolerance for imperfect scans
+
+⸻
+
+6. Continuous scanning mode (optional but valuable)
+
+Allow:
+	•	scan → action → stay in scanner
+	•	for fast workflows (e.g. rounds, sterilization)
+
+⸻
+
+7. Offline compatibility
+
+QR scan must work offline:
+	•	scanning works normally
+	•	actions are queued
+	•	no dependency on internet
+
+⸻
+
+8. Edge cases to solve
+
+Explain how you handle:
+	•	same item scanned multiple times quickly
+	•	scanning item already checked out by another user
+	•	duplicate QR codes (if happens)
+
+⸻
+
+Part 3 — Suggest Improvements
+
+Analyze the QR scan system and suggest:
+	•	UX improvements
+	•	performance improvements
+	•	failure points
+	•	ways to reduce user mistakes
+
+Prioritize:
+	•	High impact (real usage improvement)
+	•	Not theoretical ideas
+
+⸻
+
+Output
+
+Provide:
+	1.	QR scan flow (step-by-step)
+	2.	UI behavior
+	3.	Error handling
+	4.	Offline behavior
+	5.	Improvement suggestions (prioritized)
+
+⸻
+
+Important
+
+Design this for a veterinary technician:
+	•	fast
+	•	distracted
+	•	under pressure
+
+If something slows them down — remove it.
