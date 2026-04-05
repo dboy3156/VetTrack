@@ -58,7 +58,7 @@ export default function SignInPage() {
                 <>
                   <SignIn
                     routing="hash"
-                    redirectUrl="/"
+                    fallbackRedirectUrl="/"
                     appearance={{
                       variables: {
                         colorPrimary: "#0d9488",

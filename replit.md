@@ -136,7 +136,48 @@ src/
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (set by Replit)
 - `SESSION_SECRET` — Express session secret (set)
-- `VITE_CLERK_PUBLISHABLE_KEY` — Optional: Clerk publishable key
-- `CLERK_SECRET_KEY` — Optional: Clerk secret key
+- `VITE_CLERK_PUBLISHABLE_KEY` — Clerk publishable key (`pk_test_...` dev / `pk_live_...` prod)
+- `CLERK_SECRET_KEY` — Clerk secret key (`sk_test_...` dev / `sk_live_...` prod)
+- `ALLOWED_ORIGIN` — Production: set to the deployed URL (e.g. `https://vettrack.replit.app`). CORS rejects all other origins in production.
+- `ADMIN_EMAILS` — Comma-separated emails auto-promoted to admin on every login
 - `VITE_SENTRY_DSN` — Optional: Sentry DSN for frontend error tracking
 - `SENTRY_DSN` — Optional: Sentry DSN for backend error tracking
+
+## Production Deployment Checklist
+
+Follow these steps in order when switching from development to a live production deployment.
+
+### Step 1 — Switch Clerk to Production Mode
+1. Go to **https://dashboard.clerk.com/apps** and open your VetTrack app
+2. In the left sidebar click **Settings**
+3. Scroll to **"Switch to production"** and follow the wizard
+4. Once switched, copy the two production keys shown:
+   - **Publishable key** — starts with `pk_live_`
+   - **Secret key** — starts with `sk_live_`
+
+### Step 2 — Set Production Secrets in Replit
+In the Replit **Secrets** panel, update/add these values:
+| Secret | Value |
+|--------|-------|
+| `VITE_CLERK_PUBLISHABLE_KEY` | `pk_live_...` (from Clerk) |
+| `CLERK_SECRET_KEY` | `sk_live_...` (from Clerk) |
+| `ALLOWED_ORIGIN` | `https://<your-app>.replit.app` |
+
+### Step 3 — Add Allowed Origin in Clerk Dashboard
+1. In Clerk Dashboard → **Configure** → **Paths**
+2. Under **Allowed redirect URLs**, add: `https://<your-app>.replit.app/*`
+3. Under **Allowed origins**, add: `https://<your-app>.replit.app`
+
+### Step 4 — Deploy
+1. Click the **Deploy** / **Publish** button in Replit
+2. After deployment succeeds, your app URL (e.g. `https://vettrack.replit.app`) will be shown
+3. Use that URL in Steps 2 & 3 if you didn't know it in advance
+
+### Step 5 — Verify
+- Open the deployed URL and confirm the Clerk sign-in form loads
+- Sign in with the admin email (`ADMIN_EMAILS`) and verify you reach the dashboard
+- Check that the browser console shows no CORS or Clerk errors
+
+### Notes
+- Israeli phone numbers (+972): enable Israel in Clerk Dashboard → Configure → User & Authentication → Phone numbers → SMS sending → Allowed countries
+- The `ADMIN_EMAILS` env var auto-promotes those email addresses to admin on every login (self-healing)
