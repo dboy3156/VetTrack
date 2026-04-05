@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
-import { eq, inArray, desc, and } from "drizzle-orm";
+import { eq, inArray, desc, and, lt } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
 
@@ -27,6 +27,13 @@ interface EquipmentPreviousState {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+export async function cleanExpiredUndoTokens(): Promise<void> {
+  try {
+    await db.delete(undoTokens).where(lt(undoTokens.expiresAt, new Date()));
+  } catch {
+  }
+}
+
 async function insertUndoToken(
   tx: Tx,
   params: {
@@ -46,12 +53,6 @@ async function insertUndoToken(
     previousState: JSON.stringify(params.previousState),
     expiresAt,
   });
-  setTimeout(async () => {
-    try {
-      await db.delete(undoTokens).where(eq(undoTokens.id, tokenId));
-    } catch {
-    }
-  }, UNDO_TTL_MS + 2000);
   return tokenId;
 }
 

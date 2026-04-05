@@ -61,12 +61,13 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/alert-acks — remove acknowledgment
+// DELETE /api/alert-acks?equipmentId=...&alertType=... — remove acknowledgment
 router.delete("/", requireAuth, async (req, res) => {
   try {
-    const { equipmentId, alertType } = req.body;
+    const equipmentId = req.query.equipmentId as string | undefined;
+    const alertType = req.query.alertType as string | undefined;
     if (!equipmentId || !alertType) {
-      return res.status(400).json({ error: "equipmentId and alertType required" });
+      return res.status(400).json({ error: "equipmentId and alertType query parameters required" });
     }
     await db
       .delete(alertAcks)

@@ -11,11 +11,15 @@ router.post("/upload-url", requireAuth, async (req, res) => {
 
   if (!process.env.REPLIT_OBJECT_STORAGE_BUCKET) {
     return res.status(501).json({
-      error: "Object storage not configured. Images are not available in dev mode.",
+      error: "Image uploads are not available in this environment. To enable uploads, configure the REPLIT_OBJECT_STORAGE_BUCKET environment variable and implement the signed URL generation in server/routes/storage.ts.",
+      hint: "In development, images can be hosted externally and referenced by URL instead.",
     });
   }
 
-  res.status(501).json({ error: "Object storage not configured" });
+  res.status(501).json({
+    error: "Object storage is configured but signed URL generation is not yet implemented.",
+    hint: "Implement the upload URL generation in server/routes/storage.ts using your storage provider's SDK.",
+  });
 });
 
 export default router;

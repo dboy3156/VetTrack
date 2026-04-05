@@ -447,8 +447,8 @@ export const api = {
       ),
     remove: (equipmentId: string, alertType: string) =>
       request<void>(
-        "/api/alert-acks",
-        { method: "DELETE", body: JSON.stringify({ equipmentId, alertType }) }
+        `/api/alert-acks?equipmentId=${encodeURIComponent(equipmentId)}&alertType=${encodeURIComponent(alertType)}`,
+        { method: "DELETE" }
       ),
   },
   push: {
