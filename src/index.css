@@ -74,3 +74,55 @@
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
+
+/* ── html5-qrcode library UI suppression ─────────────────────────────────── */
+#qr-scanner-container img,
+#qr-scanner-container button,
+#qr-scanner-container select,
+#qr-scanner-container span[id$="header-message"],
+#qr-scanner-container div[id$="header"],
+#qr-scanner-container #html5-qrcode-anchor-scan-type-change,
+#qr-scanner-container #html5-qrcode-button-camera-permission,
+#qr-scanner-container #html5-qrcode-button-camera-stop,
+#qr-scanner-container #html5-qrcode-button-file-selection {
+  display: none !important;
+}
+
+/* Hide the shaded region boxes the library injects around the qrbox */
+#qr-scanner-container div[style*="background: rgba"] {
+  background: transparent !important;
+}
+
+/* Remove the library's own scanning-region border */
+#qr-scanner-container div[style*="border:"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Make the video fill the container naturally */
+#qr-scanner-container video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Make the library's root div fill the parent properly */
+#qr-scanner-container > div {
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+/* ── QR scan-line animation ──────────────────────────────────────────────── */
+@keyframes qr-scan-line {
+  0%   { top: 0%; }
+  50%  { top: calc(100% - 2px); }
+  100% { top: 0%; }
+}
+
+.qr-scan-line {
+  animation: qr-scan-line 1.8s ease-in-out infinite;
+}

@@ -178,7 +178,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0,
           disableFlip: false,
         },
         (decodedText) => {
@@ -424,14 +423,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
         {/* Scanning guide overlay */}
         {phase === "scanning" && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="relative">
-              <div className="w-60 h-60 border-2 border-white/60 rounded-2xl">
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl" />
-              </div>
-              <p className="text-white/70 text-xs text-center mt-4">
+            <div className="relative" style={{ width: 250, height: 250 }}>
+              {/* Corner brackets */}
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl" />
+              {/* Animated scan line */}
+              <div className="qr-scan-line absolute left-0 right-0 h-0.5 bg-primary/80" />
+              {/* Helper text below the frame */}
+              <p className="text-white/70 text-xs text-center absolute -bottom-8 left-0 right-0 whitespace-nowrap">
                 Point at a VetTrack QR code
               </p>
             </div>
