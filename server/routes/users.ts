@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, users } from "../db.js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 
@@ -33,13 +33,30 @@ router.patch("/:id/role", requireAuth, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "Invalid role" });
     }
 
+    const [target] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.params.id))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    if (target.role === "admin" && role !== "admin") {
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.role, "admin"));
+      if (count <= 1) {
+        return res.status(400).json({ error: "Cannot remove or demote the last admin" });
+      }
+    }
+
     const [user] = await db
       .update(users)
       .set({ role })
       .where(eq(users.id, req.params.id))
       .returning();
 
-    if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   } catch (err) {
     console.error(err);

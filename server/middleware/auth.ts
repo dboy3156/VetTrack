@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
 import { getAuth } from "@clerk/express";
 import { db, users } from "../db.js";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export type UserRole = "admin" | "vet" | "technician" | "viewer";
@@ -68,7 +68,7 @@ export async function requireAuth(
     const clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
     const clerkName = (sessionClaims?.name as string | undefined) ?? "";
 
-    const [user] = await db
+    let [user] = await db
       .insert(users)
       .values({
         id: randomUUID(),
@@ -86,6 +86,21 @@ export async function requireAuth(
         },
       })
       .returning();
+
+    // Auto-promote users whose email is in ADMIN_EMAILS
+    const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    if (adminEmails.length > 0 && adminEmails.includes(user.email.toLowerCase())) {
+      if (user.role !== "admin") {
+        [user] = await db
+          .update(users)
+          .set({ role: "admin" })
+          .where(eq(users.id, user.id))
+          .returning();
+      }
+    }
 
     req.authUser = {
       id: user.id,

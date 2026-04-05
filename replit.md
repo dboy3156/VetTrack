@@ -55,6 +55,7 @@ tsx server/seed.ts   # Seed sample data
 ## Auth & Security
 - **Dev mode** (no Clerk keys): Admin user hardcoded, all routes accessible
 - **Clerk mode**: Add `VITE_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` secrets for real auth
+  - `ADMIN_EMAILS` (optional): Comma-separated list of emails auto-promoted to admin on every login (self-healing). Example: `admin@example.com,boss@example.com`
   - Admin (40): create/delete equipment, manage folders/users, bulk ops
   - Vet (30): scan equipment, revert scans
   - Technician (20): checkout/return, create equipment, WhatsApp alerts, alert-acks
