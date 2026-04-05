@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { db, whatsappAlerts, equipment } from "../db.js";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
 import { format } from "date-fns";
 
 /*
@@ -14,12 +16,18 @@ import { format } from "date-fns";
 
 const router = Router();
 
-router.post("/alert", requireAuth, requireRole("technician"), async (req, res) => {
+const VALID_STATUSES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
+
+const whatsappAlertSchema = z.object({
+  equipmentId: z.string().min(1, "equipmentId is required"),
+  status: z.string().min(1, "status is required").max(50),
+  note: z.string().max(500).optional(),
+  phone: z.string().max(30).optional(),
+});
+
+router.post("/alert", requireAuth, requireRole("technician"), validateBody(whatsappAlertSchema), async (req, res) => {
   try {
-    const { equipmentId, status, note, phone } = req.body;
-    if (!equipmentId || !status) {
-      return res.status(400).json({ error: "equipmentId and status required" });
-    }
+    const { equipmentId, status, note, phone } = req.body as z.infer<typeof whatsappAlertSchema>;
 
     const [item] = await db
       .select()

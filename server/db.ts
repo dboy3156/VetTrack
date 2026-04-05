@@ -113,6 +113,7 @@ export const undoTokens = pgTable("vt_undo_tokens", {
   scanLogId: text("scan_log_id").notNull(),
   previousState: text("previous_state").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  consumed: boolean("consumed").notNull().default(false),
 });
 
 export const serverConfig = pgTable("vt_server_config", {

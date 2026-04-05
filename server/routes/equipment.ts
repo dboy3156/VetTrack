@@ -1,12 +1,64 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
+import { z } from "zod";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
-import { eq, inArray, desc, and, lt } from "drizzle-orm";
+import { eq, inArray, desc, and, lt, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
+import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
+
+const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
+
+const createEquipmentSchema = z.object({
+  name: z.string().min(1, "Name is required").max(500),
+  serialNumber: z.string().max(500).optional(),
+  model: z.string().max(500).optional(),
+  manufacturer: z.string().max(500).optional(),
+  purchaseDate: z.string().optional(),
+  location: z.string().max(500).optional(),
+  folderId: z.string().optional().nullable(),
+  maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
+  imageUrl: z.string().max(500).optional().nullable(),
+});
+
+const patchEquipmentSchema = z.object({
+  name: z.string().min(1).max(500).optional(),
+  serialNumber: z.string().max(500).optional(),
+  model: z.string().max(500).optional(),
+  manufacturer: z.string().max(500).optional(),
+  purchaseDate: z.string().optional(),
+  location: z.string().max(500).optional(),
+  folderId: z.string().optional().nullable(),
+  maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
+  imageUrl: z.string().max(500).optional().nullable(),
+  status: z.enum(EQUIPMENT_STATUS_VALUES).optional(),
+});
+
+const checkoutSchema = z.object({
+  location: z.string().max(500).optional(),
+});
+
+const scanSchema = z.object({
+  status: z.enum(EQUIPMENT_STATUS_VALUES),
+  note: z.string().max(500).optional(),
+  photoUrl: z.string().max(500).optional(),
+});
+
+const revertSchema = z.object({
+  undoToken: z.string().min(1, "undoToken is required"),
+});
+
+const bulkIdsSchema = z.object({
+  ids: z.array(z.string()).min(1).max(100),
+});
+
+const bulkMoveSchema = z.object({
+  ids: z.array(z.string()).min(1).max(100),
+  folderId: z.string().optional().nullable(),
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -98,19 +150,21 @@ async function consumeUndoToken(
   actorId: string
 ): Promise<{ scanLogId: string; previousState: EquipmentPreviousState } | null> {
   const [entry] = await db
-    .select()
-    .from(undoTokens)
-    .where(eq(undoTokens.id, tokenId))
-    .limit(1);
+    .update(undoTokens)
+    .set({ consumed: true } as Partial<typeof undoTokens.$inferInsert>)
+    .where(
+      and(
+        eq(undoTokens.id, tokenId),
+        eq(undoTokens.equipmentId, equipmentId),
+        eq(undoTokens.actorId, actorId),
+        sql`consumed = false`,
+        sql`expires_at > NOW()`
+      )
+    )
+    .returning();
 
   if (!entry) return null;
-  if (entry.equipmentId !== equipmentId) return null;
-  if (entry.actorId !== actorId) return null;
-  if (entry.expiresAt < new Date()) {
-    await db.delete(undoTokens).where(eq(undoTokens.id, tokenId));
-    return null;
-  }
-  await db.delete(undoTokens).where(eq(undoTokens.id, tokenId));
+
   return {
     scanLogId: entry.scanLogId,
     previousState: JSON.parse(entry.previousState) as EquipmentPreviousState,
@@ -129,20 +183,6 @@ function snapshotState(row: EquipmentRow): EquipmentPreviousState {
     checkedOutAt: row.checkedOutAt,
     checkedOutLocation: row.checkedOutLocation,
   };
-}
-
-type ResLike = Parameters<Parameters<Router["use"]>[0]>[1];
-
-function validateFieldLength(fields: Record<string, unknown>, res: ResLike): boolean {
-  const textFields = ["name", "serialNumber", "model", "note", "imageUrl", "location", "manufacturer"];
-  for (const field of textFields) {
-    const val = fields[field];
-    if (typeof val === "string" && val.length > FIELD_MAX_LENGTH) {
-      res.status(400).json({ error: `Field "${field}" exceeds maximum length of ${FIELD_MAX_LENGTH}` });
-      return false;
-    }
-  }
-  return true;
 }
 
 class CheckoutConflictError extends Error {
@@ -265,7 +305,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
+router.post("/", requireAuth, requireRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
   try {
     const {
       name,
@@ -277,26 +317,21 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
       folderId,
       maintenanceIntervalDays,
       imageUrl,
-    } = req.body as Record<string, string | number | undefined>;
-
-    if (!name || typeof name !== "string" || !name.trim()) {
-      return res.status(400).json({ error: "Name is required" });
-    }
-    if (!validateFieldLength(req.body as Record<string, unknown>, res)) return;
+    } = req.body as z.infer<typeof createEquipmentSchema>;
 
     const [item] = await db
       .insert(equipment)
       .values({
         id: randomUUID(),
         name: name.trim(),
-        serialNumber: typeof serialNumber === "string" ? serialNumber : null,
-        model: typeof model === "string" ? model : null,
-        manufacturer: typeof manufacturer === "string" ? manufacturer : null,
-        purchaseDate: typeof purchaseDate === "string" ? purchaseDate : null,
-        location: typeof location === "string" ? location : null,
-        folderId: typeof folderId === "string" ? folderId : null,
-        maintenanceIntervalDays: typeof maintenanceIntervalDays === "number" ? maintenanceIntervalDays : null,
-        imageUrl: typeof imageUrl === "string" ? imageUrl : null,
+        serialNumber: serialNumber ?? null,
+        model: model ?? null,
+        manufacturer: manufacturer ?? null,
+        purchaseDate: purchaseDate ?? null,
+        location: location ?? null,
+        folderId: folderId ?? null,
+        maintenanceIntervalDays: maintenanceIntervalDays ?? null,
+        imageUrl: imageUrl ?? null,
         status: "ok",
       })
       .returning();
@@ -308,10 +343,8 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   }
 });
 
-router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) => {
+router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
   try {
-    if (!validateFieldLength(req.body as Record<string, unknown>, res)) return;
-
     const {
       name,
       serialNumber,
@@ -323,7 +356,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
       maintenanceIntervalDays,
       imageUrl,
       status,
-    } = req.body as Record<string, string | number | undefined>;
+    } = req.body as z.infer<typeof patchEquipmentSchema>;
 
     let result: EquipmentRow | null = null;
 
@@ -337,16 +370,16 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
       const [item] = await tx
         .update(equipment)
         .set({
-          ...(name !== undefined && { name: String(name) }),
-          ...(serialNumber !== undefined && { serialNumber: String(serialNumber) }),
-          ...(model !== undefined && { model: String(model) }),
-          ...(manufacturer !== undefined && { manufacturer: String(manufacturer) }),
-          ...(purchaseDate !== undefined && { purchaseDate: String(purchaseDate) }),
-          ...(location !== undefined && { location: String(location) }),
-          ...(folderId !== undefined && { folderId: folderId ? String(folderId) : null }),
-          ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays: Number(maintenanceIntervalDays) }),
-          ...(imageUrl !== undefined && { imageUrl: String(imageUrl) }),
-          ...(status !== undefined && { status: String(status) }),
+          ...(name !== undefined && { name }),
+          ...(serialNumber !== undefined && { serialNumber }),
+          ...(model !== undefined && { model }),
+          ...(manufacturer !== undefined && { manufacturer }),
+          ...(purchaseDate !== undefined && { purchaseDate }),
+          ...(location !== undefined && { location }),
+          ...(folderId !== undefined && { folderId: folderId ?? null }),
+          ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays }),
+          ...(imageUrl !== undefined && { imageUrl }),
+          ...(status !== undefined && { status }),
         })
         .where(eq(equipment.id, req.params.id))
         .returning();
@@ -354,11 +387,11 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
       if (!item) return;
       result = item;
 
-      if (folderId !== undefined && oldItem && oldItem.folderId !== (folderId ? String(folderId) : null)) {
+      if (folderId !== undefined && oldItem && oldItem.folderId !== (folderId ?? null)) {
         const [oldFolder] = oldItem.folderId
           ? await tx.select().from(folders).where(eq(folders.id, oldItem.folderId)).limit(1)
           : [null];
-        const targetFolderId = folderId ? String(folderId) : null;
+        const targetFolderId = folderId ?? null;
         const [newFolder] = targetFolderId
           ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
           : [null];
@@ -394,7 +427,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
   }
 });
 
-router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
     await db.delete(equipment).where(eq(equipment.id, req.params.id));
     invalidateAnalyticsCache();
@@ -406,9 +439,9 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/equipment/:id/checkout
-router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technician"), async (req, res) => {
+router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technician"), validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
   try {
-    const { location } = req.body as { location?: string };
+    const { location } = req.body as z.infer<typeof checkoutSchema>;
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
     let updated: EquipmentRow | null = null;
@@ -494,7 +527,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
 });
 
 // POST /api/equipment/:id/return
-router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician"), async (req, res) => {
+router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician"), validateUuid("id"), async (req, res) => {
   try {
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
@@ -577,18 +610,12 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
 });
 
 // POST /api/equipment/:id/scan
-router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), async (req, res) => {
+router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
   try {
-    const { status, note, photoUrl } = req.body as {
-      status?: string;
-      note?: string;
-      photoUrl?: string;
-    };
-    if (!status) return res.status(400).json({ error: "Status required" });
+    const { status, note, photoUrl } = req.body as z.infer<typeof scanSchema>;
     if (status === "issue" && !note?.trim()) {
       return res.status(400).json({ error: "Note is required when reporting an issue" });
     }
-    if (!validateFieldLength({ note, photoUrl }, res)) return;
 
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
     const scanTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
@@ -703,13 +730,9 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), async (re
 });
 
 // POST /api/equipment/:id/revert
-router.post("/:id/revert", requireAuth, requireRole("vet"), async (req, res) => {
+router.post("/:id/revert", requireAuth, requireRole("vet"), validateUuid("id"), validateBody(revertSchema), async (req, res) => {
   try {
-    const { undoToken: tokenId } = req.body as { undoToken?: string };
-
-    if (!tokenId || typeof tokenId !== "string") {
-      return res.status(400).json({ error: "undoToken is required" });
-    }
+    const { undoToken: tokenId } = req.body as z.infer<typeof revertSchema>;
 
     const token = await consumeUndoToken(tokenId, req.params.id, req.authUser!.id);
     if (!token) {
@@ -986,19 +1009,9 @@ router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (
   }
 });
 
-router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
+router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchema), async (req, res) => {
   try {
-    const { ids } = req.body as { ids?: unknown };
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: "IDs array required" });
-    }
-    if (ids.length > BULK_MAX) {
-      return res.status(400).json({ error: `Cannot delete more than ${BULK_MAX} items at once` });
-    }
-    if (!ids.every((id) => typeof id === "string")) {
-      return res.status(400).json({ error: "All IDs must be strings" });
-    }
-    const typedIds = ids as string[];
+    const { ids: typedIds } = req.body as z.infer<typeof bulkIdsSchema>;
     const actorName = req.authUser!.name || req.authUser!.email;
 
     await db.transaction(async (tx) => {
@@ -1036,19 +1049,9 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.post("/bulk-move", requireAuth, requireRole("technician"), async (req, res) => {
+router.post("/bulk-move", requireAuth, requireRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
   try {
-    const { ids, folderId } = req.body as { ids?: unknown; folderId?: string };
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: "IDs array required" });
-    }
-    if (ids.length > BULK_MAX) {
-      return res.status(400).json({ error: `Cannot move more than ${BULK_MAX} items at once` });
-    }
-    if (!ids.every((id) => typeof id === "string")) {
-      return res.status(400).json({ error: "All IDs must be strings" });
-    }
-    const typedIds = ids as string[];
+    const { ids: typedIds, folderId } = req.body as z.infer<typeof bulkMoveSchema>;
     const targetFolderId = folderId ?? null;
 
     let targetFolderName: string | null = null;

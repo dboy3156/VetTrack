@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { db, supportTickets, users } from "../db.js";
 import { eq, desc, ne, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { validateBody, validateUuid } from "../middleware/validate.js";
 import { sendPushToAll } from "../lib/push.js";
 
 /*
@@ -17,18 +19,30 @@ import { sendPushToAll } from "../lib/push.js";
 
 const router = Router();
 
-router.post("/", requireAuth, async (req, res) => {
+const VALID_SEVERITIES = ["low", "medium", "high"] as const;
+const VALID_TICKET_STATUSES = ["open", "in_progress", "resolved"] as const;
+
+const createTicketSchema = z.object({
+  title: z.string().min(1, "title is required").max(500),
+  description: z.string().min(1, "description is required").max(5000),
+  severity: z.enum(VALID_SEVERITIES).optional().default("medium"),
+  pageUrl: z.string().max(1000).optional().nullable(),
+  deviceInfo: z.string().max(1000).optional().nullable(),
+  appVersion: z.string().max(100).optional().nullable(),
+});
+
+const patchTicketSchema = z.object({
+  status: z.enum(VALID_TICKET_STATUSES).optional(),
+  adminNote: z.string().max(5000).optional().nullable(),
+}).refine((data) => data.status !== undefined || data.adminNote !== undefined, {
+  message: "At least one of status or adminNote must be provided",
+});
+
+router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
 
-    const { title, description, severity, pageUrl, deviceInfo, appVersion } = req.body;
-
-    if (!title || !description) {
-      return res.status(400).json({ error: "title and description are required" });
-    }
-
-    const validSeverities = ["low", "medium", "high"];
-    const ticketSeverity = validSeverities.includes(severity) ? severity : "medium";
+    const { title, description, severity, pageUrl, deviceInfo, appVersion } = req.body as z.infer<typeof createTicketSchema>;
 
     const [ticket] = await db
       .insert(supportTickets)
@@ -36,13 +50,13 @@ router.post("/", requireAuth, async (req, res) => {
         id: randomUUID(),
         title,
         description,
-        severity: ticketSeverity,
+        severity,
         status: "open",
         userId: req.authUser.id,
         userEmail: req.authUser.email,
-        pageUrl: pageUrl || null,
-        deviceInfo: deviceInfo || null,
-        appVersion: appVersion || null,
+        pageUrl: pageUrl ?? null,
+        deviceInfo: deviceInfo ?? null,
+        appVersion: appVersion ?? null,
         adminNote: null,
       })
       .returning();
@@ -89,14 +103,9 @@ router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.patch("/:id", requireAuth, requireAdmin, async (req, res) => {
+router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchTicketSchema), async (req, res) => {
   try {
-    const { status, adminNote } = req.body;
-
-    const validStatuses = ["open", "in_progress", "resolved"];
-    if (status && !validStatuses.includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
-    }
+    const { status, adminNote } = req.body as z.infer<typeof patchTicketSchema>;
 
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),

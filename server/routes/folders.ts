@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { db, folders, equipment } from "../db.js";
 import { eq, desc, and, isNull, lte } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
+import { validateBody, validateUuid } from "../middleware/validate.js";
 import { subDays } from "date-fns";
 
 /*
@@ -16,6 +18,14 @@ import { subDays } from "date-fns";
  */
 
 const router = Router();
+
+const createFolderSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+});
+
+const patchFolderSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+});
 
 router.get("/", requireAuth, async (req, res) => {
   try {
@@ -52,10 +62,9 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
+router.post("/", requireAuth, requireRole("technician"), validateBody(createFolderSchema), async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    const { name } = req.body as z.infer<typeof createFolderSchema>;
 
     const [folder] = await db
       .insert(folders)
@@ -69,10 +78,9 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   }
 });
 
-router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) => {
+router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"), validateBody(patchFolderSchema), async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    const { name } = req.body as z.infer<typeof patchFolderSchema>;
 
     const [folder] = await db
       .update(folders)
@@ -88,7 +96,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
   }
 });
 
-router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
     await db
       .update(equipment)

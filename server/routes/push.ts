@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { db, pushSubscriptions } from "../db.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
 
@@ -19,24 +21,35 @@ import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
 
 const router = Router();
 
+const subscribeSchema = z.object({
+  endpoint: z.string().url("endpoint must be a valid URL"),
+  keys: z.object({
+    p256dh: z.string().min(1, "p256dh is required"),
+    auth: z.string().min(1, "auth is required"),
+  }),
+  soundEnabled: z.boolean().optional(),
+  alertsEnabled: z.boolean().optional(),
+});
+
+const patchSubscribeSchema = z.object({
+  endpoint: z.string().url("endpoint must be a valid URL"),
+  soundEnabled: z.boolean().optional(),
+  alertsEnabled: z.boolean().optional(),
+});
+
+const deleteSubscribeSchema = z.object({
+  endpoint: z.string().min(1, "endpoint is required"),
+});
+
 router.get("/vapid-public-key", async (_req, res) => {
   const key = await getVapidPublicKey();
   if (!key) return res.status(503).json({ error: "Push notifications not configured" });
   res.json({ publicKey: key });
 });
 
-router.post("/subscribe", requireAuth, authSensitiveLimiter, async (req, res) => {
+router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscribeSchema), async (req, res) => {
   try {
-    const { endpoint, keys, soundEnabled, alertsEnabled } = req.body as {
-      endpoint?: string;
-      keys?: { p256dh?: string; auth?: string };
-      soundEnabled?: boolean;
-      alertsEnabled?: boolean;
-    };
-
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
-      return res.status(400).json({ error: "Invalid subscription object" });
-    }
+    const { endpoint, keys, soundEnabled, alertsEnabled } = req.body as z.infer<typeof subscribeSchema>;
 
     await db
       .delete(pushSubscriptions)
@@ -62,15 +75,9 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, async (req, res) =>
   }
 });
 
-router.patch("/subscribe", requireAuth, async (req, res) => {
+router.patch("/subscribe", requireAuth, validateBody(patchSubscribeSchema), async (req, res) => {
   try {
-    const { endpoint, soundEnabled, alertsEnabled } = req.body as {
-      endpoint?: string;
-      soundEnabled?: boolean;
-      alertsEnabled?: boolean;
-    };
-
-    if (!endpoint) return res.status(400).json({ error: "endpoint required" });
+    const { endpoint, soundEnabled, alertsEnabled } = req.body as z.infer<typeof patchSubscribeSchema>;
 
     await db
       .update(pushSubscriptions)
@@ -92,10 +99,9 @@ router.patch("/subscribe", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/subscribe", requireAuth, async (req, res) => {
+router.delete("/subscribe", requireAuth, validateBody(deleteSubscribeSchema), async (req, res) => {
   try {
-    const { endpoint } = req.body as { endpoint?: string };
-    if (!endpoint) return res.status(400).json({ error: "endpoint required" });
+    const { endpoint } = req.body as z.infer<typeof deleteSubscribeSchema>;
 
     await db
       .delete(pushSubscriptions)

@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { db, users } from "../db.js";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js";
+import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 
 /*
@@ -18,6 +20,23 @@ import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
  */
 
 const router = Router();
+
+const VALID_ROLES = ["admin", "vet", "technician", "viewer"] as const;
+const VALID_STATUSES = ["pending", "active", "blocked"] as const;
+
+const patchRoleSchema = z.object({
+  role: z.enum(VALID_ROLES, { required_error: "role is required" }),
+});
+
+const patchStatusSchema = z.object({
+  status: z.enum(VALID_STATUSES, { required_error: "status is required" }),
+});
+
+const syncUserSchema = z.object({
+  clerkId: z.string().min(1, "clerkId is required"),
+  email: z.string().email("email must be a valid email address"),
+  name: z.string().optional(),
+});
 
 router.get("/me", requireAuthAny, async (req, res) => {
   try {
@@ -60,12 +79,9 @@ router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.patch("/:id/role", requireAuth, requireAdmin, async (req, res) => {
+router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchRoleSchema), async (req, res) => {
   try {
-    const { role } = req.body;
-    if (!["admin", "vet", "technician", "viewer"].includes(role)) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
+    const { role } = req.body as z.infer<typeof patchRoleSchema>;
 
     const [target] = await db
       .select()
@@ -98,12 +114,9 @@ router.patch("/:id/role", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.patch("/:id/status", requireAuth, requireAdmin, async (req, res) => {
+router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchStatusSchema), async (req, res) => {
   try {
-    const { status } = req.body;
-    if (!["pending", "active", "blocked"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
-    }
+    const { status } = req.body as z.infer<typeof patchStatusSchema>;
 
     const [user] = await db
       .update(users)
@@ -119,10 +132,13 @@ router.patch("/:id/status", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.post("/sync", requireAuth, authSensitiveLimiter, async (req, res) => {
+router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSchema), async (req, res) => {
   try {
-    const { clerkId, email, name } = req.body;
-    if (!clerkId || !email) return res.status(400).json({ error: "Missing fields" });
+    const { clerkId, email, name } = req.body as z.infer<typeof syncUserSchema>;
+
+    if (clerkId !== req.authUser!.clerkId) {
+      return res.status(403).json({ error: "Cannot sync a different user's data" });
+    }
 
     const [existing] = await db
       .select()
