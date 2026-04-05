@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +18,23 @@ import {
   BarChart3,
   Activity,
   Zap,
+  Scan,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
+import { QrScanner } from "@/components/qr-scanner";
 
 export default function HomePage() {
   const { name } = useAuth();
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const searchStr = useSearch();
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchStr);
+    if (params.get("scan") === "1") {
+      setScannerOpen(true);
+    }
+  }, [searchStr]);
 
   const { data: equipment, isLoading } = useQuery({
     queryKey: ["/api/equipment"],
@@ -46,7 +58,7 @@ export default function HomePage() {
   const issueCount = equipment?.filter((e) => e.status === "issue").length ?? 0;
 
   return (
-    <Layout>
+    <Layout onScan={() => setScannerOpen(true)}>
       <div className="flex flex-col gap-6 pb-20 animate-fade-in">
         {/* Greeting */}
         <div className="pt-1">
@@ -55,6 +67,16 @@ export default function HomePage() {
           </h1>
           <p className="text-muted-foreground mt-0.5">VetTrack Equipment Dashboard</p>
         </div>
+
+        {/* Scan CTA */}
+        <Button
+          className="w-full h-16 gap-3 text-base font-bold shadow-lg"
+          onClick={() => setScannerOpen(true)}
+          data-testid="btn-scan-qr"
+        >
+          <Scan className="w-6 h-6" />
+          Scan QR Code
+        </Button>
 
         {/* Quick stats */}
         <div className="grid grid-cols-2 gap-3">
@@ -288,6 +310,10 @@ export default function HomePage() {
           </Card>
         )}
       </div>
+
+      {scannerOpen && (
+        <QrScanner onClose={() => setScannerOpen(false)} />
+      )}
     </Layout>
   );
 }

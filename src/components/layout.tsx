@@ -18,12 +18,14 @@ import {
   XCircle,
   RefreshCw,
   CheckCircle,
+  Scan,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
+import { QrScanner } from "@/components/qr-scanner";
 
 interface NavItem {
   href: string;
@@ -37,14 +39,24 @@ interface NavItem {
 interface LayoutProps {
   children: React.ReactNode;
   title?: string;
+  onScan?: () => void;
 }
 
-export function Layout({ children, title }: LayoutProps) {
+export function Layout({ children, title, onScan }: LayoutProps) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const { isAdmin } = useAuth();
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
+
+  const openScanner = () => {
+    if (onScan) {
+      onScan();
+    } else {
+      setScannerOpen(true);
+    }
+  };
 
   const { data: equipment } = useQuery({
     queryKey: ["/api/equipment"],
@@ -224,10 +236,43 @@ export function Layout({ children, title }: LayoutProps) {
       {/* Main content */}
       <main className="max-w-2xl mx-auto px-4 py-6 pb-safe">{children}</main>
 
-      {/* Bottom nav (mobile) — 5 primary items */}
+      {/* Bottom nav (mobile) — 4 primary items + Scan in center */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t supports-[backdrop-filter]:bg-white/60 pb-safe">
-        <div className="flex max-w-2xl mx-auto">
-          {bottomItems.slice(0, 5).map((item) => (
+        <div className="flex max-w-2xl mx-auto items-center">
+          {/* First 2 nav items */}
+          {bottomItems.slice(0, 2).map((item) => (
+            <Link key={item.href} href={item.href} className="flex-1">
+              <div
+                className={cn(
+                  "flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative",
+                  location === item.href ? "text-primary" : "text-muted-foreground"
+                )}
+                data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
+              >
+                {item.icon}
+                <span className="text-[10px] font-medium">{item.label}</span>
+                {item.badgeCount ? (
+                  <span className="absolute top-1.5 right-1/4 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                    {item.badgeCount > 9 ? "9+" : item.badgeCount}
+                  </span>
+                ) : null}
+              </div>
+            </Link>
+          ))}
+
+          {/* Center Scan button */}
+          <div className="flex-1 flex items-center justify-center py-1.5">
+            <button
+              onClick={openScanner}
+              className="w-14 h-14 rounded-full bg-primary text-white flex flex-col items-center justify-center shadow-lg hover:bg-primary/90 transition-colors -mt-4"
+              data-testid="bottom-nav-scan"
+            >
+              <Scan className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Last 2 nav items */}
+          {bottomItems.slice(2, 4).map((item) => (
             <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(
@@ -248,6 +293,11 @@ export function Layout({ children, title }: LayoutProps) {
           ))}
         </div>
       </nav>
+
+      {/* Scanner opened from bottom nav (non-home pages) */}
+      {scannerOpen && (
+        <QrScanner onClose={() => setScannerOpen(false)} />
+      )}
     </div>
   );
 }

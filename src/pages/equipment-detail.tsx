@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useParams, useLocation } from "wouter";
+import { useState, useRef, useEffect } from "react";
+import { useParams, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -90,9 +90,12 @@ interface UndoState {
 export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const searchStr = useSearch();
   const { isAdmin, email, userId } = useAuth();
   const queryClient = useQueryClient();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [scanActionSheetOpen, setScanActionSheetOpen] = useState(false);
+  const [scanActionDone, setScanActionDone] = useState(false);
   const [scanStatus, setScanStatus] = useState<EquipmentStatus>("ok");
   const [scanNote, setScanNote] = useState("");
   const [scanPhoto, setScanPhoto] = useState<string | null>(null);
@@ -103,6 +106,13 @@ export default function EquipmentDetailPage() {
   const undoStateRef = useRef<UndoState | null>(null);
   const [undoCountdown, setUndoCountdown] = useState(0);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchStr);
+    if (params.get("action") === "scan") {
+      setScanActionSheetOpen(true);
+    }
+  }, [searchStr]);
 
   function clearUndoState() {
     if (undoStateRef.current) {
@@ -365,6 +375,7 @@ export default function EquipmentDetailPage() {
           });
         }
         toast.info("Saved offline — will sync when connected");
+        setScanActionDone(true);
         return;
       }
 
@@ -379,6 +390,7 @@ export default function EquipmentDetailPage() {
           undoToken,
         });
       }
+      setScanActionDone(true);
     },
     onError: (err: Error) => {
       if (!navigator.onLine) {
@@ -427,6 +439,7 @@ export default function EquipmentDetailPage() {
           });
         }
         toast.info("Saved offline — will sync when connected");
+        setScanActionDone(true);
         return;
       }
 
@@ -442,6 +455,7 @@ export default function EquipmentDetailPage() {
           undoToken,
         });
       }
+      setScanActionDone(true);
     },
     onError: (err: Error) => {
       if (!navigator.onLine) {
@@ -972,6 +986,160 @@ export default function EquipmentDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Scan quick-action sheet (opened from QR scanner via ?action=scan) */}
+      {scanActionSheetOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex flex-col justify-end"
+          data-testid="scan-action-sheet"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setScanActionSheetOpen(false);
+              setScanActionDone(false);
+            }
+          }}
+        >
+          <div className="bg-white rounded-t-3xl px-5 pt-5 pb-8 max-w-2xl mx-auto w-full">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+
+            {!scanActionDone ? (
+              <>
+                {/* Equipment info */}
+                <div className="flex items-start gap-3 mb-5">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-lg leading-tight" data-testid="scan-action-equipment-name">
+                      {equipment.name}
+                    </p>
+                    {equipment.serialNumber && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        #{equipment.serialNumber}
+                      </p>
+                    )}
+                    {equipment.location && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {equipment.location}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={equipment.status} className="shrink-0 text-xs" data-testid="scan-action-status-badge">
+                    {STATUS_LABELS[equipment.status as keyof typeof STATUS_LABELS] || equipment.status}
+                  </Badge>
+                </div>
+
+                {/* Checkout info if currently out */}
+                {isCheckedOut && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
+                    <p className="font-medium text-blue-800">
+                      {checkedOutByMe
+                        ? "Checked out by you"
+                        : `In use by ${equipment.checkedOutByEmail || "another user"}`}
+                    </p>
+                    {equipment.checkedOutLocation && (
+                      <p className="text-blue-700 text-xs mt-0.5">
+                        Location: {equipment.checkedOutLocation}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Quick action buttons */}
+                <div className="flex flex-col gap-2.5">
+                  {!isCheckedOut && (
+                    <Button
+                      className="w-full h-14 gap-2.5 text-base font-semibold"
+                      onClick={() => checkoutMut.mutate()}
+                      disabled={checkoutMut.isPending || returnMut.isPending}
+                      data-testid="btn-scan-action-checkout"
+                    >
+                      {checkoutMut.isPending ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <LogIn className="w-5 h-5" />
+                      )}
+                      Check Out
+                    </Button>
+                  )}
+
+                  {isCheckedOut && (checkedOutByMe || isAdmin) && (
+                    <Button
+                      variant="outline"
+                      className="w-full h-14 gap-2.5 text-base font-semibold border-2"
+                      onClick={() => returnMut.mutate()}
+                      disabled={returnMut.isPending || checkoutMut.isPending}
+                      data-testid="btn-scan-action-return"
+                    >
+                      {returnMut.isPending ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <LogOut className="w-5 h-5" />
+                      )}
+                      Return
+                    </Button>
+                  )}
+
+                  {isCheckedOut && !checkedOutByMe && !isAdmin && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-sm text-amber-800">
+                      Only the person who checked this out (or an admin) can return it.
+                    </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    className="w-full h-14 gap-2.5 text-base font-semibold border-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    onClick={() => {
+                      setScanActionSheetOpen(false);
+                      openScanDialog();
+                    }}
+                    data-testid="btn-scan-action-report-issue"
+                  >
+                    <Wrench className="w-5 h-5" />
+                    Report Issue / Update Status
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    className="w-full h-10 text-sm text-muted-foreground"
+                    onClick={() => {
+                      setScanActionSheetOpen(false);
+                      setScanActionDone(false);
+                    }}
+                    data-testid="btn-scan-action-dismiss"
+                  >
+                    View Full Details
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-4 py-4 text-center">
+                <CheckCircle2 className="w-14 h-14 text-emerald-500" />
+                <p className="font-bold text-lg">Done!</p>
+                <p className="text-muted-foreground text-sm">Action completed for {equipment.name}.</p>
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => {
+                    setScanActionDone(false);
+                    navigate("/?scan=1");
+                  }}
+                  data-testid="btn-scan-another-item"
+                >
+                  <Scan className="w-4 h-4" />
+                  Scan Another Item
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-sm"
+                  onClick={() => {
+                    setScanActionSheetOpen(false);
+                    setScanActionDone(false);
+                  }}
+                >
+                  Stay Here
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
