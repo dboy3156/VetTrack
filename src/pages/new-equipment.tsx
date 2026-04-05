@@ -127,7 +127,7 @@ export default function NewEquipmentPage() {
                 Basic Info
               </h2>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
@@ -140,7 +140,7 @@ export default function NewEquipmentPage() {
                 )}
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="serialNumber">Serial Number</Label>
                 <Input
                   id="serialNumber"
@@ -151,11 +151,11 @@ export default function NewEquipmentPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="model">Model</Label>
                   <Input id="model" placeholder="Model name" {...register("model")} />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   <Label htmlFor="manufacturer">Manufacturer</Label>
                   <Input
                     id="manufacturer"
@@ -173,7 +173,7 @@ export default function NewEquipmentPage() {
                 Organization
               </h2>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label>Folder / Category</Label>
                 <Select onValueChange={(v) => setValue("folderId", v)}>
                   <SelectTrigger data-testid="select-folder">
@@ -190,7 +190,7 @@ export default function NewEquipmentPage() {
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="location">Location</Label>
                 <Input
                   id="location"
@@ -200,7 +200,7 @@ export default function NewEquipmentPage() {
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="purchaseDate">Purchase Date</Label>
                 <Input
                   id="purchaseDate"
@@ -218,7 +218,7 @@ export default function NewEquipmentPage() {
                 Maintenance
               </h2>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="maintenanceIntervalDays">
                   Maintenance Interval (days)
                 </Label>

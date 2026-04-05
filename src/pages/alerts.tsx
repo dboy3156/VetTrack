@@ -115,12 +115,12 @@ export default function AlertsPage() {
     <Layout>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <Bell className="w-6 h-6 text-primary" />
             Alerts
           </h1>
           {alerts.length > 0 && (
-            <Badge variant="destructive">{alerts.length} active</Badge>
+            <Badge variant="issue">{alerts.length} active</Badge>
           )}
         </div>
 
@@ -136,17 +136,17 @@ export default function AlertsPage() {
         {isLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+              <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
         ) : isError ? null : alerts.length === 0 ? (
           <Card className="border-2 border-dashed border-emerald-200">
             <CardContent className="p-10 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-8 h-8 text-emerald-500" />
               </div>
               <h3 className="font-bold text-lg text-emerald-700">All Clear!</h3>
-              <p className="text-muted-foreground text-sm mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 No alerts at this time. All equipment is in good standing.
               </p>
             </CardContent>
@@ -163,9 +163,9 @@ export default function AlertsPage() {
                 <div key={type}>
                   <div className="flex items-center gap-2 mb-2">
                     <Icon className={`w-4 h-4 ${config.color}`} />
-                    <h2 className="font-semibold text-sm">{config.label}</h2>
+                    <h2 className="text-sm font-semibold">{config.label}</h2>
                     <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${config.severityBg}`}
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${config.severityBg}`}
                     >
                       {config.severityText}
                     </span>
@@ -183,7 +183,7 @@ export default function AlertsPage() {
                           key={`${alert.type}-${alert.equipmentId}`}
                           className={`border ${config.bg}`}
                         >
-                          <CardContent className="p-3.5 flex flex-col gap-2">
+                          <CardContent className="p-4 flex flex-col gap-2">
                             <div className="flex items-center justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="font-semibold text-sm truncate">
@@ -222,7 +222,7 @@ export default function AlertsPage() {
 
                             {/* Acknowledgment row */}
                             {ack ? (
-                              <div className="flex items-center justify-between gap-2 bg-white/70 rounded-lg px-2.5 py-1.5 border border-white">
+                              <div className="flex items-center justify-between gap-2 bg-white/70 rounded-lg px-3 py-2 border border-white">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <span className="text-xs text-emerald-700 font-medium truncate">
@@ -232,7 +232,7 @@ export default function AlertsPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
-                                  className="w-5 h-5 text-muted-foreground hover:text-red-500 shrink-0"
+                                  className="w-6 h-6 text-muted-foreground hover:text-red-500 shrink-0"
                                   onClick={() =>
                                     unAckMut.mutate({
                                       equipmentId: alert.equipmentId,
@@ -245,9 +245,9 @@ export default function AlertsPage() {
                               </div>
                             ) : (
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
-                                className="h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 self-start px-2"
+                                className="h-8 text-xs self-start"
                                 onClick={() =>
                                   ackMut.mutate({
                                     equipmentId: alert.equipmentId,

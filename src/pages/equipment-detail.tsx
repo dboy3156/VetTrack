@@ -64,6 +64,7 @@ import {
   isOverdue,
   isSterilizationDue,
 } from "@/lib/utils";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QRCodeSVG } from "qrcode.react";
@@ -537,8 +538,8 @@ export default function EquipmentDetailPage() {
 
         {/* Checkout / Ownership banner */}
         {isCheckedOut ? (
-          <Card className="border-2 border-blue-200 bg-blue-50">
-            <CardContent className="p-3.5">
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <User className="w-4 h-4 text-blue-600 shrink-0" />
@@ -577,8 +578,8 @@ export default function EquipmentDetailPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="border-2 border-emerald-200 bg-emerald-50">
-            <CardContent className="p-3.5">
+          <Card className="border-emerald-200 bg-emerald-50">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -604,7 +605,7 @@ export default function EquipmentDetailPage() {
         )}
 
         {/* Status card */}
-        <Card className={`border-2 ${statusConf?.bg || ""}`}>
+        <Card className={statusConf?.bg || ""}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -737,11 +738,11 @@ export default function EquipmentDetailPage() {
               ) : (
                 scanLogs.map((log) => (
                   <Card key={log.id}>
-                    <CardContent className="p-3.5">
+                    <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <Badge variant={log.status as any} className="text-[10px]">
+                            <Badge variant={statusToBadgeVariant(log.status)}>
                               {STATUS_LABELS[log.status as keyof typeof STATUS_LABELS] || log.status}
                             </Badge>
                             <span className="text-xs text-muted-foreground truncate">
@@ -759,7 +760,7 @@ export default function EquipmentDetailPage() {
                             />
                           )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground shrink-0">
+                        <p className="text-xs text-muted-foreground shrink-0">
                           {formatRelativeTime(log.timestamp.toString())}
                         </p>
                       </div>
@@ -979,7 +980,8 @@ export default function EquipmentDetailPage() {
                 <div className="flex flex-col gap-2.5">
                   {!isCheckedOut && (
                     <Button
-                      className="w-full h-14 gap-2.5 text-base font-semibold"
+                      size="lg"
+                      className="w-full gap-2.5"
                       onClick={() => checkoutMut.mutate()}
                       disabled={checkoutMut.isPending || returnMut.isPending}
                       data-testid="btn-scan-action-checkout"
@@ -996,7 +998,8 @@ export default function EquipmentDetailPage() {
                   {isCheckedOut && (checkedOutByMe || isAdmin) && (
                     <Button
                       variant="outline"
-                      className="w-full h-14 gap-2.5 text-base font-semibold border-2"
+                      size="lg"
+                      className="w-full gap-2.5"
                       onClick={() => returnMut.mutate()}
                       disabled={returnMut.isPending || checkoutMut.isPending}
                       data-testid="btn-scan-action-return"
@@ -1018,7 +1021,8 @@ export default function EquipmentDetailPage() {
 
                   <Button
                     variant="outline"
-                    className="w-full h-14 gap-2.5 text-base font-semibold border-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    size="lg"
+                    className="w-full gap-2.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                     onClick={() => {
                       setScanActionSheetOpen(false);
                       openScanDialog();
@@ -1031,7 +1035,7 @@ export default function EquipmentDetailPage() {
 
                   <Button
                     variant="ghost"
-                    className="w-full h-10 text-sm text-muted-foreground"
+                    className="w-full text-sm text-muted-foreground"
                     onClick={() => {
                       setScanActionSheetOpen(false);
                       setScanActionDone(false);

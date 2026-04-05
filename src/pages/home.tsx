@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { computeAlerts } from "@/lib/utils";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
 import {
   Package,
   AlertTriangle,
@@ -62,10 +63,10 @@ export default function HomePage() {
       <div className="flex flex-col gap-6 pb-20 animate-fade-in">
         {/* Greeting */}
         <div className="pt-1">
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold leading-tight text-foreground">
             Hello, {name?.split(" ")[0] || "there"} 👋
           </h1>
-          <p className="text-muted-foreground mt-0.5">VetTrack Equipment Dashboard</p>
+          <p className="text-sm text-muted-foreground mt-1">VetTrack Equipment Dashboard</p>
         </div>
 
         {equipmentError && (
@@ -79,26 +80,27 @@ export default function HomePage() {
 
         {/* Scan CTA */}
         <Button
-          className="w-full h-16 gap-3 text-base font-bold shadow-lg"
+          size="lg"
+          className="w-full gap-3 text-base font-bold shadow-sm"
           onClick={() => setScannerOpen(true)}
           data-testid="btn-scan-qr"
         >
-          <Scan className="w-6 h-6" />
+          <Scan className="w-5 h-5" />
           Scan QR Code
         </Button>
 
         {/* Quick stats */}
         <div className="grid grid-cols-2 gap-3">
-          <Card className="border-2" data-testid="stat-total">
+          <Card data-testid="stat-total">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <Package className="w-4 h-4 text-primary" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Total
                 </span>
               </div>
               {isLoading ? (
-                <Skeleton className="h-9 w-16" />
+                <Skeleton className="h-8 w-16" />
               ) : (
                 <p className="text-3xl font-bold text-foreground">{totalCount}</p>
               )}
@@ -107,11 +109,11 @@ export default function HomePage() {
 
           <Link href="/alerts">
             <Card
-              className={`border-2 cursor-pointer transition-colors ${alertCount > 0 ? "border-red-200 bg-red-50/50" : ""}`}
+              className={`cursor-pointer transition-colors ${alertCount > 0 ? "border-red-200 bg-red-50/50" : ""}`}
               data-testid="stat-alerts"
             >
               <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle
                     className={`w-4 h-4 ${alertCount > 0 ? "text-red-500" : "text-muted-foreground"}`}
                   />
@@ -120,7 +122,7 @@ export default function HomePage() {
                   </span>
                 </div>
                 {isLoading ? (
-                  <Skeleton className="h-9 w-12" />
+                  <Skeleton className="h-8 w-12" />
                 ) : (
                   <p
                     className={`text-3xl font-bold ${alertCount > 0 ? "text-red-600" : "text-foreground"}`}
@@ -132,32 +134,32 @@ export default function HomePage() {
             </Card>
           </Link>
 
-          <Card className="border-2" data-testid="stat-ok">
+          <Card data-testid="stat-ok">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   OK
                 </span>
               </div>
               {isLoading ? (
-                <Skeleton className="h-9 w-12" />
+                <Skeleton className="h-8 w-12" />
               ) : (
                 <p className="text-3xl font-bold text-emerald-600">{okCount}</p>
               )}
             </CardContent>
           </Card>
 
-          <Card className="border-2" data-testid="stat-issues">
+          <Card data-testid="stat-issues">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <Wrench className="w-4 h-4 text-amber-500" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Issues
                 </span>
               </div>
               {isLoading ? (
-                <Skeleton className="h-9 w-12" />
+                <Skeleton className="h-8 w-12" />
               ) : (
                 <p className="text-3xl font-bold text-amber-600">{issueCount}</p>
               )}
@@ -169,40 +171,40 @@ export default function HomePage() {
         <div className="grid grid-cols-2 gap-3">
           <Link href="/equipment/new">
             <Button
-              className="w-full h-14 gap-2 text-sm font-semibold"
+              className="w-full h-12 gap-2"
               data-testid="btn-add-equipment"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               Add Equipment
             </Button>
           </Link>
           <Link href="/equipment">
             <Button
               variant="outline"
-              className="w-full h-14 gap-2 text-sm font-semibold"
+              className="w-full h-12 gap-2"
               data-testid="btn-view-all"
             >
-              <Package className="w-5 h-5" />
+              <Package className="w-4 h-4" />
               View All
             </Button>
           </Link>
           <Link href="/analytics">
             <Button
               variant="secondary"
-              className="w-full h-14 gap-2 text-sm font-semibold"
+              className="w-full h-12 gap-2"
               data-testid="btn-analytics"
             >
-              <BarChart3 className="w-5 h-5" />
+              <BarChart3 className="w-4 h-4" />
               Analytics
             </Button>
           </Link>
           <Link href="/print">
             <Button
               variant="secondary"
-              className="w-full h-14 gap-2 text-sm font-semibold"
+              className="w-full h-12 gap-2"
               data-testid="btn-qr-print"
             >
-              <QrCode className="w-5 h-5" />
+              <QrCode className="w-4 h-4" />
               QR Print
             </Button>
           </Link>
@@ -212,7 +214,7 @@ export default function HomePage() {
         {alertCount > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold flex items-center gap-2">
+              <h2 className="text-base font-semibold flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-500" />
                 Active Alerts
               </h2>
@@ -225,21 +227,23 @@ export default function HomePage() {
             <div className="flex flex-col gap-2">
               {alerts.slice(0, 3).map((alert) => (
                 <Link key={`${alert.type}-${alert.equipmentId}`} href={`/equipment/${alert.equipmentId}`}>
-                  <Card className="border hover:border-primary/30 transition-colors cursor-pointer">
-                    <CardContent className="p-3.5 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-sm">{alert.equipmentName}</p>
+                  <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{alert.equipmentName}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{alert.detail}</p>
                       </div>
                       <Badge
                         variant={
                           alert.type === "issue"
-                            ? "destructive"
+                            ? "issue"
                             : alert.type === "overdue"
-                              ? "maintenance" as any
-                              : "outline"
+                              ? "maintenance"
+                              : alert.type === "sterilization_due"
+                                ? "sterilized"
+                                : "secondary"
                         }
-                        className="shrink-0 text-xs"
+                        className="shrink-0"
                       >
                         {alert.type === "sterilization_due"
                           ? "Sterilization Due"
@@ -257,7 +261,7 @@ export default function HomePage() {
         {activityData?.items && activityData.items.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold flex items-center gap-2">
+              <h2 className="text-base font-semibold flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" />
                 Recent Activity
               </h2>
@@ -265,12 +269,12 @@ export default function HomePage() {
             <div className="flex flex-col gap-2">
               {activityData.items.slice(0, 4).map((item) => (
                 <Link key={item.id} href={`/equipment/${item.equipmentId}`}>
-                  <Card className="border hover:border-primary/20 transition-colors cursor-pointer">
-                    <CardContent className="p-3.5">
+                  <Card className="hover:border-primary/20 transition-colors cursor-pointer">
+                    <CardContent className="p-4">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{item.equipmentName}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {item.type === "scan"
                               ? `Scanned as ${item.status}`
                               : `Moved to ${item.toFolder || "unfiled"}`}
@@ -279,13 +283,13 @@ export default function HomePage() {
                         <div className="text-right shrink-0">
                           {item.status && (
                             <Badge
-                              variant={item.status as any}
-                              className="text-[10px] mb-1"
+                              variant={statusToBadgeVariant(item.status)}
+                              className="mb-1"
                             >
                               {item.status}
                             </Badge>
                           )}
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             {formatRelativeTime(item.timestamp)}
                           </p>
                         </div>
@@ -300,13 +304,13 @@ export default function HomePage() {
 
         {/* Empty state */}
         {!isLoading && totalCount === 0 && (
-          <Card className="border-2 border-dashed">
+          <Card className="border-dashed border-2">
             <CardContent className="p-8 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <Zap className="w-8 h-8 text-primary" />
               </div>
               <h3 className="font-bold text-lg mb-1">Get Started</h3>
-              <p className="text-muted-foreground text-sm mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Add your first piece of equipment to start tracking.
               </p>
               <Link href="/equipment/new">

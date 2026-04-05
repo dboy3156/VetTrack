@@ -29,6 +29,7 @@ import {
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
 
 export default function ManagementDashboardPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
@@ -71,12 +72,12 @@ export default function ManagementDashboardPage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
               <LayoutDashboard className="w-6 h-6 text-primary" />
               Dashboard
             </h1>
             {lastUpdated && (
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-1">
                 Last updated: {lastUpdated}
               </p>
             )}
@@ -100,7 +101,7 @@ export default function ManagementDashboardPage() {
               data-testid="btn-generate-report"
             >
               <FileDown className="w-3.5 h-3.5" />
-              Generate Monthly Report
+              Report
             </Button>
           </div>
         </div>
@@ -116,22 +117,22 @@ export default function ManagementDashboardPage() {
 
         {/* Summary Counts */}
         <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Overview
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {isLoading ? (
               <>
-                <Skeleton className="h-20 rounded-2xl" />
-                <Skeleton className="h-20 rounded-2xl" />
-                <Skeleton className="h-20 rounded-2xl" />
-                <Skeleton className="h-20 rounded-2xl" />
+                <Skeleton className="h-20 rounded-xl" />
+                <Skeleton className="h-20 rounded-xl" />
+                <Skeleton className="h-20 rounded-xl" />
+                <Skeleton className="h-20 rounded-xl" />
               </>
             ) : (
               <>
-                <Card className="border-2 border-emerald-200 bg-emerald-50/50" data-testid="count-available">
+                <Card className="border-emerald-200 bg-emerald-50/50" data-testid="count-available">
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                       <span className="text-xs text-muted-foreground font-medium">Available</span>
                     </div>
@@ -139,9 +140,9 @@ export default function ManagementDashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-2 border-blue-200 bg-blue-50/50" data-testid="count-in-use">
+                <Card className="border-blue-200 bg-blue-50/50" data-testid="count-in-use">
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <Users className="w-4 h-4 text-blue-500" />
                       <span className="text-xs text-muted-foreground font-medium">In Use</span>
                     </div>
@@ -149,9 +150,9 @@ export default function ManagementDashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-2 border-red-200 bg-red-50/50" data-testid="count-issues">
+                <Card className="border-red-200 bg-red-50/50" data-testid="count-issues">
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <Wrench className="w-4 h-4 text-red-500" />
                       <span className="text-xs text-muted-foreground font-medium">Issues</span>
                     </div>
@@ -159,9 +160,9 @@ export default function ManagementDashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-2 border-amber-200 bg-amber-50/50" data-testid="count-missing">
+                <Card className="border-amber-200 bg-amber-50/50" data-testid="count-missing">
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <PackageX className="w-4 h-4 text-amber-500" />
                       <span className="text-xs text-muted-foreground font-medium">Missing</span>
                     </div>
@@ -180,7 +181,7 @@ export default function ManagementDashboardPage() {
               <AlertTriangle className="w-4 h-4 text-red-500" />
               Critical Alerts
               {criticalItems.length > 0 && (
-                <Badge variant="destructive" className="ml-auto text-xs">
+                <Badge variant="issue" className="ml-auto">
                   {criticalItems.length}
                 </Badge>
               )}
@@ -215,11 +216,8 @@ export default function ManagementDashboardPage() {
                         </p>
                       </div>
                       <Badge
-                        variant={item.status === "issue" ? "destructive" : "outline"}
-                        className={cn(
-                          "shrink-0 text-[10px]",
-                          item.status !== "issue" && "border-amber-400 text-amber-700 bg-amber-50"
-                        )}
+                        variant={item.status === "issue" ? "issue" : "maintenance"}
+                        className="shrink-0"
                       >
                         {item.status === "issue" ? "Issue" : "Missing"}
                       </Badge>
@@ -238,7 +236,7 @@ export default function ManagementDashboardPage() {
               <Users className="w-4 h-4 text-primary" />
               Who Has What
               {userGroups.length > 0 && (
-                <Badge variant="secondary" className="ml-auto text-xs">
+                <Badge variant="secondary" className="ml-auto">
                   {userGroups.length} user{userGroups.length !== 1 ? "s" : ""}
                 </Badge>
               )}
@@ -263,7 +261,7 @@ export default function ManagementDashboardPage() {
                   return (
                     <div key={group.userId} className="border rounded-xl overflow-hidden">
                       <button
-                        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
+                        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-muted/50 transition-colors text-left min-h-[44px]"
                         onClick={() => toggleUser(group.userId)}
                         data-testid={`user-group-toggle-${group.userId}`}
                       >
@@ -283,14 +281,14 @@ export default function ManagementDashboardPage() {
                         <div className="border-t bg-muted/20">
                           {group.items.map((eq) => (
                             <Link key={eq.id} href={`/equipment/${eq.id}`}>
-                              <div className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b last:border-0 cursor-pointer">
+                              <div className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/40 transition-colors border-b last:border-0 cursor-pointer min-h-[44px]">
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium truncate">{eq.name}</p>
                                   {eq.checkedOutLocation && (
                                     <p className="text-xs text-muted-foreground">{eq.checkedOutLocation}</p>
                                   )}
                                 </div>
-                                <Badge variant="secondary" className="text-[10px] shrink-0">
+                                <Badge variant={statusToBadgeVariant(eq.status)} className="shrink-0">
                                   {eq.status}
                                 </Badge>
                               </div>
@@ -327,7 +325,7 @@ export default function ManagementDashboardPage() {
                 <p className="text-sm text-muted-foreground">No location data available</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {locationGroups.map((group) => {
                   const total = equipment?.length || 1;
                   const pct = Math.round((group.count / total) * 100);

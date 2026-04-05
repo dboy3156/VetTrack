@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { STATUS_LABELS } from "@/types";
 import type { Equipment } from "@/types";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
 import {
   Plus,
   Search,
@@ -203,7 +204,7 @@ export default function EquipmentListPage() {
       <div className="flex flex-col gap-4 pb-24">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Equipment</h1>
+          <h1 className="text-2xl font-bold leading-tight">Equipment</h1>
           <div className="flex items-center gap-2">
             <input
               ref={qrInputRef}
@@ -316,7 +317,7 @@ export default function EquipmentListPage() {
                     });
                   }}
                 >
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-9 text-xs">
                     <FolderInput className="w-3.5 h-3.5 mr-1" />
                     Move
                   </SelectTrigger>
@@ -335,7 +336,6 @@ export default function EquipmentListPage() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        className="h-8 text-xs"
                         data-testid="btn-bulk-delete"
                       >
                         <Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -384,7 +384,7 @@ export default function EquipmentListPage() {
         {isLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+              <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -453,7 +453,7 @@ function EquipmentItem({
       )}
       <Link href={`/equipment/${eq.id}`} className="flex-1" onClick={(e) => selectMode && e.preventDefault()}>
         <Card
-          className={`border transition-all hover:shadow-sm hover:border-primary/30 ${selected ? "border-primary bg-primary/5" : ""}`}
+          className={`transition-all hover:shadow-sm hover:border-primary/30 ${selected ? "border-primary bg-primary/5" : ""}`}
           data-testid={`equipment-item-${eq.id}`}
         >
           <CardContent className="p-4 flex items-center gap-3">
@@ -471,7 +471,7 @@ function EquipmentItem({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-sm truncate">{eq.name}</span>
-                <Badge variant={eq.status as any} className="text-[10px] shrink-0">
+                <Badge variant={statusToBadgeVariant(eq.status)} className="shrink-0">
                   {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] || eq.status}
                 </Badge>
               </div>
@@ -493,7 +493,7 @@ function EquipmentItem({
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Last seen: {formatRelativeTime(eq.lastSeen?.toString())}
               </p>
             </div>

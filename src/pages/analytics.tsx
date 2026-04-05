@@ -67,7 +67,7 @@ export default function AnalyticsPage() {
   return (
     <Layout>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
           <BarChart3 className="w-6 h-6 text-primary" />
           Analytics
         </h1>
@@ -85,16 +85,16 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-2 gap-3">
           {isLoading ? (
             <>
-              <Skeleton className="h-24 rounded-2xl" />
-              <Skeleton className="h-24 rounded-2xl" />
-              <Skeleton className="h-24 rounded-2xl" />
-              <Skeleton className="h-24 rounded-2xl" />
+              <Skeleton className="h-24 rounded-xl" />
+              <Skeleton className="h-24 rounded-xl" />
+              <Skeleton className="h-24 rounded-xl" />
+              <Skeleton className="h-24 rounded-xl" />
             </>
           ) : (
             <>
-              <Card className="border-2 border-emerald-200 bg-emerald-50/50">
+              <Card className="border-emerald-200 bg-emerald-50/50">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     <span className="text-xs text-muted-foreground font-medium">Maintenance</span>
                   </div>
@@ -105,9 +105,9 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-teal-200 bg-teal-50/50">
+              <Card className="border-teal-200 bg-teal-50/50">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <Droplets className="w-4 h-4 text-teal-500" />
                     <span className="text-xs text-muted-foreground font-medium">Sterilization</span>
                   </div>
@@ -118,9 +118,9 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-red-200 bg-red-50/50">
+              <Card className="border-red-200 bg-red-50/50">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle className="w-4 h-4 text-red-500" />
                     <span className="text-xs text-muted-foreground font-medium">Overdue</span>
                   </div>
@@ -131,9 +131,9 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-amber-200 bg-amber-50/50">
+              <Card className="border-amber-200 bg-amber-50/50">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <Wrench className="w-4 h-4 text-amber-500" />
                     <span className="text-xs text-muted-foreground font-medium">Issues</span>
                   </div>
@@ -149,7 +149,7 @@ export default function AnalyticsPage() {
 
         {/* Status pie chart */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle className="text-base">Equipment Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
@@ -182,14 +182,14 @@ export default function AnalyticsPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-muted-foreground py-10">No data yet</p>
+              <p className="text-center text-muted-foreground py-10 text-sm">No data yet</p>
             )}
           </CardContent>
         </Card>
 
         {/* Scan activity chart */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="w-4 h-4 text-primary" />
               Scan Activity (14 days)
@@ -219,14 +219,14 @@ export default function AnalyticsPage() {
         {/* Top problem equipment */}
         {analytics?.topProblemEquipment && analytics.topProblemEquipment.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-amber-500" />
                 Top Problem Equipment
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {analytics.topProblemEquipment.map((item, i) => (
                   <div key={item.equipmentId} className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export default function AnalyticsPage() {
                       </span>
                       <span className="text-sm font-medium truncate">{item.name}</span>
                     </div>
-                    <Badge variant="destructive" className="shrink-0">
+                    <Badge variant="issue" className="shrink-0">
                       {item.issueCount} issues
                     </Badge>
                   </div>

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS_LABELS } from "@/types";
 import { formatRelativeTime } from "@/lib/utils";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
 import {
   PackageOpen,
   MapPin,
@@ -40,7 +41,7 @@ export default function MyEquipmentPage() {
     <Layout>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <PackageOpen className="w-6 h-6 text-primary" />
             My Equipment
           </h1>
@@ -54,17 +55,17 @@ export default function MyEquipmentPage() {
         {isLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(3)].map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+              <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
         ) : !items || items.length === 0 ? (
           <Card className="border-2 border-dashed border-teal-200">
             <CardContent className="p-10 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-teal-500" />
               </div>
               <h3 className="font-bold text-lg text-teal-700">Nothing checked out</h3>
-              <p className="text-muted-foreground text-sm mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Equipment you check out will appear here.
               </p>
             </CardContent>
@@ -72,13 +73,13 @@ export default function MyEquipmentPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {items.map((item) => (
-              <Card key={item.id} className="border border-blue-200">
-                <CardContent className="p-3.5">
+              <Card key={item.id} className="border-blue-200">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
+                      <div className="flex items-center gap-2 mb-1">
                         <p className="font-semibold text-sm truncate">{item.name}</p>
-                        <Badge variant={item.status as any} className="text-[10px] shrink-0">
+                        <Badge variant={statusToBadgeVariant(item.status)} className="shrink-0">
                           {STATUS_LABELS[item.status] || item.status}
                         </Badge>
                       </div>
@@ -96,7 +97,7 @@ export default function MyEquipmentPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-blue-300 text-blue-700 hover:bg-blue-50 h-8 px-3"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-50 min-h-[44px] px-3"
                         onClick={() => returnMut.mutate(item.id)}
                         disabled={returnMut.isPending}
                         data-testid={`btn-return-${item.id}`}
@@ -111,7 +112,7 @@ export default function MyEquipmentPage() {
                         )}
                       </Button>
                       <Link href={`/equipment/${item.id}`}>
-                        <Button variant="ghost" size="icon-sm">
+                        <Button variant="ghost" size="icon-sm" className="min-h-[44px] min-w-[44px]">
                           <ChevronRight className="w-4 h-4" />
                         </Button>
                       </Link>

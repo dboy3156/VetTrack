@@ -182,7 +182,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   data-testid="alert-bell"
                 >
                   <AlertTriangle className="w-5 h-5" />
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
                     {alertCount > 9 ? "9+" : alertCount}
                   </span>
                 </Button>
@@ -223,7 +223,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                       <span className="text-sm font-medium">{item.label}</span>
                     </div>
                     {item.badgeCount ? (
-                      <Badge variant="destructive" className="text-[10px] h-5 min-w-5 px-1.5">
+                      <Badge variant="issue" className="h-5 min-w-5 px-1.5">
                         {item.badgeCount}
                       </Badge>
                     ) : null}
@@ -246,15 +246,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative",
+                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[56px] transition-colors relative",
                   location === item.href ? "text-primary" : "text-muted-foreground"
                 )}
                 data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
               >
                 {item.icon}
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <span className="text-xs font-medium">{item.label}</span>
                 {item.badgeCount ? (
-                  <span className="absolute top-1.5 right-1/4 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute top-2 right-1/4 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
                     {item.badgeCount > 9 ? "9+" : item.badgeCount}
                   </span>
                 ) : null}
@@ -263,13 +263,13 @@ export function Layout({ children, title, onScan }: LayoutProps) {
           ))}
 
           {/* Center Scan button */}
-          <div className="flex-1 flex items-center justify-center py-1.5">
+          <div className="flex-1 flex items-center justify-center py-2">
             <button
               onClick={openScanner}
-              className="w-14 h-14 rounded-full bg-primary text-white flex flex-col items-center justify-center shadow-lg hover:bg-primary/90 transition-colors -mt-4"
+              className="w-12 h-12 rounded-full bg-primary text-white flex flex-col items-center justify-center shadow-sm hover:bg-primary/90 transition-colors -mt-3"
               data-testid="bottom-nav-scan"
             >
-              <Scan className="w-6 h-6" />
+              <Scan className="w-5 h-5" />
             </button>
           </div>
 
@@ -278,15 +278,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative",
+                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[56px] transition-colors relative",
                   location === item.href ? "text-primary" : "text-muted-foreground"
                 )}
                 data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
               >
                 {item.icon}
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <span className="text-xs font-medium">{item.label}</span>
                 {item.badgeCount ? (
-                  <span className="absolute top-1.5 right-1/4 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute top-2 right-1/4 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
                     {item.badgeCount > 9 ? "9+" : item.badgeCount}
                   </span>
                 ) : null}

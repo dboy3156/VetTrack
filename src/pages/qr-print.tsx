@@ -16,7 +16,6 @@ import {
   Square,
   QrCode,
   Package,
-  Download,
 } from "lucide-react";
 import type { Equipment } from "@/types";
 
@@ -121,7 +120,7 @@ export default function QrPrintPage() {
       <div className="flex flex-col gap-4 pb-24">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <QrCode className="w-6 h-6 text-primary" />
             QR Print
           </h1>
@@ -181,7 +180,7 @@ export default function QrPrintPage() {
         {isLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-16 rounded-2xl" />
+              <Skeleton key={i} className="h-16 rounded-xl" />
             ))}
           </div>
         ) : (
@@ -191,13 +190,13 @@ export default function QrPrintPage() {
                 key={eq.id}
                 className={`cursor-pointer transition-all hover:border-primary/30 ${
                   selected.has(eq.id)
-                    ? "border-primary bg-primary/5 border-2"
-                    : "border"
+                    ? "border-primary bg-primary/5"
+                    : ""
                 }`}
                 onClick={() => toggleSelect(eq.id)}
                 data-testid={`qr-select-${eq.id}`}
               >
-                <CardContent className="p-3.5 flex items-center gap-3">
+                <CardContent className="p-4 flex items-center gap-3">
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                       selected.has(eq.id) ? "bg-primary border-primary" : "border-border"
@@ -234,21 +233,21 @@ export default function QrPrintPage() {
             <h2 className="font-semibold text-sm mb-3">Print Preview ({selected.size} items)</h2>
             <div
               ref={printRef}
-              className="grid grid-cols-3 gap-3 p-4 bg-white border rounded-2xl"
+              className="grid grid-cols-3 gap-3 p-4 bg-white border rounded-xl"
             >
               {selectedEquipment.map((eq) => (
-                <div key={eq.id} className="flex flex-col items-center gap-1 p-2 border rounded-xl">
+                <div key={eq.id} className="flex flex-col items-center gap-1 p-2 border rounded-lg">
                   <QRCodeSVG
                     value={generateQrUrl(eq.id)}
                     size={72}
                     level="M"
                     includeMargin={false}
                   />
-                  <p className="text-[9px] font-bold text-center leading-tight line-clamp-2">
+                  <p className="text-xs font-bold text-center leading-tight line-clamp-2">
                     {eq.name}
                   </p>
                   {eq.serialNumber && (
-                    <p className="text-[8px] text-muted-foreground">#{eq.serialNumber}</p>
+                    <p className="text-xs text-muted-foreground">#{eq.serialNumber}</p>
                   )}
                 </div>
               ))}

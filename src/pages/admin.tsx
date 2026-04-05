@@ -47,8 +47,8 @@ export default function AdminPage() {
       <Layout>
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
           <Shield className="w-12 h-12 text-muted-foreground" />
-          <h1 className="text-xl font-bold">Admin Only</h1>
-          <p className="text-muted-foreground">You need admin access to view this page.</p>
+          <h1 className="text-2xl font-bold">Admin Only</h1>
+          <p className="text-sm text-muted-foreground">You need admin access to view this page.</p>
           <Button variant="ghost" onClick={() => navigate("/")}>
             Go Home
           </Button>
@@ -60,7 +60,7 @@ export default function AdminPage() {
   return (
     <Layout>
       <div className="flex flex-col gap-6 pb-24">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
           <Shield className="w-6 h-6 text-primary" />
           Admin
         </h1>
@@ -137,7 +137,7 @@ function FoldersSection() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-xl" />)}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -147,7 +147,7 @@ function FoldersSection() {
                 <div className="flex items-center gap-2">
                   <FolderOpen className="w-4 h-4 text-teal-600" />
                   <span className="text-sm font-medium">{f.name}</span>
-                  <Badge variant="outline" className="text-[10px]">Smart</Badge>
+                  <Badge variant="sterilized" className="text-xs">Smart</Badge>
                 </div>
               </div>
             ))}
@@ -210,7 +210,7 @@ function FoldersSection() {
         )}
       </CardContent>
 
-      {/* Create folder dialog */}
+      {/* Create / Edit folder dialog */}
       <Dialog
         open={createOpen || !!editFolder}
         onOpenChange={(open) => {
@@ -289,7 +289,7 @@ function UsersSection() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14" />)}
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
           </div>
         ) : users?.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
@@ -307,7 +307,7 @@ function UsersSection() {
                   value={user.role}
                   onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as "admin" | "technician" })}
                 >
-                  <SelectTrigger className="w-36 h-8 text-xs" data-testid={`select-role-${user.id}`}>
+                  <SelectTrigger className="w-36 h-9 text-xs" data-testid={`select-role-${user.id}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
