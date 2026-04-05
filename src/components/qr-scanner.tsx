@@ -280,7 +280,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col" data-testid="qr-scanner-overlay">
       {/* Header */}
-      <div className="relative z-10 flex items-center justify-between px-4 pt-4 pb-3 bg-black/80">
+      <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-black/80" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
         <span className="text-white font-semibold text-lg">Scan QR Code</span>
         <div className="flex items-center gap-2">
           {torchSupported && phase === "scanning" && (
@@ -438,8 +438,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
         {/* Scanning guide overlay */}
         {phase === "scanning" && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="relative" style={{ width: 250, height: 250 }}>
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="relative" style={{ width: 250, height: 250, position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
               {/* Corner brackets */}
               <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
               <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
@@ -458,7 +458,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
       {/* "Enter code manually" footer (scanning phase) */}
       {phase === "scanning" && (
-        <div className="bg-black/80 px-4 pb-6 pt-3 flex flex-col items-center gap-2">
+        <div className="bg-black/80 px-4 pt-3 flex flex-col items-center gap-2" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
           {showFallbackHint && (
             <p className="text-white/60 text-xs text-center animate-fade-in">
               Having trouble? Try entering the ID manually.

@@ -106,14 +106,23 @@
   object-fit: cover !important;
 }
 
-/* Make all nested divs the library injects fill the parent properly */
-#qr-scanner-container div {
+/* Make the immediate wrapper divs the library injects fill the parent properly.
+   Explicitly exclude the shaded-region div (stable id injected by html5-qrcode)
+   so the library's internal scan-region sizing is left untouched. */
+#qr-scanner-container > div,
+#qr-scanner-container > div > div:not(#qr-shaded-region) {
   width: 100% !important;
   height: 100% !important;
   padding: 0 !important;
   margin: 0 !important;
   border: none !important;
   background: transparent !important;
+}
+
+/* The shaded region div itself should be transparent with no forced sizing */
+#qr-scanner-container #qr-shaded-region {
+  background: transparent !important;
+  border: none !important;
 }
 
 /* ── QR scan-line animation ──────────────────────────────────────────────── */
