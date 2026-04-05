@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 
 export type Density = "compact" | "comfortable";
-export type Language = "en" | "es" | "fr" | "de";
 export type TimeFormat = "12h" | "24h";
 export type DateFormat = "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD";
 
@@ -10,9 +9,9 @@ export interface Settings {
   density: Density;
   soundEnabled: boolean;
   criticalAlertsSound: boolean;
-  language: Language;
   timeFormat: TimeFormat;
   dateFormat: DateFormat;
+  brightness: number;
 }
 
 const STORAGE_KEY = "vettrack-settings";
@@ -22,16 +21,20 @@ const DEFAULT_SETTINGS: Settings = {
   density: "comfortable",
   soundEnabled: true,
   criticalAlertsSound: true,
-  language: "en",
   timeFormat: "12h",
   dateFormat: "MM/DD/YYYY",
+  brightness: 100,
 };
 
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    if ("language" in parsed) {
+      delete parsed.language;
+    }
+    return { ...DEFAULT_SETTINGS, ...parsed };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -41,7 +44,6 @@ function saveSettings(settings: Settings) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch {
-    // ignore storage errors
   }
 }
 
@@ -53,6 +55,12 @@ function applySettings(settings: Settings) {
     html.classList.remove("dark");
   }
   html.setAttribute("data-density", settings.density);
+  const brightness = Math.min(100, Math.max(30, settings.brightness ?? 100));
+  if (brightness < 100) {
+    document.body.style.filter = `brightness(${brightness}%)`;
+  } else {
+    document.body.style.filter = "";
+  }
 }
 
 interface SettingsContextType {

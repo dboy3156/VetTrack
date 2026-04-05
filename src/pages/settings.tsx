@@ -15,19 +15,22 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import {
   Moon,
   Volume2,
+  VolumeX,
   BellRing,
-  Globe,
   Clock,
   Calendar,
   RotateCcw,
   LogOut,
   Sun,
   AlignJustify,
+  SunDim,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
@@ -35,7 +38,31 @@ export default function SettingsPage() {
   const [, navigate] = useLocation();
 
   const handleLogout = () => {
+    const keysToRemove = Object.keys(localStorage).filter((k) =>
+      k.startsWith("vettrack")
+    );
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
     navigate("/landing");
+  };
+
+  const handleSoundToggle = async (v: boolean) => {
+    if (v) {
+      await playFeedbackTone();
+    } else {
+      await playMuteTone();
+    }
+    update({ soundEnabled: v });
+  };
+
+  const handleCriticalAlertsToggle = async (v: boolean) => {
+    if (settings.soundEnabled) {
+      if (v) {
+        await playFeedbackTone();
+      } else {
+        await playMuteTone();
+      }
+    }
+    update({ criticalAlertsSound: v });
   };
 
   return (
@@ -60,8 +87,8 @@ export default function SettingsPage() {
             />
             <SettingsSelect
               icon={<AlignJustify className="w-5 h-5" />}
-              label="UI Density"
-              description="Adjust spacing and padding"
+              label="Display Size"
+              description="Adjust spacing and layout density"
               value={settings.density}
               options={[
                 { value: "comfortable", label: "Comfortable" },
@@ -70,6 +97,28 @@ export default function SettingsPage() {
               onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
               data-testid="settings-density"
             />
+            <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-muted/40">
+              <span className="flex-shrink-0 text-muted-foreground">
+                <SunDim className="w-5 h-5" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground leading-tight">Brightness</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Dim or brighten the app ({settings.brightness}%)
+                </p>
+                <div className="mt-2 pr-1">
+                  <Slider
+                    min={30}
+                    max={100}
+                    step={5}
+                    value={[settings.brightness]}
+                    onValueChange={([v]) => update({ brightness: v })}
+                    data-testid="settings-brightness"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -78,41 +127,20 @@ export default function SettingsPage() {
           <SettingsSectionHeader label="Sound" />
           <div className="space-y-2">
             <SettingsToggle
-              icon={<Volume2 className="w-5 h-5" />}
+              icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
               label="Master Sound"
               description="Enable or disable all sounds"
               checked={settings.soundEnabled}
-              onCheckedChange={(v) => update({ soundEnabled: v })}
+              onCheckedChange={handleSoundToggle}
               data-testid="settings-sound"
             />
             <SettingsToggle
               icon={<BellRing className="w-5 h-5" />}
-              label="Critical Alerts Sound"
+              label="Critical Alerts"
               description="Play audio for urgent equipment alerts"
               checked={settings.criticalAlertsSound}
-              onCheckedChange={(v) => update({ criticalAlertsSound: v })}
+              onCheckedChange={handleCriticalAlertsToggle}
               data-testid="settings-critical-sound"
-            />
-          </div>
-        </section>
-
-        {/* Language & Input */}
-        <section className="space-y-2">
-          <SettingsSectionHeader label="Language & Input" />
-          <div className="space-y-2">
-            <SettingsSelect
-              icon={<Globe className="w-5 h-5" />}
-              label="Language"
-              description="Display language for the interface"
-              value={settings.language}
-              options={[
-                { value: "en", label: "English" },
-                { value: "es", label: "Español" },
-                { value: "fr", label: "Français" },
-                { value: "de", label: "Deutsch" },
-              ]}
-              onValueChange={(v) => update({ language: v as "en" | "es" | "fr" | "de" })}
-              data-testid="settings-language"
             />
           </div>
         </section>

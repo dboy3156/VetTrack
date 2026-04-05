@@ -28,15 +28,18 @@ import {
   VolumeX,
   BellRing,
   AlignJustify,
+  SunDim,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
 import { QrScanner } from "@/components/qr-scanner";
 import { useSettings } from "@/hooks/use-settings";
 import { SettingsToggle, SettingsSelect } from "@/components/settings-controls";
+import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 
 interface NavItem {
   href: string;
@@ -137,6 +140,26 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
   const hasPending = pendingCount > 0;
   const hasFailed = failedCount > 0;
+
+  const handleSoundToggle = async (v: boolean) => {
+    if (v) {
+      await playFeedbackTone();
+    } else {
+      await playMuteTone();
+    }
+    update({ soundEnabled: v });
+  };
+
+  const handleCriticalAlertsToggle = async (v: boolean) => {
+    if (settings.soundEnabled) {
+      if (v) {
+        await playFeedbackTone();
+      } else {
+        await playMuteTone();
+      }
+    }
+    update({ criticalAlertsSound: v });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -248,7 +271,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   />
                   <SettingsSelect
                     icon={<AlignJustify className="w-5 h-5" />}
-                    label="Density"
+                    label="Display Size"
                     value={settings.density}
                     options={[
                       { value: "comfortable", label: "Comfortable" },
@@ -257,32 +280,38 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                     onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
                     data-testid="quick-density"
                   />
+                  <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/40">
+                    <span className="flex-shrink-0 text-muted-foreground">
+                      <SunDim className="w-5 h-5" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-tight mb-1.5">
+                        Brightness ({settings.brightness}%)
+                      </p>
+                      <Slider
+                        min={30}
+                        max={100}
+                        step={5}
+                        value={[settings.brightness]}
+                        onValueChange={([v]) => update({ brightness: v })}
+                        data-testid="quick-brightness"
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
                   <SettingsToggle
                     icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                     label="Master Sound"
                     checked={settings.soundEnabled}
-                    onCheckedChange={(v) => update({ soundEnabled: v })}
+                    onCheckedChange={handleSoundToggle}
                     data-testid="quick-sound"
                   />
                   <SettingsToggle
                     icon={<BellRing className="w-5 h-5" />}
-                    label="Critical Alerts Sound"
+                    label="Critical Alerts"
                     checked={settings.criticalAlertsSound}
-                    onCheckedChange={(v) => update({ criticalAlertsSound: v })}
+                    onCheckedChange={handleCriticalAlertsToggle}
                     data-testid="quick-critical-sound"
-                  />
-                  <SettingsSelect
-                    icon={<Globe className="w-5 h-5" />}
-                    label="Language"
-                    value={settings.language}
-                    options={[
-                      { value: "en", label: "English" },
-                      { value: "es", label: "Español" },
-                      { value: "fr", label: "Français" },
-                      { value: "de", label: "Deutsch" },
-                    ]}
-                    onValueChange={(v) => update({ language: v as "en" | "es" | "fr" | "de" })}
-                    data-testid="quick-language"
                   />
                   <div className="pt-1 border-t border-border">
                     <Link href="/settings" onClick={() => setQuickSettingsOpen(false)}>
@@ -349,7 +378,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       {/* Main content */}
       <main
         className={cn(
-          "max-w-2xl mx-auto px-4 py-6 pb-safe",
+          "max-w-2xl mx-auto px-4 pb-safe",
           settings.density === "compact" ? "py-3" : "py-6"
         )}
       >

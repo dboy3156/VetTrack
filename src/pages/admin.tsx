@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -151,17 +150,6 @@ function FoldersSection() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {/* Smart folders */}
-            {folders?.filter((f) => f.type === "smart").map((f) => (
-              <div key={f.id} className="flex items-center justify-between p-3 bg-teal-50 rounded-xl border border-teal-200">
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4 text-teal-600" />
-                  <span className="text-sm font-medium">{f.name}</span>
-                  <Badge variant="sterilized" className="text-xs">Smart</Badge>
-                </div>
-              </div>
-            ))}
-
             {/* Manual folders */}
             {manualFolders.map((f) => (
               <div key={f.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border">
@@ -211,7 +199,7 @@ function FoldersSection() {
               </div>
             ))}
 
-            {manualFolders.length === 0 && !folders?.find((f) => f.type === "smart") && (
+            {manualFolders.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No folders yet. Create one to organize equipment.
               </p>

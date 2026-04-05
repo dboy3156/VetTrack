@@ -71,6 +71,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QRCodeSVG } from "qrcode.react";
 import { removePendingSync } from "@/lib/offline-db";
+import { useSettings } from "@/hooks/use-settings";
+import { playCriticalAlertTone } from "@/lib/sounds";
 
 const STATUS_CONFIG = {
   ok: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50" },
@@ -95,6 +97,7 @@ export default function EquipmentDetailPage() {
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const { isAdmin, email, userId } = useAuth();
+  const { settings } = useSettings();
   const queryClient = useQueryClient();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [scanActionSheetOpen, setScanActionSheetOpen] = useState(false);
@@ -310,6 +313,9 @@ export default function EquipmentDetailPage() {
       }
 
       if (capturedStatus === "issue") {
+        if (settings.soundEnabled && settings.criticalAlertsSound) {
+          playCriticalAlertTone();
+        }
         setTimeout(() => {
           if (isOffline) {
             toast.warning("Issue reported — alert will fire locally. WhatsApp will be sent when back online.");
@@ -444,6 +450,10 @@ export default function EquipmentDetailPage() {
       setReportIssueNote("");
       setReportIssuePhoto(null);
       setReportIssueNoteError("");
+
+      if (settings.soundEnabled && settings.criticalAlertsSound) {
+        playCriticalAlertTone();
+      }
 
       const { equipment: updated, scanLog, undoToken } = result;
       const wasOffline = result.pendingSyncId !== undefined;
