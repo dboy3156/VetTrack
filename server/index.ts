@@ -36,6 +36,7 @@ import alertAcksRoutes from "./routes/alert-acks.js";
 import demoSeedRoutes from "./routes/demo-seed.js";
 import pushRoutes from "./routes/push.js";
 import metricsRoutes from "./routes/metrics.js";
+import supportRoutes from "./routes/support.js";
 import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
 
@@ -139,6 +140,7 @@ app.use("/api/alert-acks", alertAcksRoutes);
 app.use("/api/demo-seed", demoSeedRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/metrics", metricsRoutes);
+app.use("/api/support", supportRoutes);
 
 Sentry.setupExpressErrorHandler(app);
 

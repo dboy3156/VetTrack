@@ -29,6 +29,7 @@ import {
   BellRing,
   AlignJustify,
   SunDim,
+  Bug,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ import { QrScanner } from "@/components/qr-scanner";
 import { useSettings } from "@/hooks/use-settings";
 import { SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
+import { ReportIssueDialog } from "@/components/report-issue-dialog";
 
 interface NavItem {
   href: string;
@@ -62,6 +64,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [reportIssueOpen, setReportIssueOpen] = useState(false);
   const { isAdmin } = useAuth();
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
@@ -370,6 +373,17 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   </div>
                 </Link>
               ))}
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReportIssueOpen(true);
+                }}
+                data-testid="nav-report-issue"
+                className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left"
+              >
+                <Bug className="w-5 h-5" />
+                <span className="text-sm font-medium">Report Issue</span>
+              </button>
             </nav>
           </div>
         )}
@@ -447,6 +461,12 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       {scannerOpen && (
         <QrScanner onClose={() => setScannerOpen(false)} />
       )}
+
+      {/* Report Issue dialog */}
+      <ReportIssueDialog
+        open={reportIssueOpen}
+        onOpenChange={setReportIssueOpen}
+      />
     </div>
   );
 }

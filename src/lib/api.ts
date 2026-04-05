@@ -16,6 +16,8 @@ import type {
   UploadUrlResponse,
   AlertAcknowledgment,
   SystemMetrics,
+  SupportTicket,
+  CreateSupportTicketRequest,
 } from "@/types";
 import { emitServerError, clearServerError } from "@/components/ui/server-error-banner";
 import type { PendingSyncType } from "./offline-db";
@@ -484,5 +486,19 @@ export const api = {
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),
+  },
+  support: {
+    create: (data: CreateSupportTicketRequest) =>
+      request<SupportTicket>(
+        "/api/support",
+        { method: "POST", body: JSON.stringify(data) }
+      ),
+    list: () => request<SupportTicket[]>("/api/support"),
+    unresolvedCount: () => request<{ count: number }>("/api/support/unresolved-count"),
+    update: (id: string, data: { status?: string; adminNote?: string }) =>
+      request<SupportTicket>(
+        `/api/support/${id}`,
+        { method: "PATCH", body: JSON.stringify(data) }
+      ),
   },
 };

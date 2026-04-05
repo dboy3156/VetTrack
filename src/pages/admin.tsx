@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -33,14 +35,24 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import { cn } from "@/lib/utils";
+import type { SupportTicket, SupportTicketStatus } from "@/types";
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
+  const [activeTab, setActiveTab] = useState<"folders" | "users" | "support">("folders");
+
+  const { data: supportUnresolved } = useQuery({
+    queryKey: ["/api/support/unresolved-count"],
+    queryFn: api.support.unresolvedCount,
+    enabled: isAdmin,
+    refetchInterval: 60_000,
+  });
 
   if (!isAdmin) {
     return (
@@ -61,6 +73,8 @@ export default function AdminPage() {
     );
   }
 
+  const unresolvedCount = supportUnresolved?.count ?? 0;
+
   return (
     <Layout>
       <Helmet>
@@ -73,8 +87,58 @@ export default function AdminPage() {
           <Shield className="w-6 h-6 text-primary" />
           Admin
         </h1>
-        <FoldersSection />
-        <UsersSection />
+
+        {/* Tab bar */}
+        <div className="flex gap-2 border-b pb-0">
+          <button
+            onClick={() => setActiveTab("folders")}
+            data-testid="admin-tab-folders"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "folders"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <FolderOpen className="w-4 h-4" />
+            Folders
+          </button>
+          <button
+            onClick={() => setActiveTab("users")}
+            data-testid="admin-tab-users"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "users"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users className="w-4 h-4" />
+            Users
+          </button>
+          <button
+            onClick={() => setActiveTab("support")}
+            data-testid="admin-tab-support"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors relative",
+              activeTab === "support"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <LifeBuoy className="w-4 h-4" />
+            Support
+            {unresolvedCount > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
+                {unresolvedCount > 9 ? "9+" : unresolvedCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === "folders" && <FoldersSection />}
+        {activeTab === "users" && <UsersSection />}
+        {activeTab === "support" && <SupportSection />}
       </div>
     </Layout>
   );
@@ -150,7 +214,6 @@ function FoldersSection() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {/* Manual folders */}
             {manualFolders.map((f) => (
               <div key={f.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border">
                 <div className="flex items-center gap-2">
@@ -350,6 +413,222 @@ function UsersSection() {
           </div>
         )}
       </CardContent>
+    </Card>
+  );
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  low: "bg-blue-50 text-blue-700 border-blue-200",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  high: "bg-red-50 text-red-700 border-red-200",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  open: "bg-red-50 text-red-700 border-red-200",
+  in_progress: "bg-amber-50 text-amber-700 border-amber-200",
+  resolved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  open: "Open",
+  in_progress: "In Progress",
+  resolved: "Resolved",
+};
+
+function SupportSection() {
+  const queryClient = useQueryClient();
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [detailStatus, setDetailStatus] = useState<SupportTicketStatus>("open");
+  const [detailNote, setDetailNote] = useState("");
+  const [expandedDevice, setExpandedDevice] = useState(false);
+
+  const { data: tickets, isLoading } = useQuery({
+    queryKey: ["/api/support"],
+    queryFn: api.support.list,
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, status, adminNote }: { id: string; status: SupportTicketStatus; adminNote: string }) =>
+      api.support.update(id, { status, adminNote }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/support"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/support/unresolved-count"] });
+      setSelectedTicket(updated);
+      toast.success("Ticket updated");
+    },
+    onError: () => toast.error("Failed to update ticket"),
+  });
+
+  const openDetail = (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    setDetailStatus(ticket.status);
+    setDetailNote(ticket.adminNote || "");
+    setExpandedDevice(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <LifeBuoy className="w-4 h-4 text-primary" />
+          Support Tickets
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+          </div>
+        ) : !tickets || tickets.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No support tickets yet.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {tickets.map((ticket) => (
+              <button
+                key={ticket.id}
+                onClick={() => openDetail(ticket)}
+                data-testid={`ticket-row-${ticket.id}`}
+                className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border hover:bg-muted/80 transition-colors text-left w-full gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{ticket.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{ticket.userEmail}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(ticket.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase", SEVERITY_STYLES[ticket.severity])}>
+                    {ticket.severity}
+                  </span>
+                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-medium", STATUS_STYLES[ticket.status])}>
+                    {STATUS_LABELS[ticket.status]}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Ticket detail dialog */}
+      <Dialog open={!!selectedTicket} onOpenChange={(open) => { if (!open) setSelectedTicket(null); }}>
+        {selectedTicket && (
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="pr-6 leading-tight">{selectedTicket.title}</DialogTitle>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex gap-2 flex-wrap">
+                <span className={cn("text-xs px-2 py-0.5 rounded border font-medium uppercase", SEVERITY_STYLES[selectedTicket.severity])}>
+                  {selectedTicket.severity} severity
+                </span>
+                <span className={cn("text-xs px-2 py-0.5 rounded border font-medium", STATUS_STYLES[selectedTicket.status])}>
+                  {STATUS_LABELS[selectedTicket.status]}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
+                <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <div>
+                  <span className="font-semibold text-muted-foreground">Submitted by</span>
+                  <p className="truncate">{selectedTicket.userEmail}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Date</span>
+                  <p>{new Date(selectedTicket.createdAt).toLocaleString()}</p>
+                </div>
+                {selectedTicket.pageUrl && (
+                  <div className="col-span-2">
+                    <span className="font-semibold text-muted-foreground">Page URL</span>
+                    <p className="truncate">{selectedTicket.pageUrl}</p>
+                  </div>
+                )}
+                {selectedTicket.appVersion && (
+                  <div>
+                    <span className="font-semibold text-muted-foreground">App Version</span>
+                    <p>{selectedTicket.appVersion}</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedTicket.deviceInfo && (
+                <div>
+                  <button
+                    onClick={() => setExpandedDevice((v) => !v)}
+                    className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {expandedDevice ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    Device Info
+                  </button>
+                  {expandedDevice && (
+                    <p className="text-xs mt-1 text-muted-foreground break-all">{selectedTicket.deviceInfo}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="border-t pt-4 flex flex-col gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin Actions</p>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="ticket-status" className="text-xs">Status</Label>
+                  <Select value={detailStatus} onValueChange={(v) => setDetailStatus(v as SupportTicketStatus)}>
+                    <SelectTrigger id="ticket-status" data-testid="select-ticket-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="ticket-note" className="text-xs">Internal Note</Label>
+                  <Textarea
+                    id="ticket-note"
+                    placeholder="Add an internal note..."
+                    value={detailNote}
+                    onChange={(e) => setDetailNote(e.target.value)}
+                    rows={3}
+                    data-testid="input-ticket-note"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => setSelectedTicket(null)}
+                disabled={updateMut.isPending}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  updateMut.mutate({
+                    id: selectedTicket.id,
+                    status: detailStatus,
+                    adminNote: detailNote,
+                  });
+                }}
+                disabled={updateMut.isPending}
+                data-testid="btn-update-ticket"
+              >
+                {updateMut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </Card>
   );
 }

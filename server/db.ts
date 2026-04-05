@@ -130,6 +130,22 @@ export const pushSubscriptions = pgTable("vt_push_subscriptions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const supportTickets = pgTable("vt_support_tickets", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  severity: varchar("severity", { length: 10 }).notNull().default("medium"),
+  status: varchar("status", { length: 20 }).notNull().default("open"),
+  userId: text("user_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  pageUrl: text("page_url"),
+  deviceInfo: text("device_info"),
+  appVersion: text("app_version"),
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
   // This function is kept as a thin wrapper for backwards compatibility.

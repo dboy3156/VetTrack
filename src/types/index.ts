@@ -234,3 +234,31 @@ export const STATUS_COLORS: Record<EquipmentStatus, string> = {
   maintenance: "bg-amber-100 text-amber-800 border-amber-200",
   sterilized: "bg-teal-100 text-teal-800 border-teal-200",
 };
+
+export type SupportTicketSeverity = "low" | "medium" | "high";
+export type SupportTicketStatus = "open" | "in_progress" | "resolved";
+
+export interface SupportTicket {
+  id: string;
+  title: string;
+  description: string;
+  severity: SupportTicketSeverity;
+  status: SupportTicketStatus;
+  userId: string;
+  userEmail: string;
+  pageUrl?: string | null;
+  deviceInfo?: string | null;
+  appVersion?: string | null;
+  adminNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSupportTicketRequest {
+  title: string;
+  description: string;
+  severity: SupportTicketSeverity;
+  pageUrl?: string;
+  deviceInfo?: string;
+  appVersion?: string;
+}
