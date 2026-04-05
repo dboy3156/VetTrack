@@ -111,7 +111,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
         .from(users)
         .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
-        return res.status(400).json({ error: "Cannot remove or demote the last admin" });
+        return res.status(409).json({ error: "Cannot demote the last admin. Promote another user to admin first." });
       }
     }
 
@@ -191,7 +191,7 @@ router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req,
         .from(users)
         .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
-        return res.status(400).json({ error: "Cannot delete the last admin" });
+        return res.status(409).json({ error: "Cannot delete the last admin. Promote another user to admin first." });
       }
     }
 
@@ -283,27 +283,63 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
       return res.json(updated);
     }
 
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        id: randomUUID(),
-        clerkId,
-        email,
-        name: name || "",
-        role: "technician",
-      })
-      .returning();
+    const insertedId = randomUUID();
+    let newUser;
+    let wasCreated = true;
+    try {
+      [newUser] = await db
+        .insert(users)
+        .values({
+          id: insertedId,
+          clerkId,
+          email,
+          name: name || "",
+          role: "technician",
+        })
+        .onConflictDoUpdate({
+          target: users.clerkId,
+          set: {
+            email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
+            name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+          },
+        })
+        .returning();
+      wasCreated = newUser.id === insertedId;
+    } catch (insertErr: unknown) {
+      const pgErr = insertErr as { code?: string };
+      if (pgErr?.code === "23505") {
+        console.warn("sync: duplicate clerkId race condition caught, fetching existing record", { clerkId });
+        const [race] = await db
+          .select()
+          .from(users)
+          .where(eq(users.clerkId, clerkId))
+          .limit(1);
+        if (race) return res.json(race);
+      }
+      throw insertErr;
+    }
 
-    logAudit({
-      actionType: "user_provisioned",
-      performedBy: newUser.id,
-      performedByEmail: email,
-      targetId: newUser.id,
-      targetType: "user",
-      metadata: { name, role: "technician" },
-    });
+    if (wasCreated) {
+      logAudit({
+        actionType: "user_provisioned",
+        performedBy: newUser.id,
+        performedByEmail: email,
+        targetId: newUser.id,
+        targetType: "user",
+        metadata: { name, role: "technician" },
+      });
+    } else {
+      logAudit({
+        actionType: "user_login",
+        performedBy: newUser.id,
+        performedByEmail: email,
+        targetId: newUser.id,
+        targetType: "user",
+        metadata: { name, recoveredFromRace: true },
+      });
+    }
 
-    res.status(201).json(newUser);
+    res.status(wasCreated ? 201 : 200).json(newUser);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to sync user" });

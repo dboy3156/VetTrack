@@ -858,6 +858,14 @@ router.post("/:id/revert", requireAuth, requireRole("vet"), validateUuid("id"), 
   try {
     const { undoToken: tokenId } = req.body as z.infer<typeof revertSchema>;
 
+    const [existingItem] = await db
+      .select()
+      .from(equipment)
+      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+      .limit(1);
+
+    if (!existingItem) return res.status(404).json({ error: "Equipment not found" });
+
     const token = await consumeUndoToken(tokenId, req.params.id, req.authUser!.id);
     if (!token) {
       return res.status(409).json({ error: "Undo window expired or token invalid" });

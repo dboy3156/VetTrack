@@ -136,7 +136,7 @@ export async function requireAuth(
     }
 
     if (user.status === "pending") {
-      return res.status(403).json({ error: "pending", message: "Your account is awaiting admin approval." });
+      return res.status(403).json({ error: "Account pending approval" });
     }
 
     if (user.status === "blocked") {
