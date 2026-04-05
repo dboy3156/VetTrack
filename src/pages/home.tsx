@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,9 +25,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
 import { QrScanner } from "@/components/qr-scanner";
 
+const RESUME_KEY = "vettrack_last_equipment_id";
+
 export default function HomePage() {
-  const { name } = useAuth();
+  const { name, userId } = useAuth();
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [resumeEquipmentId, setResumeEquipmentId] = useState<string | null>(null);
+  const [resumeDismissed, setResumeDismissed] = useState(false);
+  const [, navigate] = useLocation();
   const searchStr = useSearch();
 
   useEffect(() => {
@@ -37,10 +42,21 @@ export default function HomePage() {
     }
   }, [searchStr]);
 
+  useEffect(() => {
+    const storedId = localStorage.getItem(RESUME_KEY);
+    if (storedId) {
+      setResumeEquipmentId(storedId);
+    }
+  }, []);
+
   const { data: equipment, isLoading, isError: equipmentError } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
+
+  const resumeEquipment = equipment?.find(
+    (e) => e.id === resumeEquipmentId && !!e.checkedOutById && e.checkedOutById === userId
+  ) ?? null;
 
   const { data: analytics } = useQuery({
     queryKey: ["/api/analytics"],
@@ -74,6 +90,40 @@ export default function HomePage() {
             <CardContent className="p-4 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
               <p className="text-sm text-destructive">Failed to load equipment data. Please refresh to try again.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Resume banner */}
+        {resumeEquipment && !resumeDismissed && (
+          <Card className="border-2 border-blue-200 bg-blue-50">
+            <CardContent className="p-3.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-blue-600 font-medium">Continue where you left off</p>
+                <p className="font-semibold text-sm text-blue-900 truncate">{resumeEquipment.name}</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-3"
+                  onClick={() => navigate(`/equipment/${resumeEquipment.id}`)}
+                  data-testid="btn-resume-equipment"
+                >
+                  Continue
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-2 text-blue-600 hover:text-blue-800"
+                  onClick={() => {
+                    setResumeDismissed(true);
+                    localStorage.removeItem(RESUME_KEY);
+                  }}
+                  data-testid="btn-resume-dismiss"
+                >
+                  ✕
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -134,37 +184,41 @@ export default function HomePage() {
             </Card>
           </Link>
 
-          <Card data-testid="stat-ok">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  OK
-                </span>
-              </div>
-              {isLoading ? (
-                <Skeleton className="h-8 w-12" />
-              ) : (
-                <p className="text-3xl font-bold text-emerald-600">{okCount}</p>
-              )}
-            </CardContent>
-          </Card>
+          <Link href="/equipment?status=ok">
+            <Card className="cursor-pointer transition-colors hover:border-emerald-200" data-testid="stat-ok">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    OK
+                  </span>
+                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-12" />
+                ) : (
+                  <p className="text-3xl font-bold text-emerald-600">{okCount}</p>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="stat-issues">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Wrench className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Issues
-                </span>
-              </div>
-              {isLoading ? (
-                <Skeleton className="h-8 w-12" />
-              ) : (
-                <p className="text-3xl font-bold text-amber-600">{issueCount}</p>
-              )}
-            </CardContent>
-          </Card>
+          <Link href="/equipment?status=issue">
+            <Card className="cursor-pointer transition-colors hover:border-amber-200" data-testid="stat-issues">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wrench className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Issues
+                  </span>
+                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-12" />
+                ) : (
+                  <p className="text-3xl font-bold text-amber-600">{issueCount}</p>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Quick actions */}

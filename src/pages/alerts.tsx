@@ -18,6 +18,7 @@ import {
   Droplets,
   UserCheck,
   X,
+  MapPin,
 } from "lucide-react";
 import type { Alert, AlertType, AlertAcknowledgment } from "@/types";
 import { toast } from "sonner";
@@ -100,6 +101,14 @@ export default function AlertsPage() {
   if (acks) {
     for (const ack of acks) {
       acksMap.set(`${ack.equipmentId}:${ack.alertType}`, ack);
+    }
+  }
+
+  const equipmentLocationMap = new Map<string, string>();
+  if (equipment) {
+    for (const eq of equipment) {
+      const loc = eq.checkedOutLocation || eq.location;
+      if (loc) equipmentLocationMap.set(eq.id, loc);
     }
   }
 
@@ -192,6 +201,12 @@ export default function AlertsPage() {
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   {alert.detail}
                                 </p>
+                                {equipmentLocationMap.get(alert.equipmentId) && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3 shrink-0" />
+                                    {equipmentLocationMap.get(alert.equipmentId)}
+                                  </p>
+                                )}
                               </div>
                               <div className="flex gap-1 shrink-0">
                                 <Button

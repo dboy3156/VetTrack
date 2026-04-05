@@ -98,6 +98,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<number>(0);
   const stopScannerRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showFallbackHint, setShowFallbackHint] = useState(false);
   const containerId = "qr-scanner-container";
 
   const navigateToEquipment = useCallback(
@@ -113,6 +115,11 @@ export function QrScanner({ onClose }: QrScannerProps) {
       const now = Date.now();
       if (now - lastScanRef.current < DEBOUNCE_MS) return;
       lastScanRef.current = now;
+
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
 
       const equipmentId = extractEquipmentId(rawValue);
       if (!equipmentId) {
@@ -134,6 +141,10 @@ export function QrScanner({ onClose }: QrScannerProps) {
   );
 
   const stopScanner = useCallback(async () => {
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
     if (scannerRef.current) {
       try {
         const state = scannerRef.current.getState();
@@ -187,6 +198,11 @@ export function QrScanner({ onClose }: QrScannerProps) {
       );
 
       setPhase("scanning");
+      setShowFallbackHint(false);
+
+      fallbackTimerRef.current = setTimeout(() => {
+        setShowFallbackHint(true);
+      }, 8000);
 
       try {
         const track = getFirstVideoTrack(scanner);
@@ -442,11 +458,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
       {/* "Enter code manually" footer (scanning phase) */}
       {phase === "scanning" && (
-        <div className="bg-black/80 px-4 pb-6 pt-3 flex justify-center">
+        <div className="bg-black/80 px-4 pb-6 pt-3 flex flex-col items-center gap-2">
+          {showFallbackHint && (
+            <p className="text-white/60 text-xs text-center animate-fade-in">
+              Having trouble? Try entering the ID manually.
+            </p>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            className="text-white/70 hover:text-white hover:bg-white/10 gap-2"
+            className={`gap-2 ${showFallbackHint ? "text-white hover:text-white hover:bg-white/20" : "text-white/70 hover:text-white hover:bg-white/10"}`}
             onClick={() => {
               stopScanner();
               setPhase("manual");

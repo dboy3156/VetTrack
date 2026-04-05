@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { api } from "@/lib/api";
@@ -6,6 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { STATUS_LABELS } from "@/types";
 import { formatRelativeTime } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
@@ -21,6 +33,7 @@ import { toast } from "sonner";
 
 export default function MyEquipmentPage() {
   const queryClient = useQueryClient();
+  const [returningAll, setReturningAll] = useState(false);
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["/api/equipment/my"],
@@ -37,6 +50,21 @@ export default function MyEquipmentPage() {
     onError: () => toast.error("Return failed"),
   });
 
+  async function handleReturnAll() {
+    if (!items || items.length === 0) return;
+    setReturningAll(true);
+    try {
+      await Promise.all(items.map((item) => api.equipment.return(item.id)));
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      toast.success(`Returned ${items.length} item${items.length !== 1 ? "s" : ""} — all equipment now available`);
+    } catch {
+      toast.error("Some items failed to return. Please try again.");
+    } finally {
+      setReturningAll(false);
+    }
+  }
+
   return (
     <Layout>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
@@ -51,6 +79,40 @@ export default function MyEquipmentPage() {
             </Badge>
           )}
         </div>
+
+        {items && items.length >= 2 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                disabled={returningAll}
+                data-testid="btn-return-all"
+              >
+                {returningAll ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <LogOut className="w-4 h-4 mr-2" />
+                )}
+                Return All ({items.length})
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Return all {items.length} items?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will return all {items.length} checked-out items and make them available for others.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleReturnAll}>
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
 
         {isLoading ? (
           <div className="flex flex-col gap-2">

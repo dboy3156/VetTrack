@@ -36,6 +36,7 @@ import {
   ArrowLeft,
   QrCode,
   Scan,
+  ClipboardEdit,
   Pencil,
   Trash2,
   CheckCircle2,
@@ -104,9 +105,15 @@ export default function EquipmentDetailPage() {
   const [showQR, setShowQR] = useState(false);
   const [checkoutLocation, setCheckoutLocation] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const reportIssuePhotoRef = useRef<HTMLInputElement>(null);
   const undoStateRef = useRef<UndoState | null>(null);
   const [undoCountdown, setUndoCountdown] = useState(0);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [reportIssueOpen, setReportIssueOpen] = useState(false);
+  const [reportIssueNote, setReportIssueNote] = useState("");
+  const [reportIssuePhoto, setReportIssuePhoto] = useState<string | null>(null);
+  const [reportIssueNoteError, setReportIssueNoteError] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(searchStr);
@@ -114,6 +121,13 @@ export default function EquipmentDetailPage() {
       setScanActionSheetOpen(true);
     }
   }, [searchStr]);
+
+  useEffect(() => {
+    if (id) {
+      localStorage.setItem("vettrack_last_equipment_id", id);
+    }
+    return () => {};
+  }, [id]);
 
   function clearUndoState() {
     if (undoStateRef.current) {
@@ -299,13 +313,13 @@ export default function EquipmentDetailPage() {
           if (isOffline) {
             toast.warning("Issue reported — alert will fire locally. WhatsApp will be sent when back online.");
           } else {
-            toast("Send WhatsApp alert?", {
+            const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
+            window.open(waUrl, "_blank");
+            toast("Issue reported — WhatsApp alert sent.", {
+              duration: 10000,
               action: {
-                label: "Open WhatsApp",
-                onClick: () => {
-                  const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
-                  window.open(waUrl, "_blank");
-                },
+                label: "Cancel",
+                onClick: () => {},
               },
             });
           }
@@ -410,12 +424,96 @@ export default function EquipmentDetailPage() {
     onError: () => toast.error("Delete failed"),
   });
 
+  const reportIssueMut = useMutation({
+    mutationFn: async () => {
+      const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
+      const capturedNote = reportIssueNote;
+      const capturedPhoto = reportIssuePhoto;
+      const result = await api.equipment.scan(id!, {
+        status: "issue",
+        note: capturedNote,
+        photoUrl: capturedPhoto || undefined,
+        userEmail: email || "",
+        userId: userId || "",
+      });
+      return { result, prev, capturedNote };
+    },
+    onSuccess: ({ result, prev, capturedNote }) => {
+      setReportIssueOpen(false);
+      setReportIssueNote("");
+      setReportIssuePhoto(null);
+      setReportIssueNoteError("");
+
+      const { equipment: updated, scanLog, undoToken } = result;
+      const wasOffline = result.pendingSyncId !== undefined;
+
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
+
+      if (wasOffline) {
+        toast.info("Saved offline — will sync when connected");
+        if (prev) {
+          startUndoTimer({
+            actionLabel: "Issue reported",
+            previousEquipment: prev,
+            pendingSyncId: result.pendingSyncId,
+          });
+        }
+        return;
+      }
+
+      if (prev) {
+        startUndoTimer({
+          actionLabel: "Issue reported",
+          previousEquipment: prev,
+          undoToken,
+        });
+      }
+
+      setTimeout(() => {
+        if (!navigator.onLine) {
+          toast.warning("Issue reported — WhatsApp will be sent when back online.");
+        } else {
+          const waUrl = buildWhatsAppUrl(undefined, updated.name, "issue", scanLog?.note || capturedNote || "");
+          window.open(waUrl, "_blank");
+          toast("Issue reported — WhatsApp alert sent.", {
+            duration: 10000,
+            action: {
+              label: "Cancel",
+              onClick: () => {},
+            },
+          });
+        }
+      }, 300);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Report failed");
+    },
+  });
+
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => setScanPhoto(ev.target?.result as string);
     reader.readAsDataURL(file);
+  }
+
+  function handleReportIssuePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setReportIssuePhoto(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleReportIssueSubmit() {
+    if (!reportIssueNote.trim()) {
+      setReportIssueNoteError("A note is required when reporting an issue.");
+      return;
+    }
+    setReportIssueNoteError("");
+    reportIssueMut.mutate();
   }
 
   function handleScanSubmit() {
@@ -628,10 +726,21 @@ export default function EquipmentDetailPage() {
                 data-testid="btn-scan"
                 className="shrink-0"
               >
-                <Scan className="w-4 h-4 mr-1" />
-                Scan
+                <ClipboardEdit className="w-4 h-4 mr-1" />
+                Update Status
               </Button>
             </div>
+
+            {undoCountdown > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/30">
+                <div className="w-full h-1 bg-white/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary/70 rounded-full transition-none"
+                    style={{ width: `${(undoCountdown / 10) * 100}%`, transition: "width 1s linear" }}
+                  />
+                </div>
+              </div>
+            )}
 
             {(overdue || sterilizationDue) && (
               <div className="mt-3 pt-3 border-t border-white/30 flex flex-col gap-1">
@@ -654,6 +763,20 @@ export default function EquipmentDetailPage() {
 
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 col-span-2"
+            onClick={() => {
+              setReportIssueNote("");
+              setReportIssuePhoto(null);
+              setReportIssueNoteError("");
+              setReportIssueOpen(true);
+            }}
+            data-testid="btn-report-issue"
+          >
+            <AlertTriangle className="w-4 h-4 mr-2" />
+            Report Issue
+          </Button>
           <Button variant="outline" onClick={() => setShowQR(true)} data-testid="btn-show-qr">
             <QrCode className="w-4 h-4 mr-2" />
             View QR Code
@@ -773,12 +896,12 @@ export default function EquipmentDetailPage() {
         </Tabs>
       </div>
 
-      {/* Scan dialog */}
+      {/* Update Status dialog */}
       <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Scan Equipment</DialogTitle>
-            <DialogDescription>Update status for: {equipment.name}</DialogDescription>
+            <DialogTitle>Update Status</DialogTitle>
+            <DialogDescription>Log status for: {equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
@@ -897,9 +1020,101 @@ export default function EquipmentDetailPage() {
               {scanMut.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
-                <Scan className="w-4 h-4 mr-2" />
+                <ClipboardEdit className="w-4 h-4 mr-2" />
               )}
-              Update Status
+              Log Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Issue dialog */}
+      <Dialog open={reportIssueOpen} onOpenChange={setReportIssueOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report Issue</DialogTitle>
+            <DialogDescription>{equipment.name}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="report-issue-note">
+                Describe the issue
+                <span className="text-red-500 ml-1">*</span>
+              </Label>
+              <Textarea
+                id="report-issue-note"
+                placeholder="Describe the issue clearly..."
+                value={reportIssueNote}
+                onChange={(e) => {
+                  setReportIssueNote(e.target.value);
+                  if (e.target.value.trim()) setReportIssueNoteError("");
+                }}
+                rows={3}
+                data-testid="report-issue-note"
+                className={reportIssueNoteError ? "border-red-500 focus-visible:ring-red-500" : ""}
+              />
+              {reportIssueNoteError && (
+                <p className="text-xs text-red-600 font-medium">{reportIssueNoteError}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Photo
+                <span className="text-muted-foreground text-xs ml-1">(optional)</span>
+              </Label>
+              {reportIssuePhoto ? (
+                <div className="relative">
+                  <img
+                    src={reportIssuePhoto}
+                    alt="Issue photo"
+                    className="w-full h-36 object-cover rounded-xl border-2 border-primary/30"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-1 right-1 bg-white/80 text-xs"
+                    onClick={() => setReportIssuePhoto(null)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => reportIssuePhotoRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  data-testid="btn-report-issue-photo"
+                >
+                  <Camera className="w-6 h-6" />
+                  <span className="text-sm font-medium">Take / Upload Photo</span>
+                </button>
+              )}
+              <input
+                ref={reportIssuePhotoRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleReportIssuePhotoChange}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReportIssueOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReportIssueSubmit}
+              disabled={reportIssueMut.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              data-testid="btn-confirm-report-issue"
+            >
+              {reportIssueMut.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 mr-2" />
+              )}
+              Submit Issue
             </Button>
           </DialogFooter>
         </DialogContent>
