@@ -6,7 +6,7 @@ import {
   removePendingSync,
   type PendingSync,
 } from "@/lib/offline-db";
-import { onSyncStateChange, processQueue } from "@/lib/sync-engine";
+import { processQueue } from "@/lib/sync-engine";
 
 interface SyncState {
   pendingCount: number;
@@ -72,10 +72,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [applyAll]);
 
-  useEffect(() => {
-    const unsubscribeSyncEngine = onSyncStateChange(() => {});
-    return unsubscribeSyncEngine;
-  }, []);
 
   const triggerSync = useCallback(async () => {
     setIsSyncing(true);

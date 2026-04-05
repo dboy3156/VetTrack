@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSync } from "@/hooks/use-sync";
+import { useSyncQueue, useSync } from "@/hooks/use-sync";
 import { Button } from "@/components/ui/button";
 import {
   X,
@@ -183,7 +183,8 @@ function SyncQueueItem({
 }
 
 export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
-  const { items, pendingCount, failedCount, isSyncing, retry, discard, triggerSync } = useSync();
+  const { items, pendingCount, failedCount, retry, discard } = useSyncQueue();
+  const { isSyncing, triggerSync } = useSync();
   const sheetRef = useRef<HTMLDivElement>(null);
 
   const totalCount = pendingCount + failedCount;
