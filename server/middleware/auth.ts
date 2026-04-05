@@ -45,6 +45,14 @@ const DEV_USER: AuthUser = {
   status: "active",
 };
 
+// DEV_USER_PRESETS: named test identities for multi-user tests.
+// Only active in dev mode (no CLERK_SECRET_KEY). Use x-dev-user-id-override
+// to select a named identity. Combine with x-dev-role-override for role.
+const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
+  "dev-user-alpha": { id: "dev-user-alpha", clerkId: "dev-user-alpha", email: "alpha@vettrack.dev", name: "Dev Alpha" },
+  "dev-user-beta":  { id: "dev-user-beta",  clerkId: "dev-user-beta",  email: "beta@vettrack.dev",  name: "Dev Beta"  },
+};
+
 export async function requireAuth(
   req: Request,
   res: Response,
@@ -54,10 +62,13 @@ export async function requireAuth(
 
   if (isDev) {
     const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
+    const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
+    const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;
+    const baseUser: AuthUser = userPreset ? { ...DEV_USER, ...userPreset } : DEV_USER;
     const devUser: AuthUser =
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
-        ? { ...DEV_USER, role: overrideRole }
-        : DEV_USER;
+        ? { ...baseUser, role: overrideRole }
+        : baseUser;
     req.authUser = devUser;
     Sentry.setUser({ id: devUser.id, email: devUser.email });
     return next();
@@ -159,10 +170,13 @@ export async function requireAuthAny(
 
   if (isDev) {
     const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
+    const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
+    const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;
+    const baseUser: AuthUser = userPreset ? { ...DEV_USER, ...userPreset } : DEV_USER;
     const devUser: AuthUser =
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
-        ? { ...DEV_USER, role: overrideRole }
-        : DEV_USER;
+        ? { ...baseUser, role: overrideRole }
+        : baseUser;
     req.authUser = devUser;
     Sentry.setUser({ id: devUser.id, email: devUser.email });
     return next();

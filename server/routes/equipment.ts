@@ -96,7 +96,8 @@ const upload = multer({
 
 const router = Router();
 
-const UNDO_TTL_MS = 90_000;
+const _parsedUndoTtl = parseInt(process.env.UNDO_TTL_MS ?? "", 10);
+const UNDO_TTL_MS = Number.isFinite(_parsedUndoTtl) && _parsedUndoTtl > 0 ? _parsedUndoTtl : 90_000;
 const BULK_MAX = 100;
 const FIELD_MAX_LENGTH = 500;
 
