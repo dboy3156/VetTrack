@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { STATUS_LABELS } from "@/types";
-import type { EquipmentStatus } from "@/types";
+import type { EquipmentStatus, Equipment } from "@/types";
 import {
   ArrowLeft,
   QrCode,
@@ -54,7 +54,6 @@ import {
   LogOut,
   User,
   Camera,
-  ImageIcon,
 } from "lucide-react";
 import {
   formatDate,
@@ -68,6 +67,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QRCodeSVG } from "qrcode.react";
+import { addPendingSync, removePendingSync } from "@/lib/offline-db";
 
 const STATUS_CONFIG = {
   ok: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50" },
@@ -75,6 +75,17 @@ const STATUS_CONFIG = {
   maintenance: { icon: Wrench, color: "text-amber-500", bg: "bg-amber-50" },
   sterilized: { icon: Droplets, color: "text-teal-500", bg: "bg-teal-50" },
 };
+
+const UNDO_WINDOW_MS = 10_000;
+
+interface UndoState {
+  actionLabel: string;
+  previousEquipment: Equipment;
+  undoToken?: string;
+  pendingSyncId?: number;
+  timeoutId: ReturnType<typeof setTimeout>;
+  toastId: string | number;
+}
 
 export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -89,6 +100,111 @@ export default function EquipmentDetailPage() {
   const [showQR, setShowQR] = useState(false);
   const [checkoutLocation, setCheckoutLocation] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const undoStateRef = useRef<UndoState | null>(null);
+  const [undoCountdown, setUndoCountdown] = useState(0);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function clearUndoState() {
+    if (undoStateRef.current) {
+      clearTimeout(undoStateRef.current.timeoutId);
+      toast.dismiss(undoStateRef.current.toastId);
+      undoStateRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setUndoCountdown(0);
+  }
+
+  async function handleUndo(state: UndoState) {
+    clearUndoState();
+
+    const prev = state.previousEquipment;
+
+    if (state.pendingSyncId !== undefined) {
+      await removePendingSync(state.pendingSyncId);
+      queryClient.setQueryData([`/api/equipment/${id}`], prev);
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
+      toast.success("Action undone");
+      return;
+    }
+
+    if (!state.undoToken) {
+      toast.error("Undo token missing");
+      return;
+    }
+
+    try {
+      const reverted = await api.equipment.revert(id!, state.undoToken);
+      queryClient.setQueryData([`/api/equipment/${id}`], reverted);
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
+      toast.success("Action undone");
+    } catch {
+      toast.error("Undo failed — window may have expired");
+    }
+  }
+
+  function startUndoTimer(state: Omit<UndoState, "timeoutId" | "toastId">) {
+    clearUndoState();
+
+    const startTime = Date.now();
+    setUndoCountdown(Math.ceil(UNDO_WINDOW_MS / 1000));
+
+    const toastId = `undo-${Date.now()}`;
+    const getLabel = (secs: number) => `Undo (${secs}s)`;
+
+    toast(`${state.actionLabel}`, {
+      id: toastId,
+      duration: UNDO_WINDOW_MS,
+      action: {
+        label: getLabel(Math.ceil(UNDO_WINDOW_MS / 1000)),
+        onClick: () => {
+          if (undoStateRef.current) {
+            handleUndo(undoStateRef.current);
+          }
+        },
+      },
+    });
+
+    const intervalId = setInterval(() => {
+      const remaining = Math.ceil((UNDO_WINDOW_MS - (Date.now() - startTime)) / 1000);
+      if (remaining <= 0) {
+        clearInterval(intervalId);
+        setUndoCountdown(0);
+      } else {
+        setUndoCountdown(remaining);
+        toast(`${state.actionLabel}`, {
+          id: toastId,
+          duration: UNDO_WINDOW_MS - (Date.now() - startTime),
+          action: {
+            label: getLabel(remaining),
+            onClick: () => {
+              if (undoStateRef.current) {
+                handleUndo(undoStateRef.current);
+              }
+            },
+          },
+        });
+      }
+    }, 1000);
+    countdownIntervalRef.current = intervalId;
+
+    const timeoutId = setTimeout(() => {
+      clearInterval(intervalId);
+      setUndoCountdown(0);
+      if (undoStateRef.current) {
+        toast.dismiss(undoStateRef.current.toastId);
+        undoStateRef.current = null;
+      }
+      invalidateAll();
+      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
+    }, UNDO_WINDOW_MS);
+
+    undoStateRef.current = { ...state, timeoutId, toastId };
+  }
 
   const { data: equipment, isLoading } = useQuery({
     queryKey: [`/api/equipment/${id}`],
@@ -115,57 +231,197 @@ export default function EquipmentDetailPage() {
   }
 
   const scanMut = useMutation({
-    mutationFn: () =>
-      api.equipment.scan(id!, {
-        status: scanStatus,
-        note: scanNote,
-        photoUrl: scanPhoto || undefined,
+    mutationFn: async () => {
+      const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
+      const capturedStatus = scanStatus;
+      const capturedNote = scanNote;
+      const capturedPhoto = scanPhoto;
+
+      if (!navigator.onLine) {
+        const syncId = await addPendingSync({
+          type: "scan",
+          endpoint: `/api/equipment/${id}/scan`,
+          method: "POST",
+          body: JSON.stringify({ status: capturedStatus, note: capturedNote, photoUrl: capturedPhoto, userEmail: email }),
+          createdAt: new Date(),
+          retries: 0,
+        });
+        return { result: null, prev, offlineSyncId: syncId, capturedStatus };
+      }
+
+      const result = await api.equipment.scan(id!, {
+        status: capturedStatus,
+        note: capturedNote,
+        photoUrl: capturedPhoto || undefined,
         userEmail: email || "",
-      }),
-    onSuccess: ({ equipment: updated }) => {
-      queryClient.setQueryData([`/api/equipment/${id}`], updated);
-      invalidateAll();
-      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
-      toast.success(`Status updated to ${STATUS_LABELS[scanStatus]}`);
+      });
+      return { result, prev, offlineSyncId: undefined, capturedStatus };
+    },
+    onSuccess: ({ result, prev, offlineSyncId, capturedStatus }) => {
       setScanDialogOpen(false);
       setScanNote("");
       setScanPhoto(null);
       setNoteError("");
 
-      if (scanStatus === "issue") {
+      if (offlineSyncId !== undefined) {
+        if (prev) {
+          const optimistic: Equipment = {
+            ...prev,
+            status: capturedStatus,
+            lastSeen: new Date().toISOString(),
+            lastStatus: capturedStatus,
+          };
+          queryClient.setQueryData([`/api/equipment/${id}`], optimistic);
+          startUndoTimer({
+            actionLabel: `Status updated to ${STATUS_LABELS[capturedStatus]}`,
+            previousEquipment: prev,
+            pendingSyncId: offlineSyncId,
+          });
+        }
+        toast.info("Saved offline — will sync when connected");
+        return;
+      }
+
+      if (!result) return;
+      const { equipment: updated, scanLog, undoToken } = result;
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
+
+      if (prev) {
+        startUndoTimer({
+          actionLabel: `Status updated to ${STATUS_LABELS[capturedStatus]}`,
+          previousEquipment: prev,
+          undoToken,
+        });
+      }
+
+      if (capturedStatus === "issue") {
         setTimeout(() => {
           toast("Send WhatsApp alert?", {
             action: {
               label: "Open WhatsApp",
               onClick: () => {
-                const waUrl = buildWhatsAppUrl(undefined, updated.name, scanStatus, scanNote);
+                const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog.note || "");
                 window.open(waUrl, "_blank");
               },
             },
           });
-        }, 500);
+        }, 600);
       }
     },
     onError: (err: Error) => toast.error(err.message || "Scan failed"),
   });
 
   const checkoutMut = useMutation({
-    mutationFn: () => api.equipment.checkout(id!, checkoutLocation || undefined),
-    onSuccess: (updated) => {
-      queryClient.setQueryData([`/api/equipment/${id}`], updated);
-      invalidateAll();
-      toast.success("Checked out successfully");
+    mutationFn: async () => {
+      const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
+      const capturedLocation = checkoutLocation;
+
+      if (!navigator.onLine) {
+        const syncId = await addPendingSync({
+          type: "scan",
+          endpoint: `/api/equipment/${id}/checkout`,
+          method: "POST",
+          body: JSON.stringify({ location: capturedLocation || undefined }),
+          createdAt: new Date(),
+          retries: 0,
+        });
+        return { result: null, prev, offlineSyncId: syncId };
+      }
+
+      const result = await api.equipment.checkout(id!, capturedLocation || undefined);
+      return { result, prev, offlineSyncId: undefined };
+    },
+    onSuccess: ({ result, prev, offlineSyncId }) => {
       setCheckoutLocation("");
+
+      if (offlineSyncId !== undefined) {
+        if (prev) {
+          const optimistic: Equipment = {
+            ...prev,
+            checkedOutById: userId || "me",
+            checkedOutByEmail: email || "",
+            checkedOutAt: new Date().toISOString(),
+            checkedOutLocation: checkoutLocation || null,
+          };
+          queryClient.setQueryData([`/api/equipment/${id}`], optimistic);
+          startUndoTimer({
+            actionLabel: "Checked out successfully",
+            previousEquipment: prev,
+            pendingSyncId: offlineSyncId,
+          });
+        }
+        toast.info("Saved offline — will sync when connected");
+        return;
+      }
+
+      if (!result) return;
+      const { equipment: updated, undoToken } = result;
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+
+      if (prev) {
+        startUndoTimer({
+          actionLabel: "Checked out successfully",
+          previousEquipment: prev,
+          undoToken,
+        });
+      }
     },
     onError: (err: Error) => toast.error(err.message || "Checkout failed"),
   });
 
   const returnMut = useMutation({
-    mutationFn: () => api.equipment.return(id!),
-    onSuccess: (updated) => {
+    mutationFn: async () => {
+      const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
+
+      if (!navigator.onLine) {
+        const syncId = await addPendingSync({
+          type: "scan",
+          endpoint: `/api/equipment/${id}/return`,
+          method: "POST",
+          body: JSON.stringify({}),
+          createdAt: new Date(),
+          retries: 0,
+        });
+        return { result: null, prev, offlineSyncId: syncId };
+      }
+
+      const result = await api.equipment.return(id!);
+      return { result, prev, offlineSyncId: undefined };
+    },
+    onSuccess: ({ result, prev, offlineSyncId }) => {
+      if (offlineSyncId !== undefined) {
+        if (prev) {
+          const optimistic: Equipment = {
+            ...prev,
+            status: "ok",
+            checkedOutById: null,
+            checkedOutByEmail: null,
+            checkedOutAt: null,
+            checkedOutLocation: null,
+          };
+          queryClient.setQueryData([`/api/equipment/${id}`], optimistic);
+          startUndoTimer({
+            actionLabel: "Returned — equipment is now available",
+            previousEquipment: prev,
+            pendingSyncId: offlineSyncId,
+          });
+        }
+        toast.info("Saved offline — will sync when connected");
+        return;
+      }
+
+      if (!result) return;
+      const { equipment: updated, undoToken } = result;
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
-      invalidateAll();
-      toast.success("Returned — equipment is now available");
+
+      if (prev) {
+        startUndoTimer({
+          actionLabel: "Returned — equipment is now available",
+          previousEquipment: prev,
+          undoToken,
+        });
+      }
     },
     onError: (err: Error) => toast.error(err.message || "Return failed"),
   });

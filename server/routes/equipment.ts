@@ -1,10 +1,60 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs, transferLogs } from "../db.js";
-import { eq, inArray, desc, isNotNull } from "drizzle-orm";
+import { eq, inArray, desc, isNotNull, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
+
+// Server-side undo token store. Holds a complete snapshot of equipment state
+// before a mutation, keyed by an opaque undo token.
+// Constrained to: matching equipment ID, actor, and within UNDO_TTL_MS window.
+const UNDO_TTL_MS = 12_000; // slightly above frontend 10s to account for latency
+
+interface UndoToken {
+  equipmentId: string;
+  actorId: string;
+  scanLogId: string;
+  previousState: {
+    status: string;
+    lastSeen: Date | null;
+    lastStatus: string | null;
+    lastMaintenanceDate: Date | null;
+    lastSterilizationDate: Date | null;
+    checkedOutById: string | null;
+    checkedOutByEmail: string | null;
+    checkedOutAt: Date | null;
+    checkedOutLocation: string | null;
+  };
+  expiresAt: number;
+}
+
+const undoTokens = new Map<string, UndoToken>();
+
+function createUndoToken(token: Omit<UndoToken, "expiresAt">): string {
+  const tokenId = randomUUID();
+  const entry: UndoToken = { ...token, expiresAt: Date.now() + UNDO_TTL_MS };
+  undoTokens.set(tokenId, entry);
+  setTimeout(() => undoTokens.delete(tokenId), UNDO_TTL_MS);
+  return tokenId;
+}
+
+function consumeUndoToken(
+  tokenId: string,
+  equipmentId: string,
+  actorId: string
+): UndoToken | null {
+  const entry = undoTokens.get(tokenId);
+  if (!entry) return null;
+  if (entry.equipmentId !== equipmentId) return null;
+  if (entry.actorId !== actorId) return null;
+  if (entry.expiresAt < Date.now()) {
+    undoTokens.delete(tokenId);
+    return null;
+  }
+  undoTokens.delete(tokenId);
+  return entry;
+}
 
 // GET /api/equipment/my — equipment checked out by the current user
 router.get("/my", requireAuth, async (req, res) => {
@@ -268,8 +318,9 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
       .returning();
 
     // Log the checkout as a scan event
+    const checkoutLogId = randomUUID();
     await db.insert(scanLogs).values({
-      id: randomUUID(),
+      id: checkoutLogId,
       equipmentId: req.params.id,
       userId: req.authUser!.id,
       userEmail: req.authUser!.email,
@@ -277,7 +328,25 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
       note: `Checked out${location ? ` — ${location}` : ""}`,
     });
 
-    res.json(updated);
+    // Create server-side undo token with full previous state
+    const undoToken = createUndoToken({
+      equipmentId: req.params.id,
+      actorId: req.authUser!.id,
+      scanLogId: checkoutLogId,
+      previousState: {
+        status: existing.status,
+        lastSeen: existing.lastSeen,
+        lastStatus: existing.lastStatus,
+        lastMaintenanceDate: existing.lastMaintenanceDate,
+        lastSterilizationDate: existing.lastSterilizationDate,
+        checkedOutById: existing.checkedOutById,
+        checkedOutByEmail: existing.checkedOutByEmail,
+        checkedOutAt: existing.checkedOutAt,
+        checkedOutLocation: existing.checkedOutLocation,
+      },
+    });
+
+    res.json({ equipment: updated, undoToken });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Checkout failed" });
@@ -310,8 +379,9 @@ router.post("/:id/return", requireAuth, async (req, res) => {
       .returning();
 
     // Log the return
+    const returnLogId = randomUUID();
     await db.insert(scanLogs).values({
-      id: randomUUID(),
+      id: returnLogId,
       equipmentId: req.params.id,
       userId: req.authUser!.id,
       userEmail: req.authUser!.email,
@@ -319,7 +389,25 @@ router.post("/:id/return", requireAuth, async (req, res) => {
       note: "Returned — available",
     });
 
-    res.json(updated);
+    // Create server-side undo token with full previous state
+    const undoToken = createUndoToken({
+      equipmentId: req.params.id,
+      actorId: req.authUser!.id,
+      scanLogId: returnLogId,
+      previousState: {
+        status: existing.status,
+        lastSeen: existing.lastSeen,
+        lastStatus: existing.lastStatus,
+        lastMaintenanceDate: existing.lastMaintenanceDate,
+        lastSterilizationDate: existing.lastSterilizationDate,
+        checkedOutById: existing.checkedOutById,
+        checkedOutByEmail: existing.checkedOutByEmail,
+        checkedOutAt: existing.checkedOutAt,
+        checkedOutLocation: existing.checkedOutLocation,
+      },
+    });
+
+    res.json({ equipment: updated, undoToken });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Return failed" });
@@ -332,6 +420,17 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
     if (!status) return res.status(400).json({ error: "Status required" });
     if (status === "issue" && !note?.trim()) {
       return res.status(400).json({ error: "Note is required when reporting an issue" });
+    }
+
+    // Fetch current state before mutation (for undo token)
+    const [existingEquipment] = await db
+      .select()
+      .from(equipment)
+      .where(eq(equipment.id, req.params.id))
+      .limit(1);
+
+    if (!existingEquipment) {
+      return res.status(404).json({ error: "Equipment not found" });
     }
 
     const now = new Date();
@@ -355,10 +454,6 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
       .where(eq(equipment.id, req.params.id))
       .returning();
 
-    if (!updatedEquipment) {
-      return res.status(404).json({ error: "Equipment not found" });
-    }
-
     const [scanLog] = await db
       .insert(scanLogs)
       .values({
@@ -372,10 +467,73 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
       })
       .returning();
 
-    res.json({ equipment: updatedEquipment, scanLog });
+    // Create server-side undo token with full previous state
+    const undoToken = createUndoToken({
+      equipmentId: req.params.id,
+      actorId: req.authUser!.id,
+      scanLogId: scanLog.id,
+      previousState: {
+        status: existingEquipment.status,
+        lastSeen: existingEquipment.lastSeen,
+        lastStatus: existingEquipment.lastStatus,
+        lastMaintenanceDate: existingEquipment.lastMaintenanceDate,
+        lastSterilizationDate: existingEquipment.lastSterilizationDate,
+        checkedOutById: existingEquipment.checkedOutById,
+        checkedOutByEmail: existingEquipment.checkedOutByEmail,
+        checkedOutAt: existingEquipment.checkedOutAt,
+        checkedOutLocation: existingEquipment.checkedOutLocation,
+      },
+    });
+
+    res.json({ equipment: updatedEquipment, scanLog, undoToken });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Scan failed" });
+  }
+});
+
+// POST /api/equipment/:id/revert — undo the most recent status change
+router.post("/:id/revert", requireAuth, async (req, res) => {
+  try {
+    const { undoToken: tokenId } = req.body;
+
+    if (!tokenId || typeof tokenId !== "string") {
+      return res.status(400).json({ error: "undoToken is required" });
+    }
+
+    // Verify and consume the token — enforces equipment, actor, and TTL constraints
+    const token = consumeUndoToken(tokenId, req.params.id, req.authUser!.id);
+    if (!token) {
+      return res.status(409).json({ error: "Undo window expired or token invalid" });
+    }
+
+    const prev = token.previousState;
+
+    const [updated] = await db
+      .update(equipment)
+      .set({
+        status: prev.status,
+        lastSeen: prev.lastSeen,
+        lastStatus: prev.lastStatus,
+        lastMaintenanceDate: prev.lastMaintenanceDate,
+        lastSterilizationDate: prev.lastSterilizationDate,
+        checkedOutById: prev.checkedOutById,
+        checkedOutByEmail: prev.checkedOutByEmail,
+        checkedOutAt: prev.checkedOutAt,
+        checkedOutLocation: prev.checkedOutLocation,
+      })
+      .where(eq(equipment.id, req.params.id))
+      .returning();
+
+    // Delete the exact scan log scoped to this equipment (not arbitrary)
+    await db
+      .delete(scanLogs)
+      .where(and(eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Revert failed" });
   }
 });
 

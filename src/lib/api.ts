@@ -51,17 +51,17 @@ export const api = {
     delete: (id: string) =>
       request<void>(`/api/equipment/${id}`, { method: "DELETE" }),
     scan: (id: string, data: ScanEquipmentRequest) =>
-      request<{ equipment: Equipment; scanLog: ScanLog }>(
+      request<{ equipment: Equipment; scanLog: ScanLog; undoToken: string }>(
         `/api/equipment/${id}/scan`,
         { method: "POST", body: JSON.stringify(data) }
       ),
     checkout: (id: string, location?: string) =>
-      request<Equipment>(`/api/equipment/${id}/checkout`, {
+      request<{ equipment: Equipment; undoToken: string }>(`/api/equipment/${id}/checkout`, {
         method: "POST",
         body: JSON.stringify({ location }),
       }),
     return: (id: string) =>
-      request<Equipment>(`/api/equipment/${id}/return`, { method: "POST", body: JSON.stringify({}) }),
+      request<{ equipment: Equipment; undoToken: string }>(`/api/equipment/${id}/return`, { method: "POST", body: JSON.stringify({}) }),
     bulkDelete: (data: BulkDeleteRequest) =>
       request<BulkResult>("/api/equipment/bulk-delete", {
         method: "POST",
@@ -71,6 +71,11 @@ export const api = {
       request<BulkResult>("/api/equipment/bulk-move", {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+    revert: (id: string, undoToken: string) =>
+      request<Equipment>(`/api/equipment/${id}/revert`, {
+        method: "POST",
+        body: JSON.stringify({ undoToken }),
       }),
     logs: (id: string) => request<ScanLog[]>(`/api/equipment/${id}/logs`),
     transfers: (id: string) =>
