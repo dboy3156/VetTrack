@@ -695,85 +695,103 @@ export default function EquipmentDetailPage() {
           </div>
         </div>
 
-        {/* Checkout / Ownership banner */}
-        {isCheckedOut ? (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <User className="w-4 h-4 text-blue-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-blue-900">
-                      {checkedOutByMe ? "Checked out by you" : `In use by ${equipment.checkedOutByEmail}`}
-                    </p>
-                    {equipment.checkedOutLocation && (
-                      <p className="text-xs text-blue-700 truncate">
-                        {equipment.checkedOutLocation}
-                      </p>
-                    )}
-                    <p className="text-xs text-blue-600">
-                      Since {formatRelativeTime(equipment.checkedOutAt)}
-                    </p>
-                  </div>
-                </div>
-                {(checkedOutByMe || isAdmin) && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100 shrink-0"
-                    onClick={() => returnMut.mutate()}
-                    disabled={returnMut.isPending}
-                    data-testid="btn-return"
-                  >
-                    {returnMut.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <LogOut className="w-4 h-4 mr-1" />
-                    )}
-                    Return
-                  </Button>
+        {/* Quick Action Bar — ICU-moment: 1–2 large, instantly tappable actions */}
+        <div className="flex flex-col gap-2" data-testid="quick-action-bar">
+          {/* Primary action based on checkout state */}
+          {!isCheckedOut ? (
+            <Button
+              size="lg"
+              className="w-full h-14 gap-3 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl active:scale-[0.98] transition-all shadow-sm"
+              onClick={() => checkoutMut.mutate()}
+              disabled={checkoutMut.isPending}
+              data-testid="btn-checkout"
+            >
+              {checkoutMut.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <LogIn className="w-5 h-5" />
+              )}
+              Mark In Use
+            </Button>
+          ) : (checkedOutByMe || isAdmin) ? (
+            <Button
+              size="lg"
+              className="w-full h-14 gap-3 text-base font-bold rounded-2xl active:scale-[0.98] transition-all shadow-sm"
+              variant="outline"
+              onClick={() => returnMut.mutate()}
+              disabled={returnMut.isPending}
+              data-testid="btn-return"
+            >
+              {returnMut.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <LogOut className="w-5 h-5" />
+              )}
+              Check In / Return
+            </Button>
+          ) : null}
+
+          {/* Secondary action row */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 gap-2 font-semibold rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
+              onClick={() => {
+                setReportIssueNote("");
+                setReportIssuePhoto(null);
+                setReportIssueNoteError("");
+                setReportIssueOpen(true);
+              }}
+              data-testid="btn-report-issue"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Report Issue
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 gap-2 font-semibold rounded-xl active:scale-[0.98] transition-all"
+              onClick={openScanDialog}
+              data-testid="btn-scan"
+            >
+              <ClipboardEdit className="w-4 h-4" />
+              Update Status
+            </Button>
+          </div>
+
+          {/* In-use context indicator */}
+          {isCheckedOut && (
+            <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm ${
+              checkedOutByMe
+                ? "bg-blue-50 border-blue-200 text-blue-800"
+                : "bg-amber-50 border-amber-200 text-amber-800"
+            }`}>
+              <User className="w-4 h-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-semibold text-sm leading-tight">
+                  {checkedOutByMe ? "Checked out by you" : `In use by ${equipment.checkedOutByEmail}`}
+                </p>
+                {equipment.checkedOutLocation && (
+                  <p className="text-xs mt-0.5 opacity-80 truncate">{equipment.checkedOutLocation}</p>
                 )}
+                <p className="text-xs mt-0.5 opacity-70">Since {formatRelativeTime(equipment.checkedOutAt)}</p>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-emerald-200 bg-emerald-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <p className="text-sm font-semibold text-emerald-800">Available for use</p>
-                </div>
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                  onClick={() => checkoutMut.mutate()}
-                  disabled={checkoutMut.isPending}
-                  data-testid="btn-checkout"
-                >
-                  {checkoutMut.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <LogIn className="w-4 h-4 mr-1" />
-                  )}
-                  Check Out
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* Status card */}
         <Card className={statusConf?.bg || ""}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/50 flex items-center justify-center">
-                  <StatusIcon className={`w-6 h-6 ${statusConf?.color || ""}`} />
+                <div className="w-10 h-10 rounded-xl bg-white/50 flex items-center justify-center">
+                  <StatusIcon className={`w-5 h-5 ${statusConf?.color || ""}`} />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Current Status</p>
-                  <p className="text-xl font-bold">
+                  <p className="text-lg font-bold">
                     {STATUS_LABELS[equipment.status as keyof typeof STATUS_LABELS] || equipment.status}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -781,15 +799,30 @@ export default function EquipmentDetailPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                size="sm"
-                onClick={openScanDialog}
-                data-testid="btn-scan"
-                className="shrink-0"
-              >
-                <ClipboardEdit className="w-4 h-4 mr-1" />
-                Update Status
-              </Button>
+              <div className="flex flex-col gap-1.5 items-end shrink-0">
+                <Button variant="outline" size="sm" onClick={() => setShowQR(true)} data-testid="btn-show-qr" className="h-8">
+                  <QrCode className="w-3.5 h-3.5 mr-1" />
+                  QR Code
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const waUrl = buildWhatsAppUrl(
+                      undefined,
+                      equipment.name,
+                      equipment.status as EquipmentStatus,
+                      `Status report for ${equipment.name}`
+                    );
+                    window.open(waUrl, "_blank");
+                  }}
+                  className="h-8 text-green-700 border-green-200 hover:bg-green-50"
+                  data-testid="btn-whatsapp"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                  WhatsApp
+                </Button>
+              </div>
             </div>
 
             {undoCountdown > 0 && (
@@ -821,45 +854,6 @@ export default function EquipmentDetailPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Action buttons */}
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 col-span-2"
-            onClick={() => {
-              setReportIssueNote("");
-              setReportIssuePhoto(null);
-              setReportIssueNoteError("");
-              setReportIssueOpen(true);
-            }}
-            data-testid="btn-report-issue"
-          >
-            <AlertTriangle className="w-4 h-4 mr-2" />
-            Report Issue
-          </Button>
-          <Button variant="outline" onClick={() => setShowQR(true)} data-testid="btn-show-qr">
-            <QrCode className="w-4 h-4 mr-2" />
-            View QR Code
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              const waUrl = buildWhatsAppUrl(
-                undefined,
-                equipment.name,
-                equipment.status as EquipmentStatus,
-                `Status report for ${equipment.name}`
-              );
-              window.open(waUrl, "_blank");
-            }}
-            className="text-green-700 border-green-200 hover:bg-green-50"
-            data-testid="btn-whatsapp"
-          >
-            <MessageCircle className="w-4 h-4 mr-2" />
-            WhatsApp
-          </Button>
-        </div>
 
         {/* Info tabs */}
         <Tabs defaultValue="details">

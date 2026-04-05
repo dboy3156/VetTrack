@@ -46,6 +46,9 @@ import {
   MapPin,
   Upload,
   Loader2,
+  LogIn,
+  LogOut,
+  AlertTriangle,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { formatRelativeTime } from "@/lib/utils";
@@ -474,7 +477,7 @@ export default function EquipmentListPage() {
                           onClick={() => bulkDeleteMut.mutate(Array.from(selected))}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          Delete
+                          Yes, permanently delete
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -567,6 +570,39 @@ function EquipmentItem({
   selected: boolean;
   onToggleSelect: () => void;
 }) {
+  const { userId, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const statusVariant = statusToBadgeVariant(eq.status);
+  const isCheckedOut = !!eq.checkedOutById;
+  const checkedOutByMe = eq.checkedOutById === userId;
+
+  const checkoutMut = useMutation({
+    mutationFn: () => api.equipment.checkout(eq.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      toast.success(`Checked out — ${eq.name}`);
+    },
+    onError: () => toast.error("Checkout failed"),
+  });
+
+  const returnMut = useMutation({
+    mutationFn: () => api.equipment.return(eq.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
+      toast.success(`Returned — ${eq.name} is now available`);
+    },
+    onError: () => toast.error("Return failed"),
+  });
+
+  const quickAction = !isCheckedOut && eq.status === "ok"
+    ? { label: "Mark In Use", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, className: "text-emerald-700 border-emerald-200 hover:bg-emerald-50" }
+    : (isCheckedOut && (checkedOutByMe || isAdmin)) && eq.status === "ok"
+    ? { label: "Return", icon: LogOut, action: () => returnMut.mutate(), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
+    : eq.status === "issue"
+    ? { label: "View Issue", icon: AlertTriangle, action: null, href: `/equipment/${eq.id}`, pending: false, className: "text-red-600 border-red-200 hover:bg-red-50" }
+    : null;
+
   return (
     <div
       className={`flex items-center gap-2 ${selectMode ? "cursor-pointer" : ""}`}
@@ -585,58 +621,96 @@ function EquipmentItem({
           )}
         </div>
       )}
-      <Link href={`/equipment/${eq.id}`} className="flex-1" onClick={(e) => selectMode && e.preventDefault()}>
-        <Card
-          className={`transition-all hover:shadow-sm hover:border-primary/30 ${selected ? "border-primary bg-primary/5" : ""}`}
-          data-testid={`equipment-item-${eq.id}`}
-        >
-          <CardContent className="p-4 flex items-center gap-3">
-            {eq.imageUrl ? (
-              <img
-                src={eq.imageUrl}
-                alt={eq.name}
-                className="w-12 h-12 rounded-xl object-cover shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                <Package className="w-6 h-6 text-muted-foreground" />
+      <div className="flex-1 min-w-0">
+        <Link href={`/equipment/${eq.id}`} onClick={(e) => selectMode && e.preventDefault()}>
+          <Card
+            className={`transition-all hover:shadow-sm active:scale-[0.99] ${selected ? "border-primary bg-primary/5" : "hover:border-primary/30"}`}
+            data-testid={`equipment-item-${eq.id}`}
+          >
+            <CardContent className="p-3 flex items-center gap-3 min-h-[64px]">
+              {/* Icon / Image */}
+              {eq.imageUrl ? (
+                <img
+                  src={eq.imageUrl}
+                  alt={eq.name}
+                  className="w-10 h-10 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <Package className="w-5 h-5 text-muted-foreground" />
+                </div>
+              )}
+              {/* Main info */}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate leading-snug">{eq.name}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  {eq.folderName && (
+                    <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                      <FolderOpen className="w-3 h-3" />
+                      <span className="truncate max-w-[80px]">{eq.folderName}</span>
+                    </span>
+                  )}
+                  {eq.location && !eq.folderName && (
+                    <span className="flex items-center gap-0.5 text-xs text-muted-foreground truncate max-w-[100px]">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      {eq.location}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {formatRelativeTime(eq.lastSeen?.toString())}
+                  </span>
+                </div>
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-sm truncate">{eq.name}</span>
-                <Badge variant={statusToBadgeVariant(eq.status)} className="shrink-0">
+              {/* Status badge + chevron */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Badge variant={statusVariant} className="font-semibold">
                   {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] || eq.status}
                 </Badge>
-              </div>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {eq.folderName && (
-                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                    <FolderOpen className="w-3 h-3" />
-                    {eq.folderName}
-                  </span>
-                )}
-                {eq.serialNumber && (
-                  <span className="text-xs text-muted-foreground">
-                    #{eq.serialNumber}
-                  </span>
-                )}
-                {eq.location && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    {eq.location}
-                  </span>
+                {!selectMode && (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Last seen: {formatRelativeTime(eq.lastSeen?.toString())}
-              </p>
-            </div>
-            {!selectMode && (
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+        {/* Contextual quick action — status-driven, one-tap */}
+        {!selectMode && quickAction && (
+          <div className="px-0.5 pt-1">
+            {quickAction.action ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className={`w-full h-9 gap-1.5 text-xs font-semibold rounded-lg ${quickAction.className}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  quickAction.action!();
+                }}
+                disabled={quickAction.pending}
+                data-testid={`quick-action-${eq.id}`}
+              >
+                {quickAction.pending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <quickAction.icon className="w-3.5 h-3.5" />
+                )}
+                {quickAction.label}
+              </Button>
+            ) : (
+              <Link href={quickAction.href!}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`w-full h-9 gap-1.5 text-xs font-semibold rounded-lg ${quickAction.className}`}
+                  data-testid={`quick-action-${eq.id}`}
+                >
+                  <quickAction.icon className="w-3.5 h-3.5" />
+                  {quickAction.label}
+                </Button>
+              </Link>
             )}
-          </CardContent>
-        </Card>
-      </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

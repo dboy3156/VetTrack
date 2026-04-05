@@ -40,21 +40,13 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-<<<<<<< HEAD
 import { format } from "date-fns";
-import type { SupportTicket, SupportTicketStatus, User, AuditLog } from "@/types";
-=======
-import type { SupportTicket, SupportTicketStatus, User, DeletedEquipment } from "@/types";
->>>>>>> 4760e5a (feat: Restore soft-deleted records (Task #42))
+import type { SupportTicket, SupportTicketStatus, User, AuditLog, DeletedEquipment } from "@/types";
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
-<<<<<<< HEAD
-  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "audit-logs">("folders");
-=======
-  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "deleted">("folders");
->>>>>>> 4760e5a (feat: Restore soft-deleted records (Task #42))
+  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "audit-logs" | "deleted">("folders");
 
   const { data: supportUnresolved } = useQuery({
     queryKey: ["/api/support/unresolved-count"],
@@ -201,11 +193,8 @@ export default function AdminPage() {
         {activeTab === "pending" && <PendingUsersSection />}
         {activeTab === "users" && <UsersSection />}
         {activeTab === "support" && <SupportSection />}
-<<<<<<< HEAD
         {activeTab === "audit-logs" && <AuditLogsSection />}
-=======
         {activeTab === "deleted" && <DeletedItemsSection />}
->>>>>>> 4760e5a (feat: Restore soft-deleted records (Task #42))
       </div>
     </Layout>
   );
@@ -311,7 +300,7 @@ function FoldersSection() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete "{f.name}"?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Equipment in this folder will become unfiled.
+                          Equipment in this folder will become unfiled. This cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -320,7 +309,7 @@ function FoldersSection() {
                           onClick={() => deleteMut.mutate(f.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          Delete
+                          Yes, delete folder
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -440,17 +429,37 @@ function PendingUsersSection() {
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-8 px-2.5"
-                    onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
-                    disabled={updateStatusMut.isPending}
-                    data-testid={`btn-reject-user-${user.id}`}
-                  >
-                    <XCircle className="w-3.5 h-3.5 mr-1" />
-                    Reject
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-8 px-2.5"
+                        disabled={updateStatusMut.isPending}
+                        data-testid={`btn-reject-user-${user.id}`}
+                      >
+                        <XCircle className="w-3.5 h-3.5 mr-1" />
+                        Reject
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reject {user.name || user.email}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This user will be blocked from accessing VetTrack. They will not be notified.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Yes, reject user
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-2.5"
@@ -525,6 +534,8 @@ type UserStatusFilter = "all" | "pending" | "active" | "blocked";
 function UsersSection() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
+  const [pendingRoleChange, setPendingRoleChange] = useState<{ user: User; newRole: UserRole } | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ user: User; newStatus: "pending" | "active" | "blocked" } | null>(null);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["/api/users", statusFilter],
@@ -536,6 +547,7 @@ function UsersSection() {
       api.users.updateRole(id, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setPendingRoleChange(null);
       toast.success("Role updated");
     },
     onError: () => toast.error("Failed to update role"),
@@ -617,17 +629,37 @@ function UsersSection() {
                   </p>
                   {user.status === "pending" && (
                     <div className="flex gap-2 mt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-7 px-2 text-xs"
-                        onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
-                        disabled={updateStatusMut.isPending}
-                        data-testid={`btn-reject-user-${user.id}`}
-                      >
-                        <XCircle className="w-3 h-3 mr-1" />
-                        Reject
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-7 px-2 text-xs"
+                            disabled={updateStatusMut.isPending}
+                            data-testid={`btn-reject-user-${user.id}`}
+                          >
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Reject
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reject {user.name || user.email}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This user will be blocked from accessing VetTrack. This action can be reversed later.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Yes, reject
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                       <Button
                         size="sm"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2 text-xs"
@@ -644,7 +676,9 @@ function UsersSection() {
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <Select
                     value={user.role}
-                    onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as UserRole })}
+                    onValueChange={(role) => {
+                      setPendingRoleChange({ user, newRole: role as UserRole });
+                    }}
                   >
                     <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-role-${user.id}`}>
                       <SelectValue />
@@ -658,7 +692,14 @@ function UsersSection() {
                   </Select>
                   <Select
                     value={user.status}
-                    onValueChange={(status) => updateStatusMut.mutate({ id: user.id, status: status as "pending" | "active" | "blocked" })}
+                    onValueChange={(status) => {
+                      const newStatus = status as "pending" | "active" | "blocked";
+                      if (newStatus === "blocked") {
+                        setPendingStatusChange({ user, newStatus });
+                      } else {
+                        updateStatusMut.mutate({ id: user.id, status: newStatus });
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-status-${user.id}`}>
                       <SelectValue />
@@ -675,6 +716,71 @@ function UsersSection() {
           </div>
         )}
       </CardContent>
+
+      {/* Role change confirmation dialog */}
+      <AlertDialog
+        open={!!pendingRoleChange}
+        onOpenChange={(open) => { if (!open) setPendingRoleChange(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change role to {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ?? pendingRoleChange?.newRole}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will change{" "}
+              <strong>{pendingRoleChange?.user.name || pendingRoleChange?.user.email}</strong>'s
+              role from <strong>{ROLE_LABELS[pendingRoleChange?.user.role as UserRole] ?? pendingRoleChange?.user.role}</strong> to{" "}
+              <strong>{ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ?? pendingRoleChange?.newRole}</strong>.
+              This affects what actions they can perform across VetTrack.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingRoleChange) {
+                  updateRoleMut.mutate({ id: pendingRoleChange.user.id, role: pendingRoleChange.newRole });
+                }
+              }}
+              disabled={updateRoleMut.isPending}
+            >
+              {updateRoleMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              Yes, change role
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Block user confirmation dialog */}
+      <AlertDialog
+        open={!!pendingStatusChange}
+        onOpenChange={(open) => { if (!open) setPendingStatusChange(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Block {pendingStatusChange?.user.name || pendingStatusChange?.user.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately revoke <strong>{pendingStatusChange?.user.name || pendingStatusChange?.user.email}</strong>'s
+              access to VetTrack. They will not be able to log in until their status is changed back to Active.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingStatusChange) {
+                  updateStatusMut.mutate({ id: pendingStatusChange.user.id, status: pendingStatusChange.newStatus });
+                  setPendingStatusChange(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={updateStatusMut.isPending}
+            >
+              {updateStatusMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              Yes, block user
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
