@@ -7,6 +7,11 @@ import net from "net";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { initDb, pool } from "./db.js";
+import { runMigrations } from "./migrate.js";
+import { createRequire } from "module";
+
+const _require = createRequire(import.meta.url);
+const { version: APP_VERSION } = _require("../package.json") as { version: string };
 import equipmentRoutes from "./routes/equipment.js";
 import folderRoutes from "./routes/folders.js";
 import analyticsRoutes from "./routes/analytics.js";
@@ -57,7 +62,17 @@ app.use(
 );
 
 app.get("/api/healthz", (_req, res) => {
-  res.json({ status: "ok", version: "1.0.0" });
+  res.json({ status: "ok", version: APP_VERSION });
+});
+
+app.get("/api/version", (_req, res) => {
+  res.json({ version: APP_VERSION });
+});
+
+app.get("/CHANGELOG.md", (_req, res) => {
+  const changelogPath = path.join(__dirname, "../CHANGELOG.md");
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.sendFile(changelogPath);
 });
 
 app.use("/api/equipment", equipmentRoutes);
@@ -114,6 +129,7 @@ function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number>
 }
 
 async function main() {
+  await runMigrations();
   await initDb();
   await initVapid();
 

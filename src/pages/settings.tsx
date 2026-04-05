@@ -318,6 +318,26 @@ export default function SettingsPage() {
             </Button>
           </div>
         </section>
+
+        {/* About */}
+        <section className="space-y-2">
+          <SettingsSectionHeader label="About" />
+          <div className="rounded-xl bg-muted/40 px-4 py-4 space-y-1">
+            <p className="text-sm font-medium text-foreground">VetTrack</p>
+            <p className="text-xs text-muted-foreground">
+              Version <span data-testid="app-version">{__APP_VERSION__}</span>
+            </p>
+            <a
+              href="/CHANGELOG.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary underline-offset-2 hover:underline"
+              data-testid="changelog-link"
+            >
+              See what&apos;s new
+            </a>
+          </div>
+        </section>
       </div>
     </Layout>
   );

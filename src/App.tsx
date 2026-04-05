@@ -3,6 +3,7 @@ import { Suspense, lazy, Component, type ReactNode } from "react";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { UpdateBanner } from "@/components/update-banner";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -89,6 +90,7 @@ function RootRoute() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <UpdateBanner />
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={RootRoute} />

@@ -1,0 +1,78 @@
+import { useEffect, useState } from "react";
+import { X, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+
+const STORAGE_KEY = "vettrack-last-seen-version";
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+export function UpdateBanner() {
+  const { isSignedIn } = useAuth();
+  const [bannerVersion, setBannerVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    fetch("/api/version")
+      .then((r) => r.json())
+      .then((data: { version: string }) => {
+        const serverVersion = data.version;
+        const lastSeen = localStorage.getItem(STORAGE_KEY);
+        if (!lastSeen || compareVersions(serverVersion, lastSeen) > 0) {
+          setBannerVersion(serverVersion);
+        }
+      })
+      .catch(() => {});
+  }, [isSignedIn]);
+
+  const dismiss = () => {
+    if (bannerVersion) {
+      localStorage.setItem(STORAGE_KEY, bannerVersion);
+    }
+    setBannerVersion(null);
+  };
+
+  if (!bannerVersion) return null;
+
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 px-4 py-2.5 bg-primary text-primary-foreground shadow-md"
+      data-testid="update-banner"
+      role="status"
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Sparkles className="w-4 h-4 flex-shrink-0" />
+        <span>
+          VetTrack v{bannerVersion} is here &mdash;{" "}
+          <a
+            href="/CHANGELOG.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:opacity-80"
+            data-testid="update-banner-link"
+          >
+            see what&apos;s new
+          </a>
+        </span>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 shrink-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+        onClick={dismiss}
+        aria-label="Dismiss update notification"
+        data-testid="update-banner-dismiss"
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
