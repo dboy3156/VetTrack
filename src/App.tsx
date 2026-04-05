@@ -22,6 +22,7 @@ const ManagementDashboardPage = lazy(() => import("@/pages/management-dashboard"
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 const VideoPage = lazy(() => import("@/pages/video"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
+const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 
 function PageLoader() {
   return (
@@ -176,6 +177,9 @@ export default function App() {
           </Route>
           <Route path="/settings">
             <ProtectedRoute><SettingsPage /></ProtectedRoute>
+          </Route>
+          <Route path="/audit-log">
+            <ProtectedRoute><AuditLogPage /></ProtectedRoute>
           </Route>
           <Route component={NotFoundPage} />
         </Switch>

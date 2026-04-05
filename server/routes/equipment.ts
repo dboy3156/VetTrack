@@ -9,6 +9,7 @@ import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
+import { logAudit } from "../lib/audit.js";
 
 const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
@@ -336,6 +337,16 @@ router.post("/", requireAuth, requireRole("technician"), validateBody(createEqui
         status: "ok",
       })
       .returning();
+
+    logAudit({
+      actionType: "equipment_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: item.id,
+      targetType: "equipment",
+      metadata: { name: item.name, serialNumber: item.serialNumber },
+    });
+
     invalidateAnalyticsCache();
     res.status(201).json(item);
   } catch (err) {
@@ -414,12 +425,22 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
             body: `${itemName} moved to ${toLabel}`,
             tag: `transfer:${req.params.id}`,
             url: `/equipment/${req.params.id}`,
-          }).catch(() => {});
+          });
         }
       }
     });
 
     if (!result) return res.status(404).json({ error: "Equipment not found" });
+
+    logAudit({
+      actionType: "equipment_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "equipment",
+      metadata: { name: (result as EquipmentRow).name, changes: req.body },
+    });
+
     invalidateAnalyticsCache();
     res.json(result);
   } catch (err) {
@@ -430,12 +451,27 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
 
 router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
-    const [deleted] = await db
+    const [existing] = await db
+      .select()
+      .from(equipment)
+      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "Equipment not found" });
+
+    await db
       .update(equipment)
       .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
-      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
-      .returning({ id: equipment.id });
-    if (!deleted) return res.status(404).json({ error: "Equipment not found" });
+      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)));
+
+    logAudit({
+      actionType: "equipment_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "equipment",
+      metadata: { name: existing.name, serialNumber: existing.serialNumber },
+    });
     invalidateAnalyticsCache();
     res.status(204).send();
   } catch (err) {
@@ -507,17 +543,28 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
     });
 
     if (!updated) return res.status(404).json({ error: "Equipment not found" });
+
+    const u = updated as EquipmentRow;
+
+    logAudit({
+      actionType: "equipment_checked_out",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "equipment",
+      metadata: { name: u.name, location: req.body?.location ?? null },
+    });
+
     invalidateAnalyticsCache();
     res.json({ equipment: updated, undoToken });
 
-    const u = updated as EquipmentRow;
     if (!checkDedupe(u.id, "checkout")) {
       sendPushToAll({
         title: "Equipment Checked Out",
         body: `${u.name} checked out${req.body?.location ? ` — ${req.body.location}` : ""}`,
         tag: `checkout:${u.id}`,
         url: `/equipment/${u.id}`,
-      }).catch(() => {});
+      });
     }
   } catch (err) {
     if (err instanceof CheckoutConflictError) {
@@ -597,17 +644,28 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
 
     if (!updated) return res.status(404).json({ error: "Equipment not found" });
     if (alreadyReturned) return res.json(updated);
+
+    const u = updated as EquipmentRow;
+
+    logAudit({
+      actionType: "equipment_returned",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "equipment",
+      metadata: { name: u.name },
+    });
+
     invalidateAnalyticsCache();
     res.json({ equipment: updated, undoToken });
 
-    const u = updated as EquipmentRow;
     if (!checkDedupe(u.id, "return")) {
       sendPushToAll({
         title: "Equipment Returned",
         body: `${u.name} has been returned and is available`,
         tag: `return:${u.id}`,
         url: `/equipment/${u.id}`,
-      }).catch(() => {});
+      });
     }
   } catch (err) {
     console.error(err);
@@ -686,17 +744,27 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
     });
 
     if (!updatedEquipment) return res.status(404).json({ error: "Equipment not found" });
-    invalidateAnalyticsCache();
-    res.json({ equipment: updatedEquipment, scanLog, undoToken });
 
     const eq2 = updatedEquipment as EquipmentRow;
+
+    logAudit({
+      actionType: "equipment_scanned",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "equipment",
+      metadata: { name: eq2.name, status, note: note ?? null },
+    });
+
+    invalidateAnalyticsCache();
+    res.json({ equipment: updatedEquipment, scanLog, undoToken });
     if (status === "issue" && !checkDedupe(eq2.id, "issue")) {
       sendPushToAll({
         title: "Equipment Issue Reported",
         body: `${eq2.name} needs attention${note ? ` — ${note}` : ""}`,
         tag: `issue:${eq2.id}`,
         url: `/equipment/${eq2.id}`,
-      }).catch(() => {});
+      });
     }
 
     const now = new Date();
@@ -714,7 +782,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
           body: `${eq2.name} is ${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue for maintenance`,
           tag: `overdue:${eq2.id}`,
           url: `/equipment/${eq2.id}`,
-        }).catch(() => {});
+        });
       }
     }
 
@@ -726,7 +794,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
           body: `${eq2.name} has not been sterilized in 7+ days`,
           tag: `sterilization_due:${eq2.id}`,
           url: `/equipment/${eq2.id}`,
-        }).catch(() => {});
+        });
       }
     }
   } catch (err) {
@@ -771,6 +839,15 @@ router.post("/:id/revert", requireAuth, requireRole("vet"), validateUuid("id"), 
       await tx
         .delete(scanLogs)
         .where(and(eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
+    });
+
+    logAudit({
+      actionType: "equipment_reverted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "equipment",
+      metadata: { name: (updated as EquipmentRow | null)?.name ?? null },
     });
 
     invalidateAnalyticsCache();
@@ -1007,6 +1084,15 @@ router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (
       }
     });
 
+    logAudit({
+      actionType: "equipment_imported",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: null,
+      targetType: "equipment",
+      metadata: { inserted: toInsert.length, skipped: skipped.length },
+    });
+
     invalidateAnalyticsCache();
     res.json({ inserted: toInsert.length, skipped });
   } catch (err) {
@@ -1045,6 +1131,15 @@ router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchem
           .set({ deletedAt: now, deletedBy: req.authUser!.id })
           .where(inArray(equipment.id, items.map((i) => i.id)));
       }
+    });
+
+    logAudit({
+      actionType: "equipment_bulk_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: null,
+      targetType: "equipment",
+      metadata: { ids: typedIds, count: typedIds.length },
     });
 
     invalidateAnalyticsCache();
@@ -1099,6 +1194,15 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), validateBody(b
       }
     });
 
+    logAudit({
+      actionType: "equipment_bulk_moved",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: targetFolderId,
+      targetType: "folder",
+      metadata: { ids: typedIds, count: typedIds.length, targetFolderName },
+    });
+
     invalidateAnalyticsCache();
     res.json({ affected: typedIds.length });
 
@@ -1108,7 +1212,7 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), validateBody(b
       body: `${typedIds.length} item${typedIds.length !== 1 ? "s" : ""} moved to ${toLabel}`,
       tag: `bulk-move:${Date.now()}`,
       url: "/",
-    }).catch(() => {});
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Bulk move failed" });

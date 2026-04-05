@@ -7,6 +7,7 @@ import {
   integer,
   boolean,
   varchar,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const pool = new Pool({
@@ -162,6 +163,17 @@ export const bulkAuditLog = pgTable("vt_bulk_audit_log", {
   actorId: text("actor_id").notNull(),
   actorEmail: text("actor_email").notNull(),
   note: text("note"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("vt_audit_logs", {
+  id: text("id").primaryKey(),
+  actionType: varchar("action_type", { length: 50 }).notNull(),
+  performedBy: text("performed_by").notNull(),
+  performedByEmail: text("performed_by_email").notNull(),
+  targetId: text("target_id"),
+  targetType: varchar("target_type", { length: 50 }),
+  metadata: jsonb("metadata"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 

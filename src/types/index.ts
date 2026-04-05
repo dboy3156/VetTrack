@@ -265,3 +265,14 @@ export interface CreateSupportTicketRequest {
   deviceInfo?: string;
   appVersion?: string;
 }
+
+export interface AuditLog {
+  id: string;
+  actionType: string;
+  performedBy: string;
+  performedByEmail: string;
+  targetId: string | null;
+  targetType: string | null;
+  metadata: Record<string, unknown> | null;
+  timestamp: string;
+}

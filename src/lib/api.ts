@@ -525,4 +525,16 @@ export const api = {
         { method: "PATCH", body: JSON.stringify(data) }
       ),
   },
+  auditLogs: {
+    list: (params?: { actionType?: string; performedBy?: string; from?: string; to?: string; page?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.actionType) qs.set("actionType", params.actionType);
+      if (params?.performedBy) qs.set("performedBy", params.performedBy);
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      if (params?.page) qs.set("page", String(params.page));
+      const query = qs.toString() ? `?${qs.toString()}` : "";
+      return request<{ items: import("@/types").AuditLog[]; hasMore: boolean; page: number; pageSize: number }>(`/api/audit-logs${query}`);
+    },
+  },
 };

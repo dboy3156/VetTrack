@@ -35,7 +35,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -159,6 +159,14 @@ export default function AdminPage() {
                 {unresolvedCount > 9 ? "9+" : unresolvedCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => navigate("/audit-log")}
+            data-testid="admin-tab-audit-log"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 border-transparent text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+          >
+            <ClipboardList className="w-4 h-4" />
+            Audit Log
           </button>
         </div>
 

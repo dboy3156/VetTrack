@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { z } from "zod";
 import { db, alertAcks } from "../db.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { validateBody } from "../middleware/validate.js";
 import { sendPushToOthers, checkDedupe } from "../lib/push.js";
+import { logAudit } from "../lib/audit.js";
 
 /*
  * PERMISSIONS MATRIX — /api/alert-acks
@@ -17,13 +16,6 @@ import { sendPushToOthers, checkDedupe } from "../lib/push.js";
  */
 
 const router = Router();
-
-const VALID_ALERT_TYPES = ["issue", "overdue", "maintenance", "sterilization_due"] as const;
-
-const createAckSchema = z.object({
-  equipmentId: z.string().min(1, "equipmentId is required"),
-  alertType: z.string().min(1, "alertType is required"),
-});
 
 // GET /api/alert-acks — return all current acknowledgments
 router.get("/", requireAuth, async (_req, res) => {
@@ -37,9 +29,12 @@ router.get("/", requireAuth, async (_req, res) => {
 });
 
 // POST /api/alert-acks — claim an alert ("I'm handling this") — technician+ only
-router.post("/", requireAuth, requireRole("technician"), validateBody(createAckSchema), async (req, res) => {
+router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   try {
-    const { equipmentId, alertType } = req.body as z.infer<typeof createAckSchema>;
+    const { equipmentId, alertType } = req.body;
+    if (!equipmentId || !alertType) {
+      return res.status(400).json({ error: "equipmentId and alertType required" });
+    }
 
     // Upsert: delete existing + insert new
     await db
@@ -65,6 +60,15 @@ router.post("/", requireAuth, requireRole("technician"), validateBody(createAckS
         remindAt,
       })
       .returning();
+
+    logAudit({
+      actionType: "alert_acknowledged",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: equipmentId,
+      targetType: "equipment",
+      metadata: { alertType, acknowledgedById: req.authUser!.id },
+    });
 
     res.status(201).json(ack);
 
@@ -96,6 +100,16 @@ router.delete("/", requireAuth, requireRole("technician"), async (req, res) => {
       .where(
         and(eq(alertAcks.equipmentId, equipmentId), eq(alertAcks.alertType, alertType))
       );
+
+    logAudit({
+      actionType: "alert_acknowledgment_removed",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: equipmentId,
+      targetType: "equipment",
+      metadata: { alertType },
+    });
+
     res.status(204).send();
   } catch (err) {
     console.error(err);

@@ -6,6 +6,7 @@ import { eq, sql, isNull, and } from "drizzle-orm";
 import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
+import { logAudit } from "../lib/audit.js";
 
 /*
  * PERMISSIONS MATRIX — /api/users
@@ -106,6 +107,15 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
       .where(eq(users.id, req.params.id))
       .returning();
 
+    logAudit({
+      actionType: "user_role_changed",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: { previousRole: target.role, newRole: role, targetEmail: target.email },
+    });
+
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -117,6 +127,12 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
   try {
     const { status } = req.body as z.infer<typeof patchStatusSchema>;
 
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.params.id))
+      .limit(1);
+
     const [user] = await db
       .update(users)
       .set({ status })
@@ -124,6 +140,16 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
       .returning();
 
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    logAudit({
+      actionType: "user_status_changed",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: { previousStatus: existing?.status, newStatus: status, targetEmail: user.email },
+    });
+
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -185,6 +211,16 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         .set({ email, name: name || existing.name })
         .where(eq(users.id, existing.id))
         .returning();
+
+      logAudit({
+        actionType: "user_login",
+        performedBy: existing.id,
+        performedByEmail: email,
+        targetId: existing.id,
+        targetType: "user",
+        metadata: { name },
+      });
+
       return res.json(updated);
     }
 
@@ -198,6 +234,15 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         role: "technician",
       })
       .returning();
+
+    logAudit({
+      actionType: "user_provisioned",
+      performedBy: newUser.id,
+      performedByEmail: email,
+      targetId: newUser.id,
+      targetType: "user",
+      metadata: { name, role: "technician" },
+    });
 
     res.status(201).json(newUser);
   } catch (err) {

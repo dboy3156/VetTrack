@@ -39,6 +39,7 @@ import demoSeedRoutes from "./routes/demo-seed.js";
 import pushRoutes from "./routes/push.js";
 import metricsRoutes from "./routes/metrics.js";
 import supportRoutes from "./routes/support.js";
+import auditLogsRoutes from "./routes/audit-logs.js";
 import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
 import { startAlertReminderScheduler } from "./lib/alert-reminder.js";
@@ -192,6 +193,7 @@ app.use("/api/demo-seed", demoSeedRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/audit-logs", auditLogsRoutes);
 
 Sentry.setupExpressErrorHandler(app);
 
