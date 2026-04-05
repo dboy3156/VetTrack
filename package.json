@@ -45,6 +45,7 @@
     "express": "^4.21.0",
     "express-session": "^1.18.0",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^4.2.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.446.0",
     "pg": "^8.12.0",
