@@ -56,3 +56,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+ADMIN_EMAILS = "danerez5@gmail.com"
