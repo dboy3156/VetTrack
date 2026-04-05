@@ -2,14 +2,14 @@ interface AuthState {
   userId: string;
   email: string;
   name: string;
-  clerkHeaders: Record<string, string>;
+  bearerToken: string | null;
 }
 
 let authState: AuthState = {
   userId: "",
   email: "",
   name: "",
-  clerkHeaders: {},
+  bearerToken: null,
 };
 
 export function setAuthState(state: AuthState) {
@@ -17,7 +17,10 @@ export function setAuthState(state: AuthState) {
 }
 
 export function getAuthHeaders(): Record<string, string> {
-  return authState.clerkHeaders;
+  if (authState.bearerToken) {
+    return { Authorization: `Bearer ${authState.bearerToken}` };
+  }
+  return {};
 }
 
 export function getCurrentUserId(): string {

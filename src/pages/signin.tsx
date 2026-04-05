@@ -1,8 +1,11 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
-import { QrCode, LogIn, ArrowLeft } from "lucide-react";
+import { QrCode } from "lucide-react";
+import { SignIn } from "@clerk/clerk-react";
 import { useAuth } from "@/hooks/use-auth";
+
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
 export default function SignInPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -36,45 +39,40 @@ export default function SignInPage() {
             <p className="text-sm text-gray-500">Sign in to access your veterinary equipment dashboard</p>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            {isLoaded && isSignedIn ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-gray-500 mb-4">You are already signed in.</p>
-                <Link
-                  href="/"
-                  className="inline-flex items-center justify-center gap-2 w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
-                >
-                  <LogIn className="w-4 h-4" />
-                  Go to Dashboard
-                </Link>
-              </div>
-            ) : (
-              <div className="text-center py-4">
-                <div className="w-12 h-12 rounded-2xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
-                  <LogIn className="w-6 h-6 text-teal-600" />
-                </div>
-                <p className="text-sm text-gray-600 mb-6">
-                  Authentication is managed via your clinic's identity provider.
-                  Contact your administrator if you need access.
-                </p>
-                <Link
-                  href="/"
-                  className="inline-flex items-center justify-center gap-2 w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
-                >
-                  <LogIn className="w-4 h-4" />
-                  Sign In
-                </Link>
-              </div>
-            )}
-          </div>
+          {CLERK_PUBLISHABLE_KEY ? (
+            <div className="flex justify-center">
+              <SignIn
+                routing="hash"
+                redirectUrl="/"
+                appearance={{
+                  variables: {
+                    colorPrimary: "#0d9488",
+                    colorBackground: "#ffffff",
+                    borderRadius: "1rem",
+                  },
+                }}
+              />
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm text-center">
+              <p className="text-sm text-gray-500 mb-4">
+                Authentication is running in development mode.
+              </p>
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center gap-2 w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
+              >
+                Continue to Dashboard
+              </Link>
+            </div>
+          )}
 
           <div className="text-center mt-6">
             <Link
               href="/landing"
               className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-teal-600 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Learn more about VetTrack
+              ← Learn more about VetTrack
             </Link>
           </div>
         </div>

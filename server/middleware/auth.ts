@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
+import { getAuth } from "@clerk/express";
 import { db, users } from "../db.js";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -45,7 +46,6 @@ export async function requireAuth(
   const isDev = !process.env.CLERK_SECRET_KEY;
 
   if (isDev) {
-    // Tests can pass x-dev-role-override to simulate a different role (dev only)
     const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
     const devUser: AuthUser =
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
@@ -57,13 +57,14 @@ export async function requireAuth(
   }
 
   try {
-    const clerkUserId = req.headers["x-clerk-user-id"] as string;
-    const clerkEmail = req.headers["x-clerk-email"] as string;
-    const clerkName = req.headers["x-clerk-name"] as string;
+    const { userId: clerkUserId, sessionClaims } = getAuth(req);
 
     if (!clerkUserId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+
+    const clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
+    const clerkName = (sessionClaims?.name as string | undefined) ?? "";
 
     let [user] = await db
       .select()
@@ -75,8 +76,8 @@ export async function requireAuth(
       const newUser = {
         id: randomUUID(),
         clerkId: clerkUserId,
-        email: clerkEmail || "",
-        name: clerkName || "",
+        email: clerkEmail,
+        name: clerkName,
         role: "technician" as const,
       };
       try {

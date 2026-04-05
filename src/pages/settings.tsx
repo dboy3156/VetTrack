@@ -33,22 +33,16 @@ import {
   SunDim,
   Send,
 } from "lucide-react";
-import { useLocation } from "wouter";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
-  const { name, email } = useAuth();
-  const [, navigate] = useLocation();
+  const { name, email, signOut } = useAuth();
   const push = usePushNotifications();
 
-  const handleLogout = () => {
-    const keysToRemove = Object.keys(localStorage).filter((k) =>
-      k.startsWith("vettrack")
-    );
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
-    navigate("/landing");
+  const handleLogout = async () => {
+    await signOut();
   };
 
   const handleSoundToggle = async (v: boolean) => {

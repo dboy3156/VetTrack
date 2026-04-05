@@ -3,9 +3,10 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import * as Sentry from "@sentry/react";
+import { ClerkProvider } from "@clerk/clerk-react";
 import "./index.css";
 import App from "./App";
-import { DevAuthProvider } from "@/hooks/use-auth";
+import { DevAuthProvider, ClerkAuthProviderInner } from "@/hooks/use-auth";
 import { SyncProvider } from "@/hooks/use-sync";
 import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
@@ -59,19 +60,35 @@ if (import.meta.env.DEV) {
   };
 }
 
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
+
+function InnerApp() {
+  return (
+    <SettingsProvider>
+      <SyncProvider>
+        <GlobalServerErrorBanner />
+        <App />
+        <Toaster richColors position="top-center" />
+      </SyncProvider>
+    </SettingsProvider>
+  );
+}
+
 function Root() {
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
-        <DevAuthProvider>
-          <SettingsProvider>
-            <SyncProvider>
-              <GlobalServerErrorBanner />
-              <App />
-              <Toaster richColors position="top-center" />
-            </SyncProvider>
-          </SettingsProvider>
-        </DevAuthProvider>
+        {CLERK_PUBLISHABLE_KEY ? (
+          <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/landing">
+            <ClerkAuthProviderInner>
+              <InnerApp />
+            </ClerkAuthProviderInner>
+          </ClerkProvider>
+        ) : (
+          <DevAuthProvider>
+            <InnerApp />
+          </DevAuthProvider>
+        )}
       </QueryClientProvider>
     </HelmetProvider>
   );

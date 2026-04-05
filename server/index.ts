@@ -23,6 +23,7 @@ import xss from "xss";
 import { initDb, pool } from "./db.js";
 import { runMigrations } from "./migrate.js";
 import { createRequire } from "module";
+import { clerkMiddleware } from "@clerk/express";
 
 const _require = createRequire(import.meta.url);
 const { version: APP_VERSION } = _require("../package.json") as { version: string };
@@ -114,6 +115,10 @@ app.use(
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+if (process.env.CLERK_SECRET_KEY) {
+  app.use(clerkMiddleware());
+}
 
 function sanitizeStrings(obj: unknown): void {
   if (obj === null || typeof obj !== "object") return;

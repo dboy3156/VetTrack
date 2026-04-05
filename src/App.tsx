@@ -1,5 +1,5 @@
-import { Switch, Route } from "wouter";
-import { Suspense, lazy } from "react";
+import { Switch, Route, Redirect } from "wouter";
+import { Suspense, lazy, type ReactNode } from "react";
 import * as Sentry from "@sentry/react";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -78,10 +78,17 @@ function ErrorFallback({ error, resetError }: { error: Error; resetError: () => 
   );
 }
 
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) return <PageLoader />;
+  if (!isSignedIn) return <Redirect to="/signin" />;
+  return <>{children}</>;
+}
+
 function RootRoute() {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <PageLoader />;
-  if (!isSignedIn) return <LandingPage />;
+  if (!isSignedIn) return <Redirect to="/signin" />;
   return <HomePage />;
 }
 
@@ -94,18 +101,40 @@ export default function App() {
           <Route path="/" component={RootRoute} />
           <Route path="/landing" component={LandingPage} />
           <Route path="/signin" component={SignInPage} />
-          <Route path="/equipment" component={EquipmentListPage} />
-          <Route path="/equipment/new" component={NewEquipmentPage} />
-          <Route path="/equipment/:id" component={EquipmentDetailPage} />
-          <Route path="/analytics" component={AnalyticsPage} />
-          <Route path="/alerts" component={AlertsPage} />
-          <Route path="/print" component={QrPrintPage} />
-          <Route path="/admin" component={AdminPage} />
-          <Route path="/my-equipment" component={MyEquipmentPage} />
-          <Route path="/demo-guide" component={DemoGuidePage} />
-          <Route path="/dashboard" component={ManagementDashboardPage} />
           <Route path="/video" component={VideoPage} />
-          <Route path="/settings" component={SettingsPage} />
+          <Route path="/equipment">
+            <ProtectedRoute><EquipmentListPage /></ProtectedRoute>
+          </Route>
+          <Route path="/equipment/new">
+            <ProtectedRoute><NewEquipmentPage /></ProtectedRoute>
+          </Route>
+          <Route path="/equipment/:id">
+            <ProtectedRoute><EquipmentDetailPage /></ProtectedRoute>
+          </Route>
+          <Route path="/analytics">
+            <ProtectedRoute><AnalyticsPage /></ProtectedRoute>
+          </Route>
+          <Route path="/alerts">
+            <ProtectedRoute><AlertsPage /></ProtectedRoute>
+          </Route>
+          <Route path="/print">
+            <ProtectedRoute><QrPrintPage /></ProtectedRoute>
+          </Route>
+          <Route path="/admin">
+            <ProtectedRoute><AdminPage /></ProtectedRoute>
+          </Route>
+          <Route path="/my-equipment">
+            <ProtectedRoute><MyEquipmentPage /></ProtectedRoute>
+          </Route>
+          <Route path="/demo-guide">
+            <ProtectedRoute><DemoGuidePage /></ProtectedRoute>
+          </Route>
+          <Route path="/dashboard">
+            <ProtectedRoute><ManagementDashboardPage /></ProtectedRoute>
+          </Route>
+          <Route path="/settings">
+            <ProtectedRoute><SettingsPage /></ProtectedRoute>
+          </Route>
           <Route component={NotFoundPage} />
         </Switch>
       </Suspense>
