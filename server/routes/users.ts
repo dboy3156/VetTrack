@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { db, users } from "../db.js";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 
 const router = Router();
 
@@ -46,7 +47,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.post("/sync", requireAuth, async (req, res) => {
+router.post("/sync", requireAuth, authSensitiveLimiter, async (req, res) => {
   try {
     const { clerkId, email, name } = req.body;
     if (!clerkId || !email) return res.status(400).json({ error: "Missing fields" });

@@ -45,20 +45,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// --- CORS: lock to known origins only ---
+// --- CORS: lock to known origins only, fail closed in production ---
 const isDev = process.env.NODE_ENV !== "production";
 
 function buildAllowedOrigins(): string[] {
   const origins: string[] = [];
-  if (isDev && process.env.REPLIT_DEV_DOMAIN) {
-    origins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
-  }
-  if (process.env.ALLOWED_ORIGIN) {
-    origins.push(process.env.ALLOWED_ORIGIN);
-  }
-  // Always allow localhost in development
+  // Dev: whitelist REPLIT_DEV_DOMAIN and localhost
   if (isDev) {
     origins.push("http://localhost:5000", "http://localhost:3000");
+    if (process.env.REPLIT_DEV_DOMAIN) {
+      origins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+    }
+  }
+  // Any env: explicit ALLOWED_ORIGIN override
+  if (process.env.ALLOWED_ORIGIN) {
+    origins.push(process.env.ALLOWED_ORIGIN);
   }
   return origins;
 }
@@ -66,28 +67,30 @@ function buildAllowedOrigins(): string[] {
 const allowedOrigins = buildAllowedOrigins();
 
 app.use(cors({
-  origin: allowedOrigins.length > 0
-    ? (origin, callback) => {
-        // Allow requests with no origin (e.g. curl, mobile apps, SSR)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-      }
-    : true, // fallback: allow all if no env vars set (dev without REPLIT_DEV_DOMAIN)
+  origin: (origin, callback) => {
+    // Requests with no origin (curl, same-origin server-side, mobile) — always allow
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In production with no whitelist configured, fail closed
+    callback(new Error(`CORS: origin "${origin}" not in allowedOrigins`));
+  },
   credentials: true,
 }));
 
 // --- Rate Limiters ---
 
-// Global: 200 req/min per IP (applied to all /api/* routes)
+// Global: 100 req/min per IP (applied to all /api/* routes)
 const globalLimiter = rateLimit({
   windowMs: 60_000,
-  max: 200,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please slow down." },
 });
 app.use("/api", globalLimiter);
+
+// Auth/sensitive paths limiter is exported from middleware/rate-limiters.ts
+// and applied directly in push.ts and users.ts routes
 
 app.use(
   helmet({
@@ -236,9 +239,10 @@ async function main() {
   await initDb();
   await initVapid();
 
+  // Run cleanup at half the undo TTL (90s) so expired tokens are removed promptly
   setInterval(() => {
     cleanExpiredUndoTokens().catch(() => {});
-  }, 60_000);
+  }, 45_000);
 
   if (isDev) {
     // Best-effort: try to free the preferred port before starting.

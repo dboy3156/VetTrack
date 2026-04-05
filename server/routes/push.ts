@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { db, pushSubscriptions } from "../db.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
+import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
 
 const router = Router();
@@ -13,7 +14,7 @@ router.get("/vapid-public-key", async (_req, res) => {
   res.json({ publicKey: key });
 });
 
-router.post("/subscribe", requireAuth, async (req, res) => {
+router.post("/subscribe", requireAuth, authSensitiveLimiter, async (req, res) => {
   try {
     const { endpoint, keys, soundEnabled, alertsEnabled } = req.body as {
       endpoint?: string;
