@@ -125,6 +125,26 @@ src/
     not-found.tsx        # 404
 ```
 
+## Stability Testing System
+
+A full stability testing system accessible at `/stability` (admin-only):
+
+- **Functional tests** — Health check, equipment list, analytics, activity, folders, users, and (with testing mode) full equipment CRUD + scan workflow
+- **Stress tests** — 5x concurrent requests, 10x rapid sequential requests, 3x concurrent analytics; detects latency spikes and performance degradation
+- **Edge case tests** — Missing fields → 400, nonexistent resources → 404, invalid status → 4xx, 5000-char XSS/overflow check, duplicate scan idempotency (test mode)
+- **Testing mode** — Toggle to run CRUD tests safely; test data tagged `__TEST__` and cleaned up after each run
+- **Auto-schedule** — Set tests to run every 2/4/8/12/24 hours via the UI
+- **Internal action log** — Ring buffer of last 1,000 server-side actions, searchable, auto-refreshes every 5 seconds
+- **Live dashboard** — Real-time system status (Stable / Warnings / Issues Detected / Testing), per-test pass/fail details, latency stats
+
+### Implementation
+- `server/lib/stability-log.ts` — In-memory ring buffer (1,000 entries)
+- `server/lib/stability-token.ts` — Ephemeral random token for internal auth (regenerated on restart)
+- `server/lib/test-runner.ts` — Test suite engine (functional / stress / edge)
+- `server/routes/stability.ts` — REST API (`GET /status`, `POST /run`, `GET /results`, `GET /logs`, etc.)
+- `src/pages/stability-dashboard.tsx` — Full dashboard UI
+- Auth bypass: stability token checked before Clerk middleware, granting internal admin access for test requests
+
 ## Error Tracking & Monitoring
 - **Sentry frontend** — `@sentry/react` initialized in `src/main.tsx` if `VITE_SENTRY_DSN` is set. Uses `Sentry.ErrorBoundary` in `App.tsx` with friendly fallback + "Report Issue" button
 - **Sentry backend** — `@sentry/node` initialized in `server/index.ts` if `SENTRY_DSN` is set. Uses `setupExpressErrorHandler(app)` and sets user context in `requireAuth` middleware

@@ -40,6 +40,8 @@ import pushRoutes from "./routes/push.js";
 import metricsRoutes from "./routes/metrics.js";
 import supportRoutes from "./routes/support.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
+import stabilityRoutes from "./routes/stability.js";
+import { STABILITY_TOKEN } from "./lib/stability-token.js";
 import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
 import { startAlertReminderScheduler } from "./lib/alert-reminder.js";
@@ -118,7 +120,14 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 if (process.env.CLERK_SECRET_KEY) {
-  app.use(clerkMiddleware());
+  // Bypass Clerk for internal stability test runner requests
+  app.use((req, _res, next) => {
+    if (req.headers["x-stability-token"] === STABILITY_TOKEN) return next();
+    clerkMiddleware({
+      secretKey: process.env.CLERK_SECRET_KEY,
+      publishableKey: process.env.VITE_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY,
+    })(req, _res, next);
+  });
 }
 
 function sanitizeStrings(obj: unknown): void {
@@ -194,6 +203,7 @@ app.use("/api/push", pushRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
+app.use("/api/stability", stabilityRoutes);
 
 Sentry.setupExpressErrorHandler(app);
 

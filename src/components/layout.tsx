@@ -31,6 +31,7 @@ import {
   SunDim,
   Bug,
   CloudOff,
+  FlaskConical,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     { href: "/settings", label: "Settings", icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: "About VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
     { href: "/admin", label: "Admin", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/stability", label: "Stability", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
   ];
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);

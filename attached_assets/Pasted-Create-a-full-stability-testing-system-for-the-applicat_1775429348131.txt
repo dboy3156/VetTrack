@@ -1,0 +1,73 @@
+Create a full stability testing system for the application, focused on detecting bugs, crashes, and performance issues before real-world use (not feature development).
+
+The system must include three core testing layers:
+	1.	Functional Testing
+Validate all core flows end-to-end:
+
+	•	Authentication (Clerk)
+	•	QR scanning
+	•	Equipment status updates
+	•	User interactions
+	•	Offline → online synchronization
+
+Each flow must include step-by-step validation with clear expected vs actual results.
+Any failure must be logged with context.
+	2.	Stress / Load Testing
+Simulate real-world hospital usage:
+
+	•	Multiple concurrent users (minimum 3–5)
+	•	Rapid repeated QR scans
+	•	Simultaneous updates to the same equipment
+
+Detect and log:
+	•	Latency spikes
+	•	Race conditions
+	•	Data inconsistencies
+	•	Performance degradation
+
+	3.	Edge Case Testing
+Simulate non-ideal and failure scenarios:
+
+	•	No internet during actions
+	•	Session interruption mid-action
+	•	Duplicate scans/actions
+	•	Missing or null data
+	•	Concurrent edits by multiple users
+
+The system must identify where and how the app breaks.
+
+⸻
+
+Additional system requirements:
+	4.	Automated Test Runs
+
+	•	Allow manual trigger of full test suite
+	•	Allow scheduled test runs (e.g. every X hours)
+	•	Automatically run tests after major changes (optional trigger)
+	•	Produce structured test reports (pass/fail + details)
+
+	5.	Live System Health Dashboard
+Create a dashboard that displays:
+
+	•	Current system status: Ready / Testing / Issues Detected / Stable
+	•	Active errors and logs
+	•	Performance metrics (response time, failures)
+	•	Test results summary
+	•	Recent activity timeline
+
+	6.	Internal Logging System
+
+	•	Log every action (user/system) with timestamp
+	•	Include success/failure state
+	•	Make logs searchable and easy to debug
+
+	7.	Testing Mode
+
+	•	Add a dedicated “Testing Mode” inside the app
+	•	Allow running tests without affecting real data
+	•	Clearly separate test data from production data
+
+⸻
+
+Goal:
+Build a system that aggressively exposes bugs, instability, and performance issues under realistic and stressful conditions, ensuring the app is stable before real hospital usage.
