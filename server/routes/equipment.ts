@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
-import { db, equipment, folders, scanLogs, transferLogs, undoTokens, bulkAuditLog } from "../db.js";
+import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
 import { eq, inArray, desc, and, lt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
@@ -723,6 +723,7 @@ router.post("/:id/revert", requireAuth, requireRole("vet"), async (req, res) => 
         .where(and(eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
     });
 
+    invalidateAnalyticsCache();
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -956,6 +957,7 @@ router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (
       }
     });
 
+    invalidateAnalyticsCache();
     res.json({ inserted: toInsert.length, skipped });
   } catch (err) {
     console.error(err);

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, scanLogs, transferLogs, equipment } from "../db.js";
+import { db, scanLogs, transferLogs, equipment, users } from "../db.js";
 import { desc, eq, count } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { sql } from "drizzle-orm";
@@ -35,7 +35,8 @@ router.get("/", requireAuth, async (req, res) => {
         equipmentId: transferLogs.equipmentId,
         equipmentName: equipment.name,
         userId: transferLogs.userId,
-        userEmail: sql<string>`''`,
+        userEmail: sql<string>`COALESCE(${users.email}, '')`,
+        userDisplayName: sql<string>`COALESCE(${users.name}, ${users.email}, '')`,
         status: sql<string>`null::text`,
         note: transferLogs.note,
         timestamp: transferLogs.timestamp,
@@ -45,6 +46,7 @@ router.get("/", requireAuth, async (req, res) => {
       })
       .from(transferLogs)
       .leftJoin(equipment, eq(transferLogs.equipmentId, equipment.id))
+      .leftJoin(users, eq(transferLogs.userId, users.id))
       .orderBy(desc(transferLogs.timestamp))
       .limit(PAGE_SIZE);
 
@@ -69,7 +71,7 @@ router.get("/", requireAuth, async (req, res) => {
         toFolder: t.toFolder,
         note: t.note ?? null,
         userId: t.userId,
-        userEmail: "",
+        userEmail: t.userEmail,
         timestamp: new Date(t.timestamp).toISOString(),
       })),
     ]
