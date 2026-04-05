@@ -80,6 +80,7 @@ export const transferLogs = pgTable("vt_transfer_logs", {
   toFolderId: text("to_folder_id"),
   toFolderName: text("to_folder_name"),
   userId: text("user_id").notNull(),
+  note: text("note"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 

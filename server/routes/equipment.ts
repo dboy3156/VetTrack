@@ -6,6 +6,7 @@ import { eq, inArray, desc, and, lt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
+import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -278,6 +279,7 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
         status: "ok",
       })
       .returning();
+    invalidateAnalyticsCache();
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
@@ -363,6 +365,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
     });
 
     if (!result) return res.status(404).json({ error: "Equipment not found" });
+    invalidateAnalyticsCache();
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -373,6 +376,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) =>
 router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
     await db.delete(equipment).where(eq(equipment.id, req.params.id));
+    invalidateAnalyticsCache();
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -443,6 +447,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
     });
 
     if (!updated) return res.status(404).json({ error: "Equipment not found" });
+    invalidateAnalyticsCache();
     res.json({ equipment: updated, undoToken });
 
     const u = updated as EquipmentRow;
@@ -532,6 +537,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
 
     if (!updated) return res.status(404).json({ error: "Equipment not found" });
     if (alreadyReturned) return res.json(updated);
+    invalidateAnalyticsCache();
     res.json({ equipment: updated, undoToken });
 
     const u = updated as EquipmentRow;
@@ -626,6 +632,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), async (re
     });
 
     if (!updatedEquipment) return res.status(404).json({ error: "Equipment not found" });
+    invalidateAnalyticsCache();
     res.json({ equipment: updatedEquipment, scanLog, undoToken });
 
     const eq2 = updatedEquipment as EquipmentRow;
@@ -968,8 +975,34 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
     if (!ids.every((id) => typeof id === "string")) {
       return res.status(400).json({ error: "All IDs must be strings" });
     }
-    await db.delete(equipment).where(inArray(equipment.id, ids as string[]));
-    res.json({ affected: ids.length });
+    const typedIds = ids as string[];
+    const actorName = req.authUser!.name || req.authUser!.email;
+
+    await db.transaction(async (tx) => {
+      // Write tombstone scan log per item before deletion (audit trail)
+      const now = new Date();
+      for (const id of typedIds) {
+        const [item] = await tx
+          .select({ id: equipment.id, status: equipment.status })
+          .from(equipment)
+          .where(eq(equipment.id, id))
+          .limit(1);
+        if (!item) continue;
+        await tx.insert(scanLogs).values({
+          id: randomUUID(),
+          equipmentId: id,
+          userId: req.authUser!.id,
+          userEmail: req.authUser!.email,
+          status: item.status,
+          note: `Bulk deleted by ${actorName}`,
+          timestamp: now,
+        });
+      }
+      await tx.delete(equipment).where(inArray(equipment.id, typedIds));
+    });
+
+    invalidateAnalyticsCache();
+    res.json({ affected: typedIds.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Bulk delete failed" });
@@ -991,10 +1024,14 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), async (req, re
     const typedIds = ids as string[];
     const targetFolderId = folderId ?? null;
 
+    let targetFolderName: string | null = null;
+
     await db.transaction(async (tx) => {
       const [targetFolder] = targetFolderId
         ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
         : [null];
+      targetFolderName = targetFolder?.name ?? null;
+      const moveNote = `Bulk moved to ${targetFolderName ?? "Unassigned"}`;
 
       for (const id of typedIds) {
         const [item] = await tx
@@ -1021,15 +1058,18 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), async (req, re
           toFolderId: targetFolderId,
           toFolderName: targetFolder?.name ?? null,
           userId: req.authUser!.id,
+          note: moveNote,
         });
       }
     });
 
+    invalidateAnalyticsCache();
     res.json({ affected: typedIds.length });
 
+    const toLabel = targetFolderName ?? "Unassigned";
     sendPushToAll({
       title: "Bulk Transfer",
-      body: `${typedIds.length} item${typedIds.length !== 1 ? "s" : ""} moved${targetFolderId ? ` to a new folder` : " to Unassigned"}`,
+      body: `${typedIds.length} item${typedIds.length !== 1 ? "s" : ""} moved to ${toLabel}`,
       tag: `bulk-move:${Date.now()}`,
       url: "/",
     }).catch(() => {});

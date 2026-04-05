@@ -2,12 +2,19 @@ import { Router } from "express";
 import { db, equipment, scanLogs } from "../db.js";
 import { gte, desc, eq } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
-import { subDays, format, startOfDay } from "date-fns";
+import { subDays, format } from "date-fns";
+import { analyticsCache } from "../lib/analytics-cache.js";
 
 const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const cached = analyticsCache.get();
+    if (cached) {
+      res.setHeader("X-Analytics-Cache", "HIT");
+      return res.json(cached);
+    }
+
     const allEquipment = await db.select().from(equipment);
     const total = allEquipment.length;
 
@@ -114,14 +121,18 @@ router.get("/", requireAuth, async (req, res) => {
         })
     );
 
-    res.json({
+    const payload = {
       totalEquipment: total,
       statusBreakdown,
       maintenanceComplianceRate,
       sterilizationComplianceRate,
       scanActivity,
       topProblemEquipment,
-    });
+    };
+
+    analyticsCache.set(payload);
+    res.setHeader("X-Analytics-Cache", "MISS");
+    res.json(payload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to get analytics" });
