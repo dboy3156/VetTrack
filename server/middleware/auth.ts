@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
 import { getAuth } from "@clerk/express";
 import { db, users } from "../db.js";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export type UserRole = "admin" | "vet" | "technician" | "viewer";
@@ -13,6 +13,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  status: string;
 }
 
 declare global {
@@ -36,6 +37,7 @@ const DEV_USER: AuthUser = {
   email: "admin@vettrack.dev",
   name: "Dev Admin",
   role: "admin",
+  status: "active",
 };
 
 export async function requireAuth(
@@ -66,41 +68,24 @@ export async function requireAuth(
     const clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
     const clerkName = (sessionClaims?.name as string | undefined) ?? "";
 
-    let [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkUserId))
-      .limit(1);
-
-    if (!user) {
-      const newUser = {
+    const [user] = await db
+      .insert(users)
+      .values({
         id: randomUUID(),
         clerkId: clerkUserId,
         email: clerkEmail,
         name: clerkName,
-        role: "technician" as const,
-      };
-      try {
-        [user] = await db.insert(users).values(newUser).returning();
-      } catch (insertErr: unknown) {
-        const pgErr = insertErr as { code?: string };
-        if (pgErr?.code === "23505") {
-          [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.clerkId, clerkUserId))
-            .limit(1);
-        } else {
-          throw insertErr;
-        }
-      }
-    } else if (clerkEmail && user.email !== clerkEmail) {
-      [user] = await db
-        .update(users)
-        .set({ email: clerkEmail, name: clerkName || user.name })
-        .where(eq(users.id, user.id))
-        .returning();
-    }
+        role: "technician",
+        status: "active",
+      })
+      .onConflictDoUpdate({
+        target: users.clerkId,
+        set: {
+          email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
+          name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+        },
+      })
+      .returning();
 
     req.authUser = {
       id: user.id,
@@ -108,6 +93,7 @@ export async function requireAuth(
       email: user.email,
       name: user.name,
       role: user.role as UserRole,
+      status: user.status,
     };
 
     Sentry.setUser({ id: user.id, email: user.email });
