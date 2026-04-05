@@ -15,6 +15,7 @@ const MyEquipmentPage = lazy(() => import("@/pages/my-equipment"));
 const DemoGuidePage = lazy(() => import("@/pages/demo-guide"));
 const ManagementDashboardPage = lazy(() => import("@/pages/management-dashboard"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
+const VideoPage = lazy(() => import("@/pages/video"));
 
 function PageLoader() {
   return (
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="/my-equipment" component={MyEquipmentPage} />
           <Route path="/demo-guide" component={DemoGuidePage} />
           <Route path="/dashboard" component={ManagementDashboardPage} />
+          <Route path="/video" component={VideoPage} />
           <Route component={NotFoundPage} />
         </Switch>
       </Suspense>
