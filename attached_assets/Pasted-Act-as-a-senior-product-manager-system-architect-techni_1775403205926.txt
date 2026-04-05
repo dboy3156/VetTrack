@@ -1,0 +1,110 @@
+Act as a senior product manager + system architect + technical lead.
+
+Your goal is to evaluate VetTrack as if it is about to be deployed in a real, busy veterinary hospital, and determine everything that is missing, broken, or risky — then convert that directly into an execution plan.
+
+Do not describe what works. Focus only on gaps, weaknesses, and what must be improved.
+
+⸻
+
+Phase 1: Critical Gap Analysis
+
+Analyze the system and identify issues in these areas:
+
+1. Core Functionality
+	•	Missing features required for real daily workflows
+	•	Unrealistic assumptions in current logic
+
+2. Real-World Failures
+	•	Where the system will break under:
+	•	ICU pressure
+	•	Multiple concurrent users
+	•	Emergencies
+	•	Low-tech users
+
+3. UX / Human Behavior
+	•	Friction points
+	•	Error-prone flows
+	•	Slow or confusing actions
+
+4. Data Integrity
+	•	Risks of data loss, duplication, inconsistency
+	•	Sync conflicts / offline issues
+
+5. Edge Cases
+	•	Real messy scenarios not handled
+
+6. Operational Gaps
+	•	Onboarding
+	•	Permissions
+	•	Device handling
+	•	Staff adoption blockers
+
+7. Security Risks
+	•	Vulnerabilities
+	•	Missing protections
+
+8. Scalability Limits
+	•	When and how the system will degrade
+
+⸻
+
+For each issue:
+	•	Assign severity:
+	•	Critical / High / Medium
+	•	Be direct and specific
+
+⸻
+
+Phase 2: Turn Gaps into Execution Plan
+
+Convert ALL findings into actionable steps:
+
+1. Prioritized Fix List
+	•	Order by impact on real-world usability
+	•	Explain briefly why
+
+2. Implementation Plan
+For each item:
+	•	What needs to be built/fixed
+	•	Suggested approach (high-level)
+	•	Dependencies
+
+3. Sprint Plan (1–2 weeks each)
+	•	Define multiple sprints
+	•	Each sprint includes:
+	•	Clear goal
+	•	Concrete deliverables
+	•	Optimize for fastest path to usable system
+
+4. Quick Wins
+	•	Low effort, high impact fixes
+
+5. Risk Mitigation
+	•	What could still fail after fixes
+	•	How to reduce that risk
+
+⸻
+
+Phase 3: Production Readiness Definition
+
+Define clear criteria for when VetTrack is safe to deploy:
+
+Include:
+	•	Stability under load
+	•	Data reliability
+	•	UX clarity under stress
+	•	Error handling
+	•	Recovery from failures
+
+⸻
+
+Output rules:
+	•	Be critical, not polite
+	•	No fluff
+	•	Focus on real-world usage, not theory
+	•	Prefer concrete examples over general statements
+
+⸻
+
+Goal:
+Force VetTrack to evolve from “working demo” → “system that survives real hospital conditions without breaking.”
