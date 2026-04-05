@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -27,12 +26,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { STATUS_LABELS, STATUS_COLORS } from "@/types";
-import type { Equipment, EquipmentStatus } from "@/types";
+import { STATUS_LABELS } from "@/types";
+import type { Equipment } from "@/types";
 import {
   Plus,
   Search,
-  Filter,
   QrCode,
   FolderOpen,
   CheckSquare,
@@ -59,12 +57,42 @@ export default function EquipmentListPage() {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
+  const searchStr = useSearch();
   const qrInputRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [folderFilter, setFolderFilter] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+
+  const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
+  const search = params.get("q") ?? "";
+  const statusFilter = params.get("status") ?? "all";
+  const folderFilter = params.get("folder") ?? "all";
+
+  function updateParams(updates: Record<string, string>) {
+    const next = new URLSearchParams(searchStr);
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === "" || v === "all") {
+        next.delete(k);
+      } else {
+        next.set(k, v);
+      }
+    }
+    const qs = next.toString();
+    navigate(qs ? `/equipment?${qs}` : "/equipment", { replace: true });
+    setSelected(new Set());
+    setSelectMode(false);
+  }
+
+  function setSearch(val: string) {
+    updateParams({ q: val });
+  }
+
+  function setStatusFilter(val: string) {
+    updateParams({ status: val });
+  }
+
+  function setFolderFilter(val: string) {
+    updateParams({ folder: val });
+  }
 
   function handleQrScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -100,7 +128,7 @@ export default function EquipmentListPage() {
     reader.readAsDataURL(file);
   }
 
-  const { data: equipment, isLoading } = useQuery({
+  const { data: equipment, isLoading, isError } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
@@ -342,6 +370,15 @@ export default function EquipmentListPage() {
         <p className="text-xs text-muted-foreground -mt-2">
           {filtered.length} of {equipment?.length ?? 0} items
         </p>
+
+        {/* Error state */}
+        {isError && (
+          <Card className="border-destructive bg-destructive/5">
+            <CardContent className="p-4 text-center">
+              <p className="text-sm text-destructive">Failed to load equipment. Please refresh.</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Equipment list */}
         {isLoading ? (

@@ -49,6 +49,7 @@ interface OfflineOptions {
 }
 
 function isNetworkError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === "AbortError") return false;
   if (!navigator.onLine) return true;
   if (err instanceof TypeError) return true;
   if (err instanceof Error && err.message.includes("Failed to fetch")) return true;
@@ -165,10 +166,10 @@ export const api = {
         throw err;
       }
     },
-    create: (data: CreateEquipmentRequest) =>
+    create: (data: CreateEquipmentRequest, signal?: AbortSignal) =>
       request<Equipment>(
         "/api/equipment",
-        { method: "POST", body: JSON.stringify(data) },
+        { method: "POST", body: JSON.stringify(data), signal },
         { offlineType: "create" }
       ),
     update: (id: string, data: UpdateEquipmentRequest) =>
@@ -211,6 +212,7 @@ export const api = {
         equipment: { ...(cached || {}), ...optimisticEquipment, id } as Equipment,
         scanLog: optimisticScanLog,
         undoToken: undefined as string | undefined,
+        pendingSyncId: undefined as number | undefined,
       };
 
       try {
@@ -224,10 +226,10 @@ export const api = {
         );
         updateCachedEquipment(id, result.equipment).catch(() => {});
         cacheScanLogs(id, [result.scanLog]).catch(() => {});
-        return result;
+        return { ...result, pendingSyncId: undefined as number | undefined };
       } catch (err) {
         if (isNetworkError(err)) {
-          await addPendingSync({
+          const pendingSyncId = await addPendingSync({
             type: "scan",
             endpoint: `/api/equipment/${id}/scan`,
             method: "POST",
@@ -241,7 +243,7 @@ export const api = {
           });
           await updateCachedEquipment(id, optimisticEquipment);
           cacheScanLogs(id, [optimisticScanLog]).catch(() => {});
-          return optimistic;
+          return { ...optimistic, pendingSyncId: pendingSyncId as number };
         }
         throw err;
       }
@@ -270,10 +272,10 @@ export const api = {
           }
         );
         updateCachedEquipment(id, result.equipment).catch(() => {});
-        return result;
+        return { ...result, pendingSyncId: undefined as number | undefined };
       } catch (err) {
         if (isNetworkError(err)) {
-          await addPendingSync({
+          const pendingSyncId = await addPendingSync({
             type: "checkout",
             endpoint: `/api/equipment/${id}/checkout`,
             method: "POST",
@@ -287,7 +289,7 @@ export const api = {
           });
           const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
           await updateCachedEquipment(id, optimisticEquipment);
-          return { equipment: updated, undoToken: undefined as unknown as string };
+          return { equipment: updated, undoToken: undefined as unknown as string, pendingSyncId: pendingSyncId as number };
         }
         throw err;
       }
@@ -317,10 +319,10 @@ export const api = {
           }
         );
         updateCachedEquipment(id, result.equipment).catch(() => {});
-        return result;
+        return { ...result, pendingSyncId: undefined as number | undefined };
       } catch (err) {
         if (isNetworkError(err)) {
-          await addPendingSync({
+          const pendingSyncId = await addPendingSync({
             type: "return",
             endpoint: `/api/equipment/${id}/return`,
             method: "POST",
@@ -334,7 +336,7 @@ export const api = {
           });
           const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
           await updateCachedEquipment(id, optimisticEquipment);
-          return { equipment: updated, undoToken: undefined as unknown as string };
+          return { equipment: updated, undoToken: undefined as unknown as string, pendingSyncId: pendingSyncId as number };
         }
         throw err;
       }

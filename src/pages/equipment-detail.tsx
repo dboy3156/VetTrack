@@ -67,7 +67,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QRCodeSVG } from "qrcode.react";
-import { addPendingSync, removePendingSync } from "@/lib/offline-db";
+import { removePendingSync } from "@/lib/offline-db";
 
 const STATUS_CONFIG = {
   ok: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50" },
@@ -142,7 +142,10 @@ export default function EquipmentDetailPage() {
     }
 
     if (!state.undoToken) {
-      toast.error("Undo token missing");
+      // Offline action with no sync ID — restore optimistic state locally
+      queryClient.setQueryData([`/api/equipment/${id}`], prev);
+      invalidateAll();
+      toast.success("Action undone");
       return;
     }
 
@@ -249,18 +252,6 @@ export default function EquipmentDetailPage() {
       const capturedNote = scanNote;
       const capturedPhoto = scanPhoto;
 
-      if (!navigator.onLine) {
-        const syncId = await addPendingSync({
-          type: "scan",
-          endpoint: `/api/equipment/${id}/scan`,
-          method: "POST",
-          body: JSON.stringify({ status: capturedStatus, note: capturedNote, photoUrl: capturedPhoto, userEmail: email }),
-          createdAt: new Date(),
-          retries: 0,
-        });
-        return { result: null, prev, offlineSyncId: syncId, capturedStatus };
-      }
-
       const result = await api.equipment.scan(id!, {
         status: capturedStatus,
         note: capturedNote,
@@ -268,35 +259,29 @@ export default function EquipmentDetailPage() {
         userEmail: email || "",
         userId: userId || "",
       });
-      return { result, prev, offlineSyncId: undefined, capturedStatus };
+      return { result, prev, capturedStatus, wasOffline: result.pendingSyncId !== undefined };
     },
-    onSuccess: ({ result, prev, offlineSyncId, capturedStatus }) => {
+    onSuccess: ({ result, prev, capturedStatus, wasOffline }) => {
       setScanDialogOpen(false);
       setScanNote("");
       setScanPhoto(null);
       setNoteError("");
 
-      if (offlineSyncId !== undefined) {
+      const { equipment: updated, scanLog, undoToken } = result;
+
+      if (wasOffline) {
         if (prev) {
-          const optimistic: Equipment = {
-            ...prev,
-            status: capturedStatus,
-            lastSeen: new Date().toISOString(),
-            lastStatus: capturedStatus,
-          };
-          queryClient.setQueryData([`/api/equipment/${id}`], optimistic);
+          queryClient.setQueryData([`/api/equipment/${id}`], updated);
           startUndoTimer({
             actionLabel: `Status updated to ${STATUS_LABELS[capturedStatus]}`,
             previousEquipment: prev,
-            pendingSyncId: offlineSyncId,
+            pendingSyncId: result.pendingSyncId,
           });
         }
         toast.info("Saved offline — will sync when connected");
         return;
       }
 
-      if (!result) return;
-      const { equipment: updated, scanLog, undoToken } = result;
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
 
@@ -327,11 +312,7 @@ export default function EquipmentDetailPage() {
       }
     },
     onError: (err: Error) => {
-      if (!navigator.onLine) {
-        toast.info("Action queued for sync when back online");
-      } else {
-        toast.error(err.message || "Scan failed");
-      }
+      toast.error(err.message || "Scan failed");
     },
   });
 
@@ -339,49 +320,29 @@ export default function EquipmentDetailPage() {
     mutationFn: async () => {
       const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
       const capturedLocation = checkoutLocation;
-
-      if (!navigator.onLine) {
-        const syncId = await addPendingSync({
-          type: "checkout",
-          endpoint: `/api/equipment/${id}/checkout`,
-          method: "POST",
-          body: JSON.stringify({ location: capturedLocation || undefined }),
-          createdAt: new Date(),
-          retries: 0,
-        });
-        return { result: null, prev, offlineSyncId: syncId };
-      }
-
       const result = await api.equipment.checkout(id!, capturedLocation || undefined);
-      return { result, prev, offlineSyncId: undefined };
+      return { result, prev };
     },
-    onSuccess: ({ result, prev, offlineSyncId }) => {
+    onSuccess: ({ result, prev }) => {
       setCheckoutLocation("");
 
-      if (offlineSyncId !== undefined) {
+      const { equipment: updated, undoToken } = result;
+      const wasOffline = result.pendingSyncId !== undefined;
+
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+
+      if (wasOffline) {
+        toast.info("Saved offline — will sync when connected");
         if (prev) {
-          const optimistic: Equipment = {
-            ...prev,
-            checkedOutById: userId || "me",
-            checkedOutByEmail: email || "",
-            checkedOutAt: new Date().toISOString(),
-            checkedOutLocation: checkoutLocation || null,
-          };
-          queryClient.setQueryData([`/api/equipment/${id}`], optimistic);
           startUndoTimer({
             actionLabel: "Checked out successfully",
             previousEquipment: prev,
-            pendingSyncId: offlineSyncId,
+            pendingSyncId: result.pendingSyncId,
           });
         }
-        toast.info("Saved offline — will sync when connected");
         setScanActionDone(true);
         return;
       }
-
-      if (!result) return;
-      const { equipment: updated, undoToken } = result;
-      queryClient.setQueryData([`/api/equipment/${id}`], updated);
 
       if (prev) {
         startUndoTimer({
@@ -393,59 +354,35 @@ export default function EquipmentDetailPage() {
       setScanActionDone(true);
     },
     onError: (err: Error) => {
-      if (!navigator.onLine) {
-        toast.info("Action queued for sync when back online");
-      } else {
-        toast.error(err.message || "Checkout failed");
-      }
+      toast.error(err.message || "Checkout failed");
     },
   });
 
   const returnMut = useMutation({
     mutationFn: async () => {
       const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
-
-      if (!navigator.onLine) {
-        const syncId = await addPendingSync({
-          type: "scan",
-          endpoint: `/api/equipment/${id}/return`,
-          method: "POST",
-          body: JSON.stringify({}),
-          createdAt: new Date(),
-          retries: 0,
-        });
-        return { result: null, prev, offlineSyncId: syncId };
-      }
-
       const result = await api.equipment.return(id!);
-      return { result, prev, offlineSyncId: undefined };
+      return { result, prev };
     },
-    onSuccess: ({ result, prev, offlineSyncId }) => {
-      if (offlineSyncId !== undefined) {
+    onSuccess: ({ result, prev }) => {
+      const { equipment: updated, undoToken } = result;
+      const wasOffline = result.pendingSyncId !== undefined;
+
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+
+      if (wasOffline) {
+        toast.info("Saved offline — will sync when connected");
         if (prev) {
-          const optimistic: Equipment = {
-            ...prev,
-            status: "ok",
-            checkedOutById: null,
-            checkedOutByEmail: null,
-            checkedOutAt: null,
-            checkedOutLocation: null,
-          };
-          queryClient.setQueryData([`/api/equipment/${id}`], optimistic);
           startUndoTimer({
             actionLabel: "Returned — equipment is now available",
             previousEquipment: prev,
-            pendingSyncId: offlineSyncId,
+            pendingSyncId: result.pendingSyncId,
           });
         }
-        toast.info("Saved offline — will sync when connected");
         setScanActionDone(true);
         return;
       }
 
-      if (!result) return;
-      const { equipment: updated, undoToken } = result;
-      queryClient.setQueryData([`/api/equipment/${id}`], updated);
       invalidateAll();
 
       if (prev) {
@@ -458,11 +395,7 @@ export default function EquipmentDetailPage() {
       setScanActionDone(true);
     },
     onError: (err: Error) => {
-      if (!navigator.onLine) {
-        toast.info("Action queued for sync when back online");
-      } else {
-        toast.error(err.message || "Return failed");
-      }
+      toast.error(err.message || "Return failed");
     },
   });
 

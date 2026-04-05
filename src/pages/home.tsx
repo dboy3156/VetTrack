@@ -36,7 +36,7 @@ export default function HomePage() {
     }
   }, [searchStr]);
 
-  const { data: equipment, isLoading } = useQuery({
+  const { data: equipment, isLoading, isError: equipmentError } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
@@ -67,6 +67,15 @@ export default function HomePage() {
           </h1>
           <p className="text-muted-foreground mt-0.5">VetTrack Equipment Dashboard</p>
         </div>
+
+        {equipmentError && (
+          <Card className="border-destructive bg-destructive/5">
+            <CardContent className="p-4 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+              <p className="text-sm text-destructive">Failed to load equipment data. Please refresh to try again.</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Scan CTA */}
         <Button

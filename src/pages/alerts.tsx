@@ -63,12 +63,12 @@ const ALERT_CONFIG: Record<
 export default function AlertsPage() {
   const queryClient = useQueryClient();
 
-  const { data: equipment, isLoading: eqLoading } = useQuery({
+  const { data: equipment, isLoading: eqLoading, isError: eqError } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
 
-  const { data: acks, isLoading: acksLoading } = useQuery({
+  const { data: acks, isLoading: acksLoading, isError: acksError } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
   });
@@ -93,6 +93,7 @@ export default function AlertsPage() {
   });
 
   const isLoading = eqLoading || acksLoading;
+  const isError = eqError || acksError;
   const alerts = equipment ? computeAlerts(equipment) : [];
 
   const acksMap = new Map<string, AlertAcknowledgment>();
@@ -123,13 +124,22 @@ export default function AlertsPage() {
           )}
         </div>
 
+        {isError && (
+          <Card className="border-destructive bg-destructive/5">
+            <CardContent className="p-4 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+              <p className="text-sm text-destructive">Failed to load alerts. Please refresh to try again.</p>
+            </CardContent>
+          </Card>
+        )}
+
         {isLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(4)].map((_, i) => (
               <Skeleton key={i} className="h-20 w-full rounded-2xl" />
             ))}
           </div>
-        ) : alerts.length === 0 ? (
+        ) : isError ? null : alerts.length === 0 ? (
           <Card className="border-2 border-dashed border-emerald-200">
             <CardContent className="p-10 text-center">
               <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">

@@ -62,7 +62,21 @@ export async function requireAuth(
         name: clerkName || "",
         role: "technician" as const,
       };
-      [user] = await db.insert(users).values(newUser).returning();
+      try {
+        [user] = await db.insert(users).values(newUser).returning();
+      } catch (insertErr: unknown) {
+        const pgErr = insertErr as { code?: string };
+        if (pgErr?.code === "23505") {
+          // Concurrent insert — re-fetch the row that won the race
+          [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.clerkId, clerkUserId))
+            .limit(1);
+        } else {
+          throw insertErr;
+        }
+      }
     } else if (clerkEmail && user.email !== clerkEmail) {
       [user] = await db
         .update(users)

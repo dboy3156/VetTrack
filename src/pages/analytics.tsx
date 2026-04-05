@@ -38,7 +38,7 @@ const STATUS_COLORS_HEX = {
 };
 
 export default function AnalyticsPage() {
-  const { data: analytics, isLoading } = useQuery({
+  const { data: analytics, isLoading, isError } = useQuery({
     queryKey: ["/api/analytics"],
     queryFn: api.analytics.summary,
   });
@@ -53,10 +53,15 @@ export default function AnalyticsPage() {
     : [];
 
   const chartData = analytics?.scanActivity
-    ? analytics.scanActivity.slice(-14).map((d) => ({
-        date: format(new Date(d.date), "MMM d"),
-        scans: d.count,
-      }))
+    ? analytics.scanActivity.slice(-14).map((d) => {
+        let dateLabel = d.date;
+        try {
+          dateLabel = format(new Date(d.date), "MMM d");
+        } catch {
+          // keep raw date string if parsing fails
+        }
+        return { date: dateLabel, scans: d.count };
+      })
     : [];
 
   return (
@@ -66,6 +71,15 @@ export default function AnalyticsPage() {
           <BarChart3 className="w-6 h-6 text-primary" />
           Analytics
         </h1>
+
+        {isError && (
+          <Card className="border-destructive bg-destructive/5">
+            <CardContent className="p-4 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+              <p className="text-sm text-destructive">Failed to load analytics. Please refresh to try again.</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 gap-3">

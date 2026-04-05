@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -17,9 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { EQUIPMENT_CATEGORIES } from "@/types";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
+const SUBMIT_TIMEOUT_MS = 30_000;
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -38,6 +39,8 @@ type FormValues = z.infer<typeof schema>;
 export default function NewEquipmentPage() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
+  const abortRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -52,19 +55,51 @@ export default function NewEquipmentPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   const createMut = useMutation({
-    mutationFn: api.equipment.create,
+    mutationFn: ({ data, signal }: { data: Parameters<(typeof api.equipment)["create"]>[0]; signal: AbortSignal }) =>
+      api.equipment.create(data, signal),
     onSuccess: (data) => {
+      clearSubmitTimeout();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success("Equipment added!");
       navigate(`/equipment/${data.id}`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      clearSubmitTimeout();
+      toast.error(err.message || "Failed to save equipment. Please try again.");
+    },
+    onSettled: () => {
+      clearSubmitTimeout();
+    },
   });
 
+  function clearSubmitTimeout() {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (abortRef.current) {
+      abortRef.current = null;
+    }
+  }
+
   const onSubmit = (data: FormValues) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    timeoutRef.current = setTimeout(() => {
+      controller.abort();
+      createMut.reset();
+      toast.error("Request timed out. Please check your connection and try again.");
+      abortRef.current = null;
+      timeoutRef.current = null;
+    }, SUBMIT_TIMEOUT_MS);
+
     createMut.mutate({
-      ...data,
-      folderId: data.folderId === "none" ? undefined : data.folderId,
+      data: { ...data, folderId: data.folderId === "none" ? undefined : data.folderId },
+      signal: controller.signal,
     });
   };
 
@@ -73,7 +108,6 @@ export default function NewEquipmentPage() {
   return (
     <Layout>
       <div className="flex flex-col gap-6 pb-24">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"

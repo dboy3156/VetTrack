@@ -1,62 +1,121 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { db, equipment, folders, scanLogs, transferLogs } from "../db.js";
-import { eq, inArray, desc, isNotNull, and } from "drizzle-orm";
+import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
+import { eq, inArray, desc, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
-// Server-side undo token store. Holds a complete snapshot of equipment state
-// before a mutation, keyed by an opaque undo token.
-// Constrained to: matching equipment ID, actor, and within UNDO_TTL_MS window.
-const UNDO_TTL_MS = 12_000; // slightly above frontend 10s to account for latency
+const UNDO_TTL_MS = 12_000;
+const BULK_MAX = 100;
+const FIELD_MAX_LENGTH = 500;
 
-interface UndoToken {
-  equipmentId: string;
-  actorId: string;
-  scanLogId: string;
-  previousState: {
-    status: string;
-    lastSeen: Date | null;
-    lastStatus: string | null;
-    lastMaintenanceDate: Date | null;
-    lastSterilizationDate: Date | null;
-    checkedOutById: string | null;
-    checkedOutByEmail: string | null;
-    checkedOutAt: Date | null;
-    checkedOutLocation: string | null;
-  };
-  expiresAt: number;
+type EquipmentRow = typeof equipment.$inferSelect;
+
+interface EquipmentPreviousState {
+  status: string;
+  lastSeen: Date | string | null;
+  lastStatus: string | null;
+  lastMaintenanceDate: Date | string | null;
+  lastSterilizationDate: Date | string | null;
+  checkedOutById: string | null;
+  checkedOutByEmail: string | null;
+  checkedOutAt: Date | string | null;
+  checkedOutLocation: string | null;
 }
 
-const undoTokens = new Map<string, UndoToken>();
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-function createUndoToken(token: Omit<UndoToken, "expiresAt">): string {
+async function insertUndoToken(
+  tx: Tx,
+  params: {
+    equipmentId: string;
+    actorId: string;
+    scanLogId: string;
+    previousState: EquipmentPreviousState;
+  }
+): Promise<string> {
   const tokenId = randomUUID();
-  const entry: UndoToken = { ...token, expiresAt: Date.now() + UNDO_TTL_MS };
-  undoTokens.set(tokenId, entry);
-  setTimeout(() => undoTokens.delete(tokenId), UNDO_TTL_MS);
+  const expiresAt = new Date(Date.now() + UNDO_TTL_MS);
+  await tx.insert(undoTokens).values({
+    id: tokenId,
+    equipmentId: params.equipmentId,
+    actorId: params.actorId,
+    scanLogId: params.scanLogId,
+    previousState: JSON.stringify(params.previousState),
+    expiresAt,
+  });
+  setTimeout(async () => {
+    try {
+      await db.delete(undoTokens).where(eq(undoTokens.id, tokenId));
+    } catch {
+    }
+  }, UNDO_TTL_MS + 2000);
   return tokenId;
 }
 
-function consumeUndoToken(
+async function consumeUndoToken(
   tokenId: string,
   equipmentId: string,
   actorId: string
-): UndoToken | null {
-  const entry = undoTokens.get(tokenId);
+): Promise<{ scanLogId: string; previousState: EquipmentPreviousState } | null> {
+  const [entry] = await db
+    .select()
+    .from(undoTokens)
+    .where(eq(undoTokens.id, tokenId))
+    .limit(1);
+
   if (!entry) return null;
   if (entry.equipmentId !== equipmentId) return null;
   if (entry.actorId !== actorId) return null;
-  if (entry.expiresAt < Date.now()) {
-    undoTokens.delete(tokenId);
+  if (entry.expiresAt < new Date()) {
+    await db.delete(undoTokens).where(eq(undoTokens.id, tokenId));
     return null;
   }
-  undoTokens.delete(tokenId);
-  return entry;
+  await db.delete(undoTokens).where(eq(undoTokens.id, tokenId));
+  return {
+    scanLogId: entry.scanLogId,
+    previousState: JSON.parse(entry.previousState) as EquipmentPreviousState,
+  };
 }
 
-// GET /api/equipment/my — equipment checked out by the current user
+function snapshotState(row: EquipmentRow): EquipmentPreviousState {
+  return {
+    status: row.status,
+    lastSeen: row.lastSeen,
+    lastStatus: row.lastStatus,
+    lastMaintenanceDate: row.lastMaintenanceDate,
+    lastSterilizationDate: row.lastSterilizationDate,
+    checkedOutById: row.checkedOutById,
+    checkedOutByEmail: row.checkedOutByEmail,
+    checkedOutAt: row.checkedOutAt,
+    checkedOutLocation: row.checkedOutLocation,
+  };
+}
+
+type ResLike = Parameters<Parameters<Router["use"]>[0]>[1];
+
+function validateFieldLength(fields: Record<string, unknown>, res: ResLike): boolean {
+  const textFields = ["name", "serialNumber", "model", "note", "imageUrl", "location", "manufacturer"];
+  for (const field of textFields) {
+    const val = fields[field];
+    if (typeof val === "string" && val.length > FIELD_MAX_LENGTH) {
+      res.status(400).json({ error: `Field "${field}" exceeds maximum length of ${FIELD_MAX_LENGTH}` });
+      return false;
+    }
+  }
+  return true;
+}
+
+class CheckoutConflictError extends Error {
+  checkedOutByEmail: string;
+  constructor(email: string) {
+    super("CHECKOUT_CONFLICT");
+    this.checkedOutByEmail = email;
+  }
+}
+
+// GET /api/equipment/my
 router.get("/my", requireAuth, async (req, res) => {
   try {
     const items = await db
@@ -87,7 +146,6 @@ router.get("/my", requireAuth, async (req, res) => {
       .leftJoin(folders, eq(equipment.folderId, folders.id))
       .where(eq(equipment.checkedOutById, req.authUser!.id))
       .orderBy(desc(equipment.checkedOutAt));
-
     res.json(items);
   } catch (err) {
     console.error(err);
@@ -124,7 +182,6 @@ router.get("/", requireAuth, async (_req, res) => {
       .from(equipment)
       .leftJoin(folders, eq(equipment.folderId, folders.id))
       .orderBy(desc(equipment.createdAt));
-
     res.json(items);
   } catch (err) {
     console.error(err);
@@ -162,7 +219,6 @@ router.get("/:id", requireAuth, async (req, res) => {
       .leftJoin(folders, eq(equipment.folderId, folders.id))
       .where(eq(equipment.id, req.params.id))
       .limit(1);
-
     if (!item) return res.status(404).json({ error: "Equipment not found" });
     res.json(item);
   } catch (err) {
@@ -183,27 +239,29 @@ router.post("/", requireAuth, async (req, res) => {
       folderId,
       maintenanceIntervalDays,
       imageUrl,
-    } = req.body;
+    } = req.body as Record<string, string | number | undefined>;
 
-    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+    if (!validateFieldLength(req.body as Record<string, unknown>, res)) return;
 
     const [item] = await db
       .insert(equipment)
       .values({
         id: randomUUID(),
         name: name.trim(),
-        serialNumber: serialNumber || null,
-        model: model || null,
-        manufacturer: manufacturer || null,
-        purchaseDate: purchaseDate || null,
-        location: location || null,
-        folderId: folderId || null,
-        maintenanceIntervalDays: maintenanceIntervalDays || null,
-        imageUrl: imageUrl || null,
+        serialNumber: typeof serialNumber === "string" ? serialNumber : null,
+        model: typeof model === "string" ? model : null,
+        manufacturer: typeof manufacturer === "string" ? manufacturer : null,
+        purchaseDate: typeof purchaseDate === "string" ? purchaseDate : null,
+        location: typeof location === "string" ? location : null,
+        folderId: typeof folderId === "string" ? folderId : null,
+        maintenanceIntervalDays: typeof maintenanceIntervalDays === "number" ? maintenanceIntervalDays : null,
+        imageUrl: typeof imageUrl === "string" ? imageUrl : null,
         status: "ok",
       })
       .returning();
-
     res.status(201).json(item);
   } catch (err) {
     console.error(err);
@@ -213,6 +271,8 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.patch("/:id", requireAuth, async (req, res) => {
   try {
+    if (!validateFieldLength(req.body as Record<string, unknown>, res)) return;
+
     const {
       name,
       serialNumber,
@@ -224,53 +284,59 @@ router.patch("/:id", requireAuth, async (req, res) => {
       maintenanceIntervalDays,
       imageUrl,
       status,
-    } = req.body;
+    } = req.body as Record<string, string | number | undefined>;
 
-    // Get old item before update (for transfer log)
-    const [oldItem] = await db
-      .select()
-      .from(equipment)
-      .where(eq(equipment.id, req.params.id))
-      .limit(1);
+    let result: EquipmentRow | null = null;
 
-    const [item] = await db
-      .update(equipment)
-      .set({
-        ...(name !== undefined && { name }),
-        ...(serialNumber !== undefined && { serialNumber }),
-        ...(model !== undefined && { model }),
-        ...(manufacturer !== undefined && { manufacturer }),
-        ...(purchaseDate !== undefined && { purchaseDate }),
-        ...(location !== undefined && { location }),
-        ...(folderId !== undefined && { folderId: folderId || null }),
-        ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays }),
-        ...(imageUrl !== undefined && { imageUrl }),
-        ...(status !== undefined && { status }),
-      })
-      .where(eq(equipment.id, req.params.id))
-      .returning();
+    await db.transaction(async (tx) => {
+      const [oldItem] = await tx
+        .select()
+        .from(equipment)
+        .where(eq(equipment.id, req.params.id))
+        .limit(1);
 
-    if (!item) return res.status(404).json({ error: "Equipment not found" });
+      const [item] = await tx
+        .update(equipment)
+        .set({
+          ...(name !== undefined && { name: String(name) }),
+          ...(serialNumber !== undefined && { serialNumber: String(serialNumber) }),
+          ...(model !== undefined && { model: String(model) }),
+          ...(manufacturer !== undefined && { manufacturer: String(manufacturer) }),
+          ...(purchaseDate !== undefined && { purchaseDate: String(purchaseDate) }),
+          ...(location !== undefined && { location: String(location) }),
+          ...(folderId !== undefined && { folderId: folderId ? String(folderId) : null }),
+          ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays: Number(maintenanceIntervalDays) }),
+          ...(imageUrl !== undefined && { imageUrl: String(imageUrl) }),
+          ...(status !== undefined && { status: String(status) }),
+        })
+        .where(eq(equipment.id, req.params.id))
+        .returning();
 
-    if (folderId !== undefined && oldItem && oldItem.folderId !== (folderId || null)) {
-      const [oldFolder] = oldItem.folderId
-        ? await db.select().from(folders).where(eq(folders.id, oldItem.folderId)).limit(1)
-        : [null];
-      const [newFolder] = folderId
-        ? await db.select().from(folders).where(eq(folders.id, folderId)).limit(1)
-        : [null];
-      await db.insert(transferLogs).values({
-        id: randomUUID(),
-        equipmentId: req.params.id,
-        fromFolderId: oldItem.folderId || null,
-        fromFolderName: oldFolder?.name || null,
-        toFolderId: folderId || null,
-        toFolderName: newFolder?.name || null,
-        userId: req.authUser!.id,
-      });
-    }
+      if (!item) return;
+      result = item;
 
-    res.json(item);
+      if (folderId !== undefined && oldItem && oldItem.folderId !== (folderId ? String(folderId) : null)) {
+        const [oldFolder] = oldItem.folderId
+          ? await tx.select().from(folders).where(eq(folders.id, oldItem.folderId)).limit(1)
+          : [null];
+        const targetFolderId = folderId ? String(folderId) : null;
+        const [newFolder] = targetFolderId
+          ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
+          : [null];
+        await tx.insert(transferLogs).values({
+          id: randomUUID(),
+          equipmentId: req.params.id,
+          fromFolderId: oldItem.folderId ?? null,
+          fromFolderName: oldFolder?.name ?? null,
+          toFolderId: targetFolderId,
+          toFolderName: newFolder?.name ?? null,
+          userId: req.authUser!.id,
+        });
+      }
+    });
+
+    if (!result) return res.status(404).json({ error: "Equipment not found" });
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update equipment" });
@@ -288,154 +354,147 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/equipment/:id/checkout
-// Supports last-write-wins conflict resolution via X-Client-Timestamp header.
-// If the item is already checked out and the incoming request has a later timestamp,
-// the checkout is overridden (LWW). If the existing checkout is newer, 409 is returned.
 router.post("/:id/checkout", requireAuth, async (req, res) => {
   try {
-    const { location } = req.body;
+    const { location } = req.body as { location?: string };
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
-    const [existing] = await db
-      .select()
-      .from(equipment)
-      .where(eq(equipment.id, req.params.id))
-      .limit(1);
+    let updated: EquipmentRow | null = null;
+    let undoToken = "";
 
-    if (!existing) return res.status(404).json({ error: "Equipment not found" });
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(equipment)
+        .where(eq(equipment.id, req.params.id))
+        .limit(1);
 
-    if (existing.checkedOutById) {
-      const existingTimestamp = existing.checkedOutAt
-        ? new Date(existing.checkedOutAt).getTime()
-        : 0;
+      if (!existing) return;
 
-      if (!clientTimestamp || clientTimestamp <= existingTimestamp) {
-        return res.status(409).json({
-          error: "Already checked out",
-          checkedOutByEmail: existing.checkedOutByEmail,
-          conflictInfo: `Checked out by ${existing.checkedOutByEmail}`,
-        });
+      if (existing.checkedOutById) {
+        const existingTimestamp = existing.checkedOutAt
+          ? new Date(existing.checkedOutAt).getTime()
+          : 0;
+        if (!clientTimestamp || clientTimestamp <= existingTimestamp) {
+          throw new CheckoutConflictError(existing.checkedOutByEmail ?? "unknown");
+        }
       }
-    }
 
-    const checkoutTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
-    const [updated] = await db
-      .update(equipment)
-      .set({
-        checkedOutById: req.authUser!.id,
-        checkedOutByEmail: req.authUser!.email,
-        checkedOutAt: checkoutTime,
-        checkedOutLocation: location || null,
-        lastSeen: checkoutTime,
-        lastStatus: existing.status,
-      })
-      .where(eq(equipment.id, req.params.id))
-      .returning();
+      const checkoutTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
+      const [updatedRow] = await tx
+        .update(equipment)
+        .set({
+          checkedOutById: req.authUser!.id,
+          checkedOutByEmail: req.authUser!.email,
+          checkedOutAt: checkoutTime,
+          checkedOutLocation: location ?? null,
+          lastSeen: checkoutTime,
+          lastStatus: existing.status,
+        })
+        .where(eq(equipment.id, req.params.id))
+        .returning();
 
-    // Log the checkout as a scan event
-    const checkoutLogId = randomUUID();
-    await db.insert(scanLogs).values({
-      id: checkoutLogId,
-      equipmentId: req.params.id,
-      userId: req.authUser!.id,
-      userEmail: req.authUser!.email,
-      status: existing.status,
-      note: `Checked out${location ? ` — ${location}` : ""}`,
-      timestamp: checkoutTime,
-    });
+      updated = updatedRow;
+      const checkoutLogId = randomUUID();
 
-    // Create server-side undo token with full previous state
-    const undoToken = createUndoToken({
-      equipmentId: req.params.id,
-      actorId: req.authUser!.id,
-      scanLogId: checkoutLogId,
-      previousState: {
+      await tx.insert(scanLogs).values({
+        id: checkoutLogId,
+        equipmentId: req.params.id,
+        userId: req.authUser!.id,
+        userEmail: req.authUser!.email,
         status: existing.status,
-        lastSeen: existing.lastSeen,
-        lastStatus: existing.lastStatus,
-        lastMaintenanceDate: existing.lastMaintenanceDate,
-        lastSterilizationDate: existing.lastSterilizationDate,
-        checkedOutById: existing.checkedOutById,
-        checkedOutByEmail: existing.checkedOutByEmail,
-        checkedOutAt: existing.checkedOutAt,
-        checkedOutLocation: existing.checkedOutLocation,
-      },
+        note: `Checked out${location ? ` — ${location}` : ""}`,
+        timestamp: checkoutTime,
+      });
+
+      undoToken = await insertUndoToken(tx, {
+        equipmentId: req.params.id,
+        actorId: req.authUser!.id,
+        scanLogId: checkoutLogId,
+        previousState: snapshotState(existing),
+      });
     });
 
+    if (!updated) return res.status(404).json({ error: "Equipment not found" });
     res.json({ equipment: updated, undoToken });
   } catch (err) {
+    if (err instanceof CheckoutConflictError) {
+      return res.status(409).json({
+        error: "Already checked out",
+        checkedOutByEmail: err.checkedOutByEmail,
+        conflictInfo: `Checked out by ${err.checkedOutByEmail}`,
+      });
+    }
     console.error(err);
     res.status(500).json({ error: "Checkout failed" });
   }
 });
 
 // POST /api/equipment/:id/return
-// Uses LWW: if item is already returned, idempotently succeeds.
-// If it's currently checked out, always accept the return.
 router.post("/:id/return", requireAuth, async (req, res) => {
   try {
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
-    const [existing] = await db
-      .select()
-      .from(equipment)
-      .where(eq(equipment.id, req.params.id))
-      .limit(1);
+    let updated: EquipmentRow | null = null;
+    let undoToken = "";
+    let alreadyReturned = false;
 
-    if (!existing) return res.status(404).json({ error: "Equipment not found" });
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(equipment)
+        .where(eq(equipment.id, req.params.id))
+        .limit(1);
 
-    if (!existing.checkedOutById) {
-      const existingTimestamp = existing.lastSeen ? new Date(existing.lastSeen).getTime() : 0;
-      if (clientTimestamp && clientTimestamp <= existingTimestamp) {
-        return res.json(existing);
+      if (!existing) return;
+
+      if (!existing.checkedOutById) {
+        const existingTimestamp = existing.lastSeen ? new Date(existing.lastSeen).getTime() : 0;
+        if (clientTimestamp && clientTimestamp <= existingTimestamp) {
+          alreadyReturned = true;
+          updated = existing;
+          return;
+        }
       }
-    }
 
-    const returnTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
-    const [updated] = await db
-      .update(equipment)
-      .set({
-        checkedOutById: null,
-        checkedOutByEmail: null,
-        checkedOutAt: null,
-        checkedOutLocation: null,
+      const returnTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
+      const [updatedRow] = await tx
+        .update(equipment)
+        .set({
+          checkedOutById: null,
+          checkedOutByEmail: null,
+          checkedOutAt: null,
+          checkedOutLocation: null,
+          status: "ok",
+          lastSeen: returnTime,
+          lastStatus: "ok",
+        })
+        .where(eq(equipment.id, req.params.id))
+        .returning();
+
+      updated = updatedRow;
+      const returnLogId = randomUUID();
+
+      await tx.insert(scanLogs).values({
+        id: returnLogId,
+        equipmentId: req.params.id,
+        userId: req.authUser!.id,
+        userEmail: req.authUser!.email,
         status: "ok",
-        lastSeen: returnTime,
-        lastStatus: "ok",
-      })
-      .where(eq(equipment.id, req.params.id))
-      .returning();
+        note: "Returned — available",
+        timestamp: returnTime,
+      });
 
-    // Log the return
-    const returnLogId = randomUUID();
-    await db.insert(scanLogs).values({
-      id: returnLogId,
-      equipmentId: req.params.id,
-      userId: req.authUser!.id,
-      userEmail: req.authUser!.email,
-      status: "ok",
-      note: "Returned — available",
-      timestamp: returnTime,
+      undoToken = await insertUndoToken(tx, {
+        equipmentId: req.params.id,
+        actorId: req.authUser!.id,
+        scanLogId: returnLogId,
+        previousState: snapshotState(existing),
+      });
     });
 
-    // Create server-side undo token with full previous state
-    const undoToken = createUndoToken({
-      equipmentId: req.params.id,
-      actorId: req.authUser!.id,
-      scanLogId: returnLogId,
-      previousState: {
-        status: existing.status,
-        lastSeen: existing.lastSeen,
-        lastStatus: existing.lastStatus,
-        lastMaintenanceDate: existing.lastMaintenanceDate,
-        lastSterilizationDate: existing.lastSterilizationDate,
-        checkedOutById: existing.checkedOutById,
-        checkedOutByEmail: existing.checkedOutByEmail,
-        checkedOutAt: existing.checkedOutAt,
-        checkedOutLocation: existing.checkedOutLocation,
-      },
-    });
-
+    if (!updated) return res.status(404).json({ error: "Equipment not found" });
+    if (alreadyReturned) return res.json(updated);
     res.json({ equipment: updated, undoToken });
   } catch (err) {
     console.error(err);
@@ -444,86 +503,82 @@ router.post("/:id/return", requireAuth, async (req, res) => {
 });
 
 // POST /api/equipment/:id/scan
-// LWW semantics via X-Client-Timestamp header.
-// The scan log is always appended (it's an audit trail).
-// Equipment status is updated only if clientTimestamp >= server's lastSeen (LWW).
-// If client timestamp is older, the scan is logged but status is not overwritten.
 router.post("/:id/scan", requireAuth, async (req, res) => {
   try {
-    const { status, note, photoUrl } = req.body;
+    const { status, note, photoUrl } = req.body as {
+      status?: string;
+      note?: string;
+      photoUrl?: string;
+    };
     if (!status) return res.status(400).json({ error: "Status required" });
     if (status === "issue" && !note?.trim()) {
       return res.status(400).json({ error: "Note is required when reporting an issue" });
     }
+    if (!validateFieldLength({ note, photoUrl }, res)) return;
 
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
     const scanTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
 
-    // Fetch current state before mutation (for undo token and LWW check)
-    const [existing] = await db
-      .select()
-      .from(equipment)
-      .where(eq(equipment.id, req.params.id))
-      .limit(1);
+    let updatedEquipment: EquipmentRow | null = null;
+    let scanLog: typeof scanLogs.$inferSelect | null = null;
+    let undoToken = "";
 
-    if (!existing) {
-      return res.status(404).json({ error: "Equipment not found" });
-    }
-
-    const serverLastSeen = existing.lastSeen ? new Date(existing.lastSeen).getTime() : 0;
-    const isNewerWrite = !clientTimestamp || clientTimestamp >= serverLastSeen;
-
-    let updatedEquipment = existing;
-
-    if (isNewerWrite) {
-      const updates: Record<string, unknown> = {
-        lastSeen: scanTime,
-        lastStatus: status,
-        status,
-      };
-      if (status === "maintenance") updates.lastMaintenanceDate = scanTime;
-      if (status === "sterilized") updates.lastSterilizationDate = scanTime;
-
-      const [result] = await db
-        .update(equipment)
-        .set(updates)
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(equipment)
         .where(eq(equipment.id, req.params.id))
+        .limit(1);
+
+      if (!existing) return;
+
+      const serverLastSeen = existing.lastSeen ? new Date(existing.lastSeen).getTime() : 0;
+      const isNewerWrite = !clientTimestamp || clientTimestamp >= serverLastSeen;
+
+      if (isNewerWrite) {
+        const updates: Partial<typeof equipment.$inferInsert> = {
+          lastSeen: scanTime,
+          lastStatus: status,
+          status,
+        };
+        if (status === "maintenance") updates.lastMaintenanceDate = scanTime;
+        if (status === "sterilized") updates.lastSterilizationDate = scanTime;
+
+        const [result] = await tx
+          .update(equipment)
+          .set(updates)
+          .where(eq(equipment.id, req.params.id))
+          .returning();
+        updatedEquipment = result;
+      } else {
+        updatedEquipment = existing;
+      }
+
+      const [log] = await tx
+        .insert(scanLogs)
+        .values({
+          id: randomUUID(),
+          equipmentId: req.params.id,
+          userId: req.authUser!.id,
+          userEmail: req.authUser!.email,
+          status,
+          note: note ?? null,
+          photoUrl: photoUrl ?? null,
+          timestamp: scanTime,
+        })
         .returning();
-      updatedEquipment = result;
-    }
 
-    const [scanLog] = await db
-      .insert(scanLogs)
-      .values({
-        id: randomUUID(),
+      scanLog = log;
+
+      undoToken = await insertUndoToken(tx, {
         equipmentId: req.params.id,
-        userId: req.authUser!.id,
-        userEmail: req.authUser!.email,
-        status,
-        note: note || null,
-        photoUrl: photoUrl || null,
-        timestamp: scanTime,
-      })
-      .returning();
-
-    // Create server-side undo token with full previous state
-    const undoToken = createUndoToken({
-      equipmentId: req.params.id,
-      actorId: req.authUser!.id,
-      scanLogId: scanLog.id,
-      previousState: {
-        status: existing.status,
-        lastSeen: existing.lastSeen,
-        lastStatus: existing.lastStatus,
-        lastMaintenanceDate: existing.lastMaintenanceDate,
-        lastSterilizationDate: existing.lastSterilizationDate,
-        checkedOutById: existing.checkedOutById,
-        checkedOutByEmail: existing.checkedOutByEmail,
-        checkedOutAt: existing.checkedOutAt,
-        checkedOutLocation: existing.checkedOutLocation,
-      },
+        actorId: req.authUser!.id,
+        scanLogId: log.id,
+        previousState: snapshotState(existing),
+      });
     });
 
+    if (!updatedEquipment) return res.status(404).json({ error: "Equipment not found" });
     res.json({ equipment: updatedEquipment, scanLog, undoToken });
   } catch (err) {
     console.error(err);
@@ -531,43 +586,47 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/equipment/:id/revert — undo the most recent status change
+// POST /api/equipment/:id/revert
 router.post("/:id/revert", requireAuth, async (req, res) => {
   try {
-    const { undoToken: tokenId } = req.body;
+    const { undoToken: tokenId } = req.body as { undoToken?: string };
 
     if (!tokenId || typeof tokenId !== "string") {
       return res.status(400).json({ error: "undoToken is required" });
     }
 
-    // Verify and consume the token — enforces equipment, actor, and TTL constraints
-    const token = consumeUndoToken(tokenId, req.params.id, req.authUser!.id);
+    const token = await consumeUndoToken(tokenId, req.params.id, req.authUser!.id);
     if (!token) {
       return res.status(409).json({ error: "Undo window expired or token invalid" });
     }
 
     const prev = token.previousState;
 
-    const [updated] = await db
-      .update(equipment)
-      .set({
-        status: prev.status,
-        lastSeen: prev.lastSeen,
-        lastStatus: prev.lastStatus,
-        lastMaintenanceDate: prev.lastMaintenanceDate,
-        lastSterilizationDate: prev.lastSterilizationDate,
-        checkedOutById: prev.checkedOutById,
-        checkedOutByEmail: prev.checkedOutByEmail,
-        checkedOutAt: prev.checkedOutAt,
-        checkedOutLocation: prev.checkedOutLocation,
-      })
-      .where(eq(equipment.id, req.params.id))
-      .returning();
+    let updated: EquipmentRow | null = null;
 
-    // Delete the exact scan log scoped to this equipment (not arbitrary)
-    await db
-      .delete(scanLogs)
-      .where(and(eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
+    await db.transaction(async (tx) => {
+      const [result] = await tx
+        .update(equipment)
+        .set({
+          status: prev.status,
+          lastSeen: prev.lastSeen ? new Date(prev.lastSeen) : null,
+          lastStatus: prev.lastStatus,
+          lastMaintenanceDate: prev.lastMaintenanceDate ? new Date(prev.lastMaintenanceDate) : null,
+          lastSterilizationDate: prev.lastSterilizationDate ? new Date(prev.lastSterilizationDate) : null,
+          checkedOutById: prev.checkedOutById,
+          checkedOutByEmail: prev.checkedOutByEmail,
+          checkedOutAt: prev.checkedOutAt ? new Date(prev.checkedOutAt) : null,
+          checkedOutLocation: prev.checkedOutLocation,
+        })
+        .where(eq(equipment.id, req.params.id))
+        .returning();
+
+      updated = result;
+
+      await tx
+        .delete(scanLogs)
+        .where(and(eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
+    });
 
     res.json(updated);
   } catch (err) {
@@ -606,11 +665,17 @@ router.get("/:id/transfers", requireAuth, async (req, res) => {
 
 router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { ids } = req.body;
+    const { ids } = req.body as { ids?: unknown };
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "IDs array required" });
     }
-    await db.delete(equipment).where(inArray(equipment.id, ids));
+    if (ids.length > BULK_MAX) {
+      return res.status(400).json({ error: `Cannot delete more than ${BULK_MAX} items at once` });
+    }
+    if (!ids.every((id) => typeof id === "string")) {
+      return res.status(400).json({ error: "All IDs must be strings" });
+    }
+    await db.delete(equipment).where(inArray(equipment.id, ids as string[]));
     res.json({ affected: ids.length });
   } catch (err) {
     console.error(err);
@@ -620,44 +685,54 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
 
 router.post("/bulk-move", requireAuth, async (req, res) => {
   try {
-    const { ids, folderId } = req.body;
+    const { ids, folderId } = req.body as { ids?: unknown; folderId?: string };
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "IDs array required" });
     }
+    if (ids.length > BULK_MAX) {
+      return res.status(400).json({ error: `Cannot move more than ${BULK_MAX} items at once` });
+    }
+    if (!ids.every((id) => typeof id === "string")) {
+      return res.status(400).json({ error: "All IDs must be strings" });
+    }
+    const typedIds = ids as string[];
+    const targetFolderId = folderId ?? null;
 
-    const [targetFolder] = folderId
-      ? await db.select().from(folders).where(eq(folders.id, folderId)).limit(1)
-      : [null];
-
-    for (const id of ids) {
-      const [item] = await db
-        .select()
-        .from(equipment)
-        .where(eq(equipment.id, id))
-        .limit(1);
-      if (!item) continue;
-
-      const [oldFolder] = item.folderId
-        ? await db.select().from(folders).where(eq(folders.id, item.folderId)).limit(1)
+    await db.transaction(async (tx) => {
+      const [targetFolder] = targetFolderId
+        ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
         : [null];
 
-      await db
-        .update(equipment)
-        .set({ folderId: folderId || null })
-        .where(eq(equipment.id, id));
+      for (const id of typedIds) {
+        const [item] = await tx
+          .select()
+          .from(equipment)
+          .where(eq(equipment.id, id))
+          .limit(1);
+        if (!item) continue;
 
-      await db.insert(transferLogs).values({
-        id: randomUUID(),
-        equipmentId: id,
-        fromFolderId: item.folderId || null,
-        fromFolderName: oldFolder?.name || null,
-        toFolderId: folderId || null,
-        toFolderName: targetFolder?.name || null,
-        userId: req.authUser!.id,
-      });
-    }
+        const [oldFolder] = item.folderId
+          ? await tx.select().from(folders).where(eq(folders.id, item.folderId)).limit(1)
+          : [null];
 
-    res.json({ affected: ids.length });
+        await tx
+          .update(equipment)
+          .set({ folderId: targetFolderId })
+          .where(eq(equipment.id, id));
+
+        await tx.insert(transferLogs).values({
+          id: randomUUID(),
+          equipmentId: id,
+          fromFolderId: item.folderId ?? null,
+          fromFolderName: oldFolder?.name ?? null,
+          toFolderId: targetFolderId,
+          toFolderName: targetFolder?.name ?? null,
+          userId: req.authUser!.id,
+        });
+      }
+    });
+
+    res.json({ affected: typedIds.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Bulk move failed" });

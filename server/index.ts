@@ -26,6 +26,11 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  console.error("FATAL: SESSION_SECRET environment variable is not set in production mode.");
+  process.exit(1);
+}
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "vettrack-dev-secret",

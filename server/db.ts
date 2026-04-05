@@ -104,6 +104,15 @@ export const alertAcks = pgTable("vt_alert_acks", {
   acknowledgedAt: timestamp("acknowledged_at").defaultNow().notNull(),
 });
 
+export const undoTokens = pgTable("vt_undo_tokens", {
+  id: text("id").primaryKey(),
+  equipmentId: text("equipment_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  scanLogId: text("scan_log_id").notNull(),
+  previousState: text("previous_state").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
 export async function initDb() {
   try {
     await pool.query(`
@@ -183,6 +192,14 @@ export async function initDb() {
         acknowledged_by_email TEXT NOT NULL,
         acknowledged_at TIMESTAMP DEFAULT NOW() NOT NULL,
         UNIQUE(equipment_id, alert_type)
+      );
+      CREATE TABLE IF NOT EXISTS vt_undo_tokens (
+        id TEXT PRIMARY KEY,
+        equipment_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        scan_log_id TEXT NOT NULL,
+        previous_state TEXT NOT NULL,
+        expires_at TIMESTAMP NOT NULL
       );
     `);
 
