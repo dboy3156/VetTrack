@@ -1,4 +1,5 @@
-import { StrictMode } from "react";
+import { StrictMode, Component } from "react";
+import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
@@ -61,6 +62,8 @@ if (import.meta.env.DEV) {
 }
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
+// Debug: log first 12 chars to verify key is present (never logs full secret)
+console.log("[VetTrack] Clerk key prefix:", CLERK_PUBLISHABLE_KEY ? CLERK_PUBLISHABLE_KEY.slice(0, 12) + "..." : "NOT SET → using DevAuth");
 
 function InnerApp() {
   return (
@@ -74,16 +77,43 @@ function InnerApp() {
   );
 }
 
+class ClerkErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, fontFamily: "monospace", color: "red" }}>
+          <h2>Clerk initialization failed</h2>
+          <pre>{this.state.error.message}</pre>
+          <p>Check your VITE_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY secrets.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function Root() {
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         {CLERK_PUBLISHABLE_KEY ? (
-          <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/landing">
-            <ClerkAuthProviderInner>
-              <InnerApp />
-            </ClerkAuthProviderInner>
-          </ClerkProvider>
+          <ClerkErrorBoundary>
+            <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/landing">
+              <ClerkAuthProviderInner>
+                <InnerApp />
+              </ClerkAuthProviderInner>
+            </ClerkProvider>
+          </ClerkErrorBoundary>
         ) : (
           <DevAuthProvider>
             <InnerApp />
