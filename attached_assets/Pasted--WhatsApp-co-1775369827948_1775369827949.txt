@@ -1,0 +1,225 @@
+להלן הגרסה המעודכנת עם פיצ’ר ה־WhatsApp משולב בצורה נכונה בתוך המוצר (לא כתוספת צדדית אלא כחלק מה־core):
+
+⸻
+
+VetTrack — Full Feature Overview
+
+1. User Management & Security
+	•	Authentication (Clerk)
+	•	Login via email or Google
+	•	All routes are protected
+	•	Role-Based Access Control (RBAC)
+	•	Admin
+	•	Full access (delete, manage users, settings)
+	•	Technician
+	•	Can scan, view, and add equipment only
+	•	Automatic Role Assignment
+	•	New users are assigned as Technician by default
+	•	User Management (Admin only)
+	•	Promote / demote users via UI (Header menu)
+
+⸻
+
+2. Equipment Management
+	•	Equipment Registry
+	•	Real-time equipment list with status
+	•	Add new equipment with full metadata:
+	•	Name
+	•	Serial number
+	•	Model
+	•	Manufacturer
+	•	Purchase date
+	•	Location
+	•	Department / Folder
+	•	Bulk Operations
+	•	Move multiple items between folders
+	•	Bulk delete (Admin only)
+	•	Search
+	•	Search by name or ID
+	•	Image Support
+	•	Upload equipment images (Replit Object Storage)
+
+⸻
+
+3. Categories & Organization
+	•	Predefined Categories
+	•	Surgical
+	•	Imaging
+	•	Anesthesia & Monitoring
+	•	Dental
+	•	Laboratory
+	•	Sterilization (Autoclave)
+	•	Pharmacy
+	•	Emergency / ICU
+	•	General
+	•	Smart Folder System
+	•	Department-based folders (auto-created on first use)
+	•	Special Smart Folder
+	•	“Sterilization Due”
+	•	Equipment not sterilized in the last 7 days
+
+⸻
+
+4. QR System
+	•	QR Code per Asset
+	•	Unique QR for each equipment
+	•	QR Scan Flow
+	•	Scan → instantly open equipment page
+	•	Deep link support (URL-based access)
+	•	Batch QR Printing
+	•	Dedicated page to print multiple QR labels
+
+⸻
+
+5. Status System
+	•	Statuses
+	•	OK
+	•	Issue
+	•	Maintenance
+	•	Sterilized
+	•	One-Tap Actions
+	•	Update status directly after scan
+	•	Visual Indicators
+	•	Color-coded statuses
+	•	Special Teal theme for Sterilized
+
+⸻
+
+6. Maintenance & Sterilization Tracking
+	•	Maintenance Tracking
+	•	Identify overdue equipment
+	•	Highlight items needing attention
+	•	Sterilization Tracking
+	•	Monitor autoclave cycles
+	•	Track last sterilization time
+	•	Smart Alerts
+	•	“Needs Attention” badge
+	•	Overdue alerts
+	•	Inactive equipment (14+ days)
+
+⸻
+
+7. Problems & Alerts System
+	•	Dedicated Problems Screen
+	•	Red badge indicator in navigation
+	•	Categories
+	•	Issues
+	•	Overdue
+	•	Inactive
+	•	Quick Navigation
+	•	Tap → go directly to equipment
+
+⸻
+
+8. WhatsApp Integration (Core Differentiator)
+	•	Instant Issue Escalation
+	•	When equipment is marked as Issue, a WhatsApp-style alert is triggered
+	•	Notification Content
+	•	Equipment name
+	•	Status (Issue / Overdue / Maintenance)
+	•	Timestamp
+	•	Optional note (from technician)
+	•	Purpose
+	•	Ensure problems reach the right person immediately
+	•	Replace the need to “check the system”
+	•	Behavior
+	•	Works as:
+	•	Real WhatsApp integration (future)
+	•	OR simulated alerts/logs (current MVP)
+	•	Follow-up Alerts
+	•	Send reminder if issue is not resolved after a defined time
+
+⸻
+
+9. Activity & History Tracking
+	•	Activity Log
+	•	All scans with timestamps
+	•	Scan History
+	•	Status changes over time
+	•	Transfer History
+	•	Movement between departments
+	•	User Tracking
+	•	Each scan tagged with user ID (Clerk)
+
+⸻
+
+10. Analytics & Insights
+	•	Dashboard Analytics
+	•	Scan activity over time (graph)
+	•	Status distribution
+	•	Maintenance & sterilization metrics
+	•	Insights
+	•	“Top problem equipment”
+	•	Equipment needing the most attention
+
+⸻
+
+11. Print System
+	•	QR Label Printing
+	•	Generate printable QR labels
+	•	(Planned improvement)
+	•	Full printable reports (PDF)
+
+⸻
+
+12. Offline-First Architecture
+	•	Local Database
+	•	IndexedDB (Dexie)
+	•	Offline Capabilities
+	•	Scan equipment
+	•	Update status
+	•	Log activity
+	•	Sync Engine
+	•	Queue-based sync
+	•	Auto-sync when connection returns
+	•	Service Worker
+	•	App loads without internet
+
+⸻
+
+13. UX / UI
+	•	Mobile-first design
+	•	Large touch-friendly buttons
+	•	Minimal text
+	•	Fast interactions (1–2 taps)
+	•	Skeleton loading
+	•	Error boundaries
+	•	Sync indicator
+	•	Offline/sync banners
+	•	Design Language
+	•	Medical / veterinary theme (Teal palette)
+
+⸻
+
+14. Current Gaps / Missing Features
+	•	Confirmation dialogs not fully connected
+	•	Full PDF report system
+	•	Central dashboard (unified view)
+	•	UI polish / full redesign
+	•	Department naming refinement
+
+⸻
+
+Final Positioning
+
+VetTrack is:
+
+👉 A mobile-first, QR-based equipment tracking system
+👉 Built for real-world clinical workflows
+👉 Designed to work even without internet
+
+Key Differentiators:
+	•	Offline-first operation
+	•	QR-first workflow
+	•	WhatsApp-based escalation
+	•	Zero training required
+
+⸻
+
+אם אתה רוצה, הצעד הבא הכי חזק:
+
+👉 להפוך את זה ל־Pitch של 30 שניות שמוכר את זה למנהלת
+או
+👉 לזקק את זה ל־3 יתרונות חדים מול Excel
+
+זה כבר השלב שבו זה הופך ממערכת → מוצר 👍

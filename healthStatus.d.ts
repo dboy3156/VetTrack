@@ -1,1 +1,0 @@
-{"version":3,"file":"bulkResult.d.ts","sourceRoot":"","sources":["../../../src/generated/types/bulkResult.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,UAAU;IACzB,+BAA+B;IAC/B,QAAQ,EAAE,MAAM,CAAC;CAClB"}

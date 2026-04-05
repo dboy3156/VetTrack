@@ -1,0 +1,98 @@
+import type { Request, Response, NextFunction } from "express";
+import { db, users } from "../db.js";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
+
+export interface AuthUser {
+  id: string;
+  clerkId: string;
+  email: string;
+  name: string;
+  role: "admin" | "technician";
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      authUser?: AuthUser;
+    }
+  }
+}
+
+const DEV_USER: AuthUser = {
+  id: "dev-admin-001",
+  clerkId: "dev-admin-001",
+  email: "admin@vettrack.dev",
+  name: "Dev Admin",
+  role: "admin",
+};
+
+export async function requireAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const isDev = !process.env.CLERK_SECRET_KEY;
+
+  if (isDev) {
+    req.authUser = DEV_USER;
+    return next();
+  }
+
+  try {
+    const clerkUserId = req.headers["x-clerk-user-id"] as string;
+    const clerkEmail = req.headers["x-clerk-email"] as string;
+    const clerkName = req.headers["x-clerk-name"] as string;
+
+    if (!clerkUserId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    let [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkUserId))
+      .limit(1);
+
+    if (!user) {
+      const newUser = {
+        id: randomUUID(),
+        clerkId: clerkUserId,
+        email: clerkEmail || "",
+        name: clerkName || "",
+        role: "technician" as const,
+      };
+      [user] = await db.insert(users).values(newUser).returning();
+    } else if (clerkEmail && user.email !== clerkEmail) {
+      [user] = await db
+        .update(users)
+        .set({ email: clerkEmail, name: clerkName || user.name })
+        .where(eq(users.id, user.id))
+        .returning();
+    }
+
+    req.authUser = {
+      id: user.id,
+      clerkId: user.clerkId,
+      email: user.email,
+      name: user.name,
+      role: user.role as "admin" | "technician",
+    };
+
+    next();
+  } catch (err) {
+    console.error("Auth error:", err);
+    res.status(500).json({ error: "Auth failed" });
+  }
+}
+
+export function requireAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+  if (req.authUser.role !== "admin")
+    return res.status(403).json({ error: "Admin access required" });
+  next();
+}

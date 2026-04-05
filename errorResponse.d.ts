@@ -1,1 +1,0 @@
-{"version":3,"file":"bulkDeleteRequest.d.ts","sourceRoot":"","sources":["../../../src/generated/types/bulkDeleteRequest.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,iBAAiB;IAChC,kBAAkB;IAClB,GAAG,EAAE,MAAM,EAAE,CAAC;CACf"}

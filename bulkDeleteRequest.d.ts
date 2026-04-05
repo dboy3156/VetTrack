@@ -1,1 +1,0 @@
-{"version":3,"file":"activityFeed.d.ts","sourceRoot":"","sources":["../../../src/generated/types/activityFeed.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AACH,OAAO,KAAK,EAAE,gBAAgB,EAAE,MAAM,oBAAoB,CAAC;AAE3D,MAAM,WAAW,YAAY;IAC3B,KAAK,EAAE,gBAAgB,EAAE,CAAC;IAC1B,UAAU,EAAE,MAAM,GAAG,IAAI,CAAC;CAC3B"}

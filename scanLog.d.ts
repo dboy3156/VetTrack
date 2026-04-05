@@ -1,1 +1,0 @@
-{"version":3,"file":"folder.d.ts","sourceRoot":"","sources":["../../../src/generated/types/folder.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,MAAM;IACrB,EAAE,EAAE,MAAM,CAAC;IACX,IAAI,EAAE,MAAM,CAAC;IACb,SAAS,EAAE,IAAI,CAAC;CACjB"}

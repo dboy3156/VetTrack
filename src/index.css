@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 180 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 180 25% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 25% 10%;
+    --primary: 173 80% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 173 20% 94%;
+    --secondary-foreground: 173 50% 25%;
+    --muted: 210 10% 96%;
+    --muted-foreground: 215 15% 50%;
+    --accent: 173 30% 92%;
+    --accent-foreground: 173 50% 25%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 15% 90%;
+    --input: 214 15% 90%;
+    --ring: 173 80% 36%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 180 15% 8%;
+    --foreground: 0 0% 96%;
+    --card: 180 15% 10%;
+    --card-foreground: 0 0% 96%;
+    --popover: 180 15% 10%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 173 80% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 173 20% 18%;
+    --secondary-foreground: 173 50% 80%;
+    --muted: 180 15% 15%;
+    --muted-foreground: 215 15% 60%;
+    --accent: 173 25% 20%;
+    --accent-foreground: 173 50% 80%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 180 10% 20%;
+    --input: 180 10% 20%;
+    --ring: 173 80% 42%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}

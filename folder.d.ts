@@ -1,1 +1,0 @@
-{"version":3,"file":"bulkMoveRequest.d.ts","sourceRoot":"","sources":["../../../src/generated/types/bulkMoveRequest.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,eAAe;IAC9B,kBAAkB;IAClB,GAAG,EAAE,MAAM,EAAE,CAAC;IACd,yDAAyD;IACzD,QAAQ,EAAE,MAAM,GAAG,IAAI,CAAC;CACzB"}
