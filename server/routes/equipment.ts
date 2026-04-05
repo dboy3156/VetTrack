@@ -738,6 +738,203 @@ router.get("/:id/transfers", requireAuth, async (req, res) => {
   }
 });
 
+// ─── CSV helpers ────────────────────────────────────────────────────────────
+
+const VALID_IMPORT_STATUSES = new Set(["ok", "issue", "maintenance", "sterilized"]);
+const CSV_MAX_ROWS = 500;
+
+interface CsvRow {
+  name: string;
+  serial: string;
+  status: string;
+  location: string;
+  folder: string;
+  maintenanceIntervalDays: string;
+  notes: string;
+}
+
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      fields.push(field.trim());
+      field = "";
+    } else {
+      field += ch;
+    }
+  }
+  fields.push(field.trim());
+  return fields;
+}
+
+function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
+  const lines = csv.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const nonEmpty = lines.filter((l) => l.trim().length > 0);
+  if (nonEmpty.length === 0) return { headers: [], rows: [] };
+  const [headerLine, ...dataLines] = nonEmpty;
+  const headers = parseCsvLine(headerLine).map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  const rows = dataLines.map((l) => parseCsvLine(l));
+  return { headers, rows };
+}
+
+// POST /api/equipment/import
+router.post("/import", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { csv } = req.body as { csv?: string };
+    if (!csv || typeof csv !== "string") {
+      return res.status(400).json({ error: "csv field is required" });
+    }
+
+    const { headers, rows } = parseCsv(csv);
+
+    const nameIdx = headers.indexOf("name");
+    const serialIdx = headers.indexOf("serial");
+    const statusIdx = headers.indexOf("status");
+    const locationIdx = headers.indexOf("location");
+    const folderIdx = headers.indexOf("folder");
+    const maintIdx = headers.indexOf("maintenanceintervaldays");
+
+    if (nameIdx === -1) {
+      return res.status(400).json({ error: "CSV must have a 'name' column" });
+    }
+
+    if (rows.length > CSV_MAX_ROWS) {
+      return res.status(400).json({ error: `CSV exceeds max ${CSV_MAX_ROWS} rows` });
+    }
+
+    // Load existing serial numbers to detect duplicates against DB
+    const existingSerials = new Set<string>(
+      (await db.select({ s: equipment.serialNumber }).from(equipment))
+        .map((r) => r.s)
+        .filter((s): s is string => !!s)
+        .map((s) => s.toLowerCase())
+    );
+
+    // Load folders by name for lookup
+    const allFolders = await db.select().from(folders);
+    const folderByName = new Map<string, string>(
+      allFolders.map((f) => [f.name.toLowerCase(), f.id])
+    );
+
+    type SkipEntry = { row: number; reason: string; data: Partial<CsvRow> };
+    const skipped: SkipEntry[] = [];
+
+    type InsertRow = {
+      id: string;
+      name: string;
+      serialNumber: string | null;
+      status: string;
+      location: string | null;
+      folderId: string | null;
+      maintenanceIntervalDays: number | null;
+    };
+    const toInsert: InsertRow[] = [];
+    const seenSerials = new Set<string>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2; // 1-indexed, +1 for header
+      const cols = rows[i];
+      const get = (idx: number) => (idx >= 0 ? (cols[idx] ?? "").trim() : "");
+
+      const name = get(nameIdx);
+      const serial = get(serialIdx);
+      const status = get(statusIdx) || "ok";
+      const location = get(locationIdx);
+      const folderName = get(folderIdx);
+      const maintStr = get(maintIdx);
+
+      const rowData: Partial<CsvRow> = { name, serial, status, location, folder: folderName };
+
+      if (!name) {
+        skipped.push({ row: rowNum, reason: "Name is required", data: rowData });
+        continue;
+      }
+      if (name.length > FIELD_MAX_LENGTH) {
+        skipped.push({ row: rowNum, reason: `Name exceeds ${FIELD_MAX_LENGTH} chars`, data: rowData });
+        continue;
+      }
+      if (serial && serial.length > FIELD_MAX_LENGTH) {
+        skipped.push({ row: rowNum, reason: `Serial exceeds ${FIELD_MAX_LENGTH} chars`, data: rowData });
+        continue;
+      }
+      if (!VALID_IMPORT_STATUSES.has(status)) {
+        skipped.push({
+          row: rowNum,
+          reason: `Invalid status "${status}" — must be ok, issue, maintenance, or sterilized`,
+          data: rowData,
+        });
+        continue;
+      }
+
+      const serialLower = serial ? serial.toLowerCase() : null;
+      if (serialLower) {
+        if (existingSerials.has(serialLower)) {
+          skipped.push({ row: rowNum, reason: `Serial "${serial}" already exists in the database`, data: rowData });
+          continue;
+        }
+        if (seenSerials.has(serialLower)) {
+          skipped.push({ row: rowNum, reason: `Duplicate serial "${serial}" within this CSV`, data: rowData });
+          continue;
+        }
+        seenSerials.add(serialLower);
+      }
+
+      let maintenanceIntervalDays: number | null = null;
+      if (maintStr) {
+        const parsed = parseInt(maintStr, 10);
+        if (isNaN(parsed) || parsed < 1) {
+          skipped.push({ row: rowNum, reason: `maintenanceIntervalDays must be a positive integer (got "${maintStr}")`, data: rowData });
+          continue;
+        }
+        maintenanceIntervalDays = parsed;
+      }
+
+      const folderId = folderName ? (folderByName.get(folderName.toLowerCase()) ?? null) : null;
+
+      toInsert.push({
+        id: randomUUID(),
+        name: name.trim(),
+        serialNumber: serial || null,
+        status,
+        location: location || null,
+        folderId,
+        maintenanceIntervalDays,
+      });
+    }
+
+    if (toInsert.length === 0) {
+      return res.status(200).json({ inserted: 0, skipped });
+    }
+
+    await db.transaction(async (tx) => {
+      // Insert in batches of 50 to avoid overwhelming the DB
+      const BATCH = 50;
+      for (let b = 0; b < toInsert.length; b += BATCH) {
+        await tx.insert(equipment).values(toInsert.slice(b, b + BATCH));
+      }
+    });
+
+    res.json({ inserted: toInsert.length, skipped });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Import failed" });
+  }
+});
+
 router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body as { ids?: unknown };

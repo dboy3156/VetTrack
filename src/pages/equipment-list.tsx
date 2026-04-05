@@ -44,7 +44,9 @@ import {
   Package,
   ChevronRight,
   MapPin,
+  Upload,
 } from "lucide-react";
+import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -66,6 +68,7 @@ export default function EquipmentListPage() {
   const qrInputRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
   const search = params.get("q") ?? "";
@@ -252,6 +255,17 @@ export default function EquipmentListPage() {
               <QrCode className="w-4 h-4 mr-1" />
               Scan QR
             </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+                data-testid="btn-import-csv"
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                Import
+              </Button>
+            )}
             <Link href="/equipment/new">
               <Button size="sm" data-testid="btn-add">
                 <Plus className="w-4 h-4 mr-1" />
@@ -494,6 +508,8 @@ export default function EquipmentListPage() {
           </div>
         )}
       </div>
+
+      <CsvImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </Layout>
   );
 }

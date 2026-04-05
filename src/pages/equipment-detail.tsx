@@ -56,6 +56,7 @@ import {
   LogOut,
   User,
   Camera,
+  Copy,
 } from "lucide-react";
 import {
   formatDate,
@@ -96,7 +97,9 @@ export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
-  const { isAdmin, email, userId } = useAuth();
+  const { isAdmin, email, userId, role } = useAuth();
+  const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, technician: 20, viewer: 10 };
+  const canDuplicate = (ROLE_LEVEL[role] ?? 0) >= 20;
   const { settings } = useSettings();
   const queryClient = useQueryClient();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
@@ -502,6 +505,20 @@ export default function EquipmentDetailPage() {
     },
   });
 
+  function handleDuplicate() {
+    if (!equipment) return;
+    const params = new URLSearchParams();
+    if (equipment.name) params.set("copyName", equipment.name);
+    if (equipment.model) params.set("copyModel", equipment.model);
+    if (equipment.manufacturer) params.set("copyManuf", equipment.manufacturer);
+    if (equipment.location) params.set("copyLocation", equipment.location);
+    if (equipment.folderId) params.set("copyFolder", equipment.folderId);
+    if (equipment.maintenanceIntervalDays)
+      params.set("copyMaint", String(equipment.maintenanceIntervalDays));
+    params.set("copiedFrom", equipment.name);
+    navigate(`/equipment/new?${params.toString()}`);
+  }
+
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -607,8 +624,19 @@ export default function EquipmentDetailPage() {
               )}
             </div>
           </div>
-          {isAdmin && (
-            <div className="flex gap-1">
+          <div className="flex gap-1">
+            {canDuplicate && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleDuplicate}
+                title="Duplicate equipment"
+                data-testid="btn-duplicate"
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+            )}
+            {isAdmin && (
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -617,6 +645,8 @@ export default function EquipmentDetailPage() {
               >
                 <Pencil className="w-4 h-4" />
               </Button>
+            )}
+            {isAdmin && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -646,8 +676,8 @@ export default function EquipmentDetailPage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Checkout / Ownership banner */}

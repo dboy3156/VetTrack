@@ -186,6 +186,11 @@ export const api = {
         { method: "POST", body: JSON.stringify(data), signal },
         { offlineType: "create" }
       ),
+    importCsv: (csv: string) =>
+      request<{ inserted: number; skipped: Array<{ row: number; reason: string; data: Record<string, string> }> }>(
+        "/api/equipment/import",
+        { method: "POST", body: JSON.stringify({ csv }) }
+      ),
     update: (id: string, data: UpdateEquipmentRequest) =>
       request<Equipment>(
         `/api/equipment/${id}`,

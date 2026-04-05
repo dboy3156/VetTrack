@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { useLocation } from "wouter";
+import { useRef, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { useForm } from "react-hook-form";
@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 const SUBMIT_TIMEOUT_MS = 30_000;
@@ -39,9 +39,25 @@ type FormValues = z.infer<typeof schema>;
 
 export default function NewEquipmentPage() {
   const [, navigate] = useLocation();
+  const searchStr = useSearch();
   const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const prefill = useMemo(() => {
+    const p = new URLSearchParams(searchStr);
+    return {
+      name: p.get("copyName") ?? "",
+      model: p.get("copyModel") ?? "",
+      manufacturer: p.get("copyManuf") ?? "",
+      location: p.get("copyLocation") ?? "",
+      folderId: p.get("copyFolder") ?? "",
+      maintenanceIntervalDays: p.get("copyMaint") ?? "",
+      copiedFrom: p.get("copiedFrom") ?? "",
+    };
+  }, [searchStr]);
+
+  const isCopy = !!prefill.copiedFrom;
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -53,7 +69,19 @@ export default function NewEquipmentPage() {
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: prefill.name,
+      model: prefill.model || undefined,
+      manufacturer: prefill.manufacturer || undefined,
+      location: prefill.location || undefined,
+      folderId: prefill.folderId || undefined,
+      maintenanceIntervalDays: prefill.maintenanceIntervalDays
+        ? parseInt(prefill.maintenanceIntervalDays, 10)
+        : undefined,
+    },
+  });
 
   const createMut = useMutation({
     mutationFn: ({ data, signal }: { data: Parameters<(typeof api.equipment)["create"]>[0]; signal: AbortSignal }) =>
@@ -109,7 +137,7 @@ export default function NewEquipmentPage() {
   return (
     <Layout>
       <Helmet>
-        <title>Add Equipment — VetTrack</title>
+        <title>{isCopy ? `New Equipment (copied from ${prefill.copiedFrom}) — VetTrack` : "Add Equipment — VetTrack"}</title>
         <meta name="description" content="Register a new piece of veterinary equipment. Assign a name, serial number, location, folder, and maintenance schedule to begin QR tracking." />
         <link rel="canonical" href="https://vettrack.replit.app/equipment/new" />
       </Helmet>
@@ -123,7 +151,17 @@ export default function NewEquipmentPage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-2xl font-bold">Add Equipment</h1>
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold">
+              {isCopy ? "New Equipment" : "Add Equipment"}
+            </h1>
+            {isCopy && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
+                <Copy className="w-3 h-3" />
+                Copied from {prefill.copiedFrom}
+              </p>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
@@ -181,7 +219,10 @@ export default function NewEquipmentPage() {
 
               <div className="flex flex-col gap-2">
                 <Label>Folder / Category</Label>
-                <Select onValueChange={(v) => setValue("folderId", v)}>
+                <Select
+                  defaultValue={prefill.folderId || "none"}
+                  onValueChange={(v) => setValue("folderId", v)}
+                >
                   <SelectTrigger data-testid="select-folder">
                     <SelectValue placeholder="No folder" />
                   </SelectTrigger>
