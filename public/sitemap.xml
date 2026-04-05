@@ -11,6 +11,11 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://vettrack.replit.app/equipment/new</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://vettrack.replit.app/alerts</loc>
     <changefreq>hourly</changefreq>
     <priority>0.8</priority>
@@ -34,5 +39,10 @@
     <loc>https://vettrack.replit.app/video</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://vettrack.replit.app/demo-guide</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
   </url>
 </urlset>

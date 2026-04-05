@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,11 @@ export default function QrPrintPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>QR Print — VetTrack</title>
+        <meta name="description" content="Generate and print QR code labels for veterinary equipment. Select items, preview QR codes, and print sheets for physical labeling." />
+        <link rel="canonical" href="https://vettrack.replit.app/print" />
+      </Helmet>
       <div className="flex flex-col gap-4 pb-24">
         {/* Header */}
         <div className="flex items-center justify-between">

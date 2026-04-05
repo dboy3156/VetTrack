@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -107,6 +108,11 @@ export default function NewEquipmentPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Add Equipment — VetTrack</title>
+        <meta name="description" content="Register a new piece of veterinary equipment. Assign a name, serial number, location, folder, and maintenance schedule to begin QR tracking." />
+        <link rel="canonical" href="https://vettrack.replit.app/equipment/new" />
+      </Helmet>
       <div className="flex flex-col gap-6 pb-24">
         <div className="flex items-center gap-3">
           <Button

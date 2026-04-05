@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -219,6 +220,11 @@ export default function DemoGuidePage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Demo Guide — VetTrack</title>
+        <meta name="description" content="Step-by-step guide to recording a VetTrack product demo video. Walk through equipment scanning, status updates, alerts, and reporting workflows." />
+        <link rel="canonical" href="https://vettrack.replit.app/demo-guide" />
+      </Helmet>
       <div className="flex flex-col gap-6 pb-24 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col gap-1">

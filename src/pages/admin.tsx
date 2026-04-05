@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,10 @@ export default function AdminPage() {
   if (!isAdmin) {
     return (
       <Layout>
+        <Helmet>
+          <title>Admin — VetTrack</title>
+          <meta name="description" content="VetTrack administration panel. Manage equipment folders, user roles, and system settings for your veterinary clinic." />
+        </Helmet>
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
           <Shield className="w-12 h-12 text-muted-foreground" />
           <h1 className="text-2xl font-bold">Admin Only</h1>
@@ -59,6 +64,11 @@ export default function AdminPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Admin — VetTrack</title>
+        <meta name="description" content="VetTrack administration panel. Manage equipment folders, user roles, and system settings for your veterinary clinic." />
+        <link rel="canonical" href="https://vettrack.replit.app/admin" />
+      </Helmet>
       <div className="flex flex-col gap-6 pb-24">
         <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
           <Shield className="w-6 h-6 text-primary" />
