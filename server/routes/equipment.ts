@@ -979,8 +979,9 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
     const actorName = req.authUser!.name || req.authUser!.email;
 
     await db.transaction(async (tx) => {
-      // Collect item info before deletion, then write tombstones to bulkAuditLog.
-      // bulkAuditLog has NO FK to vt_equipment, so records survive the cascade delete.
+      // Write tombstone scan log per item before deletion.
+      // vt_scan_logs FK was dropped (migration 009) so these records
+      // survive after the equipment rows are deleted.
       const items = await tx
         .select({ id: equipment.id, name: equipment.name, status: equipment.status })
         .from(equipment)
@@ -988,15 +989,13 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
 
       const now = new Date();
       if (items.length > 0) {
-        await tx.insert(bulkAuditLog).values(
+        await tx.insert(scanLogs).values(
           items.map((item) => ({
             id: randomUUID(),
-            eventType: "bulk-delete" as const,
             equipmentId: item.id,
-            equipmentName: item.name,
-            equipmentStatus: item.status,
-            actorId: req.authUser!.id,
-            actorEmail: req.authUser!.email,
+            userId: req.authUser!.id,
+            userEmail: req.authUser!.email,
+            status: item.status,
             note: `Bulk deleted by ${actorName}`,
             timestamp: now,
           }))
@@ -1036,7 +1035,7 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), async (req, re
         ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
         : [null];
       targetFolderName = targetFolder?.name ?? null;
-      const moveNote = `Bulk moved to ${targetFolderName ?? "Unassigned"}`;
+      const moveNote = `Bulk moved to ${targetFolderName ?? "Unassigned"} (${typedIds.length} item${typedIds.length !== 1 ? "s" : ""})`;
 
       for (const id of typedIds) {
         const [item] = await tx

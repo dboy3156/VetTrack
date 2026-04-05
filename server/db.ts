@@ -59,9 +59,7 @@ export const equipment = pgTable("vt_equipment", {
 
 export const scanLogs = pgTable("vt_scan_logs", {
   id: text("id").primaryKey(),
-  equipmentId: text("equipment_id")
-    .notNull()
-    .references(() => equipment.id, { onDelete: "cascade" }),
+  equipmentId: text("equipment_id"),
   userId: text("user_id").notNull(),
   userEmail: text("user_email").notNull(),
   status: varchar("status", { length: 20 }).notNull(),
