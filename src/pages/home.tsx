@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,6 +77,11 @@ export default function HomePage() {
 
   return (
     <Layout onScan={() => setScannerOpen(true)}>
+      <Helmet>
+        <title>Dashboard — VetTrack</title>
+        <meta name="description" content="Real-time veterinary equipment dashboard. View status at a glance, scan QR codes, triage active alerts, and track checked-out equipment across your clinic." />
+        <link rel="canonical" href="https://vettrack.replit.app/" />
+      </Helmet>
       <div className="flex flex-col gap-6 pb-20 animate-fade-in">
         {/* Greeting */}
         <div className="pt-1">

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /print
+
+Sitemap: https://vettrack.replit.app/sitemap.xml

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,11 @@ export default function AnalyticsPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Analytics — VetTrack</title>
+        <meta name="description" content="Equipment analytics for veterinary clinics — maintenance compliance rates, sterilization compliance, scan activity over 14 days, and top problem equipment." />
+        <link rel="canonical" href="https://vettrack.replit.app/analytics" />
+      </Helmet>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
           <BarChart3 className="w-6 h-6 text-primary" />

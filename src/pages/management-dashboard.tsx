@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +69,11 @@ export default function ManagementDashboardPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Management Dashboard — VetTrack</title>
+        <meta name="description" content="Live management dashboard for veterinary hospital equipment. Track who has what, monitor locations, review critical alerts, and generate monthly PDF reports." />
+        <link rel="canonical" href="https://vettrack.replit.app/dashboard" />
+      </Helmet>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">

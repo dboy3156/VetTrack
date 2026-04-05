@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -201,6 +202,11 @@ export default function EquipmentListPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>Equipment — VetTrack</title>
+        <meta name="description" content="Browse, search, and manage all veterinary equipment. Filter by status or folder, bulk-move items, and scan QR codes to quickly locate any asset." />
+        <link rel="canonical" href="https://vettrack.replit.app/equipment" />
+      </Helmet>
       <div className="flex flex-col gap-4 pb-24">
         {/* Header */}
         <div className="flex items-center justify-between">

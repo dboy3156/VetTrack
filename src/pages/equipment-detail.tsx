@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -569,6 +570,11 @@ export default function EquipmentDetailPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>{equipment.name} — VetTrack</title>
+        <meta name="description" content={`Equipment detail for ${equipment.name}. Status: ${equipment.status}${equipment.location ? `. Location: ${equipment.location}` : ""}. Update status, check out, report issues, and view full history.`} />
+        <link rel="canonical" href={`https://vettrack.replit.app/equipment/${equipment.id}`} />
+      </Helmet>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">

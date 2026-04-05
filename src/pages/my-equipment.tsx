@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,6 +68,11 @@ export default function MyEquipmentPage() {
 
   return (
     <Layout>
+      <Helmet>
+        <title>My Equipment — VetTrack</title>
+        <meta name="description" content="View all equipment currently checked out to you. Return individual items or use Return All for quick end-of-shift handoffs." />
+        <link rel="canonical" href="https://vettrack.replit.app/my-equipment" />
+      </Helmet>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
