@@ -106,8 +106,8 @@
   object-fit: cover !important;
 }
 
-/* Make the library's root div fill the parent properly */
-#qr-scanner-container > div {
+/* Make all nested divs the library injects fill the parent properly */
+#qr-scanner-container div {
   width: 100% !important;
   height: 100% !important;
   padding: 0 !important;
