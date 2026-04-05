@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
-import { getPendingCount, getFailedCount, getAllPendingSync, type PendingSync } from "@/lib/offline-db";
+import { getPendingCount, getFailedCount, getAllPendingSync, updatePendingSync, removePendingSync, type PendingSync } from "@/lib/offline-db";
 import { onSyncStateChange, processQueue } from "@/lib/sync-engine";
 
 interface SyncState {
@@ -8,7 +8,10 @@ interface SyncState {
   isSyncing: boolean;
   justSynced: boolean;
   recentItems: PendingSync[];
+  items: PendingSync[];
   triggerSync: () => void;
+  retry: (id: number) => Promise<void>;
+  discard: (id: number) => Promise<void>;
 }
 
 const SyncContext = createContext<SyncState>({
@@ -17,7 +20,10 @@ const SyncContext = createContext<SyncState>({
   isSyncing: false,
   justSynced: false,
   recentItems: [],
+  items: [],
   triggerSync: () => {},
+  retry: async () => {},
+  discard: async () => {},
 });
 
 export function SyncProvider({ children }: { children: ReactNode }) {
@@ -26,6 +32,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
   const [recentItems, setRecentItems] = useState<PendingSync[]>([]);
+  const [items, setItems] = useState<PendingSync[]>([]);
   const prevPendingRef = useRef(0);
   const justSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -46,6 +53,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setPendingCount(p);
     setFailedCount(f);
     setRecentItems(all.slice(-20));
+    setItems(all.filter((i) => i.status === "pending" || i.status === "failed"));
   }, []);
 
   const triggerSync = useCallback(async () => {
@@ -56,6 +64,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setIsSyncing(false);
       await refresh();
     }
+  }, [refresh]);
+
+  const retry = useCallback(async (id: number) => {
+    await updatePendingSync(id, { status: "pending", retries: 0, errorMessage: undefined });
+    processQueue().finally(() => refresh());
+    await refresh();
+  }, [refresh]);
+
+  const discard = useCallback(async (id: number) => {
+    await removePendingSync(id);
+    await refresh();
   }, [refresh]);
 
   useEffect(() => {
@@ -70,7 +89,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <SyncContext.Provider value={{ pendingCount, failedCount, isSyncing, justSynced, recentItems, triggerSync }}>
+    <SyncContext.Provider value={{ pendingCount, failedCount, isSyncing, justSynced, recentItems, items, triggerSync, retry, discard }}>
       {children}
     </SyncContext.Provider>
   );

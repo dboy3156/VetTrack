@@ -17,6 +17,7 @@ export interface PendingSync {
   clientTimestamp: number;
   optimisticData?: string;
   errorMessage?: string;
+  equipmentName?: string;
 }
 
 class VetTrackDB extends Dexie {

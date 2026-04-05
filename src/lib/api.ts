@@ -266,6 +266,7 @@ export const api = {
             status: "pending",
             clientTimestamp,
             optimisticData: JSON.stringify(optimistic),
+            equipmentName: cached?.name,
           });
           await updateCachedEquipment(id, optimisticEquipment);
           cacheScanLogs(id, [optimisticScanLog]).catch(() => {});
@@ -312,6 +313,7 @@ export const api = {
             status: "pending",
             clientTimestamp,
             optimisticData: JSON.stringify(optimisticEquipment),
+            equipmentName: cached?.name,
           });
           const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
           await updateCachedEquipment(id, optimisticEquipment);
@@ -359,6 +361,7 @@ export const api = {
             status: "pending",
             clientTimestamp,
             optimisticData: JSON.stringify(optimisticEquipment),
+            equipmentName: cached?.name,
           });
           const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
           await updateCachedEquipment(id, optimisticEquipment);

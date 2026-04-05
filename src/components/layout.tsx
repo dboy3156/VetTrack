@@ -30,6 +30,7 @@ import {
   AlignJustify,
   SunDim,
   Bug,
+  CloudOff,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { ReportIssueDialog } from "@/components/report-issue-dialog";
+import { SyncQueueSheet } from "@/components/sync-queue-sheet";
 
 interface NavItem {
   href: string;
@@ -62,6 +64,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
+  const [syncQueueOpen, setSyncQueueOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
@@ -223,6 +226,23 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 <XCircle className="w-3 h-3" />
                 <span>{failedCount} failed</span>
               </div>
+            )}
+
+            {/* Sync queue badge — amber, opens the sync queue sheet */}
+            {(hasPending || hasFailed) && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="relative text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                onClick={() => setSyncQueueOpen(true)}
+                title="View sync queue"
+                data-testid="sync-queue-badge"
+              >
+                <CloudOff className="w-5 h-5" />
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                  {(pendingCount + failedCount) > 9 ? "9+" : pendingCount + failedCount}
+                </span>
+              </Button>
             )}
 
             {alertCount > 0 && (
@@ -466,6 +486,12 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       <ReportIssueDialog
         open={reportIssueOpen}
         onOpenChange={setReportIssueOpen}
+      />
+
+      {/* Sync Queue sheet */}
+      <SyncQueueSheet
+        open={syncQueueOpen}
+        onClose={() => setSyncQueueOpen(false)}
       />
     </div>
   );
