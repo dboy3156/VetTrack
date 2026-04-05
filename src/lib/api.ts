@@ -14,6 +14,7 @@ import type {
   User,
   UploadUrlRequest,
   UploadUrlResponse,
+  AlertAcknowledgment,
 } from "@/types";
 
 async function request<T>(
@@ -35,6 +36,7 @@ async function request<T>(
 export const api = {
   equipment: {
     list: () => request<Equipment[]>("/api/equipment"),
+    listMy: () => request<Equipment[]>("/api/equipment/my"),
     get: (id: string) => request<Equipment>(`/api/equipment/${id}`),
     create: (data: CreateEquipmentRequest) =>
       request<Equipment>("/api/equipment", {
@@ -53,6 +55,13 @@ export const api = {
         `/api/equipment/${id}/scan`,
         { method: "POST", body: JSON.stringify(data) }
       ),
+    checkout: (id: string, location?: string) =>
+      request<Equipment>(`/api/equipment/${id}/checkout`, {
+        method: "POST",
+        body: JSON.stringify({ location }),
+      }),
+    return: (id: string) =>
+      request<Equipment>(`/api/equipment/${id}/return`, { method: "POST", body: JSON.stringify({}) }),
     bulkDelete: (data: BulkDeleteRequest) =>
       request<BulkResult>("/api/equipment/bulk-delete", {
         method: "POST",
@@ -117,6 +126,19 @@ export const api = {
       request<{ success: boolean; waUrl: string }>("/api/whatsapp/alert", {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+  },
+  alertAcks: {
+    list: () => request<AlertAcknowledgment[]>("/api/alert-acks"),
+    acknowledge: (equipmentId: string, alertType: string) =>
+      request<AlertAcknowledgment>("/api/alert-acks", {
+        method: "POST",
+        body: JSON.stringify({ equipmentId, alertType }),
+      }),
+    remove: (equipmentId: string, alertType: string) =>
+      request<void>("/api/alert-acks", {
+        method: "DELETE",
+        body: JSON.stringify({ equipmentId, alertType }),
       }),
   },
 };

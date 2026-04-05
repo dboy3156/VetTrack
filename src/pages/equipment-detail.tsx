@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -30,13 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { STATUS_LABELS } from "@/types";
 import type { EquipmentStatus } from "@/types";
 import {
@@ -57,7 +50,11 @@ import {
   Clock,
   FolderOpen,
   Loader2,
-  ExternalLink,
+  LogIn,
+  LogOut,
+  User,
+  Camera,
+  ImageIcon,
 } from "lucide-react";
 import {
   formatDate,
@@ -82,12 +79,16 @@ const STATUS_CONFIG = {
 export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const { isAdmin, email } = useAuth();
+  const { isAdmin, email, userId } = useAuth();
   const queryClient = useQueryClient();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState<EquipmentStatus>("ok");
   const [scanNote, setScanNote] = useState("");
+  const [scanPhoto, setScanPhoto] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState("");
   const [showQR, setShowQR] = useState(false);
+  const [checkoutLocation, setCheckoutLocation] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: equipment, isLoading } = useQuery({
     queryKey: [`/api/equipment/${id}`],
@@ -107,36 +108,66 @@ export default function EquipmentDetailPage() {
     enabled: !!id,
   });
 
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}`] });
+    queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
+  }
+
   const scanMut = useMutation({
     mutationFn: () =>
       api.equipment.scan(id!, {
         status: scanStatus,
         note: scanNote,
+        photoUrl: scanPhoto || undefined,
         userEmail: email || "",
       }),
     onSuccess: ({ equipment: updated }) => {
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
-      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      invalidateAll();
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
       toast.success(`Status updated to ${STATUS_LABELS[scanStatus]}`);
       setScanDialogOpen(false);
       setScanNote("");
+      setScanPhoto(null);
+      setNoteError("");
 
       if (scanStatus === "issue") {
-        const waUrl = buildWhatsAppUrl(undefined, updated.name, scanStatus, scanNote);
-        toast.action
-          ? null
-          : setTimeout(() => {
-              toast("Send WhatsApp alert?", {
-                action: {
-                  label: "Open WhatsApp",
-                  onClick: () => window.open(waUrl, "_blank"),
-                },
-              });
-            }, 500);
+        setTimeout(() => {
+          toast("Send WhatsApp alert?", {
+            action: {
+              label: "Open WhatsApp",
+              onClick: () => {
+                const waUrl = buildWhatsAppUrl(undefined, updated.name, scanStatus, scanNote);
+                window.open(waUrl, "_blank");
+              },
+            },
+          });
+        }, 500);
       }
     },
-    onError: () => toast.error("Scan failed"),
+    onError: (err: Error) => toast.error(err.message || "Scan failed"),
+  });
+
+  const checkoutMut = useMutation({
+    mutationFn: () => api.equipment.checkout(id!, checkoutLocation || undefined),
+    onSuccess: (updated) => {
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+      invalidateAll();
+      toast.success("Checked out successfully");
+      setCheckoutLocation("");
+    },
+    onError: (err: Error) => toast.error(err.message || "Checkout failed"),
+  });
+
+  const returnMut = useMutation({
+    mutationFn: () => api.equipment.return(id!),
+    onSuccess: (updated) => {
+      queryClient.setQueryData([`/api/equipment/${id}`], updated);
+      invalidateAll();
+      toast.success("Returned — equipment is now available");
+    },
+    onError: (err: Error) => toast.error(err.message || "Return failed"),
   });
 
   const deleteMut = useMutation({
@@ -148,6 +179,31 @@ export default function EquipmentDetailPage() {
     },
     onError: () => toast.error("Delete failed"),
   });
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setScanPhoto(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleScanSubmit() {
+    if (scanStatus === "issue" && !scanNote.trim()) {
+      setNoteError("A note is required when reporting an issue.");
+      return;
+    }
+    setNoteError("");
+    scanMut.mutate();
+  }
+
+  function openScanDialog() {
+    setScanStatus("ok");
+    setScanNote("");
+    setScanPhoto(null);
+    setNoteError("");
+    setScanDialogOpen(true);
+  }
 
   if (isLoading) {
     return (
@@ -179,6 +235,9 @@ export default function EquipmentDetailPage() {
   const overdue = isOverdue(equipment);
   const sterilizationDue = isSterilizationDue(equipment);
   const qrUrl = generateQrUrl(equipment.id);
+
+  const isCheckedOut = !!equipment.checkedOutById;
+  const checkedOutByMe = equipment.checkedOutById === userId;
 
   return (
     <Layout>
@@ -247,14 +306,80 @@ export default function EquipmentDetailPage() {
           )}
         </div>
 
+        {/* Checkout / Ownership banner */}
+        {isCheckedOut ? (
+          <Card className="border-2 border-blue-200 bg-blue-50">
+            <CardContent className="p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <User className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-blue-900">
+                      {checkedOutByMe ? "Checked out by you" : `In use by ${equipment.checkedOutByEmail}`}
+                    </p>
+                    {equipment.checkedOutLocation && (
+                      <p className="text-xs text-blue-700 truncate">
+                        {equipment.checkedOutLocation}
+                      </p>
+                    )}
+                    <p className="text-xs text-blue-600">
+                      Since {formatRelativeTime(equipment.checkedOutAt)}
+                    </p>
+                  </div>
+                </div>
+                {(checkedOutByMe || isAdmin) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-100 shrink-0"
+                    onClick={() => returnMut.mutate()}
+                    disabled={returnMut.isPending}
+                    data-testid="btn-return"
+                  >
+                    {returnMut.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <LogOut className="w-4 h-4 mr-1" />
+                    )}
+                    Return
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-2 border-emerald-200 bg-emerald-50">
+            <CardContent className="p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <p className="text-sm font-semibold text-emerald-800">Available for use</p>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                  onClick={() => checkoutMut.mutate()}
+                  disabled={checkoutMut.isPending}
+                  data-testid="btn-checkout"
+                >
+                  {checkoutMut.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <LogIn className="w-4 h-4 mr-1" />
+                  )}
+                  Check Out
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Status card */}
         <Card className={`border-2 ${statusConf?.bg || ""}`}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div
-                  className={`w-12 h-12 rounded-xl bg-white/50 flex items-center justify-center`}
-                >
+                <div className="w-12 h-12 rounded-xl bg-white/50 flex items-center justify-center">
                   <StatusIcon className={`w-6 h-6 ${statusConf?.color || ""}`} />
                 </div>
                 <div>
@@ -267,10 +392,9 @@ export default function EquipmentDetailPage() {
                   </p>
                 </div>
               </div>
-
               <Button
                 size="sm"
-                onClick={() => setScanDialogOpen(true)}
+                onClick={openScanDialog}
                 data-testid="btn-scan"
                 className="shrink-0"
               >
@@ -300,11 +424,7 @@ export default function EquipmentDetailPage() {
 
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowQR(true)}
-            data-testid="btn-show-qr"
-          >
+          <Button variant="outline" onClick={() => setShowQR(true)} data-testid="btn-show-qr">
             <QrCode className="w-4 h-4 mr-2" />
             View QR Code
           </Button>
@@ -330,9 +450,7 @@ export default function EquipmentDetailPage() {
         {/* Info tabs */}
         <Tabs defaultValue="details">
           <TabsList className="w-full">
-            <TabsTrigger value="details" className="flex-1">
-              Details
-            </TabsTrigger>
+            <TabsTrigger value="details" className="flex-1">Details</TabsTrigger>
             <TabsTrigger value="history" className="flex-1">
               History ({scanLogs?.length ?? 0})
             </TabsTrigger>
@@ -392,17 +510,24 @@ export default function EquipmentDetailPage() {
                   <Card key={log.id}>
                     <CardContent className="p-3.5">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <Badge variant={log.status as any} className="text-[10px]">
                               {STATUS_LABELS[log.status as keyof typeof STATUS_LABELS] || log.status}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              by {log.userEmail}
+                            <span className="text-xs text-muted-foreground truncate">
+                              {log.userEmail}
                             </span>
                           </div>
                           {log.note && (
                             <p className="text-xs text-muted-foreground mt-1">{log.note}</p>
+                          )}
+                          {log.photoUrl && (
+                            <img
+                              src={log.photoUrl}
+                              alt="Issue photo"
+                              className="mt-2 rounded-lg w-24 h-24 object-cover border"
+                            />
                           )}
                         </div>
                         <p className="text-[10px] text-muted-foreground shrink-0">
@@ -429,48 +554,113 @@ export default function EquipmentDetailPage() {
             <div className="flex flex-col gap-1.5">
               <Label>Status</Label>
               <div className="grid grid-cols-2 gap-2">
-                {(["ok", "issue", "maintenance", "sterilized"] as EquipmentStatus[]).map(
-                  (s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setScanStatus(s)}
-                      className={`flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        scanStatus === s
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/30"
-                      }`}
-                      data-testid={`scan-status-${s}`}
-                    >
-                      {s === "ok" && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                      {s === "issue" && <AlertTriangle className="w-4 h-4 text-red-500" />}
-                      {s === "maintenance" && <Wrench className="w-4 h-4 text-amber-500" />}
-                      {s === "sterilized" && <Droplets className="w-4 h-4 text-teal-500" />}
-                      {STATUS_LABELS[s]}
-                    </button>
-                  )
-                )}
+                {(["ok", "issue", "maintenance", "sterilized"] as EquipmentStatus[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setScanStatus(s);
+                      if (s !== "issue") setNoteError("");
+                    }}
+                    className={`flex items-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                      scanStatus === s
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/30"
+                    }`}
+                    data-testid={`scan-status-${s}`}
+                  >
+                    {s === "ok" && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                    {s === "issue" && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                    {s === "maintenance" && <Wrench className="w-4 h-4 text-amber-500" />}
+                    {s === "sterilized" && <Droplets className="w-4 h-4 text-teal-500" />}
+                    {STATUS_LABELS[s]}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="note">Note (optional)</Label>
+              <Label htmlFor="note">
+                Note
+                {scanStatus === "issue" && (
+                  <span className="text-red-500 ml-1">*</span>
+                )}
+                {scanStatus !== "issue" && (
+                  <span className="text-muted-foreground text-xs ml-1">(optional)</span>
+                )}
+              </Label>
               <Textarea
                 id="note"
-                placeholder="Add any observations..."
+                placeholder={
+                  scanStatus === "issue"
+                    ? "Describe the issue clearly..."
+                    : "Add any observations..."
+                }
                 value={scanNote}
-                onChange={(e) => setScanNote(e.target.value)}
+                onChange={(e) => {
+                  setScanNote(e.target.value);
+                  if (e.target.value.trim()) setNoteError("");
+                }}
                 rows={3}
                 data-testid="scan-note"
+                className={noteError ? "border-red-500 focus-visible:ring-red-500" : ""}
               />
+              {noteError && (
+                <p className="text-xs text-red-600 font-medium">{noteError}</p>
+              )}
             </div>
+
+            {/* Photo — shown prominently for issues, available for all */}
+            {scanStatus === "issue" && (
+              <div className="flex flex-col gap-1.5">
+                <Label>
+                  Photo
+                  <span className="text-muted-foreground text-xs ml-1">(strongly recommended)</span>
+                </Label>
+                {scanPhoto ? (
+                  <div className="relative">
+                    <img
+                      src={scanPhoto}
+                      alt="Issue photo"
+                      className="w-full h-36 object-cover rounded-xl border-2 border-primary/30"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-1 right-1 bg-white/80 text-xs"
+                      onClick={() => setScanPhoto(null)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                    data-testid="btn-photo"
+                  >
+                    <Camera className="w-6 h-6" />
+                    <span className="text-sm font-medium">Take / Upload Photo</span>
+                  </button>
+                )}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setScanDialogOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={() => scanMut.mutate()}
+              onClick={handleScanSubmit}
               disabled={scanMut.isPending}
               data-testid="btn-confirm-scan"
             >
@@ -494,12 +684,7 @@ export default function EquipmentDetailPage() {
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
             <div className="p-4 bg-white rounded-2xl border-2 border-border">
-              <QRCodeSVG
-                value={qrUrl}
-                size={200}
-                level="M"
-                includeMargin={false}
-              />
+              <QRCodeSVG value={qrUrl} size={200} level="M" includeMargin={false} />
             </div>
             <p className="text-xs text-muted-foreground text-center break-all">{qrUrl}</p>
           </div>

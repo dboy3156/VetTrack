@@ -1,0 +1,135 @@
+You are a senior product engineer working on an existing veterinary hospital app (VetTrack). Your task is to design and implement the core system only — focused on real usage, simplicity, and immediate impact.
+
+Do NOT redesign the whole system. Do NOT add unnecessary features. Focus only on the core.
+
+⸻
+
+Goal
+
+Build a minimal but effective system that:
+	•	Tracks who is currently using each equipment item
+	•	Improves issue reporting quality
+	•	Makes alerts actionable and prioritized
+
+⸻
+
+Scope (ONLY these features)
+
+1. Equipment Ownership (Check-out / Return)
+
+Replace passive status tracking with active ownership.
+
+Requirements:
+	•	Add actions:
+	•	Check Out
+	•	Return
+	•	When checking out:
+	•	Save: userId, timestamp
+	•	Optional: roomId or patientId
+	•	When returning:
+	•	Clear current ownership
+	•	Set status = available
+
+System must always be able to answer:
+
+“Who currently has this equipment?”
+
+Constraints:
+	•	Max 2 taps after scan
+	•	No typing required for default flow
+
+⸻
+
+2. “My Equipment” View
+
+Purpose:
+Give each user visibility over what they are responsible for
+
+Requirements:
+	•	List all equipment currently checked out by the logged-in user
+	•	Show:
+	•	equipment name
+	•	time since checkout
+	•	last known location (if exists)
+
+⸻
+
+3. Issue Reporting (High Quality Only)
+
+Improve reliability of issue reports.
+
+Requirements:
+	•	When status = issue:
+	•	Require a text note
+	•	Require (or strongly prompt) a photo
+	•	Use existing photoUrl field in scan logs
+	•	Validation must be inline (not toast)
+
+⸻
+
+4. Alerts System (Minimal but Functional)
+
+A. Severity
+Each alert must have:
+	•	critical
+	•	high
+	•	medium
+	•	low
+
+Example:
+	•	issue → critical
+	•	overdue → high
+	•	sterilization_due → medium
+	•	inactive → low
+
+⸻
+
+B. Acknowledgment
+Add ability to claim an alert.
+
+Requirements:
+	•	Fields:
+	•	acknowledgedBy
+	•	acknowledgedAt
+	•	Any user can mark:
+→ “I’m handling this”
+
+Goal:
+Prevent duplicate handling and ignored alerts
+
+⸻
+
+Implementation Constraints
+	•	Work with the existing data model where possible
+	•	Extend — don’t rebuild
+	•	Keep UI friction extremely low (fast-paced hospital environment)
+	•	Prefer:
+	•	buttons
+	•	defaults
+	•	minimal typing
+
+⸻
+
+Output Format
+
+Provide:
+	1.	Data model changes
+	•	New fields / enums
+	•	Any new tables (only if necessary)
+	2.	Updated scan flow
+	•	Step-by-step UX after QR scan
+	3.	API / hooks logic
+	•	What happens on check-out / return / issue
+	4.	UI components to add/update
+	•	Scan screen changes
+	•	My Equipment screen
+	•	Alerts changes
+
+⸻
+
+Important
+	•	If something is unnecessary for the core — do not include it
+	•	If something adds friction — simplify it
+	•	If something won’t be used under pressure — remove it
+
+Think like a veterinary technician in a busy ER.

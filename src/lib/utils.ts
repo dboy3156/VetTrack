@@ -1,7 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { formatDistanceToNow, format, isAfter, subDays } from "date-fns";
-import type { Equipment, Alert, EquipmentStatus } from "@/types";
+import type { Equipment, Alert, AlertType, AlertSeverity, EquipmentStatus } from "@/types";
+import { ALERT_SEVERITY } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -62,6 +63,7 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
     if (eq.lastStatus === "issue") {
       alerts.push({
         type: "issue",
+        severity: ALERT_SEVERITY["issue"],
         equipmentId: eq.id,
         equipmentName: eq.name,
         detail: "Reported issue not resolved",
@@ -74,6 +76,7 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
       );
       alerts.push({
         type: "overdue",
+        severity: ALERT_SEVERITY["overdue"],
         equipmentId: eq.id,
         equipmentName: eq.name,
         detail: `${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue`,
@@ -82,6 +85,7 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
     } else if (isSterilizationDue(eq)) {
       alerts.push({
         type: "sterilization_due",
+        severity: ALERT_SEVERITY["sterilization_due"],
         equipmentId: eq.id,
         equipmentName: eq.name,
         detail: "Not sterilized in 7+ days",
@@ -89,6 +93,7 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
     } else if (isInactive(eq)) {
       alerts.push({
         type: "inactive",
+        severity: ALERT_SEVERITY["inactive"],
         equipmentId: eq.id,
         equipmentName: eq.name,
         detail: "No scan in 14+ days",
@@ -102,11 +107,11 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
 export function buildWhatsAppUrl(
   phone: string | undefined,
   equipmentName: string,
-  status: EquipmentStatus,
+  status: EquipmentStatus | string,
   note?: string
 ): string {
   const timestamp = format(new Date(), "MMM d, yyyy 'at' h:mm a");
-  let message = `🚨 VetTrack Alert\n\nEquipment: *${equipmentName}*\nStatus: *${status.toUpperCase()}*\nTime: ${timestamp}`;
+  let message = `🚨 VetTrack Alert\n\nEquipment: *${equipmentName}*\nStatus: *${String(status).toUpperCase()}*\nTime: ${timestamp}`;
   if (note) {
     message += `\nNote: ${note}`;
   }

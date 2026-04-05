@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -16,46 +16,91 @@ import {
   ChevronRight,
   Bell,
   Droplets,
+  UserCheck,
+  X,
 } from "lucide-react";
-import type { Alert, AlertType } from "@/types";
+import type { Alert, AlertType, AlertAcknowledgment } from "@/types";
+import { toast } from "sonner";
 
 const ALERT_CONFIG: Record<
   AlertType,
-  { icon: React.ElementType; color: string; bg: string; label: string }
+  { icon: React.ElementType; color: string; bg: string; label: string; severityBg: string; severityText: string }
 > = {
   issue: {
     icon: AlertTriangle,
     color: "text-red-500",
     bg: "bg-red-50 border-red-200",
     label: "Active Issue",
+    severityBg: "bg-red-600",
+    severityText: "CRITICAL",
   },
   overdue: {
     icon: Clock,
     color: "text-amber-500",
     bg: "bg-amber-50 border-amber-200",
     label: "Overdue",
+    severityBg: "bg-amber-500",
+    severityText: "HIGH",
   },
   sterilization_due: {
     icon: Droplets,
     color: "text-teal-500",
     bg: "bg-teal-50 border-teal-200",
     label: "Sterilization Due",
+    severityBg: "bg-teal-500",
+    severityText: "MEDIUM",
   },
   inactive: {
     icon: Activity,
     color: "text-slate-500",
     bg: "bg-slate-50 border-slate-200",
     label: "Inactive",
+    severityBg: "bg-slate-400",
+    severityText: "LOW",
   },
 };
 
 export default function AlertsPage() {
-  const { data: equipment, isLoading } = useQuery({
+  const queryClient = useQueryClient();
+
+  const { data: equipment, isLoading: eqLoading } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
 
+  const { data: acks, isLoading: acksLoading } = useQuery({
+    queryKey: ["/api/alert-acks"],
+    queryFn: api.alertAcks.list,
+  });
+
+  const ackMut = useMutation({
+    mutationFn: ({ equipmentId, alertType }: { equipmentId: string; alertType: string }) =>
+      api.alertAcks.acknowledge(equipmentId, alertType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/alert-acks"] });
+      toast.success("Marked as handling");
+    },
+    onError: () => toast.error("Failed to acknowledge"),
+  });
+
+  const unAckMut = useMutation({
+    mutationFn: ({ equipmentId, alertType }: { equipmentId: string; alertType: string }) =>
+      api.alertAcks.remove(equipmentId, alertType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/alert-acks"] });
+    },
+    onError: () => toast.error("Failed to remove"),
+  });
+
+  const isLoading = eqLoading || acksLoading;
   const alerts = equipment ? computeAlerts(equipment) : [];
+
+  const acksMap = new Map<string, AlertAcknowledgment>();
+  if (acks) {
+    for (const ack of acks) {
+      acksMap.set(`${ack.equipmentId}:${ack.alertType}`, ack);
+    }
+  }
 
   const grouped: Partial<Record<AlertType, Alert[]>> = {};
   for (const alert of alerts) {
@@ -109,53 +154,106 @@ export default function AlertsPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <Icon className={`w-4 h-4 ${config.color}`} />
                     <h2 className="font-semibold text-sm">{config.label}</h2>
-                    <Badge variant="outline" className="text-xs">
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${config.severityBg}`}
+                    >
+                      {config.severityText}
+                    </span>
+                    <Badge variant="outline" className="text-xs ml-auto">
                       {items.length}
                     </Badge>
                   </div>
                   <div className="flex flex-col gap-2">
-                    {items.map((alert) => (
-                      <Card
-                        key={`${alert.type}-${alert.equipmentId}`}
-                        className={`border ${config.bg}`}
-                      >
-                        <CardContent className="p-3.5 flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-sm truncate">
-                              {alert.equipmentName}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {alert.detail}
-                            </p>
-                          </div>
-                          <div className="flex gap-1 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={() => {
-                                const waUrl = buildWhatsAppUrl(
-                                  undefined,
-                                  alert.equipmentName,
-                                  "issue",
-                                  alert.detail
-                                );
-                                window.open(waUrl, "_blank");
-                              }}
-                              title="Send WhatsApp alert"
-                              data-testid={`btn-whatsapp-${alert.equipmentId}`}
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                            </Button>
-                            <Link href={`/equipment/${alert.equipmentId}`}>
-                              <Button variant="ghost" size="icon-sm">
-                                <ChevronRight className="w-4 h-4" />
+                    {items.map((alert) => {
+                      const ackKey = `${alert.equipmentId}:${alert.type}`;
+                      const ack = acksMap.get(ackKey);
+
+                      return (
+                        <Card
+                          key={`${alert.type}-${alert.equipmentId}`}
+                          className={`border ${config.bg}`}
+                        >
+                          <CardContent className="p-3.5 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-sm truncate">
+                                  {alert.equipmentName}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {alert.detail}
+                                </p>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => {
+                                    const waUrl = buildWhatsAppUrl(
+                                      undefined,
+                                      alert.equipmentName,
+                                      "issue",
+                                      alert.detail
+                                    );
+                                    window.open(waUrl, "_blank");
+                                  }}
+                                  title="Send WhatsApp alert"
+                                  data-testid={`btn-whatsapp-${alert.equipmentId}`}
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                </Button>
+                                <Link href={`/equipment/${alert.equipmentId}`}>
+                                  <Button variant="ghost" size="icon-sm">
+                                    <ChevronRight className="w-4 h-4" />
+                                  </Button>
+                                </Link>
+                              </div>
+                            </div>
+
+                            {/* Acknowledgment row */}
+                            {ack ? (
+                              <div className="flex items-center justify-between gap-2 bg-white/70 rounded-lg px-2.5 py-1.5 border border-white">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span className="text-xs text-emerald-700 font-medium truncate">
+                                    Handling: {ack.acknowledgedByEmail}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="w-5 h-5 text-muted-foreground hover:text-red-500 shrink-0"
+                                  onClick={() =>
+                                    unAckMut.mutate({
+                                      equipmentId: alert.equipmentId,
+                                      alertType: alert.type,
+                                    })
+                                  }
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 self-start px-2"
+                                onClick={() =>
+                                  ackMut.mutate({
+                                    equipmentId: alert.equipmentId,
+                                    alertType: alert.type,
+                                  })
+                                }
+                                data-testid={`btn-ack-${alert.equipmentId}`}
+                              >
+                                <UserCheck className="w-3.5 h-3.5 mr-1" />
+                                I'm handling this
                               </Button>
-                            </Link>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
               );

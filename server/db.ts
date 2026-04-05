@@ -49,6 +49,11 @@ export const equipment = pgTable("vt_equipment", {
   lastSterilizationDate: timestamp("last_sterilization_date"),
   maintenanceIntervalDays: integer("maintenance_interval_days"),
   imageUrl: text("image_url"),
+  // Checkout / ownership
+  checkedOutById: text("checked_out_by_id"),
+  checkedOutByEmail: text("checked_out_by_email"),
+  checkedOutAt: timestamp("checked_out_at"),
+  checkedOutLocation: text("checked_out_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -90,6 +95,15 @@ export const whatsappAlerts = pgTable("vt_whatsapp_alerts", {
   sentAt: timestamp("sent_at").defaultNow().notNull(),
 });
 
+export const alertAcks = pgTable("vt_alert_acks", {
+  id: text("id").primaryKey(),
+  equipmentId: text("equipment_id").notNull(),
+  alertType: varchar("alert_type", { length: 30 }).notNull(),
+  acknowledgedById: text("acknowledged_by_id").notNull(),
+  acknowledgedByEmail: text("acknowledged_by_email").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at").defaultNow().notNull(),
+});
+
 export async function initDb() {
   try {
     await pool.query(`
@@ -124,6 +138,10 @@ export async function initDb() {
         last_sterilization_date TIMESTAMP,
         maintenance_interval_days INTEGER,
         image_url TEXT,
+        checked_out_by_id TEXT,
+        checked_out_by_email TEXT,
+        checked_out_at TIMESTAMP,
+        checked_out_location TEXT,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
       CREATE TABLE IF NOT EXISTS vt_scan_logs (
@@ -157,7 +175,26 @@ export async function initDb() {
         wa_url TEXT NOT NULL,
         sent_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS vt_alert_acks (
+        id TEXT PRIMARY KEY,
+        equipment_id TEXT NOT NULL,
+        alert_type VARCHAR(30) NOT NULL,
+        acknowledged_by_id TEXT NOT NULL,
+        acknowledged_by_email TEXT NOT NULL,
+        acknowledged_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        UNIQUE(equipment_id, alert_type)
+      );
     `);
+
+    // Migrate: add checkout columns to existing tables if not present
+    await pool.query(`
+      ALTER TABLE vt_equipment
+        ADD COLUMN IF NOT EXISTS checked_out_by_id TEXT,
+        ADD COLUMN IF NOT EXISTS checked_out_by_email TEXT,
+        ADD COLUMN IF NOT EXISTS checked_out_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS checked_out_location TEXT;
+    `);
+
     console.log("✅ Database tables initialized");
   } catch (err) {
     console.error("❌ DB init error:", err);

@@ -12,8 +12,8 @@ import {
   Shield,
   Menu,
   X,
-  Wifi,
   WifiOff,
+  PackageOpen,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   adminOnly?: boolean;
+  menuOnly?: boolean;
   badgeCount?: number;
 }
 
@@ -45,6 +46,12 @@ export function Layout({ children, title }: LayoutProps) {
     staleTime: 60_000,
   });
 
+  const { data: myEquipment } = useQuery({
+    queryKey: ["/api/equipment/my"],
+    queryFn: api.equipment.listMy,
+    staleTime: 30_000,
+  });
+
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
@@ -57,6 +64,7 @@ export function Layout({ children, title }: LayoutProps) {
   }, []);
 
   const alertCount = equipment ? computeAlerts(equipment).length : 0;
+  const myCount = myEquipment?.length ?? 0;
 
   const navItems: NavItem[] = [
     { href: "/", label: "Home", icon: <Home className="w-5 h-5" /> },
@@ -67,12 +75,19 @@ export function Layout({ children, title }: LayoutProps) {
       icon: <AlertTriangle className="w-5 h-5" />,
       badgeCount: alertCount,
     },
+    {
+      href: "/my-equipment",
+      label: "Mine",
+      icon: <PackageOpen className="w-5 h-5" />,
+      badgeCount: myCount,
+    },
     { href: "/analytics", label: "Analytics", icon: <BarChart3 className="w-5 h-5" /> },
-    { href: "/print", label: "QR Print", icon: <QrCode className="w-5 h-5" /> },
-    { href: "/admin", label: "Admin", icon: <Shield className="w-5 h-5" />, adminOnly: true },
+    { href: "/print", label: "QR Print", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
+    { href: "/admin", label: "Admin", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
   ];
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
+  const bottomItems = visibleItems.filter((item) => !item.menuOnly);
 
   return (
     <div className="min-h-screen bg-background">
@@ -158,10 +173,10 @@ export function Layout({ children, title }: LayoutProps) {
       {/* Main content */}
       <main className="max-w-2xl mx-auto px-4 py-6 pb-safe">{children}</main>
 
-      {/* Bottom nav (mobile) */}
+      {/* Bottom nav (mobile) — 5 primary items */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t supports-[backdrop-filter]:bg-white/60 pb-safe">
         <div className="flex max-w-2xl mx-auto">
-          {visibleItems.slice(0, 5).map((item) => (
+          {bottomItems.slice(0, 5).map((item) => (
             <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(

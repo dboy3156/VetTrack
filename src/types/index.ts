@@ -4,6 +4,15 @@ export type UserRole = "admin" | "technician";
 
 export type AlertType = "overdue" | "issue" | "inactive" | "sterilization_due";
 
+export type AlertSeverity = "critical" | "high" | "medium" | "low";
+
+export const ALERT_SEVERITY: Record<AlertType, AlertSeverity> = {
+  issue: "critical",
+  overdue: "high",
+  sterilization_due: "medium",
+  inactive: "low",
+};
+
 export interface User {
   id: string;
   clerkId: string;
@@ -38,6 +47,11 @@ export interface Equipment {
   lastSterilizationDate?: string | null;
   maintenanceIntervalDays?: number | null;
   imageUrl?: string | null;
+  // Checkout / ownership
+  checkedOutById?: string | null;
+  checkedOutByEmail?: string | null;
+  checkedOutAt?: string | null;
+  checkedOutLocation?: string | null;
   createdAt: string;
 }
 
@@ -169,10 +183,20 @@ export interface WhatsAppAlert {
 
 export interface Alert {
   type: AlertType;
+  severity: AlertSeverity;
   equipmentId: string;
   equipmentName: string;
   detail?: string;
   daysOverdue?: number;
+}
+
+export interface AlertAcknowledgment {
+  id: string;
+  equipmentId: string;
+  alertType: string;
+  acknowledgedById: string;
+  acknowledgedByEmail: string;
+  acknowledgedAt: string;
 }
 
 export const EQUIPMENT_CATEGORIES = [

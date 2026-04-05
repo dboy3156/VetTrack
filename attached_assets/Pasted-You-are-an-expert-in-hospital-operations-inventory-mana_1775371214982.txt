@@ -1,0 +1,55 @@
+You are an expert in hospital operations, inventory management, and loss-prevention systems, with a focus on veterinary hospitals.
+
+Your task is to solve a real-world problem: equipment frequently gets lost, misplaced, or not returned in a veterinary hospital.
+
+Based on the existing system and features I provided, do the following:
+
+Analyze the root causes of equipment loss
+Human factors (forgetfulness, overload, shift changes)
+Process failures (no ownership, no tracking, unclear responsibility)
+System gaps (lack of visibility, no real-time status, no accountability)
+Design a practical solution system
+Build a solution that actually works in a busy hospital, including:
+Real-time equipment tracking (status: in use / available / missing / cleaning)
+Clear ownership per shift or per action
+Fast logging (must take seconds, not minutes)
+Minimal typing (buttons, scanning, automation)
+
+Suggest specific features
+For each feature, explain:
+
+What exactly it does
+When it is used in the workflow
+Who uses it (tech / vet / assistant)
+How it prevents equipment loss
+
+Examples of areas to cover:
+
+Check-in / check-out system
+QR / barcode scanning
+“Last seen” tracking
+Shift-based responsibility
+Missing equipment alerts
+Auto-reminders before shift ends
+Equipment usage history
+Focus on real constraints
+Staff are busy and under pressure
+People will skip steps if it’s slow
+The system must work even when users are tired or distracted
+Prevent failure, not just track it
+Suggest mechanisms that reduce the chance of loss מראש
+Not just “log after it’s gone”
+Prioritize solutions
+High impact (must-have, solves core problem)
+Medium (improves control)
+Low (nice additions)
+Challenge naive ideas
+If a solution sounds good but won’t work in reality — explain why
+Offer a better alternative
+Output structure
+Section 1: Root causes of equipment loss
+Section 2: Core system design
+Section 3: Feature breakdown
+Section 4: Failure points & how to prevent them
+
+Keep everything grounded in real veterinary hospital workflows. Avoid generic inventory systems that don’t account for stress, emergencies, and human error.

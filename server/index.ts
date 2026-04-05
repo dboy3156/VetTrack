@@ -11,6 +11,7 @@ import activityRoutes from "./routes/activity.js";
 import userRoutes from "./routes/users.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import storageRoutes from "./routes/storage.js";
+import alertAcksRoutes from "./routes/alert-acks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -47,6 +48,7 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/storage", storageRoutes);
+app.use("/api/alert-acks", alertAcksRoutes);
 
 if (process.env.NODE_ENV === "production") {
   const publicDir = path.join(__dirname, "../public");

@@ -10,6 +10,7 @@ const AnalyticsPage = lazy(() => import("@/pages/analytics"));
 const AlertsPage = lazy(() => import("@/pages/alerts"));
 const QrPrintPage = lazy(() => import("@/pages/qr-print"));
 const AdminPage = lazy(() => import("@/pages/admin"));
+const MyEquipmentPage = lazy(() => import("@/pages/my-equipment"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/alerts" component={AlertsPage} />
         <Route path="/print" component={QrPrintPage} />
         <Route path="/admin" component={AdminPage} />
+        <Route path="/my-equipment" component={MyEquipmentPage} />
         <Route component={NotFoundPage} />
       </Switch>
     </Suspense>

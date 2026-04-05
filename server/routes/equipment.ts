@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs, transferLogs } from "../db.js";
-import { eq, inArray, desc } from "drizzle-orm";
+import { eq, inArray, desc, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
-import { format, subDays } from "date-fns";
 
 const router = Router();
 
-router.get("/", requireAuth, async (req, res) => {
+// GET /api/equipment/my — equipment checked out by the current user
+router.get("/my", requireAuth, async (req, res) => {
   try {
     const items = await db
       .select({
@@ -27,6 +27,48 @@ router.get("/", requireAuth, async (req, res) => {
         lastSterilizationDate: equipment.lastSterilizationDate,
         maintenanceIntervalDays: equipment.maintenanceIntervalDays,
         imageUrl: equipment.imageUrl,
+        checkedOutById: equipment.checkedOutById,
+        checkedOutByEmail: equipment.checkedOutByEmail,
+        checkedOutAt: equipment.checkedOutAt,
+        checkedOutLocation: equipment.checkedOutLocation,
+        createdAt: equipment.createdAt,
+      })
+      .from(equipment)
+      .leftJoin(folders, eq(equipment.folderId, folders.id))
+      .where(eq(equipment.checkedOutById, req.authUser!.id))
+      .orderBy(desc(equipment.checkedOutAt));
+
+    res.json(items);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch my equipment" });
+  }
+});
+
+router.get("/", requireAuth, async (_req, res) => {
+  try {
+    const items = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+        serialNumber: equipment.serialNumber,
+        model: equipment.model,
+        manufacturer: equipment.manufacturer,
+        purchaseDate: equipment.purchaseDate,
+        location: equipment.location,
+        folderId: equipment.folderId,
+        folderName: folders.name,
+        status: equipment.status,
+        lastSeen: equipment.lastSeen,
+        lastStatus: equipment.lastStatus,
+        lastMaintenanceDate: equipment.lastMaintenanceDate,
+        lastSterilizationDate: equipment.lastSterilizationDate,
+        maintenanceIntervalDays: equipment.maintenanceIntervalDays,
+        imageUrl: equipment.imageUrl,
+        checkedOutById: equipment.checkedOutById,
+        checkedOutByEmail: equipment.checkedOutByEmail,
+        checkedOutAt: equipment.checkedOutAt,
+        checkedOutLocation: equipment.checkedOutLocation,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -60,6 +102,10 @@ router.get("/:id", requireAuth, async (req, res) => {
         lastSterilizationDate: equipment.lastSterilizationDate,
         maintenanceIntervalDays: equipment.maintenanceIntervalDays,
         imageUrl: equipment.imageUrl,
+        checkedOutById: equipment.checkedOutById,
+        checkedOutByEmail: equipment.checkedOutByEmail,
+        checkedOutAt: equipment.checkedOutAt,
+        checkedOutLocation: equipment.checkedOutLocation,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -130,6 +176,13 @@ router.patch("/:id", requireAuth, async (req, res) => {
       status,
     } = req.body;
 
+    // Get old item before update (for transfer log)
+    const [oldItem] = await db
+      .select()
+      .from(equipment)
+      .where(eq(equipment.id, req.params.id))
+      .limit(1);
+
     const [item] = await db
       .update(equipment)
       .set({
@@ -149,37 +202,22 @@ router.patch("/:id", requireAuth, async (req, res) => {
 
     if (!item) return res.status(404).json({ error: "Equipment not found" });
 
-    if (folderId !== undefined) {
-      const oldItem = await db
-        .select()
-        .from(equipment)
-        .where(eq(equipment.id, req.params.id))
-        .limit(1);
-      if (oldItem[0]?.folderId !== (folderId || null)) {
-        const [oldFolder] = oldItem[0]?.folderId
-          ? await db
-              .select()
-              .from(folders)
-              .where(eq(folders.id, oldItem[0].folderId!))
-              .limit(1)
-          : [null];
-        const [newFolder] = folderId
-          ? await db
-              .select()
-              .from(folders)
-              .where(eq(folders.id, folderId))
-              .limit(1)
-          : [null];
-        await db.insert(transferLogs).values({
-          id: randomUUID(),
-          equipmentId: req.params.id,
-          fromFolderId: oldItem[0]?.folderId || null,
-          fromFolderName: oldFolder?.name || null,
-          toFolderId: folderId || null,
-          toFolderName: newFolder?.name || null,
-          userId: req.authUser!.id,
-        });
-      }
+    if (folderId !== undefined && oldItem && oldItem.folderId !== (folderId || null)) {
+      const [oldFolder] = oldItem.folderId
+        ? await db.select().from(folders).where(eq(folders.id, oldItem.folderId)).limit(1)
+        : [null];
+      const [newFolder] = folderId
+        ? await db.select().from(folders).where(eq(folders.id, folderId)).limit(1)
+        : [null];
+      await db.insert(transferLogs).values({
+        id: randomUUID(),
+        equipmentId: req.params.id,
+        fromFolderId: oldItem.folderId || null,
+        fromFolderName: oldFolder?.name || null,
+        toFolderId: folderId || null,
+        toFolderName: newFolder?.name || null,
+        userId: req.authUser!.id,
+      });
     }
 
     res.json(item);
@@ -199,10 +237,102 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// POST /api/equipment/:id/checkout
+router.post("/:id/checkout", requireAuth, async (req, res) => {
+  try {
+    const { location } = req.body; // optional room/patient context
+
+    const [existing] = await db
+      .select()
+      .from(equipment)
+      .where(eq(equipment.id, req.params.id))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "Equipment not found" });
+    if (existing.checkedOutById) {
+      return res.status(409).json({
+        error: "Already checked out",
+        checkedOutByEmail: existing.checkedOutByEmail,
+      });
+    }
+
+    const [updated] = await db
+      .update(equipment)
+      .set({
+        checkedOutById: req.authUser!.id,
+        checkedOutByEmail: req.authUser!.email,
+        checkedOutAt: new Date(),
+        checkedOutLocation: location || null,
+      })
+      .where(eq(equipment.id, req.params.id))
+      .returning();
+
+    // Log the checkout as a scan event
+    await db.insert(scanLogs).values({
+      id: randomUUID(),
+      equipmentId: req.params.id,
+      userId: req.authUser!.id,
+      userEmail: req.authUser!.email,
+      status: existing.status,
+      note: `Checked out${location ? ` — ${location}` : ""}`,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Checkout failed" });
+  }
+});
+
+// POST /api/equipment/:id/return
+router.post("/:id/return", requireAuth, async (req, res) => {
+  try {
+    const [existing] = await db
+      .select()
+      .from(equipment)
+      .where(eq(equipment.id, req.params.id))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "Equipment not found" });
+
+    const [updated] = await db
+      .update(equipment)
+      .set({
+        checkedOutById: null,
+        checkedOutByEmail: null,
+        checkedOutAt: null,
+        checkedOutLocation: null,
+        status: "ok",
+        lastSeen: new Date(),
+        lastStatus: "ok",
+      })
+      .where(eq(equipment.id, req.params.id))
+      .returning();
+
+    // Log the return
+    await db.insert(scanLogs).values({
+      id: randomUUID(),
+      equipmentId: req.params.id,
+      userId: req.authUser!.id,
+      userEmail: req.authUser!.email,
+      status: "ok",
+      note: "Returned — available",
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Return failed" });
+  }
+});
+
 router.post("/:id/scan", requireAuth, async (req, res) => {
   try {
     const { status, note, photoUrl } = req.body;
     if (!status) return res.status(400).json({ error: "Status required" });
+    if (status === "issue" && !note?.trim()) {
+      return res.status(400).json({ error: "Note is required when reporting an issue" });
+    }
 
     const now = new Date();
 
@@ -311,11 +441,7 @@ router.post("/bulk-move", requireAuth, async (req, res) => {
       if (!item) continue;
 
       const [oldFolder] = item.folderId
-        ? await db
-            .select()
-            .from(folders)
-            .where(eq(folders.id, item.folderId))
-            .limit(1)
+        ? await db.select().from(folders).where(eq(folders.id, item.folderId)).limit(1)
         : [null];
 
       await db
