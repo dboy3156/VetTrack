@@ -20,6 +20,27 @@ const upload = multer({
   },
 });
 
+/*
+ * PERMISSIONS MATRIX — /api/equipment
+ * ─────────────────────────────────────────────────────
+ * GET  /                  viewer+       List all equipment
+ * GET  /my                viewer+       List equipment checked out by current user
+ * GET  /:id               viewer+       Get single equipment item
+ * GET  /:id/logs          viewer+       Scan log history for item
+ * GET  /:id/transfers     viewer+       Transfer log history for item
+ * POST /                  technician+   Create new equipment
+ * POST /import            admin-only    Bulk CSV import
+ * POST /bulk-delete       admin-only    Bulk delete
+ * POST /bulk-move         technician+   Bulk folder move
+ * POST /:id/scan          vet+          Record a scan/status update
+ * POST /:id/checkout      technician+   Check out equipment
+ * POST /:id/return        technician+   Return equipment
+ * POST /:id/revert        vet+          Undo last scan within window
+ * PATCH /:id              technician+   Edit equipment metadata
+ * DELETE /:id             admin-only    Delete single equipment item
+ * ─────────────────────────────────────────────────────
+ */
+
 const router = Router();
 
 const UNDO_TTL_MS = 90_000;

@@ -1,9 +1,16 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+
+/*
+ * PERMISSIONS MATRIX — /api/storage
+ * ─────────────────────────────────────────────────────
+ * POST /upload-url   technician+   Request a pre-signed upload URL
+ * ─────────────────────────────────────────────────────
+ */
 
 const router = Router();
 
-router.post("/upload-url", requireAuth, async (req, res) => {
+router.post("/upload-url", requireAuth, requireRole("technician"), async (req, res) => {
   const { name, size, contentType } = req.body;
   if (!name || !size || !contentType) {
     return res.status(400).json({ error: "name, size, contentType required" });

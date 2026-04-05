@@ -77,6 +77,11 @@ export async function requireAuth(
     const defaultStatus = isAdminEmail ? "active" : "pending";
     const defaultRole: UserRole = isAdminEmail ? "admin" : "technician";
 
+    // SECURITY: Role is ALWAYS resolved from the database record.
+    // The onConflictDoUpdate set clause deliberately excludes `role` so that
+    // a user whose role was downgraded mid-session cannot retain elevated access
+    // on their next authenticated request. JWT claims, request headers, and
+    // request body fields are never used to determine the effective role.
     let [user] = await db
       .insert(users)
       .values({
@@ -92,6 +97,8 @@ export async function requireAuth(
         set: {
           email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
           name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+          // NOTE: `role` is intentionally NOT updated here — the DB value is
+          // always authoritative, ensuring role changes take effect immediately.
         },
       })
       .returning();

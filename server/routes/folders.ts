@@ -5,6 +5,16 @@ import { eq, desc, and, isNull, lte } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { subDays } from "date-fns";
 
+/*
+ * PERMISSIONS MATRIX — /api/folders
+ * ─────────────────────────────────────────────────────
+ * GET    /      viewer+       List all folders (including smart folders)
+ * POST   /      technician+   Create a folder
+ * PATCH  /:id   technician+   Rename a folder
+ * DELETE /:id   admin-only    Delete folder (unassigns all equipment)
+ * ─────────────────────────────────────────────────────
+ */
+
 const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {

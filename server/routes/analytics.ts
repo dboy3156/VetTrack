@@ -5,6 +5,15 @@ import { requireAuth } from "../middleware/auth.js";
 import { subDays, format } from "date-fns";
 import { analyticsCache } from "../lib/analytics-cache.js";
 
+/*
+ * PERMISSIONS MATRIX — /api/analytics
+ * ─────────────────────────────────────────────────────
+ * GET  /   viewer+   Aggregate dashboard statistics
+ * ─────────────────────────────────────────────────────
+ * Viewer read access is intentional — dashboard stats are informational
+ * and do not expose any PII or mutation capability.
+ */
+
 const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {

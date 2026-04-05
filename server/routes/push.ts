@@ -2,9 +2,20 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, pushSubscriptions } from "../db.js";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
+
+/*
+ * PERMISSIONS MATRIX — /api/push
+ * ─────────────────────────────────────────────────────
+ * GET  /vapid-public-key   public        Retrieve VAPID public key
+ * POST /subscribe          viewer+       Register push subscription
+ * PATCH /subscribe         viewer+       Update subscription settings
+ * DELETE /subscribe        viewer+       Remove push subscription
+ * POST /test               admin-only    Send a test push notification
+ * ─────────────────────────────────────────────────────
+ */
 
 const router = Router();
 
@@ -102,7 +113,7 @@ router.delete("/subscribe", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/test", requireAuth, async (req, res) => {
+router.post("/test", requireAuth, requireAdmin, async (req, res) => {
   try {
     await sendPushToUser(req.authUser!.id, {
       title: "VetTrack Test",

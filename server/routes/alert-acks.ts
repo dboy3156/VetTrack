@@ -5,6 +5,15 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { sendPushToOthers, checkDedupe } from "../lib/push.js";
 
+/*
+ * PERMISSIONS MATRIX — /api/alert-acks
+ * ─────────────────────────────────────────────────────
+ * GET  /             viewer+       Read current acknowledgments
+ * POST /             technician+   Claim an alert ("I'm handling this")
+ * DELETE /           technician+   Remove an acknowledgment
+ * ─────────────────────────────────────────────────────
+ */
+
 const router = Router();
 
 // GET /api/alert-acks — return all current acknowledgments
@@ -68,8 +77,8 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   }
 });
 
-// DELETE /api/alert-acks?equipmentId=...&alertType=... — remove acknowledgment
-router.delete("/", requireAuth, async (req, res) => {
+// DELETE /api/alert-acks?equipmentId=...&alertType=... — remove acknowledgment — technician+
+router.delete("/", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const equipmentId = req.query.equipmentId as string | undefined;
     const alertType = req.query.alertType as string | undefined;

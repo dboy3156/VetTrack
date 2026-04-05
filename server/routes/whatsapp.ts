@@ -5,6 +5,13 @@ import { eq } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { format } from "date-fns";
 
+/*
+ * PERMISSIONS MATRIX — /api/whatsapp
+ * ─────────────────────────────────────────────────────
+ * POST /alert   technician+   Generate a WhatsApp alert deep-link for equipment
+ * ─────────────────────────────────────────────────────
+ */
+
 const router = Router();
 
 router.post("/alert", requireAuth, requireRole("technician"), async (req, res) => {
