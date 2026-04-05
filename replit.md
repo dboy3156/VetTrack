@@ -52,11 +52,21 @@ tsx server/seed.ts   # Seed sample data
 10. **Web Push Notifications** — Real-time push notifications via Web Push + VAPID. Staff subscribe from Settings → Push Notifications. Events trigger notifications: equipment issue, overdue maintenance, sterilization due, checkout, return, transfer, alert acknowledgment. Per-user settings gates: silent mode and alerts-enabled stored with subscription. In-memory 60-second deduplication prevents duplicate sends. Test button in Settings to verify device subscription.
 9. **Settings System** — Centralized settings persisted to localStorage. Quick Settings panel (gear icon in top bar) for instant access to dark mode, density, sound, and language. Full Settings page at `/settings` with all sections: Display, Sound, Language & Input, Date & Time, Reset (with confirmation dialog), and Account (logout). Dark mode applies `dark` class to `<html>`; density applies `data-density` attribute.
 
-## Auth
+## Auth & Security
 - **Dev mode** (no Clerk keys): Admin user hardcoded, all routes accessible
 - **Clerk mode**: Add `VITE_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` secrets for real auth
-  - Admin role can: create/delete equipment, manage folders, manage users
-  - Technician role can: scan/view equipment
+  - Admin (40): create/delete equipment, manage folders/users, bulk ops
+  - Vet (30): scan equipment, revert scans
+  - Technician (20): checkout/return, create equipment, WhatsApp alerts, alert-acks
+  - Viewer (10): read-only access
+- **CORS**: Locked to `REPLIT_DEV_DOMAIN` in dev and `ALLOWED_ORIGIN` in prod (not open)
+- **Rate Limiting** (`express-rate-limit`):
+  - Global: 200 req/min/IP on all `/api/*` routes
+  - Scan actions: 15/min/IP
+  - Checkout/return: 30/min/IP
+- **XSS**: Global body sanitization via `xss` library
+- **Helmet**: Security headers including CSP, X-Frame-Options, HSTS
+- **Undo token TTL**: 90 seconds (server + frontend countdown)
 
 ## File Structure
 ```

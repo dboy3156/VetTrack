@@ -2,12 +2,12 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, whatsappAlerts, equipment } from "../db.js";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { format } from "date-fns";
 
 const router = Router();
 
-router.post("/alert", requireAuth, async (req, res) => {
+router.post("/alert", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { equipmentId, status, note, phone } = req.body;
     if (!equipmentId || !status) {

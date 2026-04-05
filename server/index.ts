@@ -12,6 +12,7 @@ if (process.env.SENTRY_DSN) {
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import path from "path";
@@ -44,10 +45,49 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
+// --- CORS: lock to known origins only ---
+const isDev = process.env.NODE_ENV !== "production";
+
+function buildAllowedOrigins(): string[] {
+  const origins: string[] = [];
+  if (isDev && process.env.REPLIT_DEV_DOMAIN) {
+    origins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+  }
+  if (process.env.ALLOWED_ORIGIN) {
+    origins.push(process.env.ALLOWED_ORIGIN);
+  }
+  // Always allow localhost in development
+  if (isDev) {
+    origins.push("http://localhost:5000", "http://localhost:3000");
+  }
+  return origins;
+}
+
+const allowedOrigins = buildAllowedOrigins();
+
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins.length > 0
+    ? (origin, callback) => {
+        // Allow requests with no origin (e.g. curl, mobile apps, SSR)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    : true, // fallback: allow all if no env vars set (dev without REPLIT_DEV_DOMAIN)
   credentials: true,
 }));
+
+// --- Rate Limiters ---
+
+// Global: 200 req/min per IP (applied to all /api/* routes)
+const globalLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down." },
+});
+app.use("/api", globalLimiter);
 
 app.use(
   helmet({
@@ -199,8 +239,6 @@ async function main() {
   setInterval(() => {
     cleanExpiredUndoTokens().catch(() => {});
   }, 60_000);
-
-  const isDev = process.env.NODE_ENV !== "production";
 
   if (isDev) {
     // Best-effort: try to free the preferred port before starting.

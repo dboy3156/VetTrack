@@ -3,11 +3,12 @@ import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
 import { eq, inArray, desc, and, lt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
+import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
 
 const router = Router();
 
-const UNDO_TTL_MS = 12_000;
+const UNDO_TTL_MS = 90_000;
 const BULK_MAX = 100;
 const FIELD_MAX_LENGTH = 500;
 
@@ -367,7 +368,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/equipment/:id/checkout
-router.post("/:id/checkout", requireAuth, requireRole("technician"), async (req, res) => {
+router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technician"), async (req, res) => {
   try {
     const { location } = req.body as { location?: string };
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
@@ -454,7 +455,7 @@ router.post("/:id/checkout", requireAuth, requireRole("technician"), async (req,
 });
 
 // POST /api/equipment/:id/return
-router.post("/:id/return", requireAuth, requireRole("technician"), async (req, res) => {
+router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician"), async (req, res) => {
   try {
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
@@ -536,7 +537,7 @@ router.post("/:id/return", requireAuth, requireRole("technician"), async (req, r
 });
 
 // POST /api/equipment/:id/scan
-router.post("/:id/scan", requireAuth, requireRole("vet"), async (req, res) => {
+router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), async (req, res) => {
   try {
     const { status, note, photoUrl } = req.body as {
       status?: string;

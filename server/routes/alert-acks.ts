@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, alertAcks } from "../db.js";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
 import { sendPushToOthers, checkDedupe } from "../lib/push.js";
 
 const router = Router();
@@ -18,8 +18,8 @@ router.get("/", requireAuth, async (_req, res) => {
   }
 });
 
-// POST /api/alert-acks — claim an alert ("I'm handling this")
-router.post("/", requireAuth, async (req, res) => {
+// POST /api/alert-acks — claim an alert ("I'm handling this") — technician+ only
+router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { equipmentId, alertType } = req.body;
     if (!equipmentId || !alertType) {

@@ -81,7 +81,7 @@ const STATUS_CONFIG = {
   sterilized: { icon: Droplets, color: "text-teal-500", bg: "bg-teal-50" },
 };
 
-const UNDO_WINDOW_MS = 10_000;
+const UNDO_WINDOW_MS = 90_000;
 
 interface UndoState {
   actionLabel: string;
@@ -752,7 +752,7 @@ export default function EquipmentDetailPage() {
                 <div className="w-full h-1 bg-white/30 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary/70 rounded-full transition-none"
-                    style={{ width: `${(undoCountdown / 10) * 100}%`, transition: "width 1s linear" }}
+                    style={{ width: `${(undoCountdown / (UNDO_WINDOW_MS / 1000)) * 100}%`, transition: "width 1s linear" }}
                   />
                 </div>
               </div>
