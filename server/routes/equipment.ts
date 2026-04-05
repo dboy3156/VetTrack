@@ -1,10 +1,23 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
+import multer from "multer";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
 import { eq, inArray, desc, and, lt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "text/csv" || file.mimetype === "text/plain" || file.originalname.endsWith(".csv")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only CSV files are accepted"));
+    }
+  },
+});
 
 const router = Router();
 
@@ -791,12 +804,20 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
   return { headers, rows };
 }
 
-// POST /api/equipment/import
-router.post("/import", requireAuth, requireAdmin, async (req, res) => {
+// POST /api/equipment/import — accepts multipart/form-data with a "file" field
+// or JSON body with a "csv" string field (backwards-compatible)
+router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (req, res) => {
   try {
-    const { csv } = req.body as { csv?: string };
-    if (!csv || typeof csv !== "string") {
-      return res.status(400).json({ error: "csv field is required" });
+    let csv: string;
+    if (req.file) {
+      // Multipart upload
+      csv = req.file.buffer.toString("utf-8");
+    } else {
+      const body = req.body as { csv?: string };
+      if (!body.csv || typeof body.csv !== "string") {
+        return res.status(400).json({ error: "Provide a CSV file upload (multipart field 'file') or JSON body with 'csv' string" });
+      }
+      csv = body.csv;
     }
 
     const { headers, rows } = parseCsv(csv);
@@ -852,7 +873,7 @@ router.post("/import", requireAuth, requireAdmin, async (req, res) => {
 
       const name = get(nameIdx);
       const serial = get(serialIdx);
-      const status = get(statusIdx) || "ok";
+      const status = (get(statusIdx) || "ok").toLowerCase();
       const location = get(locationIdx);
       const folderName = get(folderIdx);
       const maintStr = get(maintIdx);

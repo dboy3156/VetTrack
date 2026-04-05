@@ -50,6 +50,7 @@ export default function NewEquipmentPage() {
       name: p.get("copyName") ?? "",
       model: p.get("copyModel") ?? "",
       manufacturer: p.get("copyManuf") ?? "",
+      purchaseDate: p.get("copyPurchaseDate") ?? "",
       location: p.get("copyLocation") ?? "",
       folderId: p.get("copyFolder") ?? "",
       maintenanceIntervalDays: p.get("copyMaint") ?? "",
@@ -75,6 +76,7 @@ export default function NewEquipmentPage() {
       name: prefill.name,
       model: prefill.model || undefined,
       manufacturer: prefill.manufacturer || undefined,
+      purchaseDate: prefill.purchaseDate || undefined,
       location: prefill.location || undefined,
       folderId: prefill.folderId || undefined,
       maintenanceIntervalDays: prefill.maintenanceIntervalDays

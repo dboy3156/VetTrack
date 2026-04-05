@@ -114,6 +114,7 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("upload");
   const [csvText, setCsvText] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<ParsedRow[]>([]);
   const [result, setResult] = useState<{ inserted: number; skipped: Array<{ row: number; reason: string }> } | null>(null);
@@ -124,6 +125,7 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
     setTimeout(() => {
       setStep("upload");
       setCsvText("");
+      setCsvFile(null);
       setFileName("");
       setPreview([]);
       setResult(null);
@@ -150,6 +152,7 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
       return;
     }
 
+    setCsvFile(file);
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = (evt.target?.result as string) ?? "";
@@ -163,7 +166,10 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
   }
 
   const importMut = useMutation({
-    mutationFn: () => api.equipment.importCsv(csvText),
+    mutationFn: () => {
+      if (!csvFile) throw new Error("No file selected");
+      return api.equipment.importCsv(csvFile);
+    },
     onMutate: () => setStep("importing"),
     onSuccess: (data) => {
       setResult(data);

@@ -511,6 +511,7 @@ export default function EquipmentDetailPage() {
     if (equipment.name) params.set("copyName", equipment.name);
     if (equipment.model) params.set("copyModel", equipment.model);
     if (equipment.manufacturer) params.set("copyManuf", equipment.manufacturer);
+    if (equipment.purchaseDate) params.set("copyPurchaseDate", equipment.purchaseDate);
     if (equipment.location) params.set("copyLocation", equipment.location);
     if (equipment.folderId) params.set("copyFolder", equipment.folderId);
     if (equipment.maintenanceIntervalDays)

@@ -186,11 +186,18 @@ export const api = {
         { method: "POST", body: JSON.stringify(data), signal },
         { offlineType: "create" }
       ),
-    importCsv: (csv: string) =>
-      request<{ inserted: number; skipped: Array<{ row: number; reason: string; data: Record<string, string> }> }>(
-        "/api/equipment/import",
-        { method: "POST", body: JSON.stringify({ csv }) }
-      ),
+    importCsv: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      // Do NOT set Content-Type — browser sets it automatically with multipart boundary
+      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const res = await fetch("/api/equipment/import", { method: "POST", body: form, headers });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Import failed" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{ inserted: number; skipped: Array<{ row: number; reason: string; data: Record<string, string> }> }>;
+    },
     update: (id: string, data: UpdateEquipmentRequest) =>
       request<Equipment>(
         `/api/equipment/${id}`,
