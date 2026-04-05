@@ -412,7 +412,7 @@ export const api = {
   },
   users: {
     list: () => request<User[]>("/api/users"),
-    updateRole: (id: string, role: "admin" | "technician") =>
+    updateRole: (id: string, role: "admin" | "vet" | "technician" | "viewer") =>
       request<User>(
         `/api/users/${id}/role`,
         { method: "PATCH", body: JSON.stringify({ role }) }

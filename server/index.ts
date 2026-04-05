@@ -1,11 +1,13 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import path from "path";
 import net from "net";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
+import xss from "xss";
 import { initDb, pool } from "./db.js";
 import { runMigrations } from "./migrate.js";
 import { createRequire } from "module";
@@ -34,8 +36,47 @@ app.use(cors({
   credentials: true,
 }));
 
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https:"],
+        fontSrc: ["'self'", "data:", "https:"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+function sanitizeStrings(obj: unknown): void {
+  if (obj === null || typeof obj !== "object") return;
+  const record = obj as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    const val = record[key];
+    if (typeof val === "string") {
+      record[key] = xss(val, { whiteList: {}, stripIgnoreTag: true, stripIgnoreTagBody: ["script"] });
+    } else if (typeof val === "object" && val !== null) {
+      sanitizeStrings(val);
+    }
+  }
+}
+
+app.use((req, _res, next) => {
+  if (req.body && typeof req.body === "object") {
+    sanitizeStrings(req.body);
+  }
+  next();
+});
 
 if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
   console.error("FATAL: SESSION_SECRET environment variable is not set in production mode.");

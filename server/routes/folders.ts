@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, folders, equipment } from "../db.js";
 import { eq, desc, and, isNull, lte } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { subDays } from "date-fns";
 
 const router = Router();
@@ -42,7 +42,7 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
@@ -59,7 +59,7 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
-router.patch("/:id", requireAuth, async (req, res) => {
+router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Name is required" });

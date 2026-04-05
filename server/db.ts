@@ -135,4 +135,3 @@ export async function initDb() {
   // This function is kept as a thin wrapper for backwards compatibility.
   console.log("✅ Database ready");
 }
-

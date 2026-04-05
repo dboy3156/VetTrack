@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
 import { eq, inArray, desc, and, lt } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
 
 const router = Router();
@@ -229,7 +229,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const {
       name,
@@ -271,7 +271,7 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
-router.patch("/:id", requireAuth, async (req, res) => {
+router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     if (!validateFieldLength(req.body as Record<string, unknown>, res)) return;
 
@@ -367,7 +367,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/equipment/:id/checkout
-router.post("/:id/checkout", requireAuth, async (req, res) => {
+router.post("/:id/checkout", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { location } = req.body as { location?: string };
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
@@ -454,7 +454,7 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
 });
 
 // POST /api/equipment/:id/return
-router.post("/:id/return", requireAuth, async (req, res) => {
+router.post("/:id/return", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
@@ -536,7 +536,7 @@ router.post("/:id/return", requireAuth, async (req, res) => {
 });
 
 // POST /api/equipment/:id/scan
-router.post("/:id/scan", requireAuth, async (req, res) => {
+router.post("/:id/scan", requireAuth, requireRole("vet"), async (req, res) => {
   try {
     const { status, note, photoUrl } = req.body as {
       status?: string;
@@ -661,7 +661,7 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
 });
 
 // POST /api/equipment/:id/revert
-router.post("/:id/revert", requireAuth, async (req, res) => {
+router.post("/:id/revert", requireAuth, requireRole("vet"), async (req, res) => {
   try {
     const { undoToken: tokenId } = req.body as { undoToken?: string };
 
@@ -757,7 +757,7 @@ router.post("/bulk-delete", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-router.post("/bulk-move", requireAuth, async (req, res) => {
+router.post("/bulk-move", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { ids, folderId } = req.body as { ids?: unknown; folderId?: string };
     if (!Array.isArray(ids) || ids.length === 0) {

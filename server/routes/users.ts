@@ -28,7 +28,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 router.patch("/:id/role", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { role } = req.body;
-    if (!["admin", "technician"].includes(role)) {
+    if (!["admin", "vet", "technician", "viewer"].includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 

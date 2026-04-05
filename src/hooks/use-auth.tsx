@@ -16,7 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   userId: null,
   email: null,
   name: null,
-  role: "technician",
+  role: "technician" as UserRole,
   isLoaded: false,
   isSignedIn: false,
   isAdmin: false,

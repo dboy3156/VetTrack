@@ -1,6 +1,6 @@
 export type EquipmentStatus = "ok" | "issue" | "maintenance" | "sterilized";
 
-export type UserRole = "admin" | "technician";
+export type UserRole = "admin" | "vet" | "technician" | "viewer";
 
 export type AlertType = "overdue" | "issue" | "inactive" | "sterilization_due";
 

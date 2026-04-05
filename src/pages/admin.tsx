@@ -258,6 +258,33 @@ function FoldersSection() {
   );
 }
 
+type UserRole = "admin" | "vet" | "technician" | "viewer";
+
+const ROLE_BADGE_STYLES: Record<UserRole, string> = {
+  admin: "bg-purple-100 text-purple-800 border-purple-200",
+  vet: "bg-blue-100 text-blue-800 border-blue-200",
+  technician: "bg-amber-100 text-amber-800 border-amber-200",
+  viewer: "bg-slate-100 text-slate-700 border-slate-200",
+};
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  vet: "Vet",
+  technician: "Technician",
+  viewer: "Viewer",
+};
+
+function RoleBadge({ role }: { role: string }) {
+  const r = role as UserRole;
+  const style = ROLE_BADGE_STYLES[r] ?? "bg-slate-100 text-slate-700 border-slate-200";
+  const label = ROLE_LABELS[r] ?? role;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${style}`}>
+      {label}
+    </span>
+  );
+}
+
 function UsersSection() {
   const queryClient = useQueryClient();
 
@@ -267,7 +294,7 @@ function UsersSection() {
   });
 
   const updateRoleMut = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: "admin" | "technician" }) =>
+    mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
       api.users.updateRole(id, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -297,20 +324,25 @@ function UsersSection() {
           <div className="flex flex-col gap-2">
             {users?.map((user) => (
               <div key={user.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{user.name || user.email}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium truncate">{user.name || user.email}</p>
+                    <RoleBadge role={user.role} />
+                  </div>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                 </div>
                 <Select
                   value={user.role}
-                  onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as "admin" | "technician" })}
+                  onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as UserRole })}
                 >
-                  <SelectTrigger className="w-36 h-9 text-xs" data-testid={`select-role-${user.id}`}>
+                  <SelectTrigger className="w-36 h-9 text-xs shrink-0" data-testid={`select-role-${user.id}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="vet">Vet</SelectItem>
                     <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

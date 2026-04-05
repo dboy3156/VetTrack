@@ -3,12 +3,14 @@ import { db, users } from "../db.js";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
+export type UserRole = "admin" | "vet" | "technician" | "viewer";
+
 export interface AuthUser {
   id: string;
   clerkId: string;
   email: string;
   name: string;
-  role: "admin" | "technician";
+  role: UserRole;
 }
 
 declare global {
@@ -18,6 +20,13 @@ declare global {
     }
   }
 }
+
+const ROLE_HIERARCHY: Record<UserRole, number> = {
+  admin: 40,
+  vet: 30,
+  technician: 20,
+  viewer: 10,
+};
 
 const DEV_USER: AuthUser = {
   id: "dev-admin-001",
@@ -67,7 +76,6 @@ export async function requireAuth(
       } catch (insertErr: unknown) {
         const pgErr = insertErr as { code?: string };
         if (pgErr?.code === "23505") {
-          // Concurrent insert — re-fetch the row that won the race
           [user] = await db
             .select()
             .from(users)
@@ -90,7 +98,7 @@ export async function requireAuth(
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
-      role: user.role as "admin" | "technician",
+      role: user.role as UserRole,
     };
 
     next();
@@ -109,4 +117,16 @@ export function requireAdmin(
   if (req.authUser.role !== "admin")
     return res.status(403).json({ error: "Admin access required" });
   next();
+}
+
+export function requireRole(minRole: UserRole) {
+  return function (req: Request, res: Response, next: NextFunction) {
+    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    const userLevel = ROLE_HIERARCHY[req.authUser.role] ?? 0;
+    const requiredLevel = ROLE_HIERARCHY[minRole] ?? 0;
+    if (userLevel < requiredLevel) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    next();
+  };
 }
