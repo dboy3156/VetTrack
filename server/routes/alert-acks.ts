@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { db, alertAcks } from "../db.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
+import { sendPushToOthers, checkDedupe } from "../lib/push.js";
 
 const router = Router();
 
@@ -44,6 +45,16 @@ router.post("/", requireAuth, async (req, res) => {
       .returning();
 
     res.status(201).json(ack);
+
+    const key = `ack:${equipmentId}:${alertType}`;
+    if (!checkDedupe(equipmentId, key)) {
+      sendPushToOthers(req.authUser!.id, {
+        title: "Alert Acknowledged",
+        body: `${req.authUser!.email} is handling the ${alertType.replace(/_/g, " ")} alert`,
+        tag: `ack:${equipmentId}:${alertType}`,
+        url: `/`,
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to acknowledge alert" });

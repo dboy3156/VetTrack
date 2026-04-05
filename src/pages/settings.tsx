@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout";
 import { SettingsSectionHeader, SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/hooks/use-auth";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,8 @@ import {
   Volume2,
   VolumeX,
   BellRing,
+  Bell,
+  BellOff,
   Clock,
   Calendar,
   RotateCcw,
@@ -28,14 +31,17 @@ import {
   Sun,
   AlignJustify,
   SunDim,
+  Send,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
   const { name, email } = useAuth();
   const [, navigate] = useLocation();
+  const push = usePushNotifications();
 
   const handleLogout = () => {
     const keysToRemove = Object.keys(localStorage).filter((k) =>
@@ -52,6 +58,9 @@ export default function SettingsPage() {
       await playMuteTone();
     }
     update({ soundEnabled: v });
+    if (push.subscribed) {
+      push.updateSettings({ soundEnabled: v }).catch(() => {});
+    }
   };
 
   const handleCriticalAlertsToggle = async (v: boolean) => {
@@ -63,6 +72,9 @@ export default function SettingsPage() {
       }
     }
     update({ criticalAlertsSound: v });
+    if (push.subscribed) {
+      push.updateSettings({ alertsEnabled: v }).catch(() => {});
+    }
   };
 
   return (
@@ -121,6 +133,77 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Push Notifications */}
+        {push.supported && (
+          <section className="space-y-2">
+            <SettingsSectionHeader label="Push Notifications" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-muted/40">
+                <span className="flex-shrink-0 text-muted-foreground">
+                  {push.subscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground leading-tight">Device Notifications</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {push.permission === "denied"
+                      ? "Permission denied — enable in browser settings"
+                      : push.subscribed
+                      ? "This device will receive alerts even when the app is closed"
+                      : "Receive alerts on this device, even when the app is closed"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={push.subscribed ? "outline" : "default"}
+                  disabled={push.loading || push.permission === "denied"}
+                  data-testid="push-toggle-btn"
+                  onClick={async () => {
+                    if (push.subscribed) {
+                      const ok = await push.unsubscribe();
+                      if (ok) toast.success("Push notifications disabled");
+                      else toast.error(push.error || "Failed to disable");
+                    } else {
+                      const ok = await push.subscribe({
+                        soundEnabled: settings.soundEnabled,
+                        alertsEnabled: settings.criticalAlertsSound,
+                      });
+                      if (ok) toast.success("Push notifications enabled");
+                      else if (push.permission === "denied") toast.error("Permission denied");
+                      else toast.error(push.error || "Failed to enable");
+                    }
+                  }}
+                >
+                  {push.subscribed ? "Disable" : "Enable"}
+                </Button>
+              </div>
+              {push.subscribed && (
+                <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-muted/40">
+                  <span className="flex-shrink-0 text-muted-foreground">
+                    <Send className="w-5 h-5" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground leading-tight">Test Notification</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Send a test push to verify it's working</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={push.loading}
+                    data-testid="push-test-btn"
+                    onClick={async () => {
+                      const ok = await push.sendTestNotification();
+                      if (ok) toast.success("Test notification sent");
+                      else toast.error(push.error || "Failed to send test");
+                    }}
+                  >
+                    Send Test
+                  </Button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Sound */}
         <section className="space-y-2">

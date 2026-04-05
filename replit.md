@@ -31,6 +31,7 @@ Tables (all prefixed `vt_`):
 - `vt_scan_logs` — scan history per equipment
 - `vt_transfer_logs` — folder transfer history
 - `vt_whatsapp_alerts` — WhatsApp alert log
+- `vt_push_subscriptions` — Web Push subscriptions (endpoint, keys, soundEnabled, alertsEnabled)
 
 ## Running
 ```bash
@@ -48,6 +49,7 @@ tsx server/seed.ts   # Seed sample data
 6. **WhatsApp Escalation** — Opens wa.me with pre-filled alert message
 7. **Analytics** — Status distribution pie chart, 30-day scan activity, top problem equipment
 8. **Full Offline-First** — All core actions (checkout, return, scan, status update) work offline with optimistic UI updates. Pending actions are queued in IndexedDB and automatically synced when connectivity returns. Conflict resolution uses last-write-wins by timestamp. UI shows pending/synced/failed states via subtle header indicators.
+10. **Web Push Notifications** — Real-time push notifications via Web Push + VAPID. Staff subscribe from Settings → Push Notifications. Events trigger notifications: equipment issue, overdue maintenance, sterilization due, checkout, return, transfer, alert acknowledgment. Per-user settings gates: silent mode and alerts-enabled stored with subscription. In-memory 60-second deduplication prevents duplicate sends. Test button in Settings to verify device subscription.
 9. **Settings System** — Centralized settings persisted to localStorage. Quick Settings panel (gear icon in top bar) for instant access to dark mode, density, sound, and language. Full Settings page at `/settings` with all sections: Display, Sound, Language & Input, Date & Time, Reset (with confirmation dialog), and Account (logout). Dark mode applies `dark` class to `<html>`; density applies `data-density` attribute.
 
 ## Auth

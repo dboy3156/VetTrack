@@ -113,6 +113,23 @@ export const undoTokens = pgTable("vt_undo_tokens", {
   expiresAt: timestamp("expires_at").notNull(),
 });
 
+export const serverConfig = pgTable("vt_server_config", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const pushSubscriptions = pgTable("vt_push_subscriptions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  soundEnabled: boolean("sound_enabled").notNull().default(true),
+  alertsEnabled: boolean("alerts_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export async function initDb() {
   try {
     await pool.query(`
@@ -201,6 +218,21 @@ export async function initDb() {
         previous_state TEXT NOT NULL,
         expires_at TIMESTAMP NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS vt_server_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS vt_push_subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        sound_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
     `);
 
     // Migrate: add checkout columns to existing tables if not present
@@ -210,6 +242,13 @@ export async function initDb() {
         ADD COLUMN IF NOT EXISTS checked_out_by_email TEXT,
         ADD COLUMN IF NOT EXISTS checked_out_at TIMESTAMP,
         ADD COLUMN IF NOT EXISTS checked_out_location TEXT;
+    `);
+
+    // Migrate: add settings columns to push subscriptions if not present
+    await pool.query(`
+      ALTER TABLE vt_push_subscriptions
+        ADD COLUMN IF NOT EXISTS sound_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        ADD COLUMN IF NOT EXISTS alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE;
     `);
 
     console.log("✅ Database tables initialized");

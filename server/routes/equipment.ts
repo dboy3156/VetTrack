@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
 import { eq, inArray, desc, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { sendPushToAll, checkDedupe } from "../lib/push.js";
 
 const router = Router();
 
@@ -332,6 +333,17 @@ router.patch("/:id", requireAuth, async (req, res) => {
           toFolderName: newFolder?.name ?? null,
           userId: req.authUser!.id,
         });
+
+        const itemName = result?.name ?? oldItem.name;
+        if (!checkDedupe(req.params.id, "transfer")) {
+          const toLabel = newFolder?.name ?? "unassigned";
+          sendPushToAll({
+            title: "Equipment Transferred",
+            body: `${itemName} moved to ${toLabel}`,
+            tag: `transfer:${req.params.id}`,
+            url: `/equipment/${req.params.id}`,
+          }).catch(() => {});
+        }
       }
     });
 
@@ -417,6 +429,16 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
 
     if (!updated) return res.status(404).json({ error: "Equipment not found" });
     res.json({ equipment: updated, undoToken });
+
+    const u = updated as EquipmentRow;
+    if (!checkDedupe(u.id, "checkout")) {
+      sendPushToAll({
+        title: "Equipment Checked Out",
+        body: `${u.name} checked out${req.body?.location ? ` — ${req.body.location}` : ""}`,
+        tag: `checkout:${u.id}`,
+        url: `/equipment/${u.id}`,
+      }).catch(() => {});
+    }
   } catch (err) {
     if (err instanceof CheckoutConflictError) {
       return res.status(409).json({
@@ -496,6 +518,16 @@ router.post("/:id/return", requireAuth, async (req, res) => {
     if (!updated) return res.status(404).json({ error: "Equipment not found" });
     if (alreadyReturned) return res.json(updated);
     res.json({ equipment: updated, undoToken });
+
+    const u = updated as EquipmentRow;
+    if (!checkDedupe(u.id, "return")) {
+      sendPushToAll({
+        title: "Equipment Returned",
+        body: `${u.name} has been returned and is available`,
+        tag: `return:${u.id}`,
+        url: `/equipment/${u.id}`,
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Return failed" });
@@ -580,6 +612,47 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
 
     if (!updatedEquipment) return res.status(404).json({ error: "Equipment not found" });
     res.json({ equipment: updatedEquipment, scanLog, undoToken });
+
+    const eq2 = updatedEquipment as EquipmentRow;
+    if (status === "issue" && !checkDedupe(eq2.id, "issue")) {
+      sendPushToAll({
+        title: "Equipment Issue Reported",
+        body: `${eq2.name} needs attention${note ? ` — ${note}` : ""}`,
+        tag: `issue:${eq2.id}`,
+        url: `/equipment/${eq2.id}`,
+      }).catch(() => {});
+    }
+
+    const now = new Date();
+    if (
+      eq2.maintenanceIntervalDays &&
+      eq2.lastMaintenanceDate &&
+      !checkDedupe(eq2.id, "overdue")
+    ) {
+      const dueDate = new Date(eq2.lastMaintenanceDate);
+      dueDate.setDate(dueDate.getDate() + eq2.maintenanceIntervalDays);
+      if (now > dueDate) {
+        const daysOverdue = Math.ceil((now.getTime() - dueDate.getTime()) / 86_400_000);
+        sendPushToAll({
+          title: "Maintenance Overdue",
+          body: `${eq2.name} is ${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue for maintenance`,
+          tag: `overdue:${eq2.id}`,
+          url: `/equipment/${eq2.id}`,
+        }).catch(() => {});
+      }
+    }
+
+    if (eq2.lastSterilizationDate && !checkDedupe(eq2.id, "sterilization_due")) {
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+      if (new Date(eq2.lastSterilizationDate) < sevenDaysAgo) {
+        sendPushToAll({
+          title: "Sterilization Due",
+          body: `${eq2.name} has not been sterilized in 7+ days`,
+          tag: `sterilization_due:${eq2.id}`,
+          url: `/equipment/${eq2.id}`,
+        }).catch(() => {});
+      }
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Scan failed" });
@@ -733,6 +806,13 @@ router.post("/bulk-move", requireAuth, async (req, res) => {
     });
 
     res.json({ affected: typedIds.length });
+
+    sendPushToAll({
+      title: "Bulk Transfer",
+      body: `${typedIds.length} item${typedIds.length !== 1 ? "s" : ""} moved${targetFolderId ? ` to a new folder` : " to Unassigned"}`,
+      tag: `bulk-move:${Date.now()}`,
+      url: "/",
+    }).catch(() => {});
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Bulk move failed" });

@@ -13,6 +13,8 @@ import whatsappRoutes from "./routes/whatsapp.js";
 import storageRoutes from "./routes/storage.js";
 import alertAcksRoutes from "./routes/alert-acks.js";
 import demoSeedRoutes from "./routes/demo-seed.js";
+import pushRoutes from "./routes/push.js";
+import { initVapid } from "./lib/push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -56,6 +58,7 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/storage", storageRoutes);
 app.use("/api/alert-acks", alertAcksRoutes);
 app.use("/api/demo-seed", demoSeedRoutes);
+app.use("/api/push", pushRoutes);
 
 if (process.env.NODE_ENV === "production") {
   const publicDir = path.join(__dirname, "../public");
@@ -67,6 +70,7 @@ if (process.env.NODE_ENV === "production") {
 
 async function main() {
   await initDb();
+  await initVapid();
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 VetTrack API running on port ${PORT}`);
     if (!process.env.CLERK_SECRET_KEY) {

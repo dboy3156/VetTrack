@@ -451,4 +451,23 @@ export const api = {
         { method: "DELETE", body: JSON.stringify({ equipmentId, alertType }) }
       ),
   },
+  push: {
+    getVapidPublicKey: () =>
+      request<{ publicKey: string }>("/api/push/vapid-public-key"),
+    subscribe: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+      request<{ success: boolean; id: string }>(
+        "/api/push/subscribe",
+        { method: "POST", body: JSON.stringify(subscription) }
+      ),
+    unsubscribe: (endpoint: string) =>
+      request<void>(
+        "/api/push/subscribe",
+        { method: "DELETE", body: JSON.stringify({ endpoint }) }
+      ),
+    sendTest: () =>
+      request<{ success: boolean }>(
+        "/api/push/test",
+        { method: "POST" }
+      ),
+  },
 };
