@@ -480,12 +480,15 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+type UserStatusFilter = "all" | "pending" | "active" | "blocked";
+
 function UsersSection() {
   const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
 
   const { data: users, isLoading } = useQuery({
-    queryKey: ["/api/users"],
-    queryFn: api.users.list,
+    queryKey: ["/api/users", statusFilter],
+    queryFn: () => api.users.list(statusFilter === "all" ? undefined : statusFilter),
   });
 
   const updateRoleMut = useMutation({
@@ -501,13 +504,20 @@ function UsersSection() {
   const updateStatusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "pending" | "active" | "blocked" }) =>
       api.users.updateStatus(id, status),
-    onSuccess: () => {
+    onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
-      toast.success("Status updated");
+      toast.success(status === "active" ? "User approved" : status === "blocked" ? "User rejected" : "Status updated");
     },
     onError: () => toast.error("Failed to update status"),
   });
+
+  const filterButtons: { label: string; value: UserStatusFilter }[] = [
+    { label: "All", value: "all" },
+    { label: "Pending", value: "pending" },
+    { label: "Active", value: "active" },
+    { label: "Blocked", value: "blocked" },
+  ];
 
   return (
     <Card>
@@ -518,18 +528,43 @@ function UsersSection() {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Status filter tabs */}
+        <div className="flex gap-1.5 mb-4 flex-wrap">
+          {filterButtons.map(({ label, value }) => (
+            <button
+              key={value}
+              onClick={() => setStatusFilter(value)}
+              data-testid={`filter-users-${value}`}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium border transition-colors",
+                statusFilter === value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
           </div>
-        ) : users?.length === 0 ? (
+        ) : !users || users.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No users found. Users appear here once they sign in.
+            {statusFilter === "all"
+              ? "No users found. Users appear here once they sign in."
+              : `No ${statusFilter} users.`}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {users?.map((user) => (
-              <div key={user.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border gap-3">
+            {users.map((user) => (
+              <div
+                key={user.id}
+                data-testid={`user-row-${user.id}`}
+                className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border gap-3"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate">{user.name || user.email}</p>
@@ -537,13 +572,41 @@ function UsersSection() {
                     <StatusBadge status={user.status} />
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Joined {new Date(user.createdAt).toLocaleDateString()}
+                  </p>
+                  {user.status === "pending" && (
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-7 px-2 text-xs"
+                        onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
+                        disabled={updateStatusMut.isPending}
+                        data-testid={`btn-reject-user-${user.id}`}
+                      >
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2 text-xs"
+                        onClick={() => updateStatusMut.mutate({ id: user.id, status: "active" })}
+                        disabled={updateStatusMut.isPending}
+                        data-testid={`btn-approve-user-${user.id}`}
+                      >
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Approve
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <Select
                     value={user.role}
                     onValueChange={(role) => updateRoleMut.mutate({ id: user.id, role: role as UserRole })}
                   >
-                    <SelectTrigger className="w-36 h-8 text-xs" data-testid={`select-role-${user.id}`}>
+                    <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-role-${user.id}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -557,7 +620,7 @@ function UsersSection() {
                     value={user.status}
                     onValueChange={(status) => updateStatusMut.mutate({ id: user.id, status: status as "pending" | "active" | "blocked" })}
                   >
-                    <SelectTrigger className="w-36 h-8 text-xs" data-testid={`select-status-${user.id}`}>
+                    <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-status-${user.id}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

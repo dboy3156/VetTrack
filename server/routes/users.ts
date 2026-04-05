@@ -30,7 +30,15 @@ router.get("/me", requireAuthAny, async (req, res) => {
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const allUsers = await db.select().from(users).orderBy(users.createdAt);
+    const { status } = req.query;
+    const validStatuses = ["pending", "active", "blocked"];
+    if (status !== undefined && !validStatuses.includes(status as string)) {
+      return res.status(400).json({ error: "Invalid status filter. Must be one of: pending, active, blocked" });
+    }
+    const query = db.select().from(users);
+    const allUsers = status
+      ? await query.where(eq(users.status, status as string)).orderBy(users.createdAt)
+      : await query.orderBy(users.createdAt);
     res.json(allUsers);
   } catch (err) {
     console.error(err);

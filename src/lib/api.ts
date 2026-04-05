@@ -442,7 +442,8 @@ export const api = {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
   },
   users: {
-    list: () => request<User[]>("/api/users"),
+    list: (status?: "pending" | "active" | "blocked") =>
+      request<User[]>(status ? `/api/users?status=${status}` : "/api/users"),
     listPending: () => request<User[]>("/api/users/pending"),
     updateRole: (id: string, role: "admin" | "vet" | "technician" | "viewer") =>
       request<User>(
