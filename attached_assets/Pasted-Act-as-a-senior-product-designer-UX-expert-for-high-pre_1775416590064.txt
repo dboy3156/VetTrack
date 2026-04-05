@@ -1,0 +1,117 @@
+Act as a senior product designer + UX expert for high-pressure medical environments.
+
+Your goal is to redesign VetTrack’s interface using a hybrid approach:
+	•	WhatsApp-style UX for speed and intuition
+	•	System-style UX for control and safety
+
+Do NOT blindly copy WhatsApp. Adapt its principles to a veterinary hospital workflow.
+
+⸻
+
+1. Identify Where WhatsApp-Style UX Fits
+
+Apply chat-like / feed-based UI ONLY where speed is critical:
+	•	Equipment activity (status updates, usage logs)
+	•	Recent actions (timeline of events)
+	•	Quick updates (mark as in use / available / cleaning)
+
+Design principles:
+	•	List → tap → act (1–2 actions max)
+	•	Minimal thinking required
+	•	Clear visual state (colors / icons)
+
+⸻
+
+2. Define WhatsApp-Like Components
+
+Design these elements:
+	•	Feed / Timeline View
+	•	Chronological activity (like chat)
+	•	Shows:
+	•	who did what
+	•	what changed
+	•	when
+	•	Quick Action Bar
+	•	One-tap actions (no deep menus)
+	•	Example:
+	•	“Mark as in use”
+	•	“Send to cleaning”
+	•	Compact Cards
+	•	Each equipment = simple, readable unit
+	•	No overload of data
+
+⸻
+
+3. Define Where NOT to Use WhatsApp UX
+
+Use structured/system UI for:
+	•	User management
+	•	Role/permissions
+	•	Admin settings
+	•	Analytics / reports
+
+Design as:
+	•	Tables
+	•	Panels
+	•	Clear hierarchy
+
+Reason:
+These require accuracy, not speed.
+
+⸻
+
+4. Error Prevention (Critical)
+
+For critical actions:
+	•	Add confirmation steps
+	•	Prevent accidental taps
+	•	Make destructive actions harder
+
+Examples:
+	•	Delete → confirmation modal
+	•	Role change → explicit approval
+
+⸻
+
+5. UX Under Pressure
+
+Design for ICU conditions:
+	•	User is distracted
+	•	User is fast
+	•	User makes mistakes
+
+Ensure:
+	•	Actions are obvious
+	•	Feedback is immediate
+	•	State is always clear
+
+⸻
+
+6. Visual Clarity Rules
+	•	Each item must answer instantly:
+	•	What is it?
+	•	What is its status?
+	•	What can I do now?
+	•	Avoid:
+	•	Dense text
+	•	Hidden actions
+	•	Multi-step flows
+
+⸻
+
+7. Output Requirements
+
+Provide:
+	•	Screen structure (main views)
+	•	Component breakdown
+	•	Where WhatsApp-style is used vs not used
+	•	Key UX risks
+	•	Suggested improvements
+
+⸻
+
+Goal
+
+Create a system that:
+	•	Feels as fast and intuitive as WhatsApp
+	•	But is safe and reliable for real hospital use
