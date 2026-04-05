@@ -126,6 +126,8 @@ export default function EquipmentDetailPage() {
     const params = new URLSearchParams(searchStr);
     if (params.get("action") === "scan") {
       setScanActionSheetOpen(true);
+    } else if (params.get("action") === "issue") {
+      setReportIssueOpen(true);
     }
   }, [searchStr]);
 

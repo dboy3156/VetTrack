@@ -343,18 +343,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
     }
   }
 
-  async function handleMarkIssue() {
+  function handleMarkIssue() {
     if (!scannedEquipment) return;
-    setIsActing(true);
-    try {
-      await api.equipment.scan(scannedEquipment.id, { status: "issue" });
-      toast.success(`Issue reported for ${scannedEquipment.name}`);
-      onClose();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Status update failed";
-      toast.error(msg);
-      setIsActing(false);
-    }
+    navigateToEquipment(scannedEquipment.id, "issue");
   }
 
   return (
@@ -692,11 +683,11 @@ export function QrScanner({ onClose }: QrScannerProps) {
                   variant="outline"
                   className="flex-1 gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                   onClick={handleMarkIssue}
-                  disabled={isActing || scannedEquipment.status === "issue"}
+                  disabled={isActing}
                   data-testid="btn-scan-inline-mark-issue"
                 >
                   <Wrench className="w-4 h-4" />
-                  Mark Issue
+                  Report Issue
                 </Button>
               </div>
 
