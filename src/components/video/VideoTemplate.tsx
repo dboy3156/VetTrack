@@ -10,21 +10,24 @@ import { Scene7 } from "./video_scenes/Scene7";
 import { Scene8 } from "./video_scenes/Scene8";
 
 const SCENE_DURATIONS = {
-  scene1: 7000,
+  scene1: 8000,
   scene2: 13000,
-  scene3: 12000,
-  scene4: 15000,
-  scene5: 10000,
-  scene6: 8000,
-  scene7: 10000,
-  scene8: 6000,
+  scene3: 13000,
+  scene4: 13000,
+  scene5: 11000,
+  scene6: 9000,
+  scene7: 11000,
+  scene8: 7000,
 };
 
 export default function VideoTemplate() {
   const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-slate-900 text-white font-sans">
+    <div
+      className="relative w-full h-screen overflow-hidden bg-slate-900 text-white"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
       {/* Persistent Background Layer */}
       <div className="absolute inset-0">
         <motion.div
@@ -61,16 +64,21 @@ export default function VideoTemplate() {
         transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
       />
 
-      {/* Persistent Logo Mark */}
+      {/* VetTrack Logo — top-right to avoid overlap with back button at top-left */}
       <motion.div
-        className="absolute top-8 left-8 z-50 flex items-center gap-3"
+        className="absolute top-4 right-6 z-50 flex items-center gap-2.5"
         animate={{ opacity: currentScene === 7 ? 0 : 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-teal-900/50">
-          <span className="text-white font-bold text-xl">V</span>
+        <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-teal-900/50">
+          <span className="text-white font-bold text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>V</span>
         </div>
-        <span className="text-xl font-bold tracking-tight text-white">VetTrack</span>
+        <span
+          className="text-lg font-bold tracking-tight text-white"
+          style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+        >
+          VetTrack
+        </span>
       </motion.div>
 
       {/* Foreground Scenes */}
@@ -85,14 +93,14 @@ export default function VideoTemplate() {
         {currentScene === 7 && <Scene8 key="scene8" />}
       </AnimatePresence>
 
-      {/* Fade-to-black overlay: only activates during Scene 8, fades in at the end */}
+      {/* Fade-to-black overlay: activates during Scene 8, fades out gently on loop */}
       <motion.div
         className="absolute inset-0 bg-black pointer-events-none z-[100]"
         animate={{ opacity: currentScene === 7 ? 1 : 0 }}
         transition={
           currentScene === 7
             ? { duration: 1, ease: "easeIn", delay: 4.5 }
-            : { duration: 0 }
+            : { duration: 0.8, ease: "easeOut" }
         }
       />
     </div>
