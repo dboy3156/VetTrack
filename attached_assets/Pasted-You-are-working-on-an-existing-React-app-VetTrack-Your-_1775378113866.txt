@@ -1,0 +1,217 @@
+You are working on an existing React app (VetTrack).
+
+Your task is to add a management system layer without breaking anything that already works.
+
+This includes:
+	1.	A Live Equipment Dashboard
+	2.	A Monthly PDF Report
+
+⸻
+
+VERY IMPORTANT RULES
+	•	Do NOT break existing code
+	•	Do NOT rewrite existing components
+	•	Do NOT change existing logic unless necessary
+	•	Reuse existing hooks and data
+	•	Keep everything simple
+
+⸻
+
+USE EXISTING DATA (MANDATORY)
+
+Use existing hooks like:
+	•	equipment list (e.g. useListEquipment)
+	•	logs (e.g. useListLogs)
+	•	existing status fields
+
+Do NOT create new API calls.
+
+⸻
+
+PART 1 — DASHBOARD
+
+Add a new page
+
+Create a new page:
+
+→ /dashboard
+
+Add a simple route without changing existing routing structure too much.
+
+⸻
+
+Layout (simple vertical page)
+
+Sections in this order:
+	1.	Summary
+	2.	Critical Alerts
+	3.	Who Has What
+	4.	Location Overview
+
+⸻
+
+Summary (top of page)
+
+Show counts:
+	•	Available
+	•	In Use
+	•	Issues
+	•	Missing
+
+⸻
+
+Definitions (must follow)
+	•	Available → status = ok
+	•	In Use → last scan shows active use or assigned
+	•	Issues → status = issue
+	•	Missing →
+	•	not scanned for 24h OR
+	•	marked as missing
+
+⸻
+
+Critical Alerts
+
+Show only:
+	•	items with issues
+	•	missing items
+
+Each item shows:
+	•	equipment name
+	•	status
+	•	last known location
+
+Keep it short.
+
+⸻
+
+Who Has What
+
+Group equipment by user:
+	•	show user name
+	•	number of items
+
+On click → show their equipment list
+
+If no ownership field exists:
+
+→ use last scan log (last user)
+
+⸻
+
+Location Overview
+
+Group by location:
+	•	ICU
+	•	Surgery
+	•	Rooms
+
+Show count per location.
+
+⸻
+
+Real-time behavior
+	•	Use simple polling (every 15–30 seconds) OR refresh
+	•	Do NOT use websockets
+
+Show:
+
+→ “Live” or “Last updated”
+
+⸻
+
+PART 2 — MONTHLY PDF REPORT
+
+Add button
+
+→ “Generate Monthly Report”
+
+⸻
+
+PDF rules
+	•	Must be ONE page only
+	•	Simple and clean
+	•	No clutter
+
+If too much content → cut lower sections
+
+⸻
+
+Structure
+	1.	Header (Month + Year)
+	2.	Summary
+	3.	Issues
+	4.	Cost
+	5.	Insights
+
+⸻
+
+Summary (same logic as dashboard)
+	•	total equipment
+	•	total issues
+	•	missing items
+	•	estimated loss
+
+⸻
+
+Cost calculation (simple)
+	•	Missing → full equipment value
+	•	Issue → 15% of value
+	•	If no value → use default
+
+⸻
+
+Data source (MANDATORY)
+
+Use:
+	•	equipment data
+	•	scan logs
+	•	status
+
+Do NOT invent new data.
+
+⸻
+
+PDF generation
+	•	Generate on client side
+	•	Use simple library (like jsPDF)
+	•	No backend
+
+⸻
+
+CONNECTION BETWEEN DASHBOARD & PDF
+
+Both must use:
+	•	same definitions
+	•	same calculations
+	•	same data
+
+Example:
+
+If dashboard shows 5 issues → PDF must reflect same logic monthly
+
+⸻
+
+EDGE CASES
+
+Handle:
+	•	No issues → show “No issues”
+	•	No missing → show “All equipment accounted for”
+	•	Empty data → safe fallback
+
+⸻
+
+OUTPUT
+
+Explain:
+	•	what files/components you added
+	•	where they connect
+	•	how calculations work
+
+⸻
+
+FINAL RULE
+
+If something is complex → simplify it.
+
+This is a lightweight management layer, not a full system.
