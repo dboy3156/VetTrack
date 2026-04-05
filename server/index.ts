@@ -12,6 +12,7 @@ import userRoutes from "./routes/users.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import storageRoutes from "./routes/storage.js";
 import alertAcksRoutes from "./routes/alert-acks.js";
+import demoSeedRoutes from "./routes/demo-seed.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/storage", storageRoutes);
 app.use("/api/alert-acks", alertAcksRoutes);
+app.use("/api/demo-seed", demoSeedRoutes);
 
 if (process.env.NODE_ENV === "production") {
   const publicDir = path.join(__dirname, "../public");

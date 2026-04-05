@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import {
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import jsQR from "jsqr";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -57,11 +58,47 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 export default function EquipmentListPage() {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
+  const [, navigate] = useLocation();
+  const qrInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [folderFilter, setFolderFilter] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+
+  function handleQrScan(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!e.target) return;
+    e.target.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (!code) {
+          toast.error("No QR code found in image");
+          return;
+        }
+        const match = code.data.match(/\/equipment\/([a-zA-Z0-9_-]+)/);
+        if (match) {
+          navigate(`/equipment/${match[1]}`);
+        } else {
+          toast.error("QR code does not link to equipment");
+        }
+      };
+      img.src = evt.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
 
   const { data: equipment, isLoading } = useQuery({
     queryKey: ["/api/equipment"],
@@ -139,12 +176,32 @@ export default function EquipmentListPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Equipment</h1>
-          <Link href="/equipment/new">
-            <Button size="sm" data-testid="btn-add">
-              <Plus className="w-4 h-4 mr-1" />
-              Add
+          <div className="flex items-center gap-2">
+            <input
+              ref={qrInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleQrScan}
+              data-testid="qr-file-input"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => qrInputRef.current?.click()}
+              data-testid="btn-scan-qr"
+            >
+              <QrCode className="w-4 h-4 mr-1" />
+              Scan QR
             </Button>
-          </Link>
+            <Link href="/equipment/new">
+              <Button size="sm" data-testid="btn-add">
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Search + filters */}
