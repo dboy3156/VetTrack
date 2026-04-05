@@ -522,9 +522,16 @@ export default function EquipmentDetailPage() {
     navigate(`/equipment/new?${params.toString()}`);
   }
 
+  const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error("Photo must be under 2 MB");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => setScanPhoto(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -533,6 +540,11 @@ export default function EquipmentDetailPage() {
   function handleReportIssuePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error("Photo must be under 2 MB");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => setReportIssuePhoto(ev.target?.result as string);
     reader.readAsDataURL(file);

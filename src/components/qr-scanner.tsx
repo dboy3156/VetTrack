@@ -112,6 +112,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const lastScanRef = useRef<number>(0);
   const stopScannerRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showFallbackHint, setShowFallbackHint] = useState(false);
   const containerId = "qr-scanner-container";
 
@@ -164,6 +165,10 @@ export function QrScanner({ onClose }: QrScannerProps) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
     }
+    if (initTimeoutRef.current) {
+      clearTimeout(initTimeoutRef.current);
+      initTimeoutRef.current = null;
+    }
     if (scannerRef.current) {
       try {
         const state = scannerRef.current.getState();
@@ -185,9 +190,35 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const startScanner = useCallback(async () => {
     setPhase("init");
 
+    if (initTimeoutRef.current) clearTimeout(initTimeoutRef.current);
+    initTimeoutRef.current = setTimeout(async () => {
+      initTimeoutRef.current = null;
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState();
+          if (
+            state === Html5QrcodeScannerState.SCANNING ||
+            state === Html5QrcodeScannerState.PAUSED
+          ) {
+            return;
+          }
+          await scannerRef.current.stop().catch(() => {});
+        } catch {
+          // ignore
+        }
+        scannerRef.current = null;
+      }
+      setManualCode("");
+      setPhase("manual");
+    }, 10000);
+
     try {
       const devices = await Html5Qrcode.getCameras();
       if (!devices || devices.length === 0) {
+        if (initTimeoutRef.current) {
+          clearTimeout(initTimeoutRef.current);
+          initTimeoutRef.current = null;
+        }
         setPhase("no_camera");
         return;
       }
@@ -216,6 +247,11 @@ export function QrScanner({ onClose }: QrScannerProps) {
         () => {}
       );
 
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+        initTimeoutRef.current = null;
+      }
+
       setPhase("scanning");
       setShowFallbackHint(false);
 
@@ -232,6 +268,10 @@ export function QrScanner({ onClose }: QrScannerProps) {
         // torch check failed — that's fine
       }
     } catch (err: unknown) {
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+        initTimeoutRef.current = null;
+      }
       const msg = errorToString(err);
       if (
         msg.includes("Permission") ||

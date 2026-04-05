@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
@@ -45,6 +45,7 @@ import {
   ChevronRight,
   MapPin,
   Upload,
+  Loader2,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { formatRelativeTime } from "@/lib/utils";
@@ -76,6 +77,40 @@ export default function EquipmentListPage() {
   const folderFilter = params.get("folder") ?? "all";
   const locationFilter = params.get("location") ?? "all";
 
+  const [searchInput, setSearchInput] = useState(search);
+
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchStrRef = useRef(searchStr);
+  searchStrRef.current = searchStr;
+
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, []);
+
+  function handleSearchInputChange(val: string) {
+    setSearchInput(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      searchDebounceRef.current = null;
+      const next = new URLSearchParams(searchStrRef.current);
+      if (val === "") {
+        next.delete("q");
+      } else {
+        next.set("q", val);
+      }
+      const qs = next.toString();
+      navigate(qs ? `/equipment?${qs}` : "/equipment", { replace: true });
+      setSelected(new Set());
+      setSelectMode(false);
+    }, 250);
+  }
+
   function updateParams(updates: Record<string, string>) {
     const next = new URLSearchParams(searchStr);
     for (const [k, v] of Object.entries(updates)) {
@@ -89,10 +124,6 @@ export default function EquipmentListPage() {
     navigate(qs ? `/equipment?${qs}` : "/equipment", { replace: true });
     setSelected(new Set());
     setSelectMode(false);
-  }
-
-  function setSearch(val: string) {
-    updateParams({ q: val });
   }
 
   function setStatusFilter(val: string) {
@@ -282,8 +313,8 @@ export default function EquipmentListPage() {
             <Input
               placeholder="Search by name, serial, model..."
               className="pl-10"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
               data-testid="search-input"
             />
           </div>
@@ -388,15 +419,21 @@ export default function EquipmentListPage() {
               <div className="flex gap-2 ml-auto">
                 <Select
                   onValueChange={(folderId) => {
+                    if (bulkMoveMut.isPending || bulkDeleteMut.isPending) return;
                     bulkMoveMut.mutate({
                       ids: Array.from(selected),
                       folderId: folderId === "none" ? null : folderId,
                     });
                   }}
+                  disabled={bulkMoveMut.isPending || bulkDeleteMut.isPending}
                 >
-                  <SelectTrigger className="h-9 text-xs">
-                    <FolderInput className="w-3.5 h-3.5 mr-1" />
-                    Move
+                  <SelectTrigger className="h-9 text-xs" disabled={bulkMoveMut.isPending || bulkDeleteMut.isPending}>
+                    {bulkMoveMut.isPending ? (
+                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <FolderInput className="w-3.5 h-3.5 mr-1" />
+                    )}
+                    {bulkMoveMut.isPending ? "Working…" : "Move"}
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Unfiled</SelectItem>
@@ -413,10 +450,15 @@ export default function EquipmentListPage() {
                       <Button
                         variant="destructive"
                         size="sm"
+                        disabled={bulkDeleteMut.isPending || bulkMoveMut.isPending}
                         data-testid="btn-bulk-delete"
                       >
-                        <Trash2 className="w-3.5 h-3.5 mr-1" />
-                        Delete
+                        {bulkDeleteMut.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                        )}
+                        {bulkDeleteMut.isPending ? "Working…" : "Delete"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
