@@ -1,0 +1,361 @@
+import { Router, type IRouter } from "express";
+import { eq, desc, sql, inArray } from "drizzle-orm";
+import { db, equipmentTable, scanLogsTable, transferLogsTable, foldersTable } from "@workspace/db";
+import {
+  CreateEquipmentBody,
+  GetEquipmentParams,
+  GetEquipmentResponse,
+  UpdateEquipmentParams,
+  UpdateEquipmentBody,
+  UpdateEquipmentResponse,
+  DeleteEquipmentParams,
+  ScanEquipmentParams,
+  ScanEquipmentBody,
+  ScanEquipmentResponse,
+  ListEquipmentResponse,
+  GetEquipmentLogsParams,
+  GetEquipmentLogsResponse,
+  GetEquipmentTransfersParams,
+  GetEquipmentTransfersResponse,
+  BulkDeleteEquipmentBody,
+  BulkDeleteEquipmentResponse,
+  BulkMoveEquipmentBody,
+  BulkMoveEquipmentResponse,
+} from "@workspace/api-zod";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
+
+const router: IRouter = Router();
+
+router.get("/equipment", requireAuth, async (req, res): Promise<void> => {
+  const items = await db
+    .select()
+    .from(equipmentTable)
+    .orderBy(equipmentTable.createdAt);
+  res.json(ListEquipmentResponse.parse(items));
+});
+
+router.post("/equipment", requireAuth, async (req, res): Promise<void> => {
+  const parsed = CreateEquipmentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [item] = await db
+    .insert(equipmentTable)
+    .values({
+      name: parsed.data.name,
+      folderId: parsed.data.folderId ?? null,
+      serialNumber: parsed.data.serialNumber ?? null,
+      model: parsed.data.model ?? null,
+      manufacturer: parsed.data.manufacturer ?? null,
+      purchaseDate: parsed.data.purchaseDate ? new Date(parsed.data.purchaseDate) : null,
+      location: parsed.data.location ?? null,
+      category: parsed.data.category ?? null,
+    })
+    .returning();
+
+  req.log.info({ id: item.id }, "Equipment created");
+  res.status(201).json(GetEquipmentResponse.parse(item));
+});
+
+router.get("/equipment/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = GetEquipmentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [item] = await db
+    .select()
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, params.data.id));
+
+  if (!item) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+
+  res.json(GetEquipmentResponse.parse(item));
+});
+
+router.patch("/equipment/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = UpdateEquipmentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const body = UpdateEquipmentBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const updateFields: Record<string, unknown> = {};
+  if ("maintenanceIntervalDays" in body.data) updateFields.maintenanceIntervalDays = body.data.maintenanceIntervalDays;
+  if ("serialNumber" in body.data) updateFields.serialNumber = body.data.serialNumber;
+  if ("model" in body.data) updateFields.model = body.data.model;
+  if ("manufacturer" in body.data) updateFields.manufacturer = body.data.manufacturer;
+  if ("purchaseDate" in body.data) updateFields.purchaseDate = body.data.purchaseDate ? new Date(body.data.purchaseDate) : null;
+  if ("location" in body.data) updateFields.location = body.data.location;
+  if ("category" in body.data) updateFields.category = body.data.category;
+
+  const folderChanging = "folderId" in body.data;
+  if (folderChanging) updateFields.folderId = body.data.folderId ?? null;
+
+  if (Object.keys(updateFields).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
+  if (folderChanging) {
+    const result = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ folderId: equipmentTable.folderId })
+        .from(equipmentTable)
+        .where(eq(equipmentTable.id, params.data.id));
+      if (!current) return null;
+
+      const [updated] = await tx
+        .update(equipmentTable)
+        .set(updateFields)
+        .where(eq(equipmentTable.id, params.data.id))
+        .returning();
+
+      if (current.folderId !== (body.data.folderId ?? null)) {
+        await tx.insert(transferLogsTable).values({
+          equipmentId: params.data.id,
+          fromFolderId: current.folderId ?? null,
+          toFolderId: body.data.folderId ?? null,
+        });
+        req.log.info({ id: params.data.id, from: current.folderId, to: body.data.folderId }, "Equipment transferred");
+      }
+
+      return updated;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Equipment not found" });
+      return;
+    }
+
+    req.log.info({ id: params.data.id }, "Equipment updated");
+    res.json(UpdateEquipmentResponse.parse(result));
+    return;
+  }
+
+  const [item] = await db
+    .update(equipmentTable)
+    .set(updateFields)
+    .where(eq(equipmentTable.id, params.data.id))
+    .returning();
+
+  if (!item) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+
+  req.log.info({ id: params.data.id }, "Equipment updated");
+  res.json(UpdateEquipmentResponse.parse(item));
+});
+
+router.post("/equipment/:id/scan", requireAuth, async (req, res): Promise<void> => {
+  const params = ScanEquipmentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const body = ScanEquipmentBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const PHOTO_URL_PATTERN = /^\/api\/storage\/objects\/[A-Za-z0-9/_.-]+$/;
+  if (body.data.photoUrl && !PHOTO_URL_PATTERN.test(body.data.photoUrl)) {
+    res.status(400).json({ error: "Invalid photoUrl: must be an internal storage path" });
+    return;
+  }
+
+  const MAX_NOTE_LENGTH = 2000;
+  const note = body.data.note?.slice(0, MAX_NOTE_LENGTH) ?? null;
+
+  const now = new Date();
+
+  // When status is "maintenance", also update lastMaintenanceDate
+  const updateFields: Record<string, unknown> = {
+    lastSeen: now,
+    lastStatus: body.data.status,
+  };
+  if (body.data.status === "maintenance" || body.data.status === "ok" || body.data.status === "sterilized") {
+    updateFields.lastMaintenanceDate = now;
+  }
+
+  const [item] = await db
+    .update(equipmentTable)
+    .set(updateFields)
+    .where(eq(equipmentTable.id, params.data.id))
+    .returning();
+
+  if (!item) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+
+  await db.insert(scanLogsTable).values({
+    equipmentId: params.data.id,
+    status: body.data.status,
+    note,
+    photoUrl: body.data.photoUrl ?? null,
+    scannedBy: req.authUserId ?? null,
+    timestamp: now,
+  });
+
+  req.log.info({ id: params.data.id, status: body.data.status, scannedBy: req.authUserId }, "Equipment scanned");
+  res.json(ScanEquipmentResponse.parse(item));
+});
+
+router.delete("/equipment/:id", requireAdmin, async (req, res): Promise<void> => {
+  const params = DeleteEquipmentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  await db.delete(scanLogsTable).where(eq(scanLogsTable.equipmentId, params.data.id));
+
+  const [deleted] = await db
+    .delete(equipmentTable)
+    .where(eq(equipmentTable.id, params.data.id))
+    .returning({ id: equipmentTable.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+
+  req.log.info({ id: params.data.id }, "Equipment deleted");
+  res.status(204).send();
+});
+
+router.get("/equipment/:id/logs", requireAuth, async (req, res): Promise<void> => {
+  const params = GetEquipmentLogsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [equipment] = await db
+    .select({ id: equipmentTable.id })
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, params.data.id));
+
+  if (!equipment) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+
+  const logs = await db
+    .select()
+    .from(scanLogsTable)
+    .where(eq(scanLogsTable.equipmentId, params.data.id))
+    .orderBy(scanLogsTable.timestamp);
+
+  res.json(GetEquipmentLogsResponse.parse(logs));
+});
+
+router.post("/equipment/bulk-delete", requireAdmin, async (req, res): Promise<void> => {
+  const body = BulkDeleteEquipmentBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const { ids } = body.data;
+
+  const result = await db.transaction(async (tx) => {
+    await tx.delete(scanLogsTable).where(inArray(scanLogsTable.equipmentId, ids));
+    await tx.delete(transferLogsTable).where(inArray(transferLogsTable.equipmentId, ids));
+    const deleted = await tx.delete(equipmentTable).where(inArray(equipmentTable.id, ids)).returning({ id: equipmentTable.id });
+    return deleted.length;
+  });
+
+  req.log.info({ count: result, ids }, "Bulk delete completed");
+  res.json(BulkDeleteEquipmentResponse.parse({ affected: result }));
+});
+
+router.post("/equipment/bulk-move", requireAuth, async (req, res): Promise<void> => {
+  const body = BulkMoveEquipmentBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const { ids, folderId } = body.data;
+  const targetFolderId = folderId ?? null;
+
+  const result = await db.transaction(async (tx) => {
+    const items = await tx
+      .select({ id: equipmentTable.id, folderId: equipmentTable.folderId })
+      .from(equipmentTable)
+      .where(inArray(equipmentTable.id, ids));
+
+    const toMove = items.filter((item) => item.folderId !== targetFolderId);
+    if (toMove.length === 0) return 0;
+
+    await tx
+      .update(equipmentTable)
+      .set({ folderId: targetFolderId })
+      .where(inArray(equipmentTable.id, toMove.map((i) => i.id)));
+
+    const transferValues = toMove.map((item) => ({
+      equipmentId: item.id,
+      fromFolderId: item.folderId ?? null,
+      toFolderId: targetFolderId,
+    }));
+    await tx.insert(transferLogsTable).values(transferValues);
+
+    return toMove.length;
+  });
+
+  req.log.info({ count: result, ids, folderId: targetFolderId }, "Bulk move completed");
+  res.json(BulkMoveEquipmentResponse.parse({ affected: result }));
+});
+
+router.get("/equipment/:id/transfers", requireAuth, async (req, res): Promise<void> => {
+  const params = GetEquipmentTransfersParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [equipment] = await db
+    .select({ id: equipmentTable.id })
+    .from(equipmentTable)
+    .where(eq(equipmentTable.id, params.data.id));
+
+  if (!equipment) {
+    res.status(404).json({ error: "Equipment not found" });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      id: transferLogsTable.id,
+      equipmentId: transferLogsTable.equipmentId,
+      fromFolderName: sql<string | null>`ff.name`,
+      toFolderName: sql<string | null>`tf.name`,
+      timestamp: transferLogsTable.timestamp,
+    })
+    .from(transferLogsTable)
+    .leftJoin(sql`${foldersTable} as ff`, sql`ff.id = ${transferLogsTable.fromFolderId}`)
+    .leftJoin(sql`${foldersTable} as tf`, sql`tf.id = ${transferLogsTable.toFolderId}`)
+    .where(eq(transferLogsTable.equipmentId, params.data.id))
+    .orderBy(desc(transferLogsTable.timestamp));
+
+  res.json(GetEquipmentTransfersResponse.parse(rows));
+});
+
+export default router;

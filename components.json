@@ -1,0 +1,29 @@
+import { Router, type IRouter } from "express";
+import { db, foldersTable } from "@workspace/db";
+import { CreateFolderBody, ListFoldersResponse, ListFoldersResponseItem } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+
+const router: IRouter = Router();
+
+router.get("/folders", requireAuth, async (req, res): Promise<void> => {
+  const folders = await db.select().from(foldersTable).orderBy(foldersTable.createdAt);
+  res.json(ListFoldersResponse.parse(folders));
+});
+
+router.post("/folders", requireAuth, async (req, res): Promise<void> => {
+  const body = CreateFolderBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [folder] = await db
+    .insert(foldersTable)
+    .values({ name: body.data.name })
+    .returning();
+
+  req.log.info({ id: folder.id }, "Folder created");
+  res.status(201).json(ListFoldersResponseItem.parse(folder));
+});
+
+export default router;

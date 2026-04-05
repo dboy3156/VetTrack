@@ -1,0 +1,1 @@
+{"version":3,"file":"transferLog.d.ts","sourceRoot":"","sources":["../../../src/generated/types/transferLog.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,WAAW;IAC1B,EAAE,EAAE,MAAM,CAAC;IACX,WAAW,EAAE,MAAM,CAAC;IACpB,cAAc,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IAC/B,YAAY,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IAC7B,SAAS,EAAE,IAAI,CAAC;CACjB"}

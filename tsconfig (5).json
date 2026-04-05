@@ -1,0 +1,66 @@
+import { db } from "./db";
+
+const API_BASE = "/api";
+
+async function syncEquipment() {
+  const pending = await db.equipment
+    .where("syncStatus")
+    .equals("pending")
+    .toArray();
+
+  for (const item of pending) {
+    try {
+      const method = item.serverId ? "PATCH" : "POST";
+      const url = item.serverId
+        ? `${API_BASE}/equipment/${item.serverId}`
+        : `${API_BASE}/equipment`;
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await db.equipment.update(item.id, {
+          serverId: data.id ?? item.serverId,
+          syncStatus: "synced",
+        });
+      }
+    } catch {
+      // offline — נשאר pending, ננסה שוב אחר כך
+    }
+  }
+}
+
+async function flushSyncQueue() {
+  const ops = await db.syncQueue.toArray();
+
+  for (const op of ops) {
+    try {
+      const res = await fetch(`${API_BASE}/${op.entityType}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(op.payload),
+      });
+
+      if (res.ok) {
+        await db.syncQueue.delete(op.id!);
+      } else {
+        await db.syncQueue.update(op.id!, {
+          attempts: op.attempts + 1,
+        });
+      }
+    } catch {
+      // offline
+    }
+  }
+}
+
+export const syncEngine = {
+  flush: async () => {
+    await syncEquipment();
+    await flushSyncQueue();
+  },
+};

@@ -1,0 +1,123 @@
+import { Router, type IRouter } from "express";
+import { db, equipmentTable, scanLogsTable } from "@workspace/db";
+import { sql, eq, gte, count, desc } from "drizzle-orm";
+import { requireAuth } from "../middlewares/auth";
+
+const router: IRouter = Router();
+
+const INACTIVE_THRESHOLD_DAYS = 14;
+
+function daysSince(date: Date): number {
+  return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+function isOverdue(item: {
+  maintenanceIntervalDays: number | null;
+  lastMaintenanceDate: Date | null;
+}): boolean {
+  if (item.maintenanceIntervalDays == null || item.maintenanceIntervalDays <= 0) return false;
+  if (item.lastMaintenanceDate == null) return true;
+  return Math.floor(daysSince(item.lastMaintenanceDate)) > item.maintenanceIntervalDays;
+}
+
+function isInactive(item: { lastSeen: Date | null }): boolean {
+  if (item.lastSeen == null) return true;
+  return Math.floor(daysSince(item.lastSeen)) > INACTIVE_THRESHOLD_DAYS;
+}
+
+router.get("/analytics/summary", requireAuth, async (req, res): Promise<void> => {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    allEquipment,
+    scansByDay,
+    topProblemItems,
+  ] = await Promise.all([
+    db.select().from(equipmentTable),
+
+    db
+      .select({
+        date: sql<string>`to_char(${scanLogsTable.timestamp} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`,
+        count: count(),
+      })
+      .from(scanLogsTable)
+      .where(gte(scanLogsTable.timestamp, thirtyDaysAgo))
+      .groupBy(sql`to_char(${scanLogsTable.timestamp} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${scanLogsTable.timestamp} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
+
+    db
+      .select({
+        equipmentId: scanLogsTable.equipmentId,
+        issueCount: count(),
+      })
+      .from(scanLogsTable)
+      .where(eq(scanLogsTable.status, "issue"))
+      .groupBy(scanLogsTable.equipmentId)
+      .orderBy(desc(count()))
+      .limit(5),
+  ]);
+
+  let okCount = 0;
+  let issueCount = 0;
+  let overdueCount = 0;
+  let inactiveCount = 0;
+  let maintenanceCompliant = 0;
+  let maintenanceConfigured = 0;
+
+  for (const item of allEquipment) {
+    const itemOverdue = isOverdue(item);
+    const itemInactive = isInactive(item);
+
+    if (itemOverdue) {
+      overdueCount++;
+    } else if (item.lastStatus === "issue") {
+      issueCount++;
+    } else if (itemInactive) {
+      inactiveCount++;
+    } else {
+      okCount++;
+    }
+
+    if (item.maintenanceIntervalDays) {
+      maintenanceConfigured++;
+      if (!itemOverdue) {
+        maintenanceCompliant++;
+      }
+    }
+  }
+
+  const maintenanceComplianceRate = maintenanceConfigured > 0
+    ? Math.round((maintenanceCompliant / maintenanceConfigured) * 100)
+    : 100;
+
+  const equipmentMap = new Map(allEquipment.map((e) => [e.id, e.name]));
+  const topProblems = topProblemItems.map((item) => ({
+    equipmentId: item.equipmentId,
+    name: equipmentMap.get(item.equipmentId) ?? "Unknown",
+    issueCount: item.issueCount,
+  }));
+
+  const scanActivity: Array<{ date: string; count: number }> = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dateStr = d.toISOString().slice(0, 10);
+    const found = scansByDay.find((s) => s.date === dateStr);
+    scanActivity.push({ date: dateStr, count: found ? found.count : 0 });
+  }
+
+  res.json({
+    totalEquipment: allEquipment.length,
+    statusBreakdown: {
+      ok: okCount,
+      issue: issueCount,
+      overdue: overdueCount,
+      inactive: inactiveCount,
+    },
+    maintenanceComplianceRate,
+    scanActivity,
+    topProblemEquipment: topProblems,
+  });
+});
+
+export default router;

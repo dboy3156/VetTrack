@@ -1,0 +1,1 @@
+{"version":3,"file":"scanLog.d.ts","sourceRoot":"","sources":["../../../src/generated/types/scanLog.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,WAAW,OAAO;IACtB,EAAE,EAAE,MAAM,CAAC;IACX,WAAW,EAAE,MAAM,CAAC;IACpB,MAAM,EAAE,MAAM,CAAC;IACf,IAAI,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IACrB,QAAQ,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IACzB,SAAS,EAAE,IAAI,CAAC;CACjB"}

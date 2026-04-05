@@ -1,0 +1,1 @@
+{"version":3,"file":"analyticsSummaryTopProblemEquipmentItem.d.ts","sourceRoot":"","sources":["../../../src/generated/types/analyticsSummaryTopProblemEquipmentItem.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,MAAM,MAAM,uCAAuC,GAAG;IACpD,WAAW,EAAE,MAAM,CAAC;IACpB,IAAI,EAAE,MAAM,CAAC;IACb,UAAU,EAAE,MAAM,CAAC;CACpB,CAAC"}
