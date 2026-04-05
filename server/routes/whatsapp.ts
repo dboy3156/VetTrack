@@ -7,6 +7,30 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { format } from "date-fns";
 
+/**
+ * Normalize to E.164 with leading '+' (for auth contexts).
+ * NOTE (Clerk Dashboard): Israel (+972) SMS must be enabled in Clerk Dashboard →
+ * Configure → User & Authentication → Phone numbers → SMS sending → Allowed countries.
+ */
+function normalizePhoneE164(phone: string): string {
+  const trimmed = phone.trim();
+  const stripped = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+")) {
+    return "+" + stripped;
+  }
+  if (stripped.startsWith("972")) {
+    return "+" + stripped;
+  }
+  if (stripped.startsWith("05") && stripped.length >= 9 && stripped.length <= 10) {
+    return "+972" + stripped.slice(1);
+  }
+  return "+" + stripped;
+}
+
+function normalizePhoneNumber(phone: string): string {
+  return normalizePhoneE164(phone).replace(/^\+/, "");
+}
+
 /*
  * PERMISSIONS MATRIX — /api/whatsapp
  * ─────────────────────────────────────────────────────
@@ -44,7 +68,7 @@ router.post("/alert", requireAuth, requireRole("technician"), validateBody(whats
 
     const encoded = encodeURIComponent(message);
     const waUrl = phone
-      ? `https://wa.me/${phone.replace(/\D/g, "")}?text=${encoded}`
+      ? `https://wa.me/${normalizePhoneNumber(phone)}?text=${encoded}`
       : `https://wa.me/?text=${encoded}`;
 
     await db.insert(whatsappAlerts).values({

@@ -55,6 +55,7 @@ tsx server/seed.ts   # Seed sample data
 ## Auth & Security
 - **Dev mode** (no Clerk keys): Admin user hardcoded, all routes accessible
 - **Clerk mode**: Add `VITE_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` secrets for real auth
+  - **Israeli phone numbers (+972)**: Clerk must have Israel enabled under Configure → User & Authentication → Phone numbers → SMS sending → Allowed countries. This is a Clerk Dashboard setting and cannot be changed in code. Without it, Israeli users will see a "phone number not supported" error. The sign-in page shows a helper message directing Israeli users to enter numbers in international format (e.g. +972501234567).
   - `ADMIN_EMAILS` (optional): Comma-separated list of emails auto-promoted to admin on every login (self-healing). Example: `admin@example.com,boss@example.com`
   - Admin (40): create/delete equipment, manage folders/users, bulk ops
   - Vet (30): scan equipment, revert scans

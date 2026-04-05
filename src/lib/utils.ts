@@ -104,6 +104,40 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
   return alerts;
 }
 
+/**
+ * Normalize a phone number to E.164 format with a leading '+'.
+ * Supports Israeli local format (05X...) → +972 5X...
+ * and any number already in international format (+972... or +1...).
+ * Use this when passing a phone number to Clerk or any auth service.
+ *
+ * NOTE (Clerk Dashboard): For Israeli SMS OTP to work, Israel (+972) must be
+ * enabled in the Clerk Dashboard under Configure → User & Authentication →
+ * Phone numbers → SMS sending → Allowed countries. This cannot be changed in code.
+ */
+export function normalizePhoneE164(phone: string): string {
+  const trimmed = phone.trim();
+  const stripped = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+")) {
+    return "+" + stripped;
+  }
+  if (stripped.startsWith("972")) {
+    return "+" + stripped;
+  }
+  if (stripped.startsWith("05") && stripped.length >= 9 && stripped.length <= 10) {
+    return "+972" + stripped.slice(1);
+  }
+  return "+" + stripped;
+}
+
+/**
+ * Normalize a phone number to digits-only format suitable for wa.me URLs.
+ * wa.me expects the full number without '+' (e.g. 972501234567).
+ * Supports Israeli local format (05X...) → 9725X...
+ */
+export function normalizePhoneNumber(phone: string): string {
+  return normalizePhoneE164(phone).replace(/^\+/, "");
+}
+
 export function buildWhatsAppUrl(
   phone: string | undefined,
   equipmentName: string,
@@ -118,7 +152,7 @@ export function buildWhatsAppUrl(
   message += `\n\nPlease address this issue immediately.`;
   const encoded = encodeURIComponent(message);
   return phone
-    ? `https://wa.me/${phone.replace(/\D/g, "")}?text=${encoded}`
+    ? `https://wa.me/${normalizePhoneNumber(phone)}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
 }
 
