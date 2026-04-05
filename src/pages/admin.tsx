@@ -35,17 +35,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, ClipboardList } from "lucide-react";
+import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, ClipboardList, ChevronLeft, ChevronRight, Search, Filter, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import type { SupportTicket, SupportTicketStatus, User } from "@/types";
+import { format } from "date-fns";
+import type { SupportTicket, SupportTicketStatus, User, AuditLog } from "@/types";
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support">("folders");
+  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "audit-logs">("folders");
 
   const { data: supportUnresolved } = useQuery({
     queryKey: ["/api/support/unresolved-count"],
@@ -161,12 +162,17 @@ export default function AdminPage() {
             )}
           </button>
           <button
-            onClick={() => navigate("/audit-log")}
-            data-testid="admin-tab-audit-log"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 border-transparent text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+            onClick={() => setActiveTab("audit-logs")}
+            data-testid="admin-tab-audit-logs"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+              activeTab === "audit-logs"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
           >
             <ClipboardList className="w-4 h-4" />
-            Audit Log
+            Audit Logs
           </button>
         </div>
 
@@ -174,6 +180,7 @@ export default function AdminPage() {
         {activeTab === "pending" && <PendingUsersSection />}
         {activeTab === "users" && <UsersSection />}
         {activeTab === "support" && <SupportSection />}
+        {activeTab === "audit-logs" && <AuditLogsSection />}
       </div>
     </Layout>
   );
@@ -860,5 +867,250 @@ function SupportSection() {
         )}
       </Dialog>
     </Card>
+  );
+}
+
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  user_login: "User Login",
+  user_provisioned: "User Provisioned",
+  user_role_changed: "Role Changed",
+  user_status_changed: "Status Changed",
+  equipment_created: "Equipment Created",
+  equipment_updated: "Equipment Updated",
+  equipment_deleted: "Equipment Deleted",
+  equipment_scanned: "Equipment Scanned",
+  equipment_checked_out: "Checked Out",
+  equipment_returned: "Returned",
+  equipment_reverted: "Scan Reverted",
+  equipment_bulk_deleted: "Bulk Deleted",
+  equipment_bulk_moved: "Bulk Moved",
+  equipment_imported: "Equipment Imported",
+  folder_created: "Folder Created",
+  folder_updated: "Folder Updated",
+  folder_deleted: "Folder Deleted",
+  alert_acknowledged: "Alert Acknowledged",
+  alert_acknowledgment_removed: "Alert Ack Removed",
+};
+
+const ALL_ACTION_TYPES = Object.keys(ACTION_TYPE_LABELS);
+
+function actionBadgeClass(actionType: string): string {
+  if (actionType.includes("deleted")) return "bg-destructive/10 text-destructive border-destructive/20";
+  if (actionType.includes("created") || actionType.includes("provisioned")) return "bg-green-100 text-green-800 border-green-200";
+  if (actionType.includes("login")) return "bg-blue-100 text-blue-800 border-blue-200";
+  if (actionType.includes("role") || actionType.includes("status")) return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+function AuditLogsSection() {
+  const [actionFilter, setActionFilter] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<{
+    actionType: string;
+    from: string;
+    to: string;
+  }>({ actionType: "", from: "", to: "" });
+  const [page, setPage] = useState(1);
+
+  function applyFilters() {
+    setAppliedFilters({
+      actionType: actionFilter,
+      from: fromDate,
+      to: toDate,
+    });
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setActionFilter("");
+    setFromDate("");
+    setToDate("");
+    setAppliedFilters({ actionType: "", from: "", to: "" });
+    setPage(1);
+  }
+
+  const hasFilters = appliedFilters.actionType || appliedFilters.from || appliedFilters.to;
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["/api/audit-logs", appliedFilters, page],
+    queryFn: () =>
+      api.auditLogs.list({
+        actionType: appliedFilters.actionType || undefined,
+        from: appliedFilters.from || undefined,
+        to: appliedFilters.to || undefined,
+        page,
+      }),
+    staleTime: 30_000,
+  });
+
+  const items = data?.items ?? [];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-primary" />
+            Audit Logs
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => refetch()}
+            disabled={isLoading}
+            data-testid="btn-refresh-audit-logs"
+          >
+            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Filter controls */}
+        <div className="space-y-3 p-3 bg-muted/30 rounded-xl border" data-testid="audit-log-filters">
+          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5" />
+            Filter Logs
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Select
+              value={actionFilter || "all"}
+              onValueChange={(v) => setActionFilter(v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="h-8 text-sm" data-testid="filter-action">
+                <SelectValue placeholder="All actions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actions</SelectItem>
+                {ALL_ACTION_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {ACTION_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-8 text-sm flex-1"
+                data-testid="filter-from"
+              />
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-8 text-sm flex-1"
+                data-testid="filter-to"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={applyFilters}
+              className="text-xs h-7"
+              data-testid="btn-apply-filters"
+            >
+              Apply
+            </Button>
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="text-xs h-7"
+                data-testid="btn-clear-filters"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Log table */}
+        {isLoading ? (
+          <div className="flex flex-col gap-2" data-testid="audit-log-loading">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-14 rounded-xl" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center py-8 gap-2 text-center" data-testid="audit-log-error">
+            <XCircle className="w-8 h-8 text-destructive/60" />
+            <p className="text-sm font-medium text-destructive">Failed to load audit logs</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center py-10 gap-2 text-center" data-testid="audit-log-empty">
+            <ClipboardList className="w-8 h-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-muted-foreground">No audit log entries</p>
+            <p className="text-xs text-muted-foreground">
+              {hasFilters ? "Try adjusting your filters." : "Activity will appear here once actions are performed."}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5" data-testid="audit-log-list">
+            {items.map((entry) => (
+              <AuditLogRow key={entry.id} entry={entry} />
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {(data?.hasMore || page > 1) && (
+          <div className="flex items-center justify-between pt-2" data-testid="audit-log-pagination">
+            <p className="text-xs text-muted-foreground">Page {page}</p>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isLoading}
+                data-testid="btn-prev-page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!data?.hasMore || isLoading}
+                data-testid="btn-next-page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AuditLogRow({ entry }: { entry: AuditLog }) {
+  return (
+    <div
+      className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/20 hover:bg-muted/40 transition-colors"
+      data-testid="audit-log-row"
+    >
+      <div className="flex items-start gap-2 flex-wrap">
+        <span className={cn("text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 mt-0.5", actionBadgeClass(entry.actionType))}>
+          {ACTION_TYPE_LABELS[entry.actionType] ?? entry.actionType}
+        </span>
+        <p className="text-sm text-foreground leading-snug flex-1 min-w-0">
+          {entry.performedByEmail}
+          {entry.targetType && entry.targetId && (
+            <span className="text-muted-foreground"> · {entry.targetType}</span>
+          )}
+        </p>
+      </div>
+      <p className="text-xs text-muted-foreground pl-0.5">
+        {format(new Date(entry.timestamp), "MMM d, yyyy 'at' h:mm a")}
+      </p>
+    </div>
   );
 }

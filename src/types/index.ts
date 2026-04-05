@@ -276,3 +276,17 @@ export interface AuditLog {
   metadata: Record<string, unknown> | null;
   timestamp: string;
 }
+
+export interface AuditLogResponse {
+  items: AuditLog[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export interface AuditLogFilters {
+  actionType?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+}
