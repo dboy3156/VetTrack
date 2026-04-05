@@ -86,15 +86,19 @@ src/
     use-sync.tsx    # Sync state context (pending count, failed count, trigger sync)
     use-toast.ts    # Toast state
   components/
-    layout.tsx      # Top header + bottom nav + mobile menu
-    ui/             # shadcn UI components
+    layout.tsx              # Top header + bottom nav + mobile menu
+    shift-summary-sheet.tsx # Bottom sheet: checked-out items, today's issues, unack'd alerts, copy to clipboard
+    ui/                     # shadcn UI components
+      error-card.tsx        # Inline error card with optional retry button
+      empty-state.tsx       # Reusable empty state with icon, message, action
   pages/
-    home.tsx        # Dashboard with stats + alerts preview
-    equipment-list.tsx  # Filterable list with bulk ops
+    home.tsx             # Dashboard with stats + alerts preview + Shift Summary button
+    equipment-list.tsx   # Filterable list with bulk ops + location chip row filter
     equipment-detail.tsx # Detail + scan dialog + QR + history
     new-equipment.tsx    # Add equipment form
     analytics.tsx        # Charts & compliance rates
-    alerts.tsx           # Grouped alerts + WhatsApp
+    alerts.tsx           # Grouped alerts + WhatsApp + ErrorCard with retry
+    my-equipment.tsx     # Checked-out items + Shift Summary button + ErrorCard with retry
     qr-print.tsx         # Batch QR printing
     admin.tsx            # Folders + users management
     not-found.tsx        # 404

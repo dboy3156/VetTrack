@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
+import { ShiftSummarySheet } from "@/components/shift-summary-sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,14 +31,16 @@ import {
   ChevronRight,
   Loader2,
   CheckCircle2,
+  ClipboardCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function MyEquipmentPage() {
   const queryClient = useQueryClient();
   const [returningAll, setReturningAll] = useState(false);
+  const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
 
-  const { data: items, isLoading } = useQuery({
+  const { data: items, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
   });
@@ -74,17 +78,36 @@ export default function MyEquipmentPage() {
         <link rel="canonical" href="https://vettrack.replit.app/my-equipment" />
       </Helmet>
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <PackageOpen className="w-6 h-6 text-primary" />
             My Equipment
           </h1>
-          {items && items.length > 0 && (
-            <Badge variant="outline" className="text-primary border-primary">
-              {items.length} checked out
-            </Badge>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {items && items.length > 0 && (
+              <Badge variant="outline" className="text-primary border-primary">
+                {items.length} checked out
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setShiftSummaryOpen(true)}
+              data-testid="btn-shift-summary-my-eq"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              Summary
+            </Button>
+          </div>
         </div>
+
+        {isError && (
+          <ErrorCard
+            message="Failed to load your checked-out equipment. Please try again."
+            onRetry={() => refetch()}
+          />
+        )}
 
         {items && items.length >= 2 && (
           <AlertDialog>
@@ -126,7 +149,7 @@ export default function MyEquipmentPage() {
               <Skeleton key={i} className="h-20 w-full rounded-xl" />
             ))}
           </div>
-        ) : !items || items.length === 0 ? (
+        ) : isError ? null : !items || items.length === 0 ? (
           <Card className="border-2 border-dashed border-teal-200">
             <CardContent className="p-10 text-center">
               <div className="w-16 h-16 rounded-xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
@@ -192,6 +215,11 @@ export default function MyEquipmentPage() {
           </div>
         )}
       </div>
+
+      <ShiftSummarySheet
+        open={shiftSummaryOpen}
+        onClose={() => setShiftSummaryOpen(false)}
+      />
     </Layout>
   );
 }

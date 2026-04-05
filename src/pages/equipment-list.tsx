@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
 import {
   Select,
   SelectContent,
@@ -41,6 +42,7 @@ import {
   FolderInput,
   Package,
   ChevronRight,
+  MapPin,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -68,6 +70,7 @@ export default function EquipmentListPage() {
   const search = params.get("q") ?? "";
   const statusFilter = params.get("status") ?? "all";
   const folderFilter = params.get("folder") ?? "all";
+  const locationFilter = params.get("location") ?? "all";
 
   function updateParams(updates: Record<string, string>) {
     const next = new URLSearchParams(searchStr);
@@ -94,6 +97,10 @@ export default function EquipmentListPage() {
 
   function setFolderFilter(val: string) {
     updateParams({ folder: val });
+  }
+
+  function setLocationFilter(val: string) {
+    updateParams({ location: val });
   }
 
   function handleQrScan(e: React.ChangeEvent<HTMLInputElement>) {
@@ -130,7 +137,7 @@ export default function EquipmentListPage() {
     reader.readAsDataURL(file);
   }
 
-  const { data: equipment, isLoading, isError } = useQuery({
+  const { data: equipment, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
@@ -163,6 +170,16 @@ export default function EquipmentListPage() {
     onError: () => toast.error("Move failed"),
   });
 
+  const locations = useMemo(() => {
+    if (!equipment) return [];
+    const locs = new Set<string>();
+    for (const eq of equipment) {
+      if (eq.location) locs.add(eq.location);
+      if (eq.checkedOutLocation) locs.add(eq.checkedOutLocation);
+    }
+    return Array.from(locs).sort();
+  }, [equipment]);
+
   const filtered = useMemo(() => {
     if (!equipment) return [];
     return equipment.filter((eq) => {
@@ -177,9 +194,13 @@ export default function EquipmentListPage() {
         folderFilter === "all" ||
         (folderFilter === "unfiled" ? !eq.folderId : eq.folderId === folderFilter) ||
         folderFilter === eq.folderId;
-      return matchesSearch && matchesStatus && matchesFolder;
+      const matchesLocation =
+        locationFilter === "all" ||
+        eq.location === locationFilter ||
+        eq.checkedOutLocation === locationFilter;
+      return matchesSearch && matchesStatus && matchesFolder && matchesLocation;
     });
-  }, [equipment, search, statusFilter, folderFilter]);
+  }, [equipment, search, statusFilter, folderFilter, locationFilter]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -279,6 +300,41 @@ export default function EquipmentListPage() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Location filter chips */}
+          {locations.length > 0 && (
+            <div
+              className="flex gap-2 overflow-x-auto pb-1 scrollbar-none"
+              data-testid="location-filter-chips"
+            >
+              <button
+                onClick={() => setLocationFilter("all")}
+                className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  locationFilter === "all"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                }`}
+                data-testid="location-chip-all"
+              >
+                <MapPin className="w-3 h-3" />
+                All Rooms
+              </button>
+              {locations.map((loc) => (
+                <button
+                  key={loc}
+                  onClick={() => setLocationFilter(loc)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                    locationFilter === loc
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                  }`}
+                  data-testid={`location-chip-${loc}`}
+                >
+                  {loc}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Bulk actions bar */}
@@ -375,15 +431,17 @@ export default function EquipmentListPage() {
         {/* Count */}
         <p className="text-xs text-muted-foreground -mt-2">
           {filtered.length} of {equipment?.length ?? 0} items
+          {locationFilter !== "all" && (
+            <span className="ml-1">· <button onClick={() => setLocationFilter("all")} className="underline">Clear room filter</button></span>
+          )}
         </p>
 
         {/* Error state */}
         {isError && (
-          <Card className="border-destructive bg-destructive/5">
-            <CardContent className="p-4 text-center">
-              <p className="text-sm text-destructive">Failed to load equipment. Please refresh.</p>
-            </CardContent>
-          </Card>
+          <ErrorCard
+            message="Failed to load equipment. Please try again."
+            onRetry={() => refetch()}
+          />
         )}
 
         {/* Equipment list */}
@@ -398,14 +456,16 @@ export default function EquipmentListPage() {
             <CardContent className="p-10 text-center">
               <Package className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
               <p className="font-medium text-muted-foreground">No equipment found</p>
-              {search && (
+              {(search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all") && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="mt-2"
-                  onClick={() => setSearch("")}
+                  onClick={() => {
+                    navigate("/equipment", { replace: true });
+                  }}
                 >
-                  Clear search
+                  Clear all filters
                 </Button>
               )}
             </CardContent>

@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
+import { ShiftSummarySheet } from "@/components/shift-summary-sheet";
 import { computeAlerts } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import {
@@ -21,6 +23,7 @@ import {
   Activity,
   Zap,
   Scan,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
@@ -31,6 +34,7 @@ const RESUME_KEY = "vettrack_last_equipment_id";
 export default function HomePage() {
   const { name, userId } = useAuth();
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [resumeEquipmentId, setResumeEquipmentId] = useState<string | null>(null);
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [, navigate] = useLocation();
@@ -50,7 +54,7 @@ export default function HomePage() {
     }
   }, []);
 
-  const { data: equipment, isLoading, isError: equipmentError } = useQuery({
+  const { data: equipment, isLoading, isError: equipmentError, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
@@ -84,20 +88,30 @@ export default function HomePage() {
       </Helmet>
       <div className="flex flex-col gap-6 pb-20 animate-fade-in">
         {/* Greeting */}
-        <div className="pt-1">
-          <h1 className="text-2xl font-bold leading-tight text-foreground">
-            Hello, {name?.split(" ")[0] || "there"} 👋
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">VetTrack Equipment Dashboard</p>
+        <div className="flex items-start justify-between pt-1 gap-3">
+          <div>
+            <h1 className="text-2xl font-bold leading-tight text-foreground">
+              Hello, {name?.split(" ")[0] || "there"} 👋
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">VetTrack Equipment Dashboard</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs shrink-0 mt-1"
+            onClick={() => setShiftSummaryOpen(true)}
+            data-testid="btn-shift-summary"
+          >
+            <ClipboardCheck className="w-3.5 h-3.5" />
+            Shift Summary
+          </Button>
         </div>
 
         {equipmentError && (
-          <Card className="border-destructive bg-destructive/5">
-            <CardContent className="p-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-              <p className="text-sm text-destructive">Failed to load equipment data. Please refresh to try again.</p>
-            </CardContent>
-          </Card>
+          <ErrorCard
+            message="Failed to load equipment data. Please try again."
+            onRetry={() => refetch()}
+          />
         )}
 
         {/* Resume banner */}
@@ -387,6 +401,11 @@ export default function HomePage() {
       {scannerOpen && (
         <QrScanner onClose={() => setScannerOpen(false)} />
       )}
+
+      <ShiftSummarySheet
+        open={shiftSummaryOpen}
+        onClose={() => setShiftSummaryOpen(false)}
+      />
     </Layout>
   );
 }

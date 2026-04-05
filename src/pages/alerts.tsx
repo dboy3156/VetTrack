@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
 import { computeAlerts, buildWhatsAppUrl } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -65,12 +66,12 @@ const ALERT_CONFIG: Record<
 export default function AlertsPage() {
   const queryClient = useQueryClient();
 
-  const { data: equipment, isLoading: eqLoading, isError: eqError } = useQuery({
+  const { data: equipment, isLoading: eqLoading, isError: eqError, refetch: refetchEq } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
 
-  const { data: acks, isLoading: acksLoading, isError: acksError } = useQuery({
+  const { data: acks, isLoading: acksLoading, isError: acksError, refetch: refetchAcks } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
   });
@@ -140,12 +141,13 @@ export default function AlertsPage() {
         </div>
 
         {isError && (
-          <Card className="border-destructive bg-destructive/5">
-            <CardContent className="p-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-              <p className="text-sm text-destructive">Failed to load alerts. Please refresh to try again.</p>
-            </CardContent>
-          </Card>
+          <ErrorCard
+            message="Failed to load alerts. Please try again."
+            onRetry={() => {
+              refetchEq();
+              refetchAcks();
+            }}
+          />
         )}
 
         {isLoading ? (
