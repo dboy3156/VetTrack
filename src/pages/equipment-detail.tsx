@@ -230,6 +230,8 @@ export default function EquipmentDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
   }
 
+  const isOffline = !navigator.onLine;
+
   const scanMut = useMutation({
     mutationFn: async () => {
       const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
@@ -254,6 +256,7 @@ export default function EquipmentDetailPage() {
         note: capturedNote,
         photoUrl: capturedPhoto || undefined,
         userEmail: email || "",
+        userId: userId || "",
       });
       return { result, prev, offlineSyncId: undefined, capturedStatus };
     },
@@ -297,19 +300,29 @@ export default function EquipmentDetailPage() {
 
       if (capturedStatus === "issue") {
         setTimeout(() => {
-          toast("Send WhatsApp alert?", {
-            action: {
-              label: "Open WhatsApp",
-              onClick: () => {
-                const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog.note || "");
-                window.open(waUrl, "_blank");
+          if (isOffline) {
+            toast.warning("Issue reported — alert will fire locally. WhatsApp will be sent when back online.");
+          } else {
+            toast("Send WhatsApp alert?", {
+              action: {
+                label: "Open WhatsApp",
+                onClick: () => {
+                  const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
+                  window.open(waUrl, "_blank");
+                },
               },
-            },
-          });
-        }, 600);
+            });
+          }
+        }, 300);
       }
     },
-    onError: (err: Error) => toast.error(err.message || "Scan failed"),
+    onError: (err: Error) => {
+      if (!navigator.onLine) {
+        toast.info("Action queued for sync when back online");
+      } else {
+        toast.error(err.message || "Scan failed");
+      }
+    },
   });
 
   const checkoutMut = useMutation({
@@ -319,7 +332,7 @@ export default function EquipmentDetailPage() {
 
       if (!navigator.onLine) {
         const syncId = await addPendingSync({
-          type: "scan",
+          type: "checkout",
           endpoint: `/api/equipment/${id}/checkout`,
           method: "POST",
           body: JSON.stringify({ location: capturedLocation || undefined }),
@@ -367,7 +380,13 @@ export default function EquipmentDetailPage() {
         });
       }
     },
-    onError: (err: Error) => toast.error(err.message || "Checkout failed"),
+    onError: (err: Error) => {
+      if (!navigator.onLine) {
+        toast.info("Action queued for sync when back online");
+      } else {
+        toast.error(err.message || "Checkout failed");
+      }
+    },
   });
 
   const returnMut = useMutation({
@@ -414,6 +433,7 @@ export default function EquipmentDetailPage() {
       if (!result) return;
       const { equipment: updated, undoToken } = result;
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
+      invalidateAll();
 
       if (prev) {
         startUndoTimer({
@@ -423,7 +443,13 @@ export default function EquipmentDetailPage() {
         });
       }
     },
-    onError: (err: Error) => toast.error(err.message || "Return failed"),
+    onError: (err: Error) => {
+      if (!navigator.onLine) {
+        toast.info("Action queued for sync when back online");
+      } else {
+        toast.error(err.message || "Return failed");
+      }
+    },
   });
 
   const deleteMut = useMutation({

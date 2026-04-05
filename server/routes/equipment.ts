@@ -288,9 +288,13 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/equipment/:id/checkout
+// Supports last-write-wins conflict resolution via X-Client-Timestamp header.
+// If the item is already checked out and the incoming request has a later timestamp,
+// the checkout is overridden (LWW). If the existing checkout is newer, 409 is returned.
 router.post("/:id/checkout", requireAuth, async (req, res) => {
   try {
-    const { location } = req.body; // optional room/patient context
+    const { location } = req.body;
+    const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
     const [existing] = await db
       .select()
@@ -299,20 +303,31 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "Equipment not found" });
+
     if (existing.checkedOutById) {
-      return res.status(409).json({
-        error: "Already checked out",
-        checkedOutByEmail: existing.checkedOutByEmail,
-      });
+      const existingTimestamp = existing.checkedOutAt
+        ? new Date(existing.checkedOutAt).getTime()
+        : 0;
+
+      if (!clientTimestamp || clientTimestamp <= existingTimestamp) {
+        return res.status(409).json({
+          error: "Already checked out",
+          checkedOutByEmail: existing.checkedOutByEmail,
+          conflictInfo: `Checked out by ${existing.checkedOutByEmail}`,
+        });
+      }
     }
 
+    const checkoutTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
     const [updated] = await db
       .update(equipment)
       .set({
         checkedOutById: req.authUser!.id,
         checkedOutByEmail: req.authUser!.email,
-        checkedOutAt: new Date(),
+        checkedOutAt: checkoutTime,
         checkedOutLocation: location || null,
+        lastSeen: checkoutTime,
+        lastStatus: existing.status,
       })
       .where(eq(equipment.id, req.params.id))
       .returning();
@@ -326,6 +341,7 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
       userEmail: req.authUser!.email,
       status: existing.status,
       note: `Checked out${location ? ` — ${location}` : ""}`,
+      timestamp: checkoutTime,
     });
 
     // Create server-side undo token with full previous state
@@ -354,8 +370,12 @@ router.post("/:id/checkout", requireAuth, async (req, res) => {
 });
 
 // POST /api/equipment/:id/return
+// Uses LWW: if item is already returned, idempotently succeeds.
+// If it's currently checked out, always accept the return.
 router.post("/:id/return", requireAuth, async (req, res) => {
   try {
+    const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
+
     const [existing] = await db
       .select()
       .from(equipment)
@@ -364,6 +384,14 @@ router.post("/:id/return", requireAuth, async (req, res) => {
 
     if (!existing) return res.status(404).json({ error: "Equipment not found" });
 
+    if (!existing.checkedOutById) {
+      const existingTimestamp = existing.lastSeen ? new Date(existing.lastSeen).getTime() : 0;
+      if (clientTimestamp && clientTimestamp <= existingTimestamp) {
+        return res.json(existing);
+      }
+    }
+
+    const returnTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
     const [updated] = await db
       .update(equipment)
       .set({
@@ -372,7 +400,7 @@ router.post("/:id/return", requireAuth, async (req, res) => {
         checkedOutAt: null,
         checkedOutLocation: null,
         status: "ok",
-        lastSeen: new Date(),
+        lastSeen: returnTime,
         lastStatus: "ok",
       })
       .where(eq(equipment.id, req.params.id))
@@ -387,6 +415,7 @@ router.post("/:id/return", requireAuth, async (req, res) => {
       userEmail: req.authUser!.email,
       status: "ok",
       note: "Returned — available",
+      timestamp: returnTime,
     });
 
     // Create server-side undo token with full previous state
@@ -414,6 +443,11 @@ router.post("/:id/return", requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/equipment/:id/scan
+// LWW semantics via X-Client-Timestamp header.
+// The scan log is always appended (it's an audit trail).
+// Equipment status is updated only if clientTimestamp >= server's lastSeen (LWW).
+// If client timestamp is older, the scan is logged but status is not overwritten.
 router.post("/:id/scan", requireAuth, async (req, res) => {
   try {
     const { status, note, photoUrl } = req.body;
@@ -422,37 +456,41 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Note is required when reporting an issue" });
     }
 
-    // Fetch current state before mutation (for undo token)
-    const [existingEquipment] = await db
+    const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
+    const scanTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
+
+    // Fetch current state before mutation (for undo token and LWW check)
+    const [existing] = await db
       .select()
       .from(equipment)
       .where(eq(equipment.id, req.params.id))
       .limit(1);
 
-    if (!existingEquipment) {
+    if (!existing) {
       return res.status(404).json({ error: "Equipment not found" });
     }
 
-    const now = new Date();
+    const serverLastSeen = existing.lastSeen ? new Date(existing.lastSeen).getTime() : 0;
+    const isNewerWrite = !clientTimestamp || clientTimestamp >= serverLastSeen;
 
-    const updates: Record<string, unknown> = {
-      lastSeen: now,
-      lastStatus: status,
-      status,
-    };
+    let updatedEquipment = existing;
 
-    if (status === "maintenance") {
-      updates.lastMaintenanceDate = now;
+    if (isNewerWrite) {
+      const updates: Record<string, unknown> = {
+        lastSeen: scanTime,
+        lastStatus: status,
+        status,
+      };
+      if (status === "maintenance") updates.lastMaintenanceDate = scanTime;
+      if (status === "sterilized") updates.lastSterilizationDate = scanTime;
+
+      const [result] = await db
+        .update(equipment)
+        .set(updates)
+        .where(eq(equipment.id, req.params.id))
+        .returning();
+      updatedEquipment = result;
     }
-    if (status === "sterilized") {
-      updates.lastSterilizationDate = now;
-    }
-
-    const [updatedEquipment] = await db
-      .update(equipment)
-      .set(updates)
-      .where(eq(equipment.id, req.params.id))
-      .returning();
 
     const [scanLog] = await db
       .insert(scanLogs)
@@ -464,6 +502,7 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
         status,
         note: note || null,
         photoUrl: photoUrl || null,
+        timestamp: scanTime,
       })
       .returning();
 
@@ -473,15 +512,15 @@ router.post("/:id/scan", requireAuth, async (req, res) => {
       actorId: req.authUser!.id,
       scanLogId: scanLog.id,
       previousState: {
-        status: existingEquipment.status,
-        lastSeen: existingEquipment.lastSeen,
-        lastStatus: existingEquipment.lastStatus,
-        lastMaintenanceDate: existingEquipment.lastMaintenanceDate,
-        lastSterilizationDate: existingEquipment.lastSterilizationDate,
-        checkedOutById: existingEquipment.checkedOutById,
-        checkedOutByEmail: existingEquipment.checkedOutByEmail,
-        checkedOutAt: existingEquipment.checkedOutAt,
-        checkedOutLocation: existingEquipment.checkedOutLocation,
+        status: existing.status,
+        lastSeen: existing.lastSeen,
+        lastStatus: existing.lastStatus,
+        lastMaintenanceDate: existing.lastMaintenanceDate,
+        lastSterilizationDate: existing.lastSterilizationDate,
+        checkedOutById: existing.checkedOutById,
+        checkedOutByEmail: existing.checkedOutByEmail,
+        checkedOutAt: existing.checkedOutAt,
+        checkedOutLocation: existing.checkedOutLocation,
       },
     });
 

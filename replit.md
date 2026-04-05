@@ -47,7 +47,7 @@ tsx server/seed.ts   # Seed sample data
 5. **Alerts** — Automatic overdue/issue/inactive/sterilization-due detection
 6. **WhatsApp Escalation** — Opens wa.me with pre-filled alert message
 7. **Analytics** — Status distribution pie chart, 30-day scan activity, top problem equipment
-8. **Offline** — Dexie caches equipment locally; pending sync queue
+8. **Full Offline-First** — All core actions (checkout, return, scan, status update) work offline with optimistic UI updates. Pending actions are queued in IndexedDB and automatically synced when connectivity returns. Conflict resolution uses last-write-wins by timestamp. UI shows pending/synced/failed states via subtle header indicators.
 
 ## Auth
 - **Dev mode** (no Clerk keys): Admin user hardcoded, all routes accessible
@@ -77,11 +77,13 @@ src/
   index.css         # Tailwind + CSS variables (teal theme)
   types/index.ts    # Shared TypeScript types
   lib/
-    api.ts          # Typed fetch API client
+    api.ts          # Typed fetch API client (with offline interception + optimistic updates)
     utils.ts        # Alert computation, date formatting, QR URL
-    offline-db.ts   # Dexie offline database
+    offline-db.ts   # Dexie offline database (equipment cache + pending sync queue)
+    sync-engine.ts  # Background sync processor (FIFO queue, retries, conflict handling)
   hooks/
     use-auth.tsx    # Auth context (Clerk or dev mode)
+    use-sync.tsx    # Sync state context (pending count, failed count, trigger sync)
     use-toast.ts    # Toast state
   components/
     layout.tsx      # Top header + bottom nav + mobile menu

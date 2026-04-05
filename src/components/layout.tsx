@@ -14,11 +14,16 @@ import {
   X,
   WifiOff,
   PackageOpen,
+  Clock,
+  XCircle,
+  RefreshCw,
+  CheckCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
+import { useSync } from "@/hooks/use-sync";
 
 interface NavItem {
   href: string;
@@ -39,6 +44,7 @@ export function Layout({ children, title }: LayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { isAdmin } = useAuth();
+  const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
 
   const { data: equipment } = useQuery({
     queryKey: ["/api/equipment"],
@@ -89,6 +95,9 @@ export function Layout({ children, title }: LayoutProps) {
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
   const bottomItems = visibleItems.filter((item) => !item.menuOnly);
 
+  const hasPending = pendingCount > 0;
+  const hasFailed = failedCount > 0;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Top header */}
@@ -108,6 +117,48 @@ export function Layout({ children, title }: LayoutProps) {
                 <span>Offline</span>
               </div>
             )}
+
+            {/* Sync status indicator */}
+            {isOnline && isSyncing && (
+              <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>Syncing</span>
+              </div>
+            )}
+
+            {isOnline && justSynced && !isSyncing && pendingCount === 0 && (
+              <div
+                className="flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-200 rounded-full px-2.5 py-1"
+                data-testid="sync-synced-indicator"
+              >
+                <CheckCircle className="w-3 h-3" />
+                <span>Synced</span>
+              </div>
+            )}
+
+            {isOnline && hasPending && !isSyncing && (
+              <button
+                onClick={triggerSync}
+                className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-1 hover:bg-blue-100 transition-colors"
+                title={`${pendingCount} pending action${pendingCount !== 1 ? "s" : ""} — tap to sync`}
+                data-testid="sync-pending-indicator"
+              >
+                <Clock className="w-3 h-3" />
+                <span>{pendingCount} pending</span>
+              </button>
+            )}
+
+            {hasFailed && (
+              <div
+                className="flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded-full px-2.5 py-1"
+                title={`${failedCount} action${failedCount !== 1 ? "s" : ""} failed to sync`}
+                data-testid="sync-failed-indicator"
+              >
+                <XCircle className="w-3 h-3" />
+                <span>{failedCount} failed</span>
+              </div>
+            )}
+
             {alertCount > 0 && (
               <Link href="/alerts">
                 <Button

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import type { UserRole } from "@/types";
+import { setAuthState } from "@/lib/auth-store";
 
 interface AuthContextType {
   userId: string | null;
@@ -41,6 +42,12 @@ export function DevAuthProvider({ children }: DevAuthProviderProps) {
   });
 
   useEffect(() => {
+    setAuthState({
+      userId: DEV_USER.userId,
+      email: DEV_USER.email,
+      name: DEV_USER.name,
+      clerkHeaders: {},
+    });
     const timer = setTimeout(() => {
       setState((s) => ({ ...s, isLoaded: true }));
     }, 100);

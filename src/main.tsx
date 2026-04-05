@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./index.css";
 import App from "./App";
 import { DevAuthProvider } from "@/hooks/use-auth";
+import { SyncProvider } from "@/hooks/use-sync";
 import { Toaster } from "sonner";
+import { initSyncEngine } from "@/lib/sync-engine";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,14 +17,16 @@ const queryClient = new QueryClient({
   },
 });
 
-const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+initSyncEngine(queryClient);
 
 function Root() {
   return (
     <QueryClientProvider client={queryClient}>
       <DevAuthProvider>
-        <App />
-        <Toaster richColors position="top-center" />
+        <SyncProvider>
+          <App />
+          <Toaster richColors position="top-center" />
+        </SyncProvider>
       </DevAuthProvider>
     </QueryClientProvider>
   );
