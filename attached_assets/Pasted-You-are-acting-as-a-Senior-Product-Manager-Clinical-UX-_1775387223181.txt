@@ -1,0 +1,99 @@
+You are acting as a Senior Product Manager + Clinical UX Designer.
+
+Your task is to design and implement a complete Settings system + Quick Settings panel for VetTrack, a veterinary ER + hospitalization app.
+
+The system must be minimal, fast, and strictly relevant to real clinical use — no unnecessary or generic features.
+
+⸻
+
+1. Full Settings Page (Main Configuration)
+
+Create a structured Settings page with ONLY these sections:
+
+Display
+	•	Dark / Light mode
+	•	UI density (compact / comfortable)
+
+Sound
+	•	Enable / disable sounds
+	•	Critical alerts sound (on/off)
+
+Language & Input
+	•	Language selection
+	•	Keyboard/input preferences (if relevant)
+
+Date & Time
+	•	Time format (12h / 24h)
+	•	Date format
+
+Reset
+	•	Reset all settings to default (with confirmation)
+
+Account
+	•	Logout (clear and accessible)
+
+⸻
+
+2. Quick Settings (Fast Access Panel)
+
+Create a Quick Settings panel for instant control during a shift.
+
+Include ONLY:
+	•	Dark / Light mode toggle
+	•	UI density toggle
+	•	Master sound ON/OFF
+	•	Critical alerts sound ON/OFF
+	•	Language switch (if enabled)
+
+⸻
+
+3. Access & Behavior
+	•	Accessible from top bar (icon or dropdown)
+	•	Opens as a small panel (not a full page)
+	•	Usable in 1–2 taps
+	•	Changes apply instantly (no Save button)
+
+⸻
+
+4. Relationship Between Systems
+	•	Quick Settings = fast toggles
+	•	Full Settings = full control
+
+Both must:
+	•	Sync with the same state
+	•	Always stay consistent
+
+⸻
+
+5. UX Principles
+	•	Minimal and fast to scan
+	•	No clutter
+	•	Clear meaning for every option
+	•	Large, easy-to-use controls (for high-pressure situations)
+
+⸻
+
+6. Role Awareness (Light Only)
+	•	All users see core settings
+	•	Hide only what is clearly irrelevant
+	•	Do not overcomplicate permissions here
+
+⸻
+
+7. Code & Architecture
+	•	Centralized settings state (single source of truth)
+	•	Reusable components (toggles, selectors)
+	•	Quick Settings and full Settings must use the same logic
+
+⸻
+
+8. Output
+	•	First: short explanation of structure
+	•	Then: implement full system
+
+⸻
+
+9. Standard
+	•	Usable in seconds during a shift
+	•	No cognitive load
+	•	Clean, tight, production-ready

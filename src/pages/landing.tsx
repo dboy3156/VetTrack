@@ -1,5 +1,6 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
+import { useEffect } from "react";
 import {
   QrCode,
   WifiOff,
@@ -13,8 +14,20 @@ import {
   Zap,
   MapPin,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function LandingPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      navigate("/");
+    }
+  }, [isLoaded, isSignedIn, navigate]);
+
+  if (!isLoaded || isSignedIn) return null;
+
   return (
     <>
       <Helmet>
