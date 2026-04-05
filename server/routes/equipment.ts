@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
-import { eq, inArray, desc, and, lt, sql } from "drizzle-orm";
+import { eq, inArray, desc, and, lt, sql, isNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
@@ -221,8 +221,8 @@ router.get("/my", requireAuth, async (req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .leftJoin(folders, eq(equipment.folderId, folders.id))
-      .where(eq(equipment.checkedOutById, req.authUser!.id))
+      .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
+      .where(and(eq(equipment.checkedOutById, req.authUser!.id), isNull(equipment.deletedAt)))
       .orderBy(desc(equipment.checkedOutAt));
     res.json(items);
   } catch (err) {
@@ -258,7 +258,8 @@ router.get("/", requireAuth, async (_req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .leftJoin(folders, eq(equipment.folderId, folders.id))
+      .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
+      .where(isNull(equipment.deletedAt))
       .orderBy(desc(equipment.createdAt));
     res.json(items);
   } catch (err) {
@@ -294,8 +295,8 @@ router.get("/:id", requireAuth, async (req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .leftJoin(folders, eq(equipment.folderId, folders.id))
-      .where(eq(equipment.id, req.params.id))
+      .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
+      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
     if (!item) return res.status(404).json({ error: "Equipment not found" });
     res.json(item);
@@ -364,7 +365,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
       const [oldItem] = await tx
         .select()
         .from(equipment)
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       const [item] = await tx
@@ -381,7 +382,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
           ...(imageUrl !== undefined && { imageUrl }),
           ...(status !== undefined && { status }),
         })
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .returning();
 
       if (!item) return;
@@ -429,7 +430,12 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
 
 router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
-    await db.delete(equipment).where(eq(equipment.id, req.params.id));
+    const [deleted] = await db
+      .update(equipment)
+      .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
+      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+      .returning({ id: equipment.id });
+    if (!deleted) return res.status(404).json({ error: "Equipment not found" });
     invalidateAnalyticsCache();
     res.status(204).send();
   } catch (err) {
@@ -451,7 +457,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
       const [existing] = await tx
         .select()
         .from(equipment)
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!existing) return;
@@ -539,7 +545,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
       const [existing] = await tx
         .select()
         .from(equipment)
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!existing) return;
@@ -628,7 +634,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
       const [existing] = await tx
         .select()
         .from(equipment)
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!existing) return;
@@ -889,16 +895,16 @@ router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (
       return res.status(400).json({ error: `CSV exceeds max ${CSV_MAX_ROWS} rows` });
     }
 
-    // Load existing serial numbers to detect duplicates against DB
+    // Load existing serial numbers to detect duplicates against DB (exclude soft-deleted)
     const existingSerials = new Set<string>(
-      (await db.select({ s: equipment.serialNumber }).from(equipment))
+      (await db.select({ s: equipment.serialNumber }).from(equipment).where(isNull(equipment.deletedAt)))
         .map((r) => r.s)
         .filter((s): s is string => !!s)
         .map((s) => s.toLowerCase())
     );
 
-    // Load folders by name for lookup
-    const allFolders = await db.select().from(folders);
+    // Load folders by name for lookup (exclude soft-deleted)
+    const allFolders = await db.select().from(folders).where(isNull(folders.deletedAt));
     const folderByName = new Map<string, string>(
       allFolders.map((f) => [f.name.toLowerCase(), f.id])
     );
@@ -1015,13 +1021,10 @@ router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchem
     const actorName = req.authUser!.name || req.authUser!.email;
 
     await db.transaction(async (tx) => {
-      // Write tombstone scan log per item before deletion.
-      // vt_scan_logs FK was dropped (migration 009) so these records
-      // survive after the equipment rows are deleted.
       const items = await tx
         .select({ id: equipment.id, name: equipment.name, status: equipment.status })
         .from(equipment)
-        .where(inArray(equipment.id, typedIds));
+        .where(and(inArray(equipment.id, typedIds), isNull(equipment.deletedAt)));
 
       const now = new Date();
       if (items.length > 0) {
@@ -1036,9 +1039,12 @@ router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchem
             timestamp: now,
           }))
         );
-      }
 
-      await tx.delete(equipment).where(inArray(equipment.id, typedIds));
+        await tx
+          .update(equipment)
+          .set({ deletedAt: now, deletedBy: req.authUser!.id })
+          .where(inArray(equipment.id, items.map((i) => i.id)));
+      }
     });
 
     invalidateAnalyticsCache();
@@ -1067,7 +1073,7 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), validateBody(b
         const [item] = await tx
           .select()
           .from(equipment)
-          .where(eq(equipment.id, id))
+          .where(and(eq(equipment.id, id), isNull(equipment.deletedAt)))
           .limit(1);
         if (!item) continue;
 

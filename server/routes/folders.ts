@@ -32,6 +32,7 @@ router.get("/", requireAuth, async (req, res) => {
     const allFolders = await db
       .select()
       .from(folders)
+      .where(isNull(folders.deletedAt))
       .orderBy(desc(folders.createdAt));
 
     const sevenDaysAgo = subDays(new Date(), 7);
@@ -41,6 +42,7 @@ router.get("/", requireAuth, async (req, res) => {
       .where(
         and(
           lte(equipment.lastSterilizationDate, sevenDaysAgo),
+          isNull(equipment.deletedAt),
         )
       );
 
@@ -85,7 +87,7 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
     const [folder] = await db
       .update(folders)
       .set({ name: name.trim() })
-      .where(eq(folders.id, req.params.id))
+      .where(and(eq(folders.id, req.params.id), isNull(folders.deletedAt)))
       .returning();
 
     if (!folder) return res.status(404).json({ error: "Folder not found" });
@@ -98,12 +100,12 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
 
 router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
-    await db
-      .update(equipment)
-      .set({ folderId: null })
-      .where(eq(equipment.folderId, req.params.id));
-
-    await db.delete(folders).where(eq(folders.id, req.params.id));
+    const [deleted] = await db
+      .update(folders)
+      .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
+      .where(and(eq(folders.id, req.params.id), isNull(folders.deletedAt)))
+      .returning({ id: folders.id });
+    if (!deleted) return res.status(404).json({ error: "Folder not found" });
     res.status(204).send();
   } catch (err) {
     console.error(err);

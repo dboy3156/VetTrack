@@ -1,5 +1,5 @@
 import { db, alertAcks, equipment } from "../db.js";
-import { eq, isNull } from "drizzle-orm";
+import { eq, isNull, and } from "drizzle-orm";
 import { sendPushToUser } from "./push.js";
 
 const ALERT_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -71,7 +71,7 @@ async function checkAndSendReminders(): Promise<void> {
           name: equipment.name,
         })
         .from(equipment)
-        .where(eq(equipment.id, ack.equipmentId))
+        .where(and(eq(equipment.id, ack.equipmentId), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!eqRow) continue;

@@ -131,6 +131,10 @@ export async function requireAuth(
 
     Sentry.setUser({ id: user.id, email: user.email });
 
+    if (user.deletedAt) {
+      return res.status(403).json({ error: "deleted", message: "Your account has been removed." });
+    }
+
     if (user.status === "pending") {
       return res.status(403).json({ error: "pending", message: "Your account is awaiting admin approval." });
     }

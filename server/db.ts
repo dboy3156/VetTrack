@@ -24,6 +24,8 @@ export const users = pgTable("vt_users", {
   role: varchar("role", { length: 20 }).notNull().default("technician"),
   status: varchar("status", { length: 20 }).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const folders = pgTable("vt_folders", {
@@ -32,6 +34,8 @@ export const folders = pgTable("vt_folders", {
   type: varchar("type", { length: 20 }).notNull().default("manual"),
   color: text("color"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const equipment = pgTable("vt_equipment", {
@@ -56,6 +60,8 @@ export const equipment = pgTable("vt_equipment", {
   checkedOutAt: timestamp("checked_out_at"),
   checkedOutLocation: text("checked_out_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const scanLogs = pgTable("vt_scan_logs", {
@@ -71,9 +77,7 @@ export const scanLogs = pgTable("vt_scan_logs", {
 
 export const transferLogs = pgTable("vt_transfer_logs", {
   id: text("id").primaryKey(),
-  equipmentId: text("equipment_id")
-    .notNull()
-    .references(() => equipment.id, { onDelete: "cascade" }),
+  equipmentId: text("equipment_id"),
   fromFolderId: text("from_folder_id"),
   fromFolderName: text("from_folder_name"),
   toFolderId: text("to_folder_id"),

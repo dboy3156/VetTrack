@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, equipment, scanLogs } from "../db.js";
-import { gte, desc, eq } from "drizzle-orm";
+import { gte, desc, eq, isNull } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { subDays, format } from "date-fns";
 import { analyticsCache } from "../lib/analytics-cache.js";
@@ -24,7 +24,7 @@ router.get("/", requireAuth, async (req, res) => {
       return res.json(cached);
     }
 
-    const allEquipment = await db.select().from(equipment);
+    const allEquipment = await db.select().from(equipment).where(isNull(equipment.deletedAt));
     const total = allEquipment.length;
 
     const statusBreakdown = {
@@ -122,6 +122,8 @@ router.get("/", requireAuth, async (req, res) => {
             .from(equipment)
             .where(eq(equipment.id, equipmentId))
             .limit(1);
+          // Note: we intentionally don't filter deleted_at here so that
+          // problem equipment history remains visible even if deleted.
           return {
             equipmentId,
             name: item?.name || "Unknown",

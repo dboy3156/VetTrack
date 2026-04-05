@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db, users } from "../db.js";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, isNull, and } from "drizzle-orm";
 import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
@@ -54,10 +54,9 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     if (status !== undefined && !validStatuses.includes(status as string)) {
       return res.status(400).json({ error: "Invalid status filter. Must be one of: pending, active, blocked" });
     }
-    const query = db.select().from(users);
     const allUsers = status
-      ? await query.where(eq(users.status, status as string)).orderBy(users.createdAt)
-      : await query.orderBy(users.createdAt);
+      ? await db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
+      : await db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
     res.json(allUsers);
   } catch (err) {
     console.error(err);
@@ -70,7 +69,7 @@ router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
     const pendingUsers = await db
       .select()
       .from(users)
-      .where(eq(users.status, "pending"))
+      .where(and(eq(users.status, "pending"), isNull(users.deletedAt)))
       .orderBy(users.createdAt);
     res.json(pendingUsers);
   } catch (err) {
@@ -95,7 +94,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(users)
-        .where(eq(users.role, "admin"));
+        .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
         return res.status(400).json({ error: "Cannot remove or demote the last admin" });
       }
@@ -132,6 +131,40 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
   }
 });
 
+router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [target] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    if (target.role === "admin") {
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
+      if (count <= 1) {
+        return res.status(400).json({ error: "Cannot delete the last admin" });
+      }
+    }
+
+    const [deleted] = await db
+      .update(users)
+      .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .returning({ id: users.id });
+
+    if (!deleted) return res.status(404).json({ error: "User not found" });
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete user" });
+  }
+});
+
 router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSchema), async (req, res) => {
   try {
     const { clerkId, email, name } = req.body as z.infer<typeof syncUserSchema>;
@@ -143,7 +176,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     const [existing] = await db
       .select()
       .from(users)
-      .where(eq(users.clerkId, clerkId))
+      .where(and(eq(users.clerkId, clerkId), isNull(users.deletedAt)))
       .limit(1);
 
     if (existing) {
