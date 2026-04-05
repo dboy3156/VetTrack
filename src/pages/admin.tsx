@@ -35,18 +35,26 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, ClipboardList, ChevronLeft, ChevronRight, Search, Filter, RefreshCw } from "lucide-react";
+import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, ClipboardList, ChevronLeft, ChevronRight, Search, Filter, RefreshCw, RotateCcw, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+<<<<<<< HEAD
 import { format } from "date-fns";
 import type { SupportTicket, SupportTicketStatus, User, AuditLog } from "@/types";
+=======
+import type { SupportTicket, SupportTicketStatus, User, DeletedEquipment } from "@/types";
+>>>>>>> 4760e5a (feat: Restore soft-deleted records (Task #42))
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
+<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "audit-logs">("folders");
+=======
+  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "deleted">("folders");
+>>>>>>> 4760e5a (feat: Restore soft-deleted records (Task #42))
 
   const { data: supportUnresolved } = useQuery({
     queryKey: ["/api/support/unresolved-count"],
@@ -174,13 +182,30 @@ export default function AdminPage() {
             <ClipboardList className="w-4 h-4" />
             Audit Logs
           </button>
+          <button
+            onClick={() => setActiveTab("deleted")}
+            data-testid="admin-tab-deleted"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+              activeTab === "deleted"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Trash2 className="w-4 h-4" />
+            Deleted
+          </button>
         </div>
 
         {activeTab === "folders" && <FoldersSection />}
         {activeTab === "pending" && <PendingUsersSection />}
         {activeTab === "users" && <UsersSection />}
         {activeTab === "support" && <SupportSection />}
+<<<<<<< HEAD
         {activeTab === "audit-logs" && <AuditLogsSection />}
+=======
+        {activeTab === "deleted" && <DeletedItemsSection />}
+>>>>>>> 4760e5a (feat: Restore soft-deleted records (Task #42))
       </div>
     </Layout>
   );
@@ -651,6 +676,148 @@ function UsersSection() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function DeletedItemsSection() {
+  const queryClient = useQueryClient();
+
+  const { data: deletedEquipment, isLoading: equipLoading } = useQuery({
+    queryKey: ["/api/equipment/deleted"],
+    queryFn: api.equipment.listDeleted,
+  });
+
+  const { data: deletedUsers, isLoading: usersLoading } = useQuery({
+    queryKey: ["/api/users/deleted"],
+    queryFn: api.users.listDeleted,
+  });
+
+  const restoreEquipMut = useMutation({
+    mutationFn: (id: string) => api.equipment.restore(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      toast.success("Equipment restored");
+    },
+    onError: () => toast.error("Failed to restore equipment"),
+  });
+
+  const restoreUserMut = useMutation({
+    mutationFn: (id: string) => api.users.restore(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast.success("User restored");
+    },
+    onError: () => toast.error("Failed to restore user"),
+  });
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Deleted Equipment */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-primary" />
+            Deleted Equipment
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {equipLoading ? (
+            <div className="flex flex-col gap-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
+            </div>
+          ) : !deletedEquipment || deletedEquipment.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No deleted equipment.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {deletedEquipment.map((item: DeletedEquipment) => (
+                <div
+                  key={item.id}
+                  data-testid={`deleted-equipment-row-${item.id}`}
+                  className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{item.name}</p>
+                    {(item.model || item.serialNumber) && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {[item.model, item.serialNumber].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Deleted {new Date(item.deletedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 gap-1"
+                    disabled={restoreEquipMut.isPending}
+                    data-testid={`btn-restore-equipment-${item.id}`}
+                    onClick={() => restoreEquipMut.mutate(item.id)}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Deleted Users */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
+            Deleted Users
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {usersLoading ? (
+            <div className="flex flex-col gap-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
+            </div>
+          ) : !deletedUsers || deletedUsers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No deleted users.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {deletedUsers.map((user: User) => (
+                <div
+                  key={user.id}
+                  data-testid={`deleted-user-row-${user.id}`}
+                  className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{user.name || user.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Deleted {user.deletedAt ? new Date(user.deletedAt).toLocaleDateString() : "—"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 gap-1"
+                    disabled={restoreUserMut.isPending}
+                    data-testid={`btn-restore-user-${user.id}`}
+                    onClick={() => restoreUserMut.mutate(user.id)}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

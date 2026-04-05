@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
 import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
-import { eq, inArray, desc, and, lt, sql, isNull } from "drizzle-orm";
+import { eq, inArray, desc, and, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
@@ -269,6 +269,31 @@ router.get("/", requireAuth, async (_req, res) => {
   }
 });
 
+// GET /api/equipment/deleted — admin only, list soft-deleted equipment
+router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const items = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+        serialNumber: equipment.serialNumber,
+        model: equipment.model,
+        manufacturer: equipment.manufacturer,
+        status: equipment.status,
+        deletedAt: equipment.deletedAt,
+        deletedBy: equipment.deletedBy,
+        createdAt: equipment.createdAt,
+      })
+      .from(equipment)
+      .where(isNotNull(equipment.deletedAt))
+      .orderBy(desc(equipment.deletedAt));
+    res.json(items);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to list deleted equipment" });
+  }
+});
+
 router.get("/:id", requireAuth, async (req, res) => {
   try {
     const [item] = await db
@@ -477,6 +502,31 @@ router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req,
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to delete equipment" });
+  }
+});
+
+// POST /api/equipment/:id/restore — admin only, restore a soft-deleted equipment record
+router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
+  try {
+    const [existing] = await db
+      .select()
+      .from(equipment)
+      .where(and(eq(equipment.id, req.params.id), isNotNull(equipment.deletedAt)))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "Equipment not found or not deleted" });
+
+    const [restored] = await db
+      .update(equipment)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(equipment.id, req.params.id))
+      .returning();
+
+    invalidateAnalyticsCache();
+    res.json(restored);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to restore equipment" });
   }
 });
 
@@ -1131,15 +1181,15 @@ router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchem
           .set({ deletedAt: now, deletedBy: req.authUser!.id })
           .where(inArray(equipment.id, items.map((i) => i.id)));
       }
-    });
 
-    logAudit({
-      actionType: "equipment_bulk_deleted",
-      performedBy: req.authUser!.id,
-      performedByEmail: req.authUser!.email,
-      targetId: null,
-      targetType: "equipment",
-      metadata: { ids: typedIds, count: typedIds.length },
+      logAudit({
+        actionType: "equipment_bulk_deleted",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email,
+        targetId: null,
+        targetType: "equipment",
+        metadata: { ids: typedIds, count: typedIds.length },
+      });
     });
 
     invalidateAnalyticsCache();

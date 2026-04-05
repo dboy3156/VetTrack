@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db, users } from "../db.js";
-import { eq, sql, isNull, and } from "drizzle-orm";
+import { eq, sql, isNull, isNotNull, desc, and } from "drizzle-orm";
 import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
@@ -45,6 +45,20 @@ router.get("/me", requireAuthAny, async (req, res) => {
     res.json(req.authUser);
   } catch (err) {
     res.status(500).json({ error: "Failed to get user" });
+  }
+});
+
+router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const deletedUsers = await db
+      .select()
+      .from(users)
+      .where(isNotNull(users.deletedAt))
+      .orderBy(desc(users.deletedAt));
+    res.json(deletedUsers);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to list deleted users" });
   }
 });
 
@@ -157,17 +171,21 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
   }
 });
 
-router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
-    const [target] = await db
+    const [existing] = await db
       .select()
       .from(users)
       .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
-    if (!target) return res.status(404).json({ error: "User not found" });
+    if (!existing) return res.status(404).json({ error: "User not found" });
 
-    if (target.role === "admin") {
+    if (existing.id === req.authUser!.id) {
+      return res.status(400).json({ error: "Cannot delete your own account" });
+    }
+
+    if (existing.role === "admin") {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(users)
@@ -181,9 +199,19 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
       .update(users)
       .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
       .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
-      .returning({ id: users.id });
+      .returning();
 
     if (!deleted) return res.status(404).json({ error: "User not found" });
+
+    logAudit({
+      actionType: "user_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: { email: deleted.email, role: deleted.role },
+    });
+
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -191,6 +219,37 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
+  try {
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, req.params.id), isNotNull(users.deletedAt)))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "User not found or not deleted" });
+
+    const [restored] = await db
+      .update(users)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(users.id, req.params.id))
+      .returning();
+
+    logAudit({
+      actionType: "user_restored",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: { email: restored.email, role: restored.role },
+    });
+
+    res.json(restored);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to restore user" });
+  }
+});
 router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSchema), async (req, res) => {
   try {
     const { clerkId, email, name } = req.body as z.infer<typeof syncUserSchema>;

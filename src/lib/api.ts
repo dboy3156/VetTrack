@@ -12,6 +12,7 @@ import type {
   BulkMoveRequest,
   BulkResult,
   User,
+  DeletedEquipment,
   UploadUrlRequest,
   UploadUrlResponse,
   AlertAcknowledgment,
@@ -402,6 +403,8 @@ export const api = {
         `/api/equipment/${id}/transfers`,
         () => Promise.resolve([])
       ),
+    listDeleted: () => request<DeletedEquipment[]>("/api/equipment/deleted"),
+    restore: (id: string) => request<Equipment>(`/api/equipment/${id}/restore`, { method: "POST" }),
   },
   folders: {
     list: async () => {
@@ -445,6 +448,7 @@ export const api = {
     list: (status?: "pending" | "active" | "blocked") =>
       request<User[]>(status ? `/api/users?status=${status}` : "/api/users"),
     listPending: () => request<User[]>("/api/users/pending"),
+    listDeleted: () => request<User[]>("/api/users/deleted"),
     updateRole: (id: string, role: "admin" | "vet" | "technician" | "viewer") =>
       request<User>(
         `/api/users/${id}/role`,
@@ -455,6 +459,10 @@ export const api = {
         `/api/users/${id}/status`,
         { method: "PATCH", body: JSON.stringify({ status }) }
       ),
+    delete: (id: string) =>
+      request<void>(`/api/users/${id}`, { method: "DELETE" }),
+    restore: (id: string) =>
+      request<User>(`/api/users/${id}/restore`, { method: "POST" }),
     me: () => request<User>("/api/users/me"),
   },
   storage: {

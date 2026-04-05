@@ -23,6 +23,20 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   createdAt: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+}
+
+export interface DeletedEquipment {
+  id: string;
+  name: string;
+  serialNumber?: string | null;
+  model?: string | null;
+  manufacturer?: string | null;
+  status: string;
+  deletedAt: string;
+  deletedBy?: string | null;
+  createdAt: string;
 }
 
 export interface Folder {
