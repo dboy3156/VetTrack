@@ -86,7 +86,7 @@ export function extractEquipmentId(raw: string): string | null {
 
 async function resolveEquipmentId(id: string): Promise<Equipment | null> {
   const offline = await getCachedEquipmentById(id);
-  if (offline) return offline as unknown as Equipment;
+  if (offline) return offline as Equipment;
   if (!navigator.onLine) return null;
   try {
     const eq = await api.equipment.get(id);
@@ -333,7 +333,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     if (!scannedEquipment) return;
     setIsActing(true);
     try {
-      await api.equipment.update(scannedEquipment.id, { status: "ok" });
+      await api.equipment.scan(scannedEquipment.id, { status: "ok" });
       toast.success(`${scannedEquipment.name} marked as OK`);
       onClose();
     } catch (err: unknown) {
@@ -347,7 +347,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     if (!scannedEquipment) return;
     setIsActing(true);
     try {
-      await api.equipment.update(scannedEquipment.id, { status: "issue" });
+      await api.equipment.scan(scannedEquipment.id, { status: "issue" });
       toast.success(`Issue reported for ${scannedEquipment.name}`);
       onClose();
     } catch (err: unknown) {
