@@ -13,6 +13,17 @@ import { initSyncEngine } from "@/lib/sync-engine";
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
+
+    if ("PushManager" in window) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.pushManager.getSubscription().then((sub) => {
+          const storedEndpoint = localStorage.getItem("push_subscription_endpoint");
+          if (storedEndpoint && (!sub || sub.endpoint !== storedEndpoint)) {
+            localStorage.removeItem("push_subscription_endpoint");
+          }
+        });
+      }).catch(() => {});
+    }
   });
 }
 

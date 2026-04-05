@@ -42,6 +42,7 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "",
     tag: data.tag || "vettrack",
+    renotify: true,
     icon: "/og-image.png",
     badge: "/og-image.png",
     silent: data.silent || false,
@@ -60,8 +61,9 @@ self.addEventListener("notificationclick", (event) => {
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && "focus" in client) {
-          client.navigate(url);
-          return client.focus();
+          return client.navigate(url).then((navigatedClient) => {
+            return (navigatedClient || client).focus();
+          });
         }
       }
       if (clients.openWindow) {

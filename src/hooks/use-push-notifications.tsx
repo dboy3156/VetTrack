@@ -62,7 +62,14 @@ export function usePushNotifications() {
 
     navigator.serviceWorker.ready.then((registration) => {
       registration.pushManager.getSubscription().then((sub) => {
-        setState((s) => ({ ...s, subscribed: !!sub }));
+        const storedEndpoint = localStorage.getItem("push_subscription_endpoint");
+
+        if (storedEndpoint && (!sub || sub.endpoint !== storedEndpoint)) {
+          localStorage.removeItem("push_subscription_endpoint");
+          setState((s) => ({ ...s, subscribed: false }));
+        } else {
+          setState((s) => ({ ...s, subscribed: !!sub }));
+        }
       });
     });
   }, []);
@@ -110,6 +117,7 @@ export function usePushNotifications() {
 
       if (!res.ok) throw new Error("Failed to save subscription");
 
+      localStorage.setItem("push_subscription_endpoint", subJson.endpoint || "");
       setState((s) => ({ ...s, subscribed: true, loading: false }));
       return true;
     } catch (err) {
@@ -135,6 +143,7 @@ export function usePushNotifications() {
         await subscription.unsubscribe();
       }
 
+      localStorage.removeItem("push_subscription_endpoint");
       setState((s) => ({ ...s, subscribed: false, loading: false }));
       return true;
     } catch (err) {

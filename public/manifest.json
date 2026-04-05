@@ -1,0 +1,22 @@
+{
+  "name": "VetTrack",
+  "short_name": "VetTrack",
+  "description": "Veterinary Equipment QR Tracking System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
+  "icons": [
+    {
+      "src": "/og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png"
+    },
+    {
+      "src": "/og-image.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
