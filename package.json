@@ -7,7 +7,8 @@
     "dev": "concurrently -k -p \"[{name}]\" -n \"api,web\" -c \"cyan,teal\" \"tsx watch server/index.ts\" \"vite --port 5000 --host\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "validate:prod": "tsx scripts/validate-prod.ts"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.0.0",

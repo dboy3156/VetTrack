@@ -36,7 +36,10 @@ Tables (all prefixed `vt_`):
 ## Running
 ```bash
 npm run dev          # Starts both backend (3001) + frontend (5000)
+npm run build        # Build frontend for production
+npm run start        # Start in production mode
 npm run db:push      # Push Drizzle schema to DB
+npm run validate:prod  # Run pre-deployment validation checks
 tsx server/seed.ts   # Seed sample data
 ```
 

@@ -1,3 +1,6 @@
+import { validateEnv } from "./lib/envValidation.js";
+validateEnv();
+
 import * as Sentry from "@sentry/node";
 
 if (process.env.SENTRY_DSN) {
@@ -45,6 +48,7 @@ import { STABILITY_TOKEN } from "./lib/stability-token.js";
 import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
 import { startAlertReminderScheduler } from "./lib/alert-reminder.js";
+import healthRoutes from "./routes/health.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -119,6 +123,16 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use("/api/health", healthRoutes);
+
+app.get("/api/healthz", (_req, res) => {
+  res.json({ status: "ok", version: APP_VERSION });
+});
+
+app.get("/api/version", (_req, res) => {
+  res.json({ version: APP_VERSION });
+});
+
 if (process.env.CLERK_SECRET_KEY) {
   // Bypass Clerk for internal stability test runner requests
   app.use((req, _res, next) => {
@@ -150,11 +164,6 @@ app.use((req, _res, next) => {
   next();
 });
 
-if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
-  console.error("FATAL: SESSION_SECRET environment variable is not set in production mode.");
-  process.exit(1);
-}
-
 const PgSession = connectPgSimple(session);
 
 app.use(
@@ -164,7 +173,7 @@ app.use(
       tableName: "vt_sessions",
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "vettrack-dev-secret",
+    secret: process.env.SESSION_SECRET || (isDev ? "dev-only-insecure-placeholder-set-SESSION_SECRET-in-env" : (() => { throw new Error("SESSION_SECRET must be set"); })()),
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -175,14 +184,6 @@ app.use(
     },
   })
 );
-
-app.get("/api/healthz", (_req, res) => {
-  res.json({ status: "ok", version: APP_VERSION });
-});
-
-app.get("/api/version", (_req, res) => {
-  res.json({ version: APP_VERSION });
-});
 
 app.get("/CHANGELOG.md", (_req, res) => {
   const changelogPath = path.join(__dirname, "../CHANGELOG.md");
@@ -254,9 +255,24 @@ function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number>
   });
 }
 
+async function ensureSessionTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vt_sessions (
+      sid VARCHAR NOT NULL COLLATE "default" PRIMARY KEY,
+      sess JSON NOT NULL,
+      expire TIMESTAMP(6) NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS IDX_session_expire ON vt_sessions (expire)
+  `);
+  console.log("✅ Session table ready");
+}
+
 async function main() {
   await runMigrations();
   await initDb();
+  await ensureSessionTable();
   await initVapid();
   startAlertReminderScheduler();
 
