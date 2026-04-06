@@ -16,7 +16,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
   Moon,
   Volume2,
@@ -30,7 +29,6 @@ import {
   LogOut,
   Sun,
   AlignJustify,
-  SunDim,
   Send,
 } from "lucide-react";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
@@ -73,7 +71,7 @@ export default function SettingsPage() {
 
   return (
     <Layout title="Settings">
-      <div className="space-y-6 pb-8">
+      <div className="space-y-6 pb-8 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">Customize your VetTrack experience</p>
@@ -103,28 +101,6 @@ export default function SettingsPage() {
               onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
               data-testid="settings-density"
             />
-            <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card border border-border/60">
-              <span className="flex-shrink-0 text-muted-foreground">
-                <SunDim className="w-5 h-5" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground leading-tight">Brightness</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Dim or brighten the app ({settings.brightness}%)
-                </p>
-                <div className="mt-2 pr-1">
-                  <Slider
-                    min={30}
-                    max={100}
-                    step={5}
-                    value={[settings.brightness]}
-                    onValueChange={([v]) => update({ brightness: v })}
-                    data-testid="settings-brightness"
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 

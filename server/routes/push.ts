@@ -5,7 +5,7 @@ import { db, pushSubscriptions } from "../db.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
+import { authSensitiveLimiter, pushTestLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
 
 /*
@@ -15,7 +15,7 @@ import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
  * POST /subscribe          viewer+       Register push subscription
  * PATCH /subscribe         viewer+       Update subscription settings
  * DELETE /subscribe        viewer+       Remove push subscription
- * POST /test               admin-only    Send a test push notification
+ * POST /test               viewer+       Send a test push notification to self
  * ─────────────────────────────────────────────────────
  */
 
@@ -119,7 +119,7 @@ router.delete("/subscribe", requireAuth, validateBody(deleteSubscribeSchema), as
   }
 });
 
-router.post("/test", requireAuth, requireAdmin, async (req, res) => {
+router.post("/test", requireAuth, pushTestLimiter, async (req, res) => {
   try {
     await sendPushToUser(req.authUser!.id, {
       title: "VetTrack Test",

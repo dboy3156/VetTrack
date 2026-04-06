@@ -266,7 +266,7 @@ export default function EquipmentListPage() {
         <meta name="description" content="Browse, search, and manage all veterinary equipment. Filter by status or folder, bulk-move items, and scan QR codes to quickly locate any asset." />
         <link rel="canonical" href="https://vettrack.replit.app/equipment" />
       </Helmet>
-      <div className="flex flex-col gap-4 pb-24">
+      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight">Equipment</h1>
@@ -352,6 +352,7 @@ export default function EquipmentListPage() {
 
           {/* Location filter chips */}
           {locations.length > 0 && (
+            <div className="relative">
             <div
               className="flex gap-2 overflow-x-auto pb-1 scrollbar-none"
               data-testid="location-filter-chips"
@@ -382,6 +383,9 @@ export default function EquipmentListPage() {
                   {loc}
                 </button>
               ))}
+            </div>
+            {/* Fade gradient indicating more chips to scroll */}
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent" />
             </div>
           )}
         </div>
@@ -540,7 +544,7 @@ export default function EquipmentListPage() {
             }
           />
         ) : (
-          <div className="flex flex-col gap-2" data-testid="equipment-list">
+          <div className="flex flex-col gap-3" data-testid="equipment-list">
             {filtered.map((eq) => (
               <EquipmentItem
                 key={eq.id}
@@ -627,7 +631,7 @@ function EquipmentItem({
             className={`bg-card border-border/60 shadow-sm transition-all hover:shadow-md active:scale-[0.99] ${selected ? "border-primary bg-primary/5" : ""}`}
             data-testid={`equipment-item-${eq.id}`}
           >
-            <CardContent className="p-3 flex items-center gap-3 min-h-[64px]">
+            <CardContent className="p-4 flex items-center gap-3 min-h-[72px]">
               {/* Icon / Image */}
               {eq.imageUrl ? (
                 <img
@@ -642,7 +646,7 @@ function EquipmentItem({
               )}
               {/* Main info */}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate leading-snug">{eq.name}</p>
+                <p className="font-bold text-base truncate leading-snug">{eq.name}</p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   {eq.folderName && (
                     <span className="flex items-center gap-0.5 text-xs text-muted-foreground">

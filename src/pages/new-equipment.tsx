@@ -143,7 +143,7 @@ export default function NewEquipmentPage() {
         <meta name="description" content="Register a new piece of veterinary equipment. Assign a name, serial number, location, folder, and maintenance schedule to begin QR tracking." />
         <link rel="canonical" href="https://vettrack.replit.app/equipment/new" />
       </Helmet>
-      <div className="flex flex-col gap-6 pb-24">
+      <div className="flex flex-col gap-6 pb-24 animate-fade-in">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"

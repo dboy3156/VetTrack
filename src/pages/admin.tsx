@@ -128,7 +128,7 @@ export default function AdminPage() {
         />
         <link rel="canonical" href="https://vettrack.replit.app/admin" />
       </Helmet>
-      <div className="flex flex-col gap-6 pb-24">
+      <div className="flex flex-col gap-6 pb-24 animate-fade-in">
         <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
           <Shield className="w-6 h-6 text-primary" />
           Admin

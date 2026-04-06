@@ -243,7 +243,7 @@ export default function EquipmentDetailPage() {
     undoStateRef.current = { ...state, timeoutId, toastId };
   }
 
-  const { data: equipment, isLoading } = useQuery({
+  const { data: equipment, isLoading, isError, refetch } = useQuery({
     queryKey: [`/api/equipment/${id}`],
     queryFn: () => api.equipment.get(id!),
     enabled: !!id,
@@ -588,6 +588,24 @@ export default function EquipmentDetailPage() {
     );
   }
 
+  if (isError) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+          <AlertTriangle className="w-10 h-10 text-destructive opacity-60" />
+          <div>
+            <p className="font-semibold text-foreground">Failed to load equipment</p>
+            <p className="text-sm text-muted-foreground mt-1">Check your connection and try again</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => refetch()}>Try Again</Button>
+            <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   if (!equipment) {
     return (
       <Layout>
@@ -617,7 +635,7 @@ export default function EquipmentDetailPage() {
         <meta name="description" content={`Equipment detail for ${equipment.name}. Status: ${equipment.status}${equipment.location ? `. Location: ${equipment.location}` : ""}. Update status, check out, report issues, and view full history.`} />
         <link rel="canonical" href={`https://vettrack.replit.app/equipment/${equipment.id}`} />
       </Helmet>
-      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
+      <div className="flex flex-col gap-4 pb-28 animate-fade-in">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -630,7 +648,7 @@ export default function EquipmentDetailPage() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <h1 className="text-xl font-bold leading-tight">{equipment.name}</h1>
+              <h1 className="text-2xl font-bold leading-tight">{equipment.name}</h1>
               {equipment.folderName && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                   <FolderOpen className="w-3 h-3" />
@@ -701,7 +719,8 @@ export default function EquipmentDetailPage() {
           {!isCheckedOut ? (
             <Button
               size="lg"
-              className="w-full h-14 gap-3 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl active:scale-[0.98] transition-all shadow-sm"
+              variant="outline"
+              className="w-full h-14 gap-3 text-base font-semibold rounded-2xl active:scale-[0.98] transition-all border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50"
               onClick={() => checkoutMut.mutate()}
               disabled={checkoutMut.isPending}
               data-testid="btn-checkout"

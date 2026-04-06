@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -110,7 +110,7 @@ export default function AuditLogPage() {
     page,
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/audit-logs", params],
     queryFn: () => api.auditLogs.list(params),
     enabled: isAdmin,
@@ -149,7 +149,7 @@ export default function AuditLogPage() {
         <title>Audit Log — VetTrack</title>
         <meta name="description" content="Immutable audit log of all critical actions in VetTrack." />
       </Helmet>
-      <div className="flex flex-col gap-6 pb-24">
+      <div className="flex flex-col gap-6 pb-24 animate-fade-in">
         <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
           <ClipboardList className="w-6 h-6 text-primary" />
           Audit Log
@@ -211,6 +211,15 @@ export default function AuditLogPage() {
                 {[1, 2, 3, 4, 5].map((i) => (
                   <Skeleton key={i} className="h-12 rounded-xl" />
                 ))}
+              </div>
+            ) : isError ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
+                <AlertTriangle className="w-8 h-8 text-destructive opacity-60" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Failed to load audit log</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => refetch()}>Try Again</Button>
               </div>
             ) : !data?.items.length ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">

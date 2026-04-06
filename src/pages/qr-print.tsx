@@ -17,6 +17,7 @@ import {
   Square,
   QrCode,
   Package,
+  AlertTriangle,
 } from "lucide-react";
 import type { Equipment } from "@/types";
 
@@ -25,7 +26,7 @@ export default function QrPrintPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const printRef = useRef<HTMLDivElement>(null);
 
-  const { data: equipment, isLoading } = useQuery({
+  const { data: equipment, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
@@ -123,7 +124,7 @@ export default function QrPrintPage() {
         <meta name="description" content="Generate and print QR code labels for veterinary equipment. Select items, preview QR codes, and print sheets for physical labeling." />
         <link rel="canonical" href="https://vettrack.replit.app/print" />
       </Helmet>
-      <div className="flex flex-col gap-4 pb-24">
+      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
@@ -188,6 +189,15 @@ export default function QrPrintPage() {
             {[...Array(5)].map((_, i) => (
               <Skeleton key={i} className="h-16 rounded-xl" />
             ))}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+            <AlertTriangle className="w-8 h-8 text-destructive opacity-60" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Failed to load equipment</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Try Again</Button>
           </div>
         ) : (
           <div className="flex flex-col gap-2">

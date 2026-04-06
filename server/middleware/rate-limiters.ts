@@ -26,3 +26,12 @@ export const authSensitiveLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests on this endpoint. Please wait a minute." },
 });
+
+// Push test: 3/min per IP — prevents notification spam via self-targeted test
+export const pushTestLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many test notifications. Please wait a minute." },
+});

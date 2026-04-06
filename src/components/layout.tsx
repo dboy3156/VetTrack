@@ -28,7 +28,6 @@ import {
   VolumeX,
   BellRing,
   AlignJustify,
-  SunDim,
   Bug,
   CloudOff,
   FlaskConical,
@@ -36,7 +35,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
+
 import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
 import { QrScanner } from "@/components/qr-scanner";
@@ -137,10 +136,10 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     { href: "/analytics", label: "Analytics", icon: <BarChart3 className="w-5 h-5" /> },
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: "QR Print", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
-    { href: "/settings", label: "Settings", icon: <Settings className="w-5 h-5" />, menuOnly: true },
-    { href: "/landing", label: "About VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
     { href: "/admin", label: "Admin", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/stability", label: "Stability", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/settings", label: "Settings", icon: <Settings className="w-5 h-5" />, menuOnly: true },
+    { href: "/landing", label: "About VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ];
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
@@ -236,9 +235,10 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
                 onClick={() => setSyncQueueOpen(true)}
                 title="View sync queue"
+                aria-label="View sync queue"
                 data-testid="sync-queue-badge"
               >
-                <CloudOff className="w-4 h-4" />
+                <CloudOff className="w-4 h-4" aria-hidden="true" />
                 <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
                   {(pendingCount + failedCount) > 9 ? "9+" : pendingCount + failedCount}
                 </span>
@@ -251,10 +251,11 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   variant="ghost"
                   size="icon-sm"
                   className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label={`View ${alertCount} alert${alertCount !== 1 ? "s" : ""}`}
                   data-testid="alert-bell"
                 >
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                  <AlertTriangle className="w-4 h-4" aria-hidden="true" />
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold" aria-hidden="true">
                     {alertCount > 9 ? "9+" : alertCount}
                   </span>
                 </Button>
@@ -304,25 +305,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                     onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
                     data-testid="quick-density"
                   />
-                  <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/50">
-                    <span className="flex-shrink-0 text-muted-foreground">
-                      <SunDim className="w-5 h-5" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground leading-tight mb-1.5">
-                        Brightness ({settings.brightness}%)
-                      </p>
-                      <Slider
-                        min={30}
-                        max={100}
-                        step={5}
-                        value={[settings.brightness]}
-                        onValueChange={([v]) => update({ brightness: v })}
-                        data-testid="quick-brightness"
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
                   <SettingsToggle
                     icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                     label="Master Sound"
@@ -357,51 +339,117 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 setQuickSettingsOpen(false);
               }}
               data-testid="menu-toggle"
+              aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={menuOpen}
               className="text-muted-foreground hover:text-foreground hover:bg-muted"
             >
-              {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              {menuOpen ? <X className="w-4 h-4" aria-hidden="true" /> : <Menu className="w-4 h-4" aria-hidden="true" />}
             </Button>
           </div>
         </div>
 
         {/* Slide-down nav menu */}
         {menuOpen && (
-          <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto">
-            <nav className="flex flex-col gap-0.5">
-              {visibleItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMenuOpen(false)}
-                  data-testid={`nav-${item.href.replace("/", "") || "home"}`}
-                >
-                  <div
-                    className={cn(
-                      "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors",
-                      location === item.href
-                        ? "bg-primary/10 text-primary font-semibold"
-                        : "text-foreground hover:bg-muted"
-                    )}
+          <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto">
+            <nav className="flex flex-col gap-1">
+              {/* Operations group */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
+              {["/", "/equipment", "/alerts", "/my-equipment"].map((href) => {
+                const item = visibleItems.find((i) => i.href === href);
+                if (!item) return null;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    data-testid={`nav-${item.href.replace("/", "") || "home"}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
-                      <span className="text-sm font-medium">{item.label}</span>
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
+                        location === item.href
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-foreground hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                        <span className="text-sm font-medium">{item.label}</span>
+                      </div>
+                      {item.badgeCount ? (
+                        <Badge variant="issue" className="h-5 min-w-5 px-1.5">
+                          {item.badgeCount}
+                        </Badge>
+                      ) : null}
                     </div>
-                    {item.badgeCount ? (
-                      <Badge variant="issue" className="h-5 min-w-5 px-1.5">
-                        {item.badgeCount}
-                      </Badge>
-                    ) : null}
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
+
+              {/* Management group */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">Management</p>
+              {["/analytics", "/dashboard", "/admin", "/stability", "/print"].map((href) => {
+                const item = visibleItems.find((i) => i.href === href);
+                if (!item) return null;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
+                        location === item.href
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-foreground hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                        <span className="text-sm font-medium">{item.label}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+
+              {/* System group */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">System</p>
+              {["/settings", "/landing"].map((href) => {
+                const item = visibleItems.find((i) => i.href === href);
+                if (!item) return null;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
+                        location === item.href
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-foreground hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                        <span className="text-sm font-medium">{item.label}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
               <button
                 onClick={() => {
                   setMenuOpen(false);
                   setReportIssueOpen(true);
                 }}
                 data-testid="nav-report-issue"
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left min-h-[44px]"
               >
                 <Bug className="w-5 h-5 opacity-60" />
                 <span className="text-sm font-medium">Report Issue</span>
@@ -450,9 +498,10 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             <button
               onClick={openScanner}
               className="w-12 h-12 rounded-2xl bg-primary text-white flex flex-col items-center justify-center shadow-md hover:bg-primary/90 transition-colors -mt-3"
+              aria-label="Scan QR Code"
               data-testid="bottom-nav-scan"
             >
-              <Scan className="w-5 h-5" />
+              <Scan className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 
