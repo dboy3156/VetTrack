@@ -286,6 +286,8 @@ export default function EquipmentDetailPage() {
       return { result, prev, capturedStatus, wasOffline: result.pendingSyncId !== undefined };
     },
     onSuccess: ({ result, prev, capturedStatus, wasOffline }) => {
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       setScanDialogOpen(false);
       setScanNote("");
       setScanPhoto(null);

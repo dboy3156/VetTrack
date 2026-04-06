@@ -346,6 +346,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.checkout(scannedEquipment.id);
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} checked out`);
       onClose();
     } catch (err: unknown) {
@@ -360,6 +362,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.return(scannedEquipment.id);
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} returned`);
       onClose();
     } catch (err: unknown) {
@@ -374,6 +378,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.scan(scannedEquipment.id, { status: "ok" });
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} marked as OK`);
       onClose();
     } catch (err: unknown) {

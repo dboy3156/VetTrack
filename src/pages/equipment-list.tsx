@@ -336,7 +336,7 @@ export default function EquipmentListPage() {
               <button
                 key={opt.value}
                 onClick={() => setStatusFilter(opt.value)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                className={`shrink-0 flex items-center px-3 min-h-[44px] rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
                   statusFilter === opt.value
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
@@ -666,6 +666,8 @@ function EquipmentItem({
   const checkoutMut = useMutation({
     mutationFn: () => api.equipment.checkout(eq.id),
     onSuccess: () => {
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Checked out — ${eq.name}`);
     },
@@ -675,6 +677,8 @@ function EquipmentItem({
   const returnMut = useMutation({
     mutationFn: () => api.equipment.return(eq.id),
     onSuccess: () => {
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       toast.success(`Returned — ${eq.name} is now available`);
@@ -683,7 +687,7 @@ function EquipmentItem({
   });
 
   const quickAction = !isCheckedOut && eq.status === "ok"
-    ? { label: "Mark In Use", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, className: "text-emerald-700 border-emerald-200 hover:bg-emerald-50" }
+    ? { label: "In Use", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, className: "text-emerald-700 border-emerald-200 hover:bg-emerald-50" }
     : (isCheckedOut && (checkedOutByMe || isAdmin)) && eq.status === "ok"
     ? { label: "Return", icon: LogOut, action: () => returnMut.mutate(), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
     : eq.status === "issue"
@@ -748,55 +752,48 @@ function EquipmentItem({
                   </span>
                 </div>
               </div>
-              {/* Status badge + chevron */}
+              {/* Trailing: compact in-card quick action or status badge + chevron */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <Badge variant={statusVariant} className="font-semibold">
-                  {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] || eq.status}
-                </Badge>
-                {!selectMode && (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                {!selectMode && quickAction ? (
+                  quickAction.action ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); quickAction.action!(); }}
+                      disabled={quickAction.pending}
+                      className={`flex items-center gap-1.5 px-3 rounded-lg border text-xs font-semibold min-h-[44px] transition-colors ${quickAction.className}`}
+                      data-testid={`quick-action-${eq.id}`}
+                    >
+                      {quickAction.pending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <quickAction.icon className="w-3.5 h-3.5" />
+                      )}
+                      <span>{quickAction.label}</span>
+                    </button>
+                  ) : (
+                    <Link href={quickAction.href!} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className={`flex items-center gap-1.5 px-3 rounded-lg border text-xs font-semibold min-h-[44px] transition-colors ${quickAction.className}`}
+                        data-testid={`quick-action-${eq.id}`}
+                      >
+                        <quickAction.icon className="w-3.5 h-3.5" />
+                        <span>{quickAction.label}</span>
+                      </button>
+                    </Link>
+                  )
+                ) : (
+                  <>
+                    <Badge variant={statusVariant} className="font-semibold">
+                      {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] || eq.status}
+                    </Badge>
+                    {!selectMode && (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>
           </Card>
         </Link>
-        {/* Contextual quick action — status-driven, one-tap */}
-        {!selectMode && quickAction && (
-          <div className="px-0.5 pt-1">
-            {quickAction.action ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className={`w-full h-9 gap-1.5 text-xs font-semibold rounded-lg ${quickAction.className}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  quickAction.action!();
-                }}
-                disabled={quickAction.pending}
-                data-testid={`quick-action-${eq.id}`}
-              >
-                {quickAction.pending ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <quickAction.icon className="w-3.5 h-3.5" />
-                )}
-                {quickAction.label}
-              </Button>
-            ) : (
-              <Link href={quickAction.href!}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={`w-full h-9 gap-1.5 text-xs font-semibold rounded-lg ${quickAction.className}`}
-                  data-testid={`quick-action-${eq.id}`}
-                >
-                  <quickAction.icon className="w-3.5 h-3.5" />
-                  {quickAction.label}
-                </Button>
-              </Link>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

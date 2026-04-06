@@ -56,11 +56,16 @@ export function isInactive(equipment: Equipment): boolean {
   return isAfter(fourteenDaysAgo, new Date(equipment.lastSeen));
 }
 
+/** Runtime allowlist — only these alert types may ever be emitted. Enforced by the filter below. */
+const ALERT_TYPE_ALLOWLIST = new Set<Alert["type"]>(["issue", "overdue", "sterilization_due", "inactive"]);
+
 /**
  * Compute alerts for the given equipment list.
- * ALLOWLIST: only the 4 types below are valid — issue, overdue, sterilization_due, inactive.
+ * ALLOWLIST: only the 4 types in ALERT_TYPE_ALLOWLIST are valid.
  * The else-if chain ensures exactly one alert per piece of equipment (priority: issue > overdue > sterilization_due > inactive).
- * Do NOT add new alert types here without updating AlertType in @/types and ALERT_SEVERITY below.
+ * The final filter is a runtime guard — it strips any alert whose type is not in the allowlist,
+ * protecting against accidental regressions if this function is modified in future.
+ * Do NOT add new alert types here without updating AlertType in @/types, ALERT_SEVERITY, and ALERT_TYPE_ALLOWLIST.
  */
 export function computeAlerts(equipment: Equipment[]): Alert[] {
   const alerts: Alert[] = [];
@@ -107,7 +112,8 @@ export function computeAlerts(equipment: Equipment[]): Alert[] {
     }
   }
 
-  return alerts;
+  // Runtime allowlist guard — strips any alert whose type is not in ALERT_TYPE_ALLOWLIST
+  return alerts.filter((a) => ALERT_TYPE_ALLOWLIST.has(a.type));
 }
 
 /**
