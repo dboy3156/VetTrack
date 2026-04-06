@@ -389,7 +389,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col" data-testid="qr-scanner-overlay">
+    <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 bg-black flex flex-col" data-testid="qr-scanner-overlay">
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-black/80" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
         <span className="text-white font-semibold text-lg">Scan QR Code</span>
@@ -549,8 +549,20 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
         {/* Scanning guide overlay */}
         {phase === "scanning" && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="relative" style={{ width: 250, height: 250, position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div
+              className="relative"
+              style={{
+                width: 250,
+                height: 250,
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
+                borderRadius: "2px",
+              }}
+            >
               {/* Corner brackets */}
               <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
               <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
