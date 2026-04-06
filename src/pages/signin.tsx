@@ -28,7 +28,7 @@ export default function SignInPage() {
         <meta name="robots" content="noindex" />
       </Helmet>
 
-      <div className="min-h-screen bg-gradient-to-b from-teal-50 to-white flex flex-col items-center justify-center px-4">
+      <div className="min-h-[100dvh] bg-gradient-to-b from-teal-50 to-white flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <Link href="/landing" className="inline-flex items-center gap-2 mb-6">

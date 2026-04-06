@@ -49,7 +49,7 @@ export default function LandingPage() {
         <meta name="twitter:image" content="https://vettrack.replit.app/og-image.png" />
       </Helmet>
 
-      <div className="min-h-screen bg-white font-sans">
+      <div className="min-h-[100dvh] bg-white font-sans">
         {/* ── Navigation ────────────────────────────────── */}
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
