@@ -422,7 +422,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       </div>
 
       {/* Camera viewport — hidden during manual entry / result */}
-      <div className={phase === "manual" || phase === "result" ? "hidden" : "flex-1 relative flex items-center justify-center bg-black"}>
+      <div className={phase === "manual" || phase === "result" ? "hidden" : "flex-1 min-h-0 relative flex items-center justify-center bg-black overflow-hidden"}>
         <div id={containerId} className="w-full h-full" />
 
         {/* Loading */}
