@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -35,18 +34,48 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Users, FolderOpen, Plus, Pencil, Trash2, Loader2, LifeBuoy, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, ClipboardList, ChevronLeft, ChevronRight, Search, Filter, RefreshCw, RotateCcw, Wrench } from "lucide-react";
+import {
+  Shield,
+  Users,
+  FolderOpen,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  LifeBuoy,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  CheckCircle,
+  XCircle,
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Filter,
+  RefreshCw,
+  RotateCcw,
+  Wrench,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import type { SupportTicket, SupportTicketStatus, User, AuditLog, DeletedEquipment } from "@/types";
+import type {
+  SupportTicket,
+  SupportTicketStatus,
+  User,
+  AuditLog,
+  DeletedEquipment,
+} from "@/types";
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<"folders" | "users" | "pending" | "support" | "audit-logs" | "deleted">("folders");
+  const [activeTab, setActiveTab] = useState<
+    "folders" | "users" | "pending" | "support" | "audit-logs" | "deleted"
+  >("folders");
 
   const { data: supportUnresolved } = useQuery({
     queryKey: ["/api/support/unresolved-count"],
@@ -67,12 +96,17 @@ export default function AdminPage() {
       <Layout>
         <Helmet>
           <title>Admin — VetTrack</title>
-          <meta name="description" content="VetTrack administration panel. Manage equipment folders, user roles, and system settings for your veterinary clinic." />
+          <meta
+            name="description"
+            content="VetTrack administration panel. Manage equipment folders, user roles, and system settings for your veterinary clinic."
+          />
         </Helmet>
         <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
           <Shield className="w-12 h-12 text-muted-foreground" />
           <h1 className="text-2xl font-bold">Admin Only</h1>
-          <p className="text-sm text-muted-foreground">You need admin access to view this page.</p>
+          <p className="text-sm text-muted-foreground">
+            You need admin access to view this page.
+          </p>
           <Button variant="ghost" onClick={() => navigate("/")}>
             Go Home
           </Button>
@@ -88,7 +122,10 @@ export default function AdminPage() {
     <Layout>
       <Helmet>
         <title>Admin — VetTrack</title>
-        <meta name="description" content="VetTrack administration panel. Manage equipment folders, user roles, and system settings for your veterinary clinic." />
+        <meta
+          name="description"
+          content="VetTrack administration panel. Manage equipment folders, user roles, and system settings for your veterinary clinic."
+        />
         <link rel="canonical" href="https://vettrack.replit.app/admin" />
       </Helmet>
       <div className="flex flex-col gap-6 pb-24">
@@ -106,7 +143,7 @@ export default function AdminPage() {
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
               activeTab === "folders"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             <FolderOpen className="w-4 h-4" />
@@ -119,7 +156,7 @@ export default function AdminPage() {
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap",
               activeTab === "pending"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             <Clock className="w-4 h-4" />
@@ -137,7 +174,7 @@ export default function AdminPage() {
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
               activeTab === "users"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             <Users className="w-4 h-4" />
@@ -150,7 +187,7 @@ export default function AdminPage() {
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap",
               activeTab === "support"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             <LifeBuoy className="w-4 h-4" />
@@ -168,7 +205,7 @@ export default function AdminPage() {
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
               activeTab === "audit-logs"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             <ClipboardList className="w-4 h-4" />
@@ -181,7 +218,7 @@ export default function AdminPage() {
               "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
               activeTab === "deleted"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             <Trash2 className="w-4 h-4" />
@@ -203,7 +240,10 @@ export default function AdminPage() {
 function FoldersSection() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [editFolder, setEditFolder] = useState<{ id: string; name: string } | null>(null);
+  const [editFolder, setEditFolder] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [folderName, setFolderName] = useState("");
 
   const { data: folders, isLoading } = useQuery({
@@ -223,7 +263,8 @@ function FoldersSection() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => api.folders.update(id, name),
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api.folders.update(id, name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       setEditFolder(null);
@@ -255,7 +296,10 @@ function FoldersSection() {
           </CardTitle>
           <Button
             size="sm"
-            onClick={() => { setFolderName(""); setCreateOpen(true); }}
+            onClick={() => {
+              setFolderName("");
+              setCreateOpen(true);
+            }}
             data-testid="btn-create-folder"
           >
             <Plus className="w-4 h-4 mr-1" />
@@ -266,12 +310,17 @@ function FoldersSection() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-xl" />)}
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 rounded-xl" />
+            ))}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {manualFolders.map((f) => (
-              <div key={f.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border">
+              <div
+                key={f.id}
+                className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border"
+              >
                 <div className="flex items-center gap-2">
                   <FolderOpen className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium">{f.name}</span>
@@ -280,7 +329,10 @@ function FoldersSection() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => { setEditFolder(f); setFolderName(f.name); }}
+                    onClick={() => {
+                      setEditFolder(f);
+                      setFolderName(f.name);
+                    }}
                     data-testid={`btn-edit-folder-${f.id}`}
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -300,7 +352,8 @@ function FoldersSection() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete "{f.name}"?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Equipment in this folder will become unfiled. This cannot be undone.
+                          Equipment in this folder will become unfiled. This
+                          cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -331,12 +384,18 @@ function FoldersSection() {
       <Dialog
         open={createOpen || !!editFolder}
         onOpenChange={(open) => {
-          if (!open) { setCreateOpen(false); setEditFolder(null); setFolderName(""); }
+          if (!open) {
+            setCreateOpen(false);
+            setEditFolder(null);
+            setFolderName("");
+          }
         }}
       >
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>{editFolder ? "Edit Folder" : "Create Folder"}</DialogTitle>
+            <DialogTitle>
+              {editFolder ? "Edit Folder" : "Create Folder"}
+            </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-1">
             <Label htmlFor="folderName">Folder Name</Label>
@@ -362,7 +421,9 @@ function FoldersSection() {
                   ? updateMut.mutate({ id: editFolder.id, name: folderName })
                   : createMut.mutate(folderName);
               }}
-              disabled={!folderName.trim() || createMut.isPending || updateMut.isPending}
+              disabled={
+                !folderName.trim() || createMut.isPending || updateMut.isPending
+              }
               data-testid="btn-save-folder"
             >
               {(createMut.isPending || updateMut.isPending) && (
@@ -386,8 +447,13 @@ function PendingUsersSection() {
   });
 
   const updateStatusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "active" | "blocked" }) =>
-      api.users.updateStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "active" | "blocked";
+    }) => api.users.updateStatus(id, status),
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -407,7 +473,9 @@ function PendingUsersSection() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 rounded-xl" />
+            ))}
           </div>
         ) : !pendingUsers || pendingUsers.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
@@ -422,8 +490,12 @@ function PendingUsersSection() {
                 className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 gap-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{user.name || user.email}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-sm font-medium truncate">
+                    {user.name || user.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user.email}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Signed up {new Date(user.createdAt).toLocaleDateString()}
                   </p>
@@ -444,15 +516,23 @@ function PendingUsersSection() {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Reject {user.name || user.email}?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          Reject {user.name || user.email}?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This user will be blocked from accessing VetTrack. They will not be notified.
+                          This user will be blocked from accessing VetTrack.
+                          They will not be notified.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
+                          onClick={() =>
+                            updateStatusMut.mutate({
+                              id: user.id,
+                              status: "blocked",
+                            })
+                          }
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
                           Yes, reject user
@@ -463,7 +543,9 @@ function PendingUsersSection() {
                   <Button
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-2.5"
-                    onClick={() => updateStatusMut.mutate({ id: user.id, status: "active" })}
+                    onClick={() =>
+                      updateStatusMut.mutate({ id: user.id, status: "active" })
+                    }
                     disabled={updateStatusMut.isPending}
                     data-testid={`btn-approve-user-${user.id}`}
                   >
@@ -498,10 +580,13 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 function RoleBadge({ role }: { role: string }) {
   const r = role as UserRole;
-  const style = ROLE_BADGE_STYLES[r] ?? "bg-slate-100 text-slate-700 border-slate-200";
+  const style =
+    ROLE_BADGE_STYLES[r] ?? "bg-slate-100 text-slate-700 border-slate-200";
   const label = ROLE_LABELS[r] ?? role;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${style}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${style}`}
+    >
       {label}
     </span>
   );
@@ -534,12 +619,19 @@ type UserStatusFilter = "all" | "pending" | "active" | "blocked";
 function UsersSection() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
-  const [pendingRoleChange, setPendingRoleChange] = useState<{ user: User; newRole: UserRole } | null>(null);
-  const [pendingStatusChange, setPendingStatusChange] = useState<{ user: User; newStatus: "pending" | "active" | "blocked" } | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<{
+    user: User;
+    newRole: UserRole;
+  } | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    user: User;
+    newStatus: "pending" | "active" | "blocked";
+  } | null>(null);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["/api/users", statusFilter],
-    queryFn: () => api.users.list(statusFilter === "all" ? undefined : statusFilter),
+    queryFn: () =>
+      api.users.list(statusFilter === "all" ? undefined : statusFilter),
   });
 
   const updateRoleMut = useMutation({
@@ -554,12 +646,23 @@ function UsersSection() {
   });
 
   const updateStatusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "pending" | "active" | "blocked" }) =>
-      api.users.updateStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "pending" | "active" | "blocked";
+    }) => api.users.updateStatus(id, status),
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
-      toast.success(status === "active" ? "User approved" : status === "blocked" ? "User rejected" : "Status updated");
+      toast.success(
+        status === "active"
+          ? "User approved"
+          : status === "blocked"
+            ? "User rejected"
+            : "Status updated",
+      );
     },
     onError: () => toast.error("Failed to update status"),
   });
@@ -591,7 +694,7 @@ function UsersSection() {
                 "px-3 py-1 rounded-full text-xs font-medium border transition-colors",
                 statusFilter === value
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted",
               )}
             >
               {label}
@@ -601,7 +704,9 @@ function UsersSection() {
 
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
           </div>
         ) : !users || users.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
@@ -619,11 +724,15 @@ function UsersSection() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium truncate">{user.name || user.email}</p>
+                    <p className="text-sm font-medium truncate">
+                      {user.name || user.email}
+                    </p>
                     <RoleBadge role={user.role} />
                     <StatusBadge status={user.status} />
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user.email}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Joined {new Date(user.createdAt).toLocaleDateString()}
                   </p>
@@ -644,15 +753,23 @@ function UsersSection() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Reject {user.name || user.email}?</AlertDialogTitle>
+                            <AlertDialogTitle>
+                              Reject {user.name || user.email}?
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                              This user will be blocked from accessing VetTrack. This action can be reversed later.
+                              This user will be blocked from accessing VetTrack.
+                              This action can be reversed later.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => updateStatusMut.mutate({ id: user.id, status: "blocked" })}
+                              onClick={() =>
+                                updateStatusMut.mutate({
+                                  id: user.id,
+                                  status: "blocked",
+                                })
+                              }
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Yes, reject
@@ -663,7 +780,12 @@ function UsersSection() {
                       <Button
                         size="sm"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2 text-xs"
-                        onClick={() => updateStatusMut.mutate({ id: user.id, status: "active" })}
+                        onClick={() =>
+                          updateStatusMut.mutate({
+                            id: user.id,
+                            status: "active",
+                          })
+                        }
                         disabled={updateStatusMut.isPending}
                         data-testid={`btn-approve-user-${user.id}`}
                       >
@@ -680,7 +802,10 @@ function UsersSection() {
                       setPendingRoleChange({ user, newRole: role as UserRole });
                     }}
                   >
-                    <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-role-${user.id}`}>
+                    <SelectTrigger
+                      className="w-32 h-8 text-xs"
+                      data-testid={`select-role-${user.id}`}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -693,15 +818,24 @@ function UsersSection() {
                   <Select
                     value={user.status}
                     onValueChange={(status) => {
-                      const newStatus = status as "pending" | "active" | "blocked";
+                      const newStatus = status as
+                        | "pending"
+                        | "active"
+                        | "blocked";
                       if (newStatus === "blocked") {
                         setPendingStatusChange({ user, newStatus });
                       } else {
-                        updateStatusMut.mutate({ id: user.id, status: newStatus });
+                        updateStatusMut.mutate({
+                          id: user.id,
+                          status: newStatus,
+                        });
                       }
                     }}
                   >
-                    <SelectTrigger className="w-32 h-8 text-xs" data-testid={`select-status-${user.id}`}>
+                    <SelectTrigger
+                      className="w-32 h-8 text-xs"
+                      data-testid={`select-status-${user.id}`}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -720,17 +854,34 @@ function UsersSection() {
       {/* Role change confirmation dialog */}
       <AlertDialog
         open={!!pendingRoleChange}
-        onOpenChange={(open) => { if (!open) setPendingRoleChange(null); }}
+        onOpenChange={(open) => {
+          if (!open) setPendingRoleChange(null);
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change role to {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ?? pendingRoleChange?.newRole}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Change role to{" "}
+              {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ??
+                pendingRoleChange?.newRole}
+              ?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This will change{" "}
-              <strong>{pendingRoleChange?.user.name || pendingRoleChange?.user.email}</strong>'s
-              role from <strong>{ROLE_LABELS[pendingRoleChange?.user.role as UserRole] ?? pendingRoleChange?.user.role}</strong> to{" "}
-              <strong>{ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ?? pendingRoleChange?.newRole}</strong>.
-              This affects what actions they can perform across VetTrack.
+              <strong>
+                {pendingRoleChange?.user.name || pendingRoleChange?.user.email}
+              </strong>
+              's role from{" "}
+              <strong>
+                {ROLE_LABELS[pendingRoleChange?.user.role as UserRole] ??
+                  pendingRoleChange?.user.role}
+              </strong>{" "}
+              to{" "}
+              <strong>
+                {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ??
+                  pendingRoleChange?.newRole}
+              </strong>
+              . This affects what actions they can perform across VetTrack.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -738,12 +889,17 @@ function UsersSection() {
             <AlertDialogAction
               onClick={() => {
                 if (pendingRoleChange) {
-                  updateRoleMut.mutate({ id: pendingRoleChange.user.id, role: pendingRoleChange.newRole });
+                  updateRoleMut.mutate({
+                    id: pendingRoleChange.user.id,
+                    role: pendingRoleChange.newRole,
+                  });
                 }
               }}
               disabled={updateRoleMut.isPending}
             >
-              {updateRoleMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              {updateRoleMut.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : null}
               Yes, change role
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -753,14 +909,26 @@ function UsersSection() {
       {/* Block user confirmation dialog */}
       <AlertDialog
         open={!!pendingStatusChange}
-        onOpenChange={(open) => { if (!open) setPendingStatusChange(null); }}
+        onOpenChange={(open) => {
+          if (!open) setPendingStatusChange(null);
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Block {pendingStatusChange?.user.name || pendingStatusChange?.user.email}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Block{" "}
+              {pendingStatusChange?.user.name ||
+                pendingStatusChange?.user.email}
+              ?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will immediately revoke <strong>{pendingStatusChange?.user.name || pendingStatusChange?.user.email}</strong>'s
-              access to VetTrack. They will not be able to log in until their status is changed back to Active.
+              This will immediately revoke{" "}
+              <strong>
+                {pendingStatusChange?.user.name ||
+                  pendingStatusChange?.user.email}
+              </strong>
+              's access to VetTrack. They will not be able to log in until their
+              status is changed back to Active.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -768,14 +936,19 @@ function UsersSection() {
             <AlertDialogAction
               onClick={() => {
                 if (pendingStatusChange) {
-                  updateStatusMut.mutate({ id: pendingStatusChange.user.id, status: pendingStatusChange.newStatus });
+                  updateStatusMut.mutate({
+                    id: pendingStatusChange.user.id,
+                    status: pendingStatusChange.newStatus,
+                  });
                   setPendingStatusChange(null);
                 }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={updateStatusMut.isPending}
             >
-              {updateStatusMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              {updateStatusMut.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : null}
               Yes, block user
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -831,7 +1004,9 @@ function DeletedItemsSection() {
         <CardContent>
           {equipLoading ? (
             <div className="flex flex-col gap-2">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))}
             </div>
           ) : !deletedEquipment || deletedEquipment.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
@@ -849,7 +1024,9 @@ function DeletedItemsSection() {
                     <p className="text-sm font-medium truncate">{item.name}</p>
                     {(item.model || item.serialNumber) && (
                       <p className="text-xs text-muted-foreground truncate">
-                        {[item.model, item.serialNumber].filter(Boolean).join(" · ")}
+                        {[item.model, item.serialNumber]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -885,7 +1062,9 @@ function DeletedItemsSection() {
         <CardContent>
           {usersLoading ? (
             <div className="flex flex-col gap-2">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))}
             </div>
           ) : !deletedUsers || deletedUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
@@ -900,10 +1079,17 @@ function DeletedItemsSection() {
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{user.name || user.email}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <p className="text-sm font-medium truncate">
+                      {user.name || user.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Deleted {user.deletedAt ? new Date(user.deletedAt).toLocaleDateString() : "—"}
+                      Deleted{" "}
+                      {user.deletedAt
+                        ? new Date(user.deletedAt).toLocaleDateString()
+                        : "—"}
                     </p>
                   </div>
                   <Button
@@ -947,7 +1133,9 @@ const STATUS_LABELS: Record<string, string> = {
 
 function SupportSection() {
   const queryClient = useQueryClient();
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(
+    null,
+  );
   const [detailStatus, setDetailStatus] = useState<SupportTicketStatus>("open");
   const [detailNote, setDetailNote] = useState("");
   const [expandedDevice, setExpandedDevice] = useState(false);
@@ -958,11 +1146,20 @@ function SupportSection() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, status, adminNote }: { id: string; status: SupportTicketStatus; adminNote: string }) =>
-      api.support.update(id, { status, adminNote }),
+    mutationFn: ({
+      id,
+      status,
+      adminNote,
+    }: {
+      id: string;
+      status: SupportTicketStatus;
+      adminNote: string;
+    }) => api.support.update(id, { status, adminNote }),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["/api/support"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/support/unresolved-count"] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/support/unresolved-count"],
+      });
       setSelectedTicket(updated);
       toast.success("Ticket updated");
     },
@@ -987,7 +1184,9 @@ function SupportSection() {
       <CardContent>
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 rounded-xl" />
+            ))}
           </div>
         ) : !tickets || tickets.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
@@ -1004,16 +1203,28 @@ function SupportSection() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{ticket.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{ticket.userEmail}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {ticket.userEmail}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {new Date(ticket.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase", SEVERITY_STYLES[ticket.severity])}>
+                  <span
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase",
+                      SEVERITY_STYLES[ticket.severity],
+                    )}
+                  >
                     {ticket.severity}
                   </span>
-                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-medium", STATUS_STYLES[ticket.status])}>
+                  <span
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded border font-medium",
+                      STATUS_STYLES[ticket.status],
+                    )}
+                  >
                     {STATUS_LABELS[ticket.status]}
                   </span>
                 </div>
@@ -1024,46 +1235,75 @@ function SupportSection() {
       </CardContent>
 
       {/* Ticket detail dialog */}
-      <Dialog open={!!selectedTicket} onOpenChange={(open) => { if (!open) setSelectedTicket(null); }}>
+      <Dialog
+        open={!!selectedTicket}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTicket(null);
+        }}
+      >
         {selectedTicket && (
           <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="pr-6 leading-tight">{selectedTicket.title}</DialogTitle>
+              <DialogTitle className="pr-6 leading-tight">
+                {selectedTicket.title}
+              </DialogTitle>
             </DialogHeader>
 
             <div className="flex flex-col gap-4">
               <div className="flex gap-2 flex-wrap">
-                <span className={cn("text-xs px-2 py-0.5 rounded border font-medium uppercase", SEVERITY_STYLES[selectedTicket.severity])}>
+                <span
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded border font-medium uppercase",
+                    SEVERITY_STYLES[selectedTicket.severity],
+                  )}
+                >
                   {selectedTicket.severity} severity
                 </span>
-                <span className={cn("text-xs px-2 py-0.5 rounded border font-medium", STATUS_STYLES[selectedTicket.status])}>
+                <span
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded border font-medium",
+                    STATUS_STYLES[selectedTicket.status],
+                  )}
+                >
                   {STATUS_LABELS[selectedTicket.status]}
                 </span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
-                <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Description
+                </p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {selectedTicket.description}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <div>
-                  <span className="font-semibold text-muted-foreground">Submitted by</span>
+                  <span className="font-semibold text-muted-foreground">
+                    Submitted by
+                  </span>
                   <p className="truncate">{selectedTicket.userEmail}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-muted-foreground">Date</span>
+                  <span className="font-semibold text-muted-foreground">
+                    Date
+                  </span>
                   <p>{new Date(selectedTicket.createdAt).toLocaleString()}</p>
                 </div>
                 {selectedTicket.pageUrl && (
                   <div className="col-span-2">
-                    <span className="font-semibold text-muted-foreground">Page URL</span>
+                    <span className="font-semibold text-muted-foreground">
+                      Page URL
+                    </span>
                     <p className="truncate">{selectedTicket.pageUrl}</p>
                   </div>
                 )}
                 {selectedTicket.appVersion && (
                   <div>
-                    <span className="font-semibold text-muted-foreground">App Version</span>
+                    <span className="font-semibold text-muted-foreground">
+                      App Version
+                    </span>
                     <p>{selectedTicket.appVersion}</p>
                   </div>
                 )}
@@ -1075,21 +1315,39 @@ function SupportSection() {
                     onClick={() => setExpandedDevice((v) => !v)}
                     className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {expandedDevice ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {expandedDevice ? (
+                      <ChevronUp className="w-3 h-3" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3" />
+                    )}
                     Device Info
                   </button>
                   {expandedDevice && (
-                    <p className="text-xs mt-1 text-muted-foreground break-all">{selectedTicket.deviceInfo}</p>
+                    <p className="text-xs mt-1 text-muted-foreground break-all">
+                      {selectedTicket.deviceInfo}
+                    </p>
                   )}
                 </div>
               )}
 
               <div className="border-t pt-4 flex flex-col gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin Actions</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Admin Actions
+                </p>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="ticket-status" className="text-xs">Status</Label>
-                  <Select value={detailStatus} onValueChange={(v) => setDetailStatus(v as SupportTicketStatus)}>
-                    <SelectTrigger id="ticket-status" data-testid="select-ticket-status">
+                  <Label htmlFor="ticket-status" className="text-xs">
+                    Status
+                  </Label>
+                  <Select
+                    value={detailStatus}
+                    onValueChange={(v) =>
+                      setDetailStatus(v as SupportTicketStatus)
+                    }
+                  >
+                    <SelectTrigger
+                      id="ticket-status"
+                      data-testid="select-ticket-status"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1100,7 +1358,9 @@ function SupportSection() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="ticket-note" className="text-xs">Internal Note</Label>
+                  <Label htmlFor="ticket-note" className="text-xs">
+                    Internal Note
+                  </Label>
                   <Textarea
                     id="ticket-note"
                     placeholder="Add an internal note..."
@@ -1132,7 +1392,9 @@ function SupportSection() {
                 disabled={updateMut.isPending}
                 data-testid="btn-update-ticket"
               >
-                {updateMut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {updateMut.isPending && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 Save
               </Button>
             </DialogFooter>
@@ -1168,10 +1430,14 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 const ALL_ACTION_TYPES = Object.keys(ACTION_TYPE_LABELS);
 
 function actionBadgeClass(actionType: string): string {
-  if (actionType.includes("deleted")) return "bg-destructive/10 text-destructive border-destructive/20";
-  if (actionType.includes("created") || actionType.includes("provisioned")) return "bg-green-100 text-green-800 border-green-200";
-  if (actionType.includes("login")) return "bg-blue-100 text-blue-800 border-blue-200";
-  if (actionType.includes("role") || actionType.includes("status")) return "bg-amber-100 text-amber-800 border-amber-200";
+  if (actionType.includes("deleted"))
+    return "bg-destructive/10 text-destructive border-destructive/20";
+  if (actionType.includes("created") || actionType.includes("provisioned"))
+    return "bg-green-100 text-green-800 border-green-200";
+  if (actionType.includes("login"))
+    return "bg-blue-100 text-blue-800 border-blue-200";
+  if (actionType.includes("role") || actionType.includes("status"))
+    return "bg-amber-100 text-amber-800 border-amber-200";
   return "bg-muted text-muted-foreground border-border";
 }
 
@@ -1203,7 +1469,8 @@ function AuditLogsSection() {
     setPage(1);
   }
 
-  const hasFilters = appliedFilters.actionType || appliedFilters.from || appliedFilters.to;
+  const hasFilters =
+    appliedFilters.actionType || appliedFilters.from || appliedFilters.to;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/audit-logs", appliedFilters, page],
@@ -1240,7 +1507,10 @@ function AuditLogsSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filter controls */}
-        <div className="space-y-3 p-3 bg-muted/30 rounded-xl border" data-testid="audit-log-filters">
+        <div
+          className="space-y-3 p-3 bg-muted/30 rounded-xl border"
+          data-testid="audit-log-filters"
+        >
           <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
             <Filter className="w-3.5 h-3.5" />
             Filter Logs
@@ -1250,7 +1520,10 @@ function AuditLogsSection() {
               value={actionFilter || "all"}
               onValueChange={(v) => setActionFilter(v === "all" ? "" : v)}
             >
-              <SelectTrigger className="h-8 text-sm" data-testid="filter-action">
+              <SelectTrigger
+                className="h-8 text-sm"
+                data-testid="filter-action"
+              >
                 <SelectValue placeholder="All actions" />
               </SelectTrigger>
               <SelectContent>
@@ -1310,19 +1583,31 @@ function AuditLogsSection() {
             ))}
           </div>
         ) : isError ? (
-          <div className="flex flex-col items-center py-8 gap-2 text-center" data-testid="audit-log-error">
+          <div
+            className="flex flex-col items-center py-8 gap-2 text-center"
+            data-testid="audit-log-error"
+          >
             <XCircle className="w-8 h-8 text-destructive/60" />
-            <p className="text-sm font-medium text-destructive">Failed to load audit logs</p>
+            <p className="text-sm font-medium text-destructive">
+              Failed to load audit logs
+            </p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               Retry
             </Button>
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center py-10 gap-2 text-center" data-testid="audit-log-empty">
+          <div
+            className="flex flex-col items-center py-10 gap-2 text-center"
+            data-testid="audit-log-empty"
+          >
             <ClipboardList className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">No audit log entries</p>
+            <p className="text-sm font-medium text-muted-foreground">
+              No audit log entries
+            </p>
             <p className="text-xs text-muted-foreground">
-              {hasFilters ? "Try adjusting your filters." : "Activity will appear here once actions are performed."}
+              {hasFilters
+                ? "Try adjusting your filters."
+                : "Activity will appear here once actions are performed."}
             </p>
           </div>
         ) : (
@@ -1335,7 +1620,10 @@ function AuditLogsSection() {
 
         {/* Pagination */}
         {(data?.hasMore || page > 1) && (
-          <div className="flex items-center justify-between pt-2" data-testid="audit-log-pagination">
+          <div
+            className="flex items-center justify-between pt-2"
+            data-testid="audit-log-pagination"
+          >
             <p className="text-xs text-muted-foreground">Page {page}</p>
             <div className="flex gap-1">
               <Button
@@ -1371,7 +1659,12 @@ function AuditLogRow({ entry }: { entry: AuditLog }) {
       data-testid="audit-log-row"
     >
       <div className="flex items-start gap-2 flex-wrap">
-        <span className={cn("text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 mt-0.5", actionBadgeClass(entry.actionType))}>
+        <span
+          className={cn(
+            "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 mt-0.5",
+            actionBadgeClass(entry.actionType),
+          )}
+        >
           {ACTION_TYPE_LABELS[entry.actionType] ?? entry.actionType}
         </span>
         <p className="text-sm text-foreground leading-snug flex-1 min-w-0">
