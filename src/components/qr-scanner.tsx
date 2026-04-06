@@ -52,7 +52,7 @@ interface ExtendedMediaTrackCapabilities extends MediaTrackCapabilities {
 }
 
 function getFirstVideoTrack(scanner: Html5Qrcode): MediaStreamTrack | null {
-  const el = (scanner as unknown as { videoElement?: HTMLVideoElement })
+  const el = (scanner as Html5Qrcode & { videoElement?: HTMLVideoElement })
     .videoElement;
   const stream = el?.srcObject;
   if (!stream || !(stream instanceof MediaStream)) return null;
