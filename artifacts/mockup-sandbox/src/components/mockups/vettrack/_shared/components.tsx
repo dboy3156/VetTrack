@@ -3,10 +3,10 @@ import { QrCode, AlertTriangle } from "lucide-react";
 export type Status = "available" | "in_use" | "cleaning" | "missing";
 
 export const STATUS_MAP: Record<Status, { label: string; bg: string; dot: string }> = {
-  available: { label: "Available", bg: "bg-green-100 text-green-800",  dot: "bg-green-500"  },
-  in_use:    { label: "In Use",    bg: "bg-orange-100 text-orange-800", dot: "bg-orange-500" },
-  cleaning:  { label: "Cleaning",  bg: "bg-blue-100 text-blue-800",    dot: "bg-blue-500"   },
-  missing:   { label: "Missing",   bg: "bg-red-100 text-red-800",      dot: "bg-red-600"    },
+  available: { label: "Available", bg: "bg-green-50 text-green-700",   dot: "bg-green-500"  },
+  in_use:    { label: "In Use",    bg: "bg-orange-50 text-orange-700", dot: "bg-orange-400" },
+  cleaning:  { label: "Cleaning",  bg: "bg-blue-50 text-blue-700",    dot: "bg-blue-400"   },
+  missing:   { label: "Missing",   bg: "bg-red-50 text-red-700",      dot: "bg-red-500"    },
 };
 
 export function Header({
@@ -33,8 +33,8 @@ export function Header({
 export function StatusTag({ status }: { status: Status }) {
   const s = STATUS_MAP[status];
   return (
-    <span className={`inline-flex items-center gap-2 px-2 py-2 rounded-full text-[11px] font-semibold ${s.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-wide ${s.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} />
       {s.label}
     </span>
   );
@@ -83,10 +83,10 @@ export function Button({
   icon?: React.ReactNode;
 }) {
   const base =
-    "w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[15px] font-semibold transition-colors";
+    "w-full flex items-center justify-center gap-2 py-4 text-[15px] font-semibold transition-colors";
   const styles = {
-    primary:   `${base} bg-teal-600 text-white active:bg-teal-700`,
-    secondary: `${base} bg-gray-100 text-gray-800 active:bg-gray-200`,
+    primary:   `${base} bg-teal-600 text-white rounded-2xl shadow-sm active:bg-teal-700`,
+    secondary: `${base} bg-gray-100 text-gray-700 rounded-xl active:bg-gray-200`,
   };
   return (
     <button className={styles[variant]} onClick={onClick}>
@@ -123,7 +123,7 @@ export function ScanButton({ onClick }: { onClick?: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="fixed bottom-6 right-6 w-14 h-14 bg-teal-600 rounded-full flex items-center justify-center active:bg-teal-700 z-20"
+      className="fixed bottom-6 right-6 w-14 h-14 bg-teal-600 rounded-full flex items-center justify-center active:bg-teal-700 z-20 shadow-md"
     >
       <QrCode size={24} className="text-white" />
     </button>
