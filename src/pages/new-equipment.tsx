@@ -150,28 +150,33 @@ export default function NewEquipmentPage() {
             size="icon-sm"
             onClick={() => navigate("/equipment")}
             data-testid="btn-back"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">
-              {isCopy ? `New Equipment (copied from ${prefill.copiedFrom})` : "Add Equipment"}
+              {isCopy ? "Duplicate Equipment" : "Add Equipment"}
             </h1>
+            {isCopy && (
+              <p className="text-xs text-muted-foreground mt-0.5">Copied from {prefill.copiedFrom}</p>
+            )}
           </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <Card>
-            <CardContent className="p-4 flex flex-col gap-4">
-              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardContent className="p-5 flex flex-col gap-5">
+              <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                 Basic Info
               </h2>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="name">Name *</Label>
+                <Label htmlFor="name" className="text-sm font-medium">Name *</Label>
                 <Input
                   id="name"
                   placeholder="e.g. Autoclave Unit A"
+                  className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("name")}
                   data-testid="input-name"
                 />
@@ -181,25 +186,32 @@ export default function NewEquipmentPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="serialNumber">Serial Number</Label>
+                <Label htmlFor="serialNumber" className="text-sm font-medium">Serial Number</Label>
                 <Input
                   id="serialNumber"
                   placeholder="SN-12345"
+                  className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("serialNumber")}
                   data-testid="input-serial"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="model">Model</Label>
-                  <Input id="model" placeholder="Model name" {...register("model")} />
+                  <Label htmlFor="model" className="text-sm font-medium">Model</Label>
+                  <Input
+                    id="model"
+                    placeholder="Model name"
+                    className="h-12 rounded-xl border-border/60 bg-background"
+                    {...register("model")}
+                  />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="manufacturer">Manufacturer</Label>
+                  <Label htmlFor="manufacturer" className="text-sm font-medium">Manufacturer</Label>
                   <Input
                     id="manufacturer"
                     placeholder="Brand"
+                    className="h-12 rounded-xl border-border/60 bg-background"
                     {...register("manufacturer")}
                   />
                 </div>
@@ -207,19 +219,19 @@ export default function NewEquipmentPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4 flex flex-col gap-4">
-              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardContent className="p-5 flex flex-col gap-5">
+              <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                 Organization
               </h2>
 
               <div className="flex flex-col gap-2">
-                <Label>Folder / Category</Label>
+                <Label className="text-sm font-medium">Folder / Category</Label>
                 <Select
                   defaultValue={prefill.folderId || "none"}
                   onValueChange={(v) => setValue("folderId", v)}
                 >
-                  <SelectTrigger data-testid="select-folder">
+                  <SelectTrigger className="h-12 rounded-xl border-border/60 bg-background" data-testid="select-folder">
                     <SelectValue placeholder="No folder" />
                   </SelectTrigger>
                   <SelectContent>
@@ -234,20 +246,22 @@ export default function NewEquipmentPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="location">Location</Label>
+                <Label htmlFor="location" className="text-sm font-medium">Location</Label>
                 <Input
                   id="location"
                   placeholder="e.g. Surgery Room 1"
+                  className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("location")}
                   data-testid="input-location"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="purchaseDate">Purchase Date</Label>
+                <Label htmlFor="purchaseDate" className="text-sm font-medium">Purchase Date</Label>
                 <Input
                   id="purchaseDate"
                   type="date"
+                  className="h-12 rounded-xl border-border/60 bg-background"
                   {...register("purchaseDate")}
                   data-testid="input-purchase-date"
                 />
@@ -255,14 +269,14 @@ export default function NewEquipmentPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4 flex flex-col gap-4">
-              <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardContent className="p-5 flex flex-col gap-4">
+              <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                 Maintenance
               </h2>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="maintenanceIntervalDays">
+                <Label htmlFor="maintenanceIntervalDays" className="text-sm font-medium">
                   Maintenance Interval (days)
                 </Label>
                 <Input
@@ -270,6 +284,7 @@ export default function NewEquipmentPage() {
                   type="number"
                   placeholder="e.g. 30"
                   min={1}
+                  className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("maintenanceIntervalDays")}
                   data-testid="input-maintenance-interval"
                 />
@@ -284,6 +299,7 @@ export default function NewEquipmentPage() {
             type="submit"
             size="lg"
             disabled={createMut.isPending}
+            className="h-14 rounded-2xl text-base font-semibold shadow-sm"
             data-testid="btn-save"
           >
             {createMut.isPending ? (

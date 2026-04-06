@@ -78,29 +78,24 @@ export default function MyEquipmentPage() {
         <meta name="description" content="View all equipment currently checked out to you. Return individual items or use Return All for quick end-of-shift handoffs." />
         <link rel="canonical" href="https://vettrack.replit.app/my-equipment" />
       </Helmet>
-      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
+      <div className="flex flex-col gap-5 pb-24 animate-fade-in">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
-            <PackageOpen className="w-6 h-6 text-primary" />
-            My Equipment
-          </h1>
-          <div className="flex items-center gap-2 shrink-0">
+          <div>
+            <h1 className="text-2xl font-bold leading-tight">My Equipment</h1>
             {items && items.length > 0 && (
-              <Badge variant="outline" className="text-primary border-primary">
-                {items.length} checked out
-              </Badge>
+              <p className="text-sm text-muted-foreground mt-0.5">{items.length} checked out</p>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs"
-              onClick={() => setShiftSummaryOpen(true)}
-              data-testid="btn-shift-summary-my-eq"
-            >
-              <ClipboardCheck className="w-3.5 h-3.5" />
-              Shift Summary
-            </Button>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs bg-card border-border/60 text-muted-foreground hover:text-foreground"
+            onClick={() => setShiftSummaryOpen(true)}
+            data-testid="btn-shift-summary-my-eq"
+          >
+            <ClipboardCheck className="w-3.5 h-3.5" />
+            Shift Summary
+          </Button>
         </div>
 
         {isError && (
@@ -115,7 +110,7 @@ export default function MyEquipmentPage() {
             <AlertDialogTrigger asChild>
               <Button
                 variant="outline"
-                className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                className="w-full h-12 rounded-2xl border-border/60 bg-card text-foreground"
                 disabled={returningAll}
                 data-testid="btn-return-all"
               >
@@ -147,7 +142,7 @@ export default function MyEquipmentPage() {
         {isLoading ? (
           <div className="flex flex-col gap-2">
             {[...Array(3)].map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-xl" />
+              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
             ))}
           </div>
         ) : isError ? null : !items || items.length === 0 ? (
@@ -155,12 +150,12 @@ export default function MyEquipmentPage() {
             icon={CheckCircle2}
             message="Nothing checked out"
             subMessage="Equipment you check out will appear here."
-            iconBg="bg-teal-50"
-            iconColor="text-teal-500"
-            borderColor="border-teal-200"
+            iconBg="bg-muted"
+            iconColor="text-muted-foreground"
+            borderColor="border-border/60"
             action={
               <Link href="/equipment">
-                <Button variant="outline" size="sm" className="border-teal-300 text-teal-700 hover:bg-teal-50">
+                <Button variant="outline" size="sm">
                   Browse Equipment
                 </Button>
               </Link>
@@ -169,13 +164,13 @@ export default function MyEquipmentPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {items.map((item) => (
-              <Card key={item.id} className="border-blue-200">
+              <Card key={item.id} className="bg-card border-border/60 shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1.5">
                         <p className="font-semibold text-sm truncate">{item.name}</p>
-                        <Badge variant={statusToBadgeVariant(item.status)} className="shrink-0">
+                        <Badge variant={statusToBadgeVariant(item.status)} className="shrink-0 text-[10px] px-2 py-0.5">
                           {STATUS_LABELS[item.status] || item.status}
                         </Badge>
                       </div>
@@ -189,11 +184,11 @@ export default function MyEquipmentPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1 shrink-0">
+                    <div className="flex gap-1.5 shrink-0">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-blue-300 text-blue-700 hover:bg-blue-50 min-h-[44px] px-3"
+                        className="border-border/60 text-muted-foreground hover:text-foreground min-h-[40px] px-3"
                         onClick={() => returnMut.mutate(item.id)}
                         disabled={returnMut.isPending}
                         data-testid={`btn-return-${item.id}`}
@@ -208,7 +203,7 @@ export default function MyEquipmentPage() {
                         )}
                       </Button>
                       <Link href={`/equipment/${item.id}`}>
-                        <Button variant="ghost" size="icon-sm" className="min-h-[44px] min-w-[44px]">
+                        <Button variant="ghost" size="icon-sm" className="min-h-[40px] min-w-[40px] text-muted-foreground hover:text-foreground hover:bg-muted">
                           <ChevronRight className="w-4 h-4" />
                         </Button>
                       </Link>

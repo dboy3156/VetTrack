@@ -76,10 +76,10 @@ import { useSettings } from "@/hooks/use-settings";
 import { playCriticalAlertTone } from "@/lib/sounds";
 
 const STATUS_CONFIG = {
-  ok: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50" },
-  issue: { icon: AlertTriangle, color: "text-red-500", bg: "bg-red-50" },
-  maintenance: { icon: Wrench, color: "text-amber-500", bg: "bg-amber-50" },
-  sterilized: { icon: Droplets, color: "text-teal-500", bg: "bg-teal-50" },
+  ok: { icon: CheckCircle2, color: "text-emerald-600", iconBg: "bg-emerald-50" },
+  issue: { icon: AlertTriangle, color: "text-red-500", iconBg: "bg-red-50" },
+  maintenance: { icon: Wrench, color: "text-amber-500", iconBg: "bg-amber-50" },
+  sterilized: { icon: Droplets, color: "text-teal-500", iconBg: "bg-teal-50" },
 };
 
 const UNDO_WINDOW_MS = 90_000;
@@ -762,11 +762,7 @@ export default function EquipmentDetailPage() {
 
           {/* In-use context indicator */}
           {isCheckedOut && (
-            <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm ${
-              checkedOutByMe
-                ? "bg-blue-50 border-blue-200 text-blue-800"
-                : "bg-amber-50 border-amber-200 text-amber-800"
-            }`}>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border/60 bg-muted/50 text-sm">
               <User className="w-4 h-4 shrink-0" />
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-tight">
@@ -782,11 +778,11 @@ export default function EquipmentDetailPage() {
         </div>
 
         {/* Status card */}
-        <Card className={statusConf?.bg || ""}>
+        <Card className="bg-card border-border/60 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/50 flex items-center justify-center">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${statusConf?.iconBg || "bg-muted"}`}>
                   <StatusIcon className={`w-5 h-5 ${statusConf?.color || ""}`} />
                 </div>
                 <div>
@@ -826,8 +822,8 @@ export default function EquipmentDetailPage() {
             </div>
 
             {undoCountdown > 0 && (
-              <div className="mt-3 pt-3 border-t border-white/30">
-                <div className="w-full h-1 bg-white/30 rounded-full overflow-hidden">
+              <div className="mt-3 pt-3 border-t border-border/40">
+                <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary/70 rounded-full transition-none"
                     style={{ width: `${(undoCountdown / (UNDO_WINDOW_MS / 1000)) * 100}%`, transition: "width 1s linear" }}
@@ -837,7 +833,7 @@ export default function EquipmentDetailPage() {
             )}
 
             {(overdue || sterilizationDue) && (
-              <div className="mt-3 pt-3 border-t border-white/30 flex flex-col gap-1">
+              <div className="mt-3 pt-3 border-t border-border/40 flex flex-col gap-1">
                 {overdue && (
                   <div className="flex items-center gap-2 text-xs text-red-700 font-medium">
                     <AlertTriangle className="w-3.5 h-3.5" />
@@ -868,7 +864,7 @@ export default function EquipmentDetailPage() {
           </TabsList>
 
           <TabsContent value="details">
-            <Card>
+            <Card className="bg-card border-border/60 shadow-sm">
               <CardContent className="p-4 flex flex-col gap-3">
                 {[
                   { icon: Hash, label: "Serial Number", value: equipment.serialNumber },
@@ -917,14 +913,14 @@ export default function EquipmentDetailPage() {
                   <Skeleton className="h-20 w-full rounded-xl" />
                 </>
               ) : !scanLogs || scanLogs.length === 0 ? (
-                <Card>
+                <Card className="bg-card border-border/60 shadow-sm">
                   <CardContent className="p-8 text-center">
                     <p className="text-muted-foreground text-sm">No scan history yet</p>
                   </CardContent>
                 </Card>
               ) : (
                 scanLogs.map((log) => (
-                  <Card key={log.id}>
+                  <Card key={log.id} className="bg-card border-border/60 shadow-sm">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -967,14 +963,14 @@ export default function EquipmentDetailPage() {
                   <Skeleton className="h-16 w-full rounded-xl" />
                 </>
               ) : !transfers || transfers.length === 0 ? (
-                <Card>
+                <Card className="bg-card border-border/60 shadow-sm">
                   <CardContent className="p-8 text-center">
                     <p className="text-muted-foreground text-sm">No transfers recorded</p>
                   </CardContent>
                 </Card>
               ) : (
                 transfers.map((transfer) => (
-                  <Card key={transfer.id}>
+                  <Card key={transfer.id} className="bg-card border-border/60 shadow-sm">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -1092,7 +1088,7 @@ export default function EquipmentDetailPage() {
                   <button
                     type="button"
                     onClick={() => photoInputRef.current?.click()}
-                    className="flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                    className="flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-border text-muted-foreground hover:bg-muted/50 transition-colors"
                     data-testid="btn-photo"
                   >
                     <Camera className="w-6 h-6" />
@@ -1184,7 +1180,7 @@ export default function EquipmentDetailPage() {
                 <button
                   type="button"
                   onClick={() => reportIssuePhotoRef.current?.click()}
-                  className="flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  className="flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-border text-muted-foreground hover:bg-muted/50 transition-colors"
                   data-testid="btn-report-issue-photo"
                 >
                   <Camera className="w-6 h-6" />

@@ -172,26 +172,25 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Top header */}
-      <header className="sticky top-0 z-40 border-b bg-white/95 dark:bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center justify-between px-4 max-w-2xl mx-auto">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
-              <QrCode className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <QrCode className="w-4 h-4 text-primary" />
             </div>
-            <span className="text-xl font-bold text-foreground">VetTrack</span>
+            <span className="text-lg font-bold text-foreground tracking-tight">VetTrack</span>
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {!isOnline && (
-              <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-full px-2.5 py-1">
+              <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800 rounded-full px-2.5 py-1">
                 <WifiOff className="w-3 h-3" />
                 <span>Offline</span>
               </div>
             )}
 
-            {/* Sync status indicator */}
             {isOnline && isSyncing && (
-              <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-full px-2.5 py-1">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1">
                 <RefreshCw className="w-3 h-3 animate-spin" />
                 <span>Syncing</span>
               </div>
@@ -199,7 +198,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
             {isOnline && justSynced && !isSyncing && pendingCount === 0 && (
               <div
-                className="flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-full px-2.5 py-1"
+                className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800 rounded-full px-2.5 py-1"
                 data-testid="sync-synced-indicator"
               >
                 <CheckCircle className="w-3 h-3" />
@@ -210,7 +209,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             {isOnline && hasPending && !isSyncing && (
               <button
                 onClick={triggerSync}
-                className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-full px-2.5 py-1 hover:bg-blue-100 dark:hover:bg-blue-950 transition-colors"
+                className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1 hover:bg-accent transition-colors"
                 title={`${pendingCount} pending action${pendingCount !== 1 ? "s" : ""} — tap to sync`}
                 data-testid="sync-pending-indicator"
               >
@@ -221,7 +220,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
             {hasFailed && (
               <div
-                className="flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-full px-2.5 py-1"
+                className="flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200/80 dark:border-red-800 rounded-full px-2.5 py-1"
                 title={`${failedCount} action${failedCount !== 1 ? "s" : ""} failed to sync`}
                 data-testid="sync-failed-indicator"
               >
@@ -230,18 +229,17 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               </div>
             )}
 
-            {/* Sync queue badge — amber, opens the sync queue sheet */}
             {(hasPending || hasFailed) && (
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="relative text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
                 onClick={() => setSyncQueueOpen(true)}
                 title="View sync queue"
                 data-testid="sync-queue-badge"
               >
-                <CloudOff className="w-5 h-5" />
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                <CloudOff className="w-4 h-4" />
+                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
                   {(pendingCount + failedCount) > 9 ? "9+" : pendingCount + failedCount}
                 </span>
               </Button>
@@ -252,11 +250,11 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="relative text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
                   data-testid="alert-bell"
                 >
-                  <AlertTriangle className="w-5 h-5" />
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
                     {alertCount > 9 ? "9+" : alertCount}
                   </span>
                 </Button>
@@ -274,14 +272,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 }}
                 aria-label="Quick Settings"
                 data-testid="quick-settings-toggle"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted"
               >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-4 h-4" />
               </Button>
 
               {/* Quick Settings dropdown panel */}
               {quickSettingsOpen && (
                 <div
-                  className="absolute right-0 top-full mt-2 w-72 bg-background border border-border rounded-2xl shadow-xl z-50 p-3 space-y-2"
+                  className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-2xl shadow-lg z-50 p-3 space-y-2"
                   data-testid="quick-settings-panel"
                 >
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 pb-1">
@@ -305,7 +304,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                     onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
                     data-testid="quick-density"
                   />
-                  <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/40">
+                  <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/50">
                     <span className="flex-shrink-0 text-muted-foreground">
                       <SunDim className="w-5 h-5" />
                     </span>
@@ -340,7 +339,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   />
                   <div className="pt-1 border-t border-border">
                     <Link href="/settings" onClick={() => setQuickSettingsOpen(false)}>
-                      <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs">
+                      <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs text-muted-foreground">
                         <Settings className="w-3.5 h-3.5" />
                         All Settings
                       </Button>
@@ -358,16 +357,17 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 setQuickSettingsOpen(false);
               }}
               data-testid="menu-toggle"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted"
             >
-              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </Button>
           </div>
         </div>
 
         {/* Slide-down nav menu */}
         {menuOpen && (
-          <div className="border-t bg-white dark:bg-background px-4 py-3 max-w-2xl mx-auto">
-            <nav className="flex flex-col gap-1">
+          <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto">
+            <nav className="flex flex-col gap-0.5">
               {visibleItems.map((item) => (
                 <Link
                   key={item.href}
@@ -377,14 +377,14 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 >
                   <div
                     className={cn(
-                      "flex items-center justify-between gap-3 px-3 py-3 rounded-xl transition-colors",
+                      "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors",
                       location === item.href
                         ? "bg-primary/10 text-primary font-semibold"
                         : "text-foreground hover:bg-muted"
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      {item.icon}
+                      <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
                       <span className="text-sm font-medium">{item.label}</span>
                     </div>
                     {item.badgeCount ? (
@@ -401,9 +401,9 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   setReportIssueOpen(true);
                 }}
                 data-testid="nav-report-issue"
-                className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left"
               >
-                <Bug className="w-5 h-5" />
+                <Bug className="w-5 h-5 opacity-60" />
                 <span className="text-sm font-medium">Report Issue</span>
               </button>
             </nav>
@@ -415,14 +415,14 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       <main
         className={cn(
           "max-w-2xl mx-auto px-4 pb-safe",
-          settings.density === "compact" ? "py-3" : "py-6"
+          settings.density === "compact" ? "py-3" : "py-5"
         )}
       >
         {children}
       </main>
 
       {/* Bottom nav (mobile) — 4 primary items + Scan in center */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-background/95 backdrop-blur border-t dark:border-border supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-background/60 pb-safe">
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur border-t border-border/60 supports-[backdrop-filter]:bg-background/80 pb-safe">
         <div className="flex max-w-2xl mx-auto items-center">
           {/* First 2 nav items */}
           {bottomItems.slice(0, 2).map((item) => (
@@ -435,9 +435,9 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
               >
                 {item.icon}
-                <span className="text-xs font-medium">{item.label}</span>
+                <span className="text-[11px] font-medium">{item.label}</span>
                 {item.badgeCount ? (
-                  <span className="absolute top-2 right-1/4 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
                     {item.badgeCount > 9 ? "9+" : item.badgeCount}
                   </span>
                 ) : null}
@@ -449,7 +449,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
           <div className="flex-1 flex items-center justify-center py-2">
             <button
               onClick={openScanner}
-              className="w-12 h-12 rounded-full bg-primary text-white flex flex-col items-center justify-center shadow-sm hover:bg-primary/90 transition-colors -mt-3"
+              className="w-12 h-12 rounded-2xl bg-primary text-white flex flex-col items-center justify-center shadow-md hover:bg-primary/90 transition-colors -mt-3"
               data-testid="bottom-nav-scan"
             >
               <Scan className="w-5 h-5" />
@@ -467,9 +467,9 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
               >
                 {item.icon}
-                <span className="text-xs font-medium">{item.label}</span>
+                <span className="text-[11px] font-medium">{item.label}</span>
                 {item.badgeCount ? (
-                  <span className="absolute top-2 right-1/4 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
                     {item.badgeCount > 9 ? "9+" : item.badgeCount}
                   </span>
                 ) : null}

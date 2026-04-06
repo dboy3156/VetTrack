@@ -34,10 +34,10 @@ import {
 import { format } from "date-fns";
 
 const STATUS_COLORS_HEX = {
-  ok: "#10b981",
-  issue: "#ef4444",
-  maintenance: "#f59e0b",
-  sterilized: "#14b8a6",
+  ok: "#6ec4a0",
+  issue: "#e08080",
+  maintenance: "#e5c07a",
+  sterilized: "#6dbfbf",
 };
 
 export default function AnalyticsPage() {
@@ -48,10 +48,10 @@ export default function AnalyticsPage() {
 
   const pieData = analytics
     ? [
-        { name: "OK", value: analytics.statusBreakdown.ok, color: "#10b981" },
-        { name: "Issue", value: analytics.statusBreakdown.issue, color: "#ef4444" },
-        { name: "Maintenance", value: analytics.statusBreakdown.maintenance, color: "#f59e0b" },
-        { name: "Sterilized", value: analytics.statusBreakdown.sterilized, color: "#14b8a6" },
+        { name: "OK", value: analytics.statusBreakdown.ok, color: STATUS_COLORS_HEX.ok },
+        { name: "Issue", value: analytics.statusBreakdown.issue, color: STATUS_COLORS_HEX.issue },
+        { name: "Maintenance", value: analytics.statusBreakdown.maintenance, color: STATUS_COLORS_HEX.maintenance },
+        { name: "Sterilized", value: analytics.statusBreakdown.sterilized, color: STATUS_COLORS_HEX.sterilized },
       ].filter((d) => d.value > 0)
     : [];
 
@@ -74,11 +74,8 @@ export default function AnalyticsPage() {
         <meta name="description" content="Equipment analytics for veterinary clinics — maintenance compliance rates, sterilization compliance, scan activity over 14 days, and top problem equipment." />
         <link rel="canonical" href="https://vettrack.replit.app/analytics" />
       </Helmet>
-      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
-        <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
-          <BarChart3 className="w-6 h-6 text-primary" />
-          Analytics
-        </h1>
+      <div className="flex flex-col gap-5 pb-24 animate-fade-in">
+        <h1 className="text-2xl font-bold leading-tight">Analytics</h1>
 
         {isError && (
           <ErrorCard
@@ -91,85 +88,85 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-2 gap-3">
           {isLoading ? (
             <>
-              <Skeleton className="h-24 rounded-xl" />
-              <Skeleton className="h-24 rounded-xl" />
-              <Skeleton className="h-24 rounded-xl" />
-              <Skeleton className="h-24 rounded-xl" />
+              <Skeleton className="h-24 rounded-2xl" />
+              <Skeleton className="h-24 rounded-2xl" />
+              <Skeleton className="h-24 rounded-2xl" />
+              <Skeleton className="h-24 rounded-2xl" />
             </>
           ) : (
             <>
-              <Card className="border-emerald-200 bg-emerald-50/50">
+              <Card className="bg-card border-border/60 shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     <span className="text-xs text-muted-foreground font-medium">Maintenance</span>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-700">
+                  <p className="text-2xl font-bold text-foreground">
                     {analytics?.maintenanceComplianceRate ?? 0}%
                   </p>
-                  <p className="text-xs text-muted-foreground">Compliance rate</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Compliance rate</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-teal-200 bg-teal-50/50">
+              <Card className="bg-card border-border/60 shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Droplets className="w-4 h-4 text-teal-500" />
                     <span className="text-xs text-muted-foreground font-medium">Sterilization</span>
                   </div>
-                  <p className="text-2xl font-bold text-teal-700">
+                  <p className="text-2xl font-bold text-foreground">
                     {analytics?.sterilizationComplianceRate ?? 0}%
                   </p>
-                  <p className="text-xs text-muted-foreground">Compliance rate</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Compliance rate</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-red-200 bg-red-50/50">
+              <Card className="bg-card border-border/60 shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <AlertTriangle className="w-4 h-4 text-red-400" />
                     <span className="text-xs text-muted-foreground font-medium">Overdue</span>
                   </div>
-                  <p className="text-2xl font-bold text-red-700">
+                  <p className="text-2xl font-bold text-foreground">
                     {analytics?.statusBreakdown.overdue ?? 0}
                   </p>
-                  <p className="text-xs text-muted-foreground">Items overdue</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Items overdue</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-amber-200 bg-amber-50/50">
+              <Card className="bg-card border-border/60 shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Wrench className="w-4 h-4 text-amber-500" />
                     <span className="text-xs text-muted-foreground font-medium">Issues</span>
                   </div>
-                  <p className="text-2xl font-bold text-amber-700">
+                  <p className="text-2xl font-bold text-foreground">
                     {analytics?.statusBreakdown.issue ?? 0}
                   </p>
-                  <p className="text-xs text-muted-foreground">Active issues</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Active issues</p>
                 </CardContent>
               </Card>
             </>
           )}
         </div>
 
-        {/* Status pie chart */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Equipment Status Distribution</CardTitle>
+        {/* Status distribution */}
+        <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold text-foreground">Equipment Status Distribution</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4">
             {isLoading ? (
-              <Skeleton className="h-52" />
+              <Skeleton className="h-48 rounded-xl" />
             ) : pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={3}
                     dataKey="value"
                   >
@@ -179,11 +176,13 @@ export default function AnalyticsPage() {
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => [`${value} items`, ""]}
+                    contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }}
                   />
                   <Legend
                     formatter={(value, entry: any) =>
                       `${value}: ${entry.payload.value}`
                     }
+                    wrapperStyle={{ fontSize: "11px" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -194,24 +193,26 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Scan activity chart */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="w-4 h-4 text-primary" />
-              Scan Activity (14 days)
+        <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Activity className="w-4 h-4 text-muted-foreground" />
+              Scan Activity — last 14 days
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4">
             {isLoading ? (
-              <Skeleton className="h-48" />
+              <Skeleton className="h-44 rounded-xl" />
             ) : chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-50" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={1} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="scans" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} interval={1} />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }}
+                  />
+                  <Bar dataKey="scans" fill="#6ec4a0" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -224,35 +225,35 @@ export default function AnalyticsPage() {
 
         {/* Top problem equipment */}
         {!isLoading && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-500" />
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-muted-foreground" />
                 Top Problem Equipment
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 pb-4">
               {!analytics?.topProblemEquipment || analytics.topProblemEquipment.length === 0 ? (
                 <EmptyState
                   icon={Trophy}
                   message="No issues reported"
                   subMessage="Equipment with recurring issues will appear here"
-                  iconBg="bg-amber-50"
-                  iconColor="text-amber-400"
+                  iconBg="bg-muted"
+                  iconColor="text-muted-foreground"
                 />
               ) : (
                 <div className="flex flex-col gap-3">
                   {analytics.topProblemEquipment.map((item, i) => (
                     <div key={item.equipmentId} className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
                           {i + 1}
                         </span>
                         <span className="text-sm font-medium truncate">{item.name}</span>
                       </div>
-                      <Badge variant="issue" className="shrink-0">
+                      <span className="text-xs text-muted-foreground shrink-0 bg-muted px-2.5 py-1 rounded-full">
                         {item.issueCount} issues
-                      </Badge>
+                      </span>
                     </div>
                   ))}
                 </div>

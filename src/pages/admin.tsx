@@ -287,11 +287,11 @@ function FoldersSection() {
   const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
 
   return (
-    <Card>
+    <Card className="bg-card border-border/60 shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FolderOpen className="w-4 h-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-muted-foreground" />
             Folders
           </CardTitle>
           <Button
@@ -463,10 +463,10 @@ function PendingUsersSection() {
   });
 
   return (
-    <Card>
+    <Card className="bg-card border-border/60 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Clock className="w-4 h-4 text-amber-500" />
+        <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Clock className="w-4 h-4 text-muted-foreground" />
           Pending Users
         </CardTitle>
       </CardHeader>
@@ -487,7 +487,7 @@ function PendingUsersSection() {
               <div
                 key={user.id}
                 data-testid={`pending-user-row-${user.id}`}
-                className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 gap-3"
+                className="flex items-center justify-between p-3 bg-background rounded-xl border border-border/60 gap-3"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">
@@ -675,10 +675,10 @@ function UsersSection() {
   ];
 
   return (
-    <Card>
+    <Card className="bg-card border-border/60 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Users className="w-4 h-4 text-primary" />
+        <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Users className="w-4 h-4 text-muted-foreground" />
           Users
         </CardTitle>
       </CardHeader>
@@ -994,10 +994,10 @@ function DeletedItemsSection() {
   return (
     <div className="flex flex-col gap-4">
       {/* Deleted Equipment */}
-      <Card>
+      <Card className="bg-card border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-muted-foreground" />
             Deleted Equipment
           </CardTitle>
         </CardHeader>
@@ -1052,10 +1052,10 @@ function DeletedItemsSection() {
       </Card>
 
       {/* Deleted Users */}
-      <Card>
+      <Card className="bg-card border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Users className="w-4 h-4 text-muted-foreground" />
             Deleted Users
           </CardTitle>
         </CardHeader>
@@ -1174,10 +1174,10 @@ function SupportSection() {
   };
 
   return (
-    <Card>
+    <Card className="bg-card border-border/60 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <LifeBuoy className="w-4 h-4 text-primary" />
+        <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <LifeBuoy className="w-4 h-4 text-muted-foreground" />
           Support Tickets
         </CardTitle>
       </CardHeader>
@@ -1431,13 +1431,13 @@ const ALL_ACTION_TYPES = Object.keys(ACTION_TYPE_LABELS);
 
 function actionBadgeClass(actionType: string): string {
   if (actionType.includes("deleted"))
-    return "bg-destructive/10 text-destructive border-destructive/20";
+    return "bg-red-50 text-red-700 border-red-200";
   if (actionType.includes("created") || actionType.includes("provisioned"))
-    return "bg-green-100 text-green-800 border-green-200";
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
   if (actionType.includes("login"))
-    return "bg-blue-100 text-blue-800 border-blue-200";
+    return "bg-muted text-muted-foreground border-border";
   if (actionType.includes("role") || actionType.includes("status"))
-    return "bg-amber-100 text-amber-800 border-amber-200";
+    return "bg-amber-50 text-amber-700 border-amber-200";
   return "bg-muted text-muted-foreground border-border";
 }
 
@@ -1487,11 +1487,11 @@ function AuditLogsSection() {
   const items = data?.items ?? [];
 
   return (
-    <Card>
+    <Card className="bg-card border-border/60 shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-primary" />
+          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-muted-foreground" />
             Audit Logs
           </CardTitle>
           <Button
@@ -1655,7 +1655,7 @@ function AuditLogsSection() {
 function AuditLogRow({ entry }: { entry: AuditLog }) {
   return (
     <div
-      className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/20 hover:bg-muted/40 transition-colors"
+      className="flex flex-col gap-1 p-3 rounded-xl border border-border/60 bg-background hover:bg-muted/30 transition-colors"
       data-testid="audit-log-row"
     >
       <div className="flex items-start gap-2 flex-wrap">

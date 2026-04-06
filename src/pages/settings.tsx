@@ -103,7 +103,7 @@ export default function SettingsPage() {
               onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
               data-testid="settings-density"
             />
-            <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-muted/40">
+            <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card border border-border/60">
               <span className="flex-shrink-0 text-muted-foreground">
                 <SunDim className="w-5 h-5" />
               </span>
@@ -133,7 +133,7 @@ export default function SettingsPage() {
           <section className="space-y-2">
             <SettingsSectionHeader label="Push Notifications" />
             <div className="space-y-2">
-              <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-muted/40">
+              <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card border border-border/60">
                 <span className="flex-shrink-0 text-muted-foreground">
                   {push.subscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
                 </span>
@@ -172,7 +172,7 @@ export default function SettingsPage() {
                 </Button>
               </div>
               {push.subscribed && (
-                <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-muted/40">
+                <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card border border-border/60">
                   <span className="flex-shrink-0 text-muted-foreground">
                     <Send className="w-5 h-5" />
                   </span>
@@ -257,14 +257,14 @@ export default function SettingsPage() {
         {/* Reset */}
         <section className="space-y-2">
           <SettingsSectionHeader label="Reset" />
-          <div className="rounded-xl bg-muted/40 px-4 py-4">
+          <div className="rounded-xl bg-card border border-border/60 px-4 py-4">
             <p className="text-sm text-foreground font-medium mb-1">Reset to Defaults</p>
             <p className="text-xs text-muted-foreground mb-3">
               Restore all settings to their original values. This cannot be undone.
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2" data-testid="settings-reset-btn">
+                <Button variant="outline" size="sm" className="gap-2 border-border/60" data-testid="settings-reset-btn">
                   <RotateCcw className="w-4 h-4" />
                   Reset to Defaults
                 </Button>
@@ -294,7 +294,7 @@ export default function SettingsPage() {
         {/* Account */}
         <section className="space-y-2">
           <SettingsSectionHeader label="Account" />
-          <div className="rounded-xl bg-muted/40 px-4 py-4 space-y-3">
+          <div className="rounded-xl bg-card border border-border/60 px-4 py-4 space-y-3">
             {(name || email) && (
               <div>
                 {name && <p className="text-sm font-medium text-foreground">{name}</p>}
@@ -302,8 +302,8 @@ export default function SettingsPage() {
               </div>
             )}
             <Button
-              variant="destructive"
-              className="gap-2 w-full sm:w-auto"
+              variant="outline"
+              className="gap-2 w-full sm:w-auto border-border/60 text-muted-foreground hover:text-foreground"
               onClick={handleLogout}
               data-testid="settings-logout"
             >
@@ -316,7 +316,7 @@ export default function SettingsPage() {
         {/* About */}
         <section className="space-y-2">
           <SettingsSectionHeader label="About" />
-          <div className="rounded-xl bg-muted/40 px-4 py-4 space-y-1">
+          <div className="rounded-xl bg-card border border-border/60 px-4 py-4 space-y-1">
             <p className="text-sm font-medium text-foreground">VetTrack</p>
             <p className="text-xs text-muted-foreground">
               Version <span data-testid="app-version">{__APP_VERSION__}</span>

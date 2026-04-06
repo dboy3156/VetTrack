@@ -624,7 +624,7 @@ function EquipmentItem({
       <div className="flex-1 min-w-0">
         <Link href={`/equipment/${eq.id}`} onClick={(e) => selectMode && e.preventDefault()}>
           <Card
-            className={`transition-all hover:shadow-sm active:scale-[0.99] ${selected ? "border-primary bg-primary/5" : "hover:border-primary/30"}`}
+            className={`bg-card border-border/60 shadow-sm transition-all hover:shadow-md active:scale-[0.99] ${selected ? "border-primary bg-primary/5" : ""}`}
             data-testid={`equipment-item-${eq.id}`}
           >
             <CardContent className="p-3 flex items-center gap-3 min-h-[64px]">
