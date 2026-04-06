@@ -6,6 +6,7 @@ import { Layout } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonAlertCard } from "@/components/ui/skeleton-cards";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { computeAlerts } from "@/lib/utils";
@@ -167,8 +168,8 @@ export default function AlertsPage() {
 
         {isLoading ? (
           <div className="flex flex-col gap-3">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+            {[...Array(5)].map((_, i) => (
+              <SkeletonAlertCard key={i} />
             ))}
           </div>
         ) : isError ? null : alerts.length === 0 ? (

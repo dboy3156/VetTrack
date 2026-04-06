@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonEquipmentCard } from "@/components/ui/skeleton-cards";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -594,8 +595,8 @@ export default function EquipmentListPage() {
         {/* Equipment list */}
         {isLoading ? (
           <div className="flex flex-col gap-2">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-xl" />
+            {[...Array(6)].map((_, i) => (
+              <SkeletonEquipmentCard key={i} />
             ))}
           </div>
         ) : !isError && filtered.length === 0 ? (
