@@ -49,6 +49,7 @@ export default function MyEquipmentPage() {
   const returnMut = useMutation({
     mutationFn: (id: string) => api.equipment.return(id),
     onSuccess: () => {
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success("Returned — equipment is now available");
