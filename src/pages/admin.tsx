@@ -455,6 +455,7 @@ function PendingUsersSection() {
       status: "active" | "blocked";
     }) => api.users.updateStatus(id, status),
     onSuccess: (_, { status }) => {
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast.success(status === "active" ? "User approved" : "User rejected");
@@ -638,6 +639,7 @@ function UsersSection() {
     mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
       api.users.updateRole(id, role),
     onSuccess: () => {
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setPendingRoleChange(null);
       toast.success("Role updated");
@@ -654,6 +656,7 @@ function UsersSection() {
       status: "pending" | "active" | "blocked";
     }) => api.users.updateStatus(id, status),
     onSuccess: (_, { status }) => {
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       toast.success(
@@ -974,6 +977,7 @@ function DeletedItemsSection() {
   const restoreEquipMut = useMutation({
     mutationFn: (id: string) => api.equipment.restore(id),
     onSuccess: () => {
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success("Equipment restored");
@@ -984,6 +988,7 @@ function DeletedItemsSection() {
   const restoreUserMut = useMutation({
     mutationFn: (id: string) => api.users.restore(id),
     onSuccess: () => {
+      navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast.success("User restored");
