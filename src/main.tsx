@@ -14,6 +14,12 @@ import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
 import { addPendingSync, removePendingSync } from "@/lib/offline-db";
 
+declare global {
+  interface Window {
+    __vettrack_test?: Record<string, unknown>;
+  }
+}
+
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -54,7 +60,7 @@ const queryClient = new QueryClient({
 initSyncEngine(queryClient);
 
 if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).__vettrack_test = {
+  window.__vettrack_test = {
     addPendingSync,
     removePendingSync,
   };
