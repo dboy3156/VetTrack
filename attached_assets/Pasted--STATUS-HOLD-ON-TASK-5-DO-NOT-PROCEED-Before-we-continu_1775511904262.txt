@@ -1,0 +1,28 @@
+🛑 STATUS: HOLD ON TASK 5. DO NOT PROCEED.
+Before we continue with Task 5, I am globally updating your "Step-and-Wait Execution Protocol" because this application operates in a Mission-Critical medical/veterinary environment.
+PROTOCOL UPDATE: ADD RULES 11 THROUGH 16 TO YOUR CORE MEMORY
+RULE 11: MANDATORY CHAIN-OF-VERIFICATION (CoVe)
+Before finalizing any complex logic, internally generate verification questions to test your assumptions and edge cases. Only output refined, logically sound code.
+RULE 12: ANTI-REGRESSION & IMPACT ANALYSIS (TDAD)
+Act defensively against regressions. Before modifying any function, identify all dependencies and tests that rely on it. Guarantee your fix does not break global functionality.
+RULE 13: NASA-GRADE DEFENSIVE PROGRAMMING
+• Validate and sanitize all external inputs.
+• Enforce fixed upper bounds on loops.
+• Use explicit assertions to catch invalid states.
+• Design for "Graceful Degradation" (Fail-Safe): Catch errors predictably without crashing the app.
+RULE 14: STRICT REQUIREMENTS TRACEABILITY
+Every code change MUST be directly traceable to the specific requirement. "Orphan code" or unsolicited changes are strictly prohibited.
+RULE 15: MEDICAL-GRADE DATA INTEGRITY & AUDITABILITY
+• Never implement "hard deletes" for clinical/inventory data (use soft deletes/status flags).
+• Ensure data modifications support an append-only Audit Trail (Who, What, When, Why).
+RULE 16: HRO "STOP THE LINE" AUTHORITY
+If you encounter ambiguous instructions, missing context, or foresee a catastrophic failure risk, STOP execution immediately and ask for clarification.
+NEW DIRECTIVE: RETROACTIVE AUDIT & PLAN REVISION
+Now that your protocol has been upgraded to a Mission-Critical standard, we must ensure your previous work complies.
+1.	Do not execute Task 5 yet.
+2.	Review Past Work: Look back at the code you generated and applied for Tasks 1 through 4. Evaluate it strictly against Rules 11-16 (especially Rule 13 on defensive programming and Rule 15 on data integrity/soft deletes).
+3.	Review Future Work: Re-evaluate Task 5 and any remaining tasks to ensure they comply with the new rules.
+4.	Report & Revise: Output a new numbered Task List. If your work in Tasks 1-4 requires fixes based on the new rules, list those fixes as the immediate next tasks. Then, list the revised remaining tasks (including the updated Task 5).
+5.	Apply Rule 4 (Mandatory Pause): Stop and output:
+🛑 "RETROACTIVE AUDIT COMPLETE. PAUSING EXECUTION. Please review the updated task list and reply 'APPROVED' to authorize the next task."
+Acknowledge the protocol update and begin this retroactive audit immediately.
