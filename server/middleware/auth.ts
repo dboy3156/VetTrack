@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { db, users } from "../db.js";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -88,8 +88,19 @@ export async function requireAuth(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
-    const clerkName = (sessionClaims?.name as string | undefined) ?? "";
+    // Session claims may not include email (Clerk default JWT omits it).
+    // Fall back to fetching the full user from the Clerk API.
+    let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
+    let clerkName = (sessionClaims?.name as string | undefined) ?? "";
+    if (!clerkEmail) {
+      try {
+        const clerkUser = await clerkClient().users.getUser(clerkUserId);
+        clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
+        clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
+      } catch {
+        // Non-fatal — proceed with empty email; auto-promote won't trigger
+      }
+    }
 
     const isAdminEmail = clerkEmail && ADMIN_EMAILS.includes(clerkEmail.toLowerCase());
     const defaultStatus = isAdminEmail ? "active" : "pending";
@@ -201,8 +212,17 @@ export async function requireAuthAny(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
-    const clerkName = (sessionClaims?.name as string | undefined) ?? "";
+    let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
+    let clerkName = (sessionClaims?.name as string | undefined) ?? "";
+    if (!clerkEmail) {
+      try {
+        const clerkUser = await clerkClient().users.getUser(clerkUserId);
+        clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
+        clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
+      } catch {
+        // Non-fatal
+      }
+    }
 
     const isAdminEmail = clerkEmail && ADMIN_EMAILS.includes(clerkEmail.toLowerCase());
     const defaultStatus = isAdminEmail ? "active" : "pending";
