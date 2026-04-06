@@ -154,6 +154,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       }
 
       await stopScannerRef.current();
+      navigator.vibrate?.(50); // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       setScannedEquipment(eq);
       setPhase("result");
     },
@@ -326,6 +327,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       setPhase("not_found");
       return;
     }
+    navigator.vibrate?.(50);
     setScannedEquipment(eq);
     setPhase("result");
   };
@@ -346,7 +348,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.checkout(scannedEquipment.id);
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} checked out`);
       onClose();
@@ -362,7 +363,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.return(scannedEquipment.id);
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} returned`);
       onClose();
@@ -378,7 +378,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.scan(scannedEquipment.id, { status: "ok" });
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} marked as OK`);
       onClose();
