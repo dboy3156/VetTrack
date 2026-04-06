@@ -89,6 +89,7 @@ export default function NewEquipmentPage() {
     mutationFn: ({ data, signal }: { data: Parameters<(typeof api.equipment)["create"]>[0]; signal: AbortSignal }) =>
       api.equipment.create(data, signal),
     onSuccess: (data) => {
+      navigator.vibrate?.(50);
       clearSubmitTimeout();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success("Equipment added!");
