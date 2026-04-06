@@ -549,7 +549,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
         {/* Scanning guide overlay */}
         {phase === "scanning" && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
             <div
               className="relative"
               style={{
