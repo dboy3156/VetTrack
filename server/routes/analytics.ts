@@ -40,19 +40,19 @@ router.get("/", requireAuth, async (req, res) => {
     const fourteenDaysAgo = subDays(now, 14);
     const sevenDaysAgo = subDays(now, 7);
 
-    for (const eq of allEquipment) {
-      const status = (eq.status || "ok") as string;
+    for (const item of allEquipment) {
+      const status = (item.status || "ok") as string;
       if (status in statusBreakdown) {
         statusBreakdown[status as keyof typeof statusBreakdown]++;
       }
 
-      if (eq.maintenanceIntervalDays && eq.lastMaintenanceDate) {
-        const dueDate = new Date(eq.lastMaintenanceDate);
-        dueDate.setDate(dueDate.getDate() + eq.maintenanceIntervalDays);
+      if (item.maintenanceIntervalDays && item.lastMaintenanceDate) {
+        const dueDate = new Date(item.lastMaintenanceDate);
+        dueDate.setDate(dueDate.getDate() + item.maintenanceIntervalDays);
         if (now > dueDate) statusBreakdown.overdue++;
       }
 
-      if (!eq.lastSeen || new Date(eq.lastSeen) < fourteenDaysAgo) {
+      if (!item.lastSeen || new Date(item.lastSeen) < fourteenDaysAgo) {
         statusBreakdown.inactive++;
       }
     }

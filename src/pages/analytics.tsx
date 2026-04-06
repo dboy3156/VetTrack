@@ -44,6 +44,11 @@ export default function AnalyticsPage() {
   const { data: analytics, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/analytics"],
     queryFn: api.analytics.summary,
+    retry: 2,
+    retryDelay: 2000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) =>
+      query.state.status === "error" ? 12_000 : false,
   });
 
   const pieData = analytics
