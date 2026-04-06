@@ -1,0 +1,167 @@
+You are a senior full-stack developer. Convert VetTrack into a 
+production-grade PWA without breaking any existing equipment 
+tracking logic, QR deep-link flows, or Dexie.js sync engine.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXT (read before making any changes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Stack: React + TypeScript, Vite, Dexie.js (IndexedDB), 
+  Service Worker already partially wired
+- Existing offline queue: Dexie table "pendingSync" 
+  → DO NOT create a parallel queue anywhere
+- QR deep links use pattern: /equipment/:id 
+  → must survive SW navigation intercept
+- Replit deployment: HTTPS is guaranteed via Replit domain
+- Design system: medical blue/white palette 
+  (#1A6FBF primary, #F0F6FF background, #FFFFFF surface)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1 — manifest.json
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create /public/manifest.json:
+  - name: "VetTrack"
+  - short_name: "VetTrack"
+  - display: "standalone"
+  - start_url: "/?source=pwa"
+  - background_color: "#F0F6FF"
+  - theme_color: "#1A6FBF"
+  - icons:
+      • 192x192 (purpose: "any")
+      • 512x512 (purpose: "maskable any")
+  - If no static icon assets exist → generate them 
+    programmatically using Canvas API and save as PNG 
+    to /public/icons/. Use the medical cross symbol (#1A6FBF 
+    on white background) as the icon graphic.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 2 — Service Worker (sw.js)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create /public/sw.js with:
+
+CACHE VERSION:
+  const CACHE_VERSION = 'vettrack-v1';
+  → Bump this string on each deploy to invalidate old cache.
+  → On activate: delete all caches not matching current version.
+
+ROUTING STRATEGY:
+  • Static assets (*.js, *.css, *.png, *.woff2) 
+    → Cache First (serve from cache, fetch+update in background)
+  • /api/* requests 
+    → Network First → on failure return cached response 
+    → if no cache exists return { offline: true } JSON stub
+  • HTML navigation (Accept: text/html) 
+    → Network First → on failure serve /offline.html 
+    → QR deep links (/equipment/:id) MUST reach the React 
+      router — do not intercept with a hard redirect
+  • POST / PUT / DELETE requests 
+    → Never cache. Pass through to network only.
+    → On failure: log to console only 
+      (mutation retry is handled by Dexie pendingSync)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3 — Offline UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create /public/offline.html:
+  - Minimal static page (no React dependency)
+  - Show VetTrack logo + message: 
+    "You're offline. Your changes will sync when reconnected."
+  - Include a "Retry" button that calls window.location.reload()
+  - Style inline, medical palette, no external fonts
+
+DO NOT show a blocking error screen inside the React app. 
+Use a non-intrusive toast/banner instead (existing toast 
+system if available).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 4 — SW Registration in index.html
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Register SW in /index.html (or main.tsx if Vite):
+
+  CONDITION: register only if:
+    - 'serviceWorker' in navigator
+    - location.protocol === 'https:'
+    (Replit always serves HTTPS in production)
+
+  UPDATE STRATEGY:
+    - When a new SW is waiting → do NOT silently skipWaiting
+    - Instead: dispatch a custom event 'sw-update-available'
+    - The React app must listen and show a user-facing 
+      "Update available – tap to refresh" banner
+    - Only call skipWaiting() after user confirms
+
+  In sw.js itself:
+    self.addEventListener('message', (e) => {
+      if (e.data === 'SKIP_WAITING') self.skipWaiting();
+    });
+    // clientsClaim only runs after user-triggered activation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 5 — iOS PWA Support (index.html <head>)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Add these meta tags:
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" 
+        content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VetTrack">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="viewport" 
+        content="width=device-width, initial-scale=1, 
+                 viewport-fit=cover">
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 6 — CSS: Native-Feel Adjustments
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Add to global CSS (index.css or App.css):
+
+  /* Safe area insets for notched devices */
+  .app-shell {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Touch targets — WCAG minimum */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Disable text selection ONLY on non-content UI */
+  button, nav, .bottom-bar, .tab-bar, 
+  .card-header, .toolbar {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* NEVER apply user-select: none to:
+     input, textarea, [contenteditable], 
+     .equipment-details, .notes-field */
+
+  /* Momentum scroll for lists */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HARD CONSTRAINTS — DO NOT VIOLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✗ Do not modify any file in /src/db/ or /src/sync/
+✗ Do not create a second offline queue — use Dexie pendingSync
+✗ Do not cache equipment state from GET /api/equipment/* 
+  for longer than the current session (max-age: 0 for those)
+✗ Do not silently force SW update — always prompt user first
+✗ Do not break /equipment/:id QR navigation routing
+✗ Do not apply user-select: none globally
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING CHECKLIST (verify before submitting)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+□ Lighthouse PWA score ≥ 90
+□ App installs on Android Chrome
+□ App installs on iOS Safari (Add to Home Screen)
+□ Offline: navigate to /equipment/:id → app loads from cache
+□ Offline: scan QR code → deep link resolves correctly
+□ Online restore: pendingSync mutations replay via Dexie
+□ SW update banner appears when new version deployed
+□ No console errors in production build

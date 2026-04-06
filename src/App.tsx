@@ -27,7 +27,7 @@ const StabilityDashboardPage = lazy(() => import("@/pages/stability-dashboard"))
 
 function PageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background">
       <Loader2 className="w-8 h-8 animate-spin text-primary" />
     </div>
   );
@@ -36,7 +36,7 @@ function PageLoader() {
 function ErrorFallback({ error, resetError }: { error: unknown; resetError: () => void }) {
   const message = error instanceof Error ? error.message : String(error);
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background p-6">
       <div className="max-w-sm w-full text-center">
         <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
           <AlertTriangle className="w-8 h-8 text-destructive" />
@@ -83,7 +83,7 @@ function ErrorFallback({ error, resetError }: { error: unknown; resetError: () =
 
 function PendingApprovalScreen({ signOut }: { signOut: () => Promise<void> }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background p-6">
       <div className="max-w-sm w-full text-center">
         <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
           <Clock className="w-8 h-8 text-amber-600" />
@@ -102,7 +102,7 @@ function PendingApprovalScreen({ signOut }: { signOut: () => Promise<void> }) {
 
 function BlockedScreen({ signOut }: { signOut: () => Promise<void> }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background p-6">
       <div className="max-w-sm w-full text-center">
         <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
           <Ban className="w-8 h-8 text-destructive" />
