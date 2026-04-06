@@ -18,6 +18,7 @@ import {
   QrCode,
   Package,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import type { Equipment } from "@/types";
 
@@ -26,7 +27,7 @@ export default function QrPrintPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const printRef = useRef<HTMLDivElement>(null);
 
-  const { data: equipment, isLoading, isError, refetch } = useQuery({
+  const { data: equipment, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
   });
@@ -197,7 +198,16 @@ export default function QrPrintPage() {
               <p className="text-sm font-medium text-foreground">Failed to load equipment</p>
               <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>Try Again</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+              {isRefetching ? "Trying…" : "Try Again"}
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-2">

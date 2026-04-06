@@ -243,7 +243,7 @@ export default function EquipmentDetailPage() {
     undoStateRef.current = { ...state, timeoutId, toastId };
   }
 
-  const { data: equipment, isLoading, isError, refetch } = useQuery({
+  const { data: equipment, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: [`/api/equipment/${id}`],
     queryFn: () => api.equipment.get(id!),
     enabled: !!id,
@@ -602,7 +602,15 @@ export default function EquipmentDetailPage() {
             <p className="text-sm text-muted-foreground mt-1">Check your connection and try again</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => refetch()}>Try Again</Button>
+            <Button
+              variant="outline"
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="gap-1.5"
+            >
+              <Loader2 className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
+              {isRefetching ? "Trying…" : "Try Again"}
+            </Button>
             <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
           </div>
         </div>

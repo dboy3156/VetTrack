@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle } from "lucide-react";
+import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -110,7 +110,7 @@ export default function AuditLogPage() {
     page,
   };
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: ["/api/audit-logs", params],
     queryFn: () => api.auditLogs.list(params),
     enabled: isAdmin,
@@ -219,7 +219,16 @@ export default function AuditLogPage() {
                   <p className="text-sm font-medium text-foreground">Failed to load audit log</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => refetch()}>Try Again</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={isRefetching}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+                  {isRefetching ? "Trying…" : "Try Again"}
+                </Button>
               </div>
             ) : !data?.items.length ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
