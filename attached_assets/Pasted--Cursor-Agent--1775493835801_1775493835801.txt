@@ -1,0 +1,239 @@
+הנה פרומפט חזק ומדויק ל-Cursor (Agent), שמאגד את כל הצ׳ק־ליסט שלך לתוך הוראות ביצוע ברורות, עם עדיפות ל-Replit + קוד בפועל.
+
+⸻
+
+🎯 Prompt ל-Cursor (מוכן להדבקה)
+
+You are a senior product engineer + UX systems thinker operating in a zero-compromise ER (Emergency Room) environment.
+
+Your task is to perform a full system overhaul (UI + UX + behavior + performance) for an app called VetTrack — a QR-based equipment tracking system used by veterinary hospital staff under extreme pressure.
+
+This is NOT a suggestion task.
+This is a brutal teardown + direct execution plan + code-level fixes.
+
+⸻
+
+⚠️ Operating Principles
+	•	Every millisecond of delay = real-world risk
+	•	Every extra tap / scroll = cognitive load
+	•	Every visual inconsistency = potential mistake
+	•	Assume the user is:
+	•	holding an animal
+	•	under stress
+	•	operating one-handed
+	•	Optimize for:
+	•	speed
+	•	clarity
+	•	zero thinking
+
+⸻
+
+🔍 Phase 1 — Full Audit (DO NOT SKIP)
+
+Analyze the entire codebase (frontend + backend if relevant) and identify:
+
+UI Issues (Visual Layer)
+	•	Oversized primary actions (e.g., “Mark In Use” button dominating layout)
+	•	Low contrast text (secondary labels, placeholders)
+	•	Layout shifts (error banners pushing UI)
+	•	Safe area violations (edges, bottom nav conflicts)
+	•	Visual noise reducing scannability
+
+UX Issues (Interaction Layer)
+	•	Mobile anti-patterns (CSV editing, desktop flows on mobile)
+	•	Dropdown usability failures (long lists, small tap targets)
+	•	Navigation friction (too many options, poor grouping)
+	•	Scanner latency or blocking states
+
+Behavioral / Logic Issues
+	•	Contradictions (e.g., “Active Alerts” showing inactive items)
+	•	Misleading colors (green used for unavailable states)
+	•	Incorrect mental models
+
+⸻
+
+🧠 Phase 2 — System Thinking
+
+For EACH issue:
+	1.	Explain the real-world impact (in ER context)
+	2.	Identify the root cause
+	3.	Define the correct product behavior
+
+⸻
+
+🛠 Phase 3 — Execution (Replit-ready)
+
+You MUST implement fixes with real code, not just explanations.
+
+For each issue:
+
+Required Output Format:
+	•	Problem
+	•	Impact
+	•	Fix (Product decision)
+	•	Implementation (ACTUAL CODE)
+
+⸻
+
+🔧 Required Fixes (MANDATORY)
+
+1. Kill Button Bloat
+	•	Remove large “Mark In Use” buttons
+	•	Replace with:
+	•	swipe gesture (react-swipeable-list or similar)
+	•	OR small right-aligned icon button
+
+2. Replace Dropdowns
+	•	Remove native <select> and react-select for long lists
+	•	Implement:
+	•	Bottom Sheet (Radix / Vaul)
+	•	OR horizontal chip filters
+	•	Ensure:
+	•	min touch target: 44x44px
+
+3. Remove Mobile CSV Flow
+	•	Hide CSV import on mobile:
+
+if (window.innerWidth < 768) return null;
+
+	•	Replace with:
+	•	FAB button
+	•	Camera-based quick add flow
+
+4. Fix Error Handling
+	•	Remove layout-shifting banners
+	•	Implement toast system:
+	•	react-hot-toast / sonner
+
+toast.error("Failed to load equipment");
+
+5. Optimize QR Scanner
+	•	Remove 3–4 second delay
+	•	Ensure component does NOT remount unnecessarily
+	•	Preload camera permissions if possible
+	•	Add flashlight toggle:
+
+track.applyConstraints({
+  advanced: [{ torch: true }]
+});
+
+
+⸻
+
+⚡ Critical UI Fix (Scanner Reticle Bug)
+
+Fix incorrect scanner reticle positioning caused by 100vh on mobile.
+
+Required Implementation:
+
+.camera-wrapper {
+  position: relative;
+  height: 100dvh;
+}
+
+.scanner-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+Add focus overlay:
+
+box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+
+
+⸻
+
+🧠 Phase 4 — Cognitive Load Reduction
+
+You MUST:
+	•	Remove contradictions:
+
+alerts.filter(a => a.status === 'active')
+
+	•	Fix color semantics:
+	•	Green = available only
+	•	Checked out = orange / grey
+	•	Reduce sidebar complexity:
+	•	Group into:
+	•	DAILY
+	•	MANAGEMENT
+	•	SETTINGS
+
+⸻
+
+🧭 Phase 5 — Navigation Redesign
+
+Replace current navigation with:
+	•	Bottom Tab Bar:
+	•	Home
+	•	Search
+	•	Scan (primary center button)
+	•	My Items
+	•	Move:
+	•	Settings
+	•	Admin
+	•	CSV
+→ into profile menu (top-right avatar)
+
+⸻
+
+📳 Phase 6 — System Feedback
+
+Add haptic feedback for all critical actions:
+
+navigator.vibrate(50);
+
+
+⸻
+
+🌙 Phase 7 — Visual System Upgrade
+	•	Implement true dark mode:
+
+background-color: #000000;
+
+	•	Increase contrast globally
+	•	Remove visual clutter
+
+⸻
+
+🚨 Phase 8 — Priority Roadmap
+
+P0 (Immediate)
+	•	Remove CSV on mobile
+	•	Fix alert logic bug
+	•	Replace error banners with toasts
+	•	Add global padding (16px)
+
+P1 (This Week)
+	•	Remove large buttons
+	•	Replace dropdowns
+	•	Fix scanner performance
+
+P2 (Next Sprint)
+	•	Navigation redesign
+	•	Color fixes
+	•	Haptics
+
+⸻
+
+🧾 Final Requirement
+
+At the end, provide:
+	1.	Summary of all changes
+	2.	List of modified files
+	3.	Any new dependencies added
+	4.	Potential risks / edge cases
+
+⸻
+
+❗ Constraints
+	•	Do NOT suggest — IMPLEMENT
+	•	Do NOT leave pseudo-code — provide real working code
+	•	Do NOT ignore mobile context
+	•	All solutions must be fast, minimal, and production-ready
+
+⸻
+
+אם תרצה, אני יכול עכשיו לקחת את הפרומפט הזה ולעשות לו גרסה עוד יותר חדה שמתאימה ספציפית ל-Cursor Agents (עם tool usage / file edits / multi-step execution).
