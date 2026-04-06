@@ -1,0 +1,267 @@
+You are a senior frontend engineer building a production-grade mobile UI.
+
+Your task is to build “VetTrack” — a veterinary hospital equipment tracking app.
+
+This system is PRE-DEPLOYMENT.
+It is NOT a prototype.
+
+Everything must be:
+- Stable
+- Consistent
+- Predictable
+- Ready to ship
+
+There is ZERO tolerance for:
+- UI inconsistencies
+- Component duplication
+- Styling drift
+- Unclear structure
+- “Temporary” solutions
+
+--------------------------------------------------
+CORE DESIGN INTENT (NON-NEGOTIABLE)
+--------------------------------------------------
+
+The UI must feel:
+
+- Instantly familiar (like iOS settings / WhatsApp list / system UI)
+- But cleaner, sharper, and more intentional
+- Not playful, not decorative
+- Feels like a system tool that always existed
+
+If anything feels “designed” → it is WRONG
+
+--------------------------------------------------
+PRE-DEPLOYMENT QUALITY RULES (CRITICAL)
+--------------------------------------------------
+
+You are building as if:
+
+- The app will be used tomorrow in a veterinary ER
+- Multiple developers will extend this code
+- Bugs or inconsistencies will cause real friction
+
+Therefore:
+
+- Every component must be reusable
+- Every pattern must be predictable
+- No hidden logic
+- No magic values
+- No inconsistent spacing or styling
+- No duplicated UI logic across files
+
+If something cannot scale → DO NOT implement it
+
+--------------------------------------------------
+TECH STACK (FIXED)
+--------------------------------------------------
+
+- React (functional components)
+- Tailwind CSS
+- No UI libraries
+- No custom CSS unless absolutely necessary
+
+--------------------------------------------------
+SPACING SYSTEM (STRICT)
+--------------------------------------------------
+
+Allowed ONLY:
+- 8px → p-2 / gap-2
+- 16px → p-4 / gap-4
+- 24px → p-6 / gap-6
+
+If any other spacing is used → it is a FAILURE
+
+--------------------------------------------------
+COLOR SYSTEM (STRICT)
+--------------------------------------------------
+
+Status colors ONLY:
+
+- available → green
+- in_use → orange
+- cleaning → blue
+- missing → red
+
+Rules:
+
+- Color is ONLY used for meaning
+- No decorative colors
+- No gradients
+- No inconsistent shades
+
+--------------------------------------------------
+TYPOGRAPHY
+--------------------------------------------------
+
+- Title → bold, slightly larger
+- Body → small
+- Secondary → muted
+
+No variation beyond this
+
+--------------------------------------------------
+COMPONENT SYSTEM (LOCKED)
+--------------------------------------------------
+
+You are ONLY allowed:
+
+1. Header
+2. EquipmentCard
+3. StatusTag
+4. Button
+5. AlertItem
+6. ScanButton
+
+STRICT RULES:
+
+- No additional components
+- No duplicated UI logic
+- No variations outside props
+- All screens MUST reuse these
+
+--------------------------------------------------
+COMPONENT BEHAVIOR (EXACT)
+--------------------------------------------------
+
+EquipmentCard:
+- Must behave like a native list row
+- NOT a visual “card”
+- Full-width
+- Bottom border only
+- No shadows
+- Fast to scan visually
+
+StatusTag:
+- Single source of truth
+- Always same size, structure, logic
+
+Button:
+- Only primary / secondary
+- Full-width
+- Clear hierarchy
+- No stylistic variations per screen
+
+ScanButton:
+- GLOBAL PRIMARY ACTION
+- Identical across ALL screens
+- Fixed bottom-right
+- Never modified
+
+AlertItem:
+- Must interrupt attention immediately
+- Strong red signal
+- No soft styling
+
+--------------------------------------------------
+SCREENS (LOCKED STRUCTURE)
+--------------------------------------------------
+
+Dashboard:
+- Header
+- Search
+- Equipment list (rows, not cards)
+- ScanButton
+
+Equipment Details:
+- Header
+- StatusTag (top)
+- Structured info (like system settings)
+- Actions (stacked buttons)
+- ScanButton
+
+QR Scanner:
+- Full screen
+- Black background
+- Minimal UI
+- Center scan frame
+- ScanButton present
+
+Alerts:
+- Header
+- Alert list
+- Strong red emphasis
+- ScanButton
+
+--------------------------------------------------
+UX RULES (CRITICAL)
+--------------------------------------------------
+
+- One-hand use
+- Large tap areas
+- Zero thinking required
+- No dense text
+- No unnecessary steps
+
+User flow must be:
+
+see → understand → act
+
+Not:
+see → think → decide
+
+--------------------------------------------------
+STATE SYSTEM (MANDATORY)
+--------------------------------------------------
+
+Centralize status:
+
+- available
+- in_use
+- cleaning
+- missing
+
+Use ONE mapping system.
+Do NOT repeat logic.
+
+--------------------------------------------------
+CODE QUALITY RULES (STRICT)
+--------------------------------------------------
+
+- No duplicated components
+- No inline styling inconsistencies
+- No hardcoded values scattered
+- Clean props
+- Predictable structure
+
+Code must be:
+- Extendable
+- Readable
+- Maintainable by another developer
+
+--------------------------------------------------
+FAILURE CONDITIONS (IMPORTANT)
+--------------------------------------------------
+
+If ANY of the following happen, the result is invalid:
+
+- Two components look slightly different
+- Spacing is inconsistent
+- ScanButton differs between screens
+- Status colors are inconsistent
+- UI feels like a “design” instead of a system
+- Code contains shortcuts or temporary logic
+
+--------------------------------------------------
+SELF-CHECK (MANDATORY BEFORE OUTPUT)
+--------------------------------------------------
+
+Before finishing, verify:
+
+1. Would another developer extend this without confusion?
+2. Is every component reused exactly?
+3. Is there any visual inconsistency?
+4. Does this feel like a system, not a styled app?
+5. Is this safe to deploy tomorrow?
+
+If any answer is NO → fix it.
+
+--------------------------------------------------
+OUTPUT RULE
+--------------------------------------------------
+
+Output ONLY clean, production-ready React + Tailwind code.
+
+No explanations.
+No comments.
+No justification.
