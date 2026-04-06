@@ -71,7 +71,7 @@ export function EquipmentCard({
   );
 }
 
-export function AppButton({
+export function Button({
   label,
   variant = "primary",
   onClick,
@@ -100,23 +100,20 @@ export function AlertItem({
   title,
   description,
   time,
-  severity,
 }: {
   title: string;
   description: string;
   time: string;
-  severity: "critical" | "warning";
 }) {
-  const isCritical = severity === "critical";
   return (
-    <div className={`flex gap-4 px-4 py-4 border-b border-gray-100 ${isCritical ? "bg-red-50" : "bg-orange-50"}`}>
-      <div className={`flex-shrink-0 ${isCritical ? "text-red-600" : "text-orange-500"}`}>
+    <div className="flex gap-4 px-4 py-4 border-b border-red-100 bg-red-50">
+      <div className="flex-shrink-0 text-red-600">
         <AlertTriangle size={18} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className={`text-[14px] font-bold ${isCritical ? "text-red-800" : "text-orange-800"}`}>{title}</div>
-        <div className={`text-[12px] mt-2 ${isCritical ? "text-red-700" : "text-orange-700"}`}>{description}</div>
-        <div className="text-[11px] text-gray-400 mt-2">{time}</div>
+        <div className="text-[14px] font-bold text-red-800">{title}</div>
+        <div className="text-[12px] mt-2 text-red-700">{description}</div>
+        <div className="text-[11px] text-gray-500 mt-2">{time}</div>
       </div>
     </div>
   );

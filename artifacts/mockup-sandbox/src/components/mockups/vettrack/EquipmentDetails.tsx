@@ -2,7 +2,7 @@ import { ChevronLeft, User, MapPin, Clock, Tag, FileText, Wrench } from "lucide-
 import {
   Header,
   StatusTag,
-  AppButton,
+  Button,
   ScanButton,
   type Status,
 } from "./_shared/components";
@@ -78,9 +78,9 @@ export function EquipmentDetails() {
         </div>
 
         <div className="px-4 pt-6 pb-6 flex flex-col gap-2">
-          <AppButton label="Return Equipment"    variant="primary"   />
-          <AppButton label="Report Issue"        variant="secondary" />
-          <AppButton label="Transfer Ownership"  variant="secondary" />
+          <Button label="Return Equipment"    variant="primary"   />
+          <Button label="Report Issue"        variant="secondary" />
+          <Button label="Transfer Ownership"  variant="secondary" />
         </div>
       </div>
 
