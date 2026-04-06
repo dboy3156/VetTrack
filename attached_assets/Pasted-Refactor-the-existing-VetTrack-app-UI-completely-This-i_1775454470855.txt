@@ -1,0 +1,123 @@
+Refactor the existing VetTrack app UI completely.
+
+This is NOT a visual tweak.
+This is a full design system refactor that must restructure layout, hierarchy, spacing, and component behavior across the entire app.
+
+⸻
+
+Core Goal
+
+Transform the current UI into a calm, minimal, soft, and highly intuitive interface that matches modern iOS design patterns and the provided reference images.
+
+The current UI is too dense, too colorful, and cognitively heavy.
+Your job is to reduce cognitive load by redesigning—not decorating.
+
+⸻
+
+Non-Negotiable Rules
+	1.	Reduce Visual Noise
+
+	•	Remove all unnecessary elements
+	•	Each screen must focus on one primary action
+	•	Any secondary information must be visually de-emphasized
+
+	2.	Color System Reset
+
+	•	Replace all strong colors with a neutral palette
+	•	Background: soft off-white / beige
+	•	Cards: white or very light neutral
+	•	Text: dark gray (not pure black)
+	•	Status colors (red, orange, green):
+	•	Use ONLY as small accents (badges, indicators)
+	•	NEVER as full card backgrounds
+
+	3.	Component System (Global)
+
+	•	All cards:
+	•	Border radius: 16–24px
+	•	No heavy borders
+	•	Very subtle shadows only
+	•	Remove sharp edges and harsh contrast
+	•	All components must feel soft and consistent
+
+	4.	Spacing & Layout
+
+	•	Increase spacing across all screens
+	•	Use consistent padding (16–24px minimum)
+	•	Create clear separation between sections
+	•	Prioritize readability and scanability
+
+⸻
+
+Screen-Specific Refactor
+
+Dashboard
+	•	Reduce to maximum 3–4 elements:
+	•	Status summary
+	•	Activity
+	•	Alerts overview
+	•	Remove mixed complexity (no heavy charts + lists together)
+
+Alerts (Critical Fix Required)
+	•	Current state: too aggressive and noisy
+	•	Refactor into:
+	•	Clean list
+	•	Light cards
+	•	Small status badges (e.g. “Critical”, “High”)
+	•	Max 2 lines of text per item
+	•	One clear action per card
+
+Analytics
+	•	Reduce dominance of charts
+	•	Use softer, desaturated colors
+	•	Charts should support—not dominate—the UI
+
+Equipment List
+	•	Simplify to clean, scannable cards
+	•	Minimal visible data
+	•	Clear status indicator only
+
+Forms (Add Equipment)
+	•	Increase spacing
+	•	Remove visual clutter
+	•	Large, clean input fields
+	•	Minimal borders
+
+⸻
+
+UX Principles (Strict)
+	•	UI must feel “obvious” on first use
+	•	Navigation must feel familiar (like WhatsApp-level simplicity)
+	•	No element should require thinking to understand
+	•	Prioritize fast scanning over completeness
+
+⸻
+
+Visual Style Matching (Critical)
+
+You will receive reference images.
+
+You MUST match:
+	•	Spacing
+	•	Typography scale
+	•	Layout composition
+	•	Softness of UI
+	•	Visual hierarchy
+
+Do NOT invent a new style.
+
+⸻
+
+What NOT to Do
+	•	Do not just adjust colors
+	•	Do not keep the same layout with minor polish
+	•	Do not add more features
+	•	Do not increase information density
+
+⸻
+
+Definition of Done
+	•	UI feels calm, minimal, and premium
+	•	Screens are faster to understand
+	•	Visual hierarchy is clear immediately
+	•	The app feels simpler, not just “nicer”

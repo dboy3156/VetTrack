@@ -1,0 +1,87 @@
+Transform this design into a Canva-style presentation layout similar to modern app showcase slides.
+
+Do NOT change the product UI itself.
+Only redesign how it is presented on the canvas.
+
+--------------------------------------------------
+
+LAYOUT STRUCTURE:
+
+Create a split layout:
+
+LEFT SIDE:
+- Large circular frame containing the phone mockup
+- Behind it, add an organic rounded shape (like a soft blob or curved background)
+- Use a neutral, warm color (beige / muted gray / soft olive)
+
+RIGHT SIDE:
+- Large bold title (2–3 lines max)
+- Short descriptive paragraph below
+- Clear hierarchy (title dominant, text secondary)
+
+--------------------------------------------------
+
+VISUAL STYLE:
+
+- Clean, minimal, modern Canva aesthetic
+- Soft shadows (very subtle)
+- Rounded shapes (not sharp, not playful)
+- Neutral color palette (beige, gray, off-white)
+
+--------------------------------------------------
+
+TYPOGRAPHY:
+
+- Title:
+  - Large, bold
+  - Clean sans-serif
+- Body:
+  - Smaller
+  - Light gray
+  - Easy to read
+
+Highlight key words in bold (like “familiar”, “intuitive”, “minimal effort”)
+
+--------------------------------------------------
+
+COMPOSITION RULES:
+
+- Strong balance between left visual and right text
+- Plenty of whitespace
+- Everything aligned cleanly
+- No clutter
+
+--------------------------------------------------
+
+IMAGE TREATMENT:
+
+- Use realistic phone mockups (slight angle or straight)
+- Add soft shadow under device
+- Keep it premium and clean
+
+--------------------------------------------------
+
+CONSISTENCY:
+
+Apply the same layout across multiple slides:
+
+1. Intro slide (product name + mockup)
+2. Dashboard explanation
+3. Design philosophy
+4. Visual system
+
+Each slide should feel like part of the same system.
+
+--------------------------------------------------
+
+IMPORTANT:
+
+- Do NOT redesign the app UI itself
+- Do NOT add unnecessary decorative elements
+- Keep everything calm, minimal, and structured
+
+--------------------------------------------------
+
+GOAL:
+
+Make it look like a professional product presentation created in Canva, similar to modern UI case studies or app showcase decks.
