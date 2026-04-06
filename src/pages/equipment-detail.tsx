@@ -286,7 +286,6 @@ export default function EquipmentDetailPage() {
       return { result, prev, capturedStatus, wasOffline: result.pendingSyncId !== undefined };
     },
     onSuccess: ({ result, prev, capturedStatus, wasOffline }) => {
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       setScanDialogOpen(false);
       setScanNote("");
@@ -353,7 +352,6 @@ export default function EquipmentDetailPage() {
       return { result, prev };
     },
     onSuccess: ({ result, prev }) => {
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       setCheckoutLocation("");
 
@@ -396,7 +394,6 @@ export default function EquipmentDetailPage() {
       return { result, prev };
     },
     onSuccess: ({ result, prev }) => {
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       const { equipment: updated, undoToken } = result;
       const wasOffline = result.pendingSyncId !== undefined;
@@ -457,7 +454,6 @@ export default function EquipmentDetailPage() {
       return { result, prev, capturedNote };
     },
     onSuccess: ({ result, prev, capturedNote }) => {
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       setReportIssueOpen(false);
       setReportIssueNote("");

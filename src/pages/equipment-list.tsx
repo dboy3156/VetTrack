@@ -666,7 +666,6 @@ function EquipmentItem({
   const checkoutMut = useMutation({
     mutationFn: () => api.equipment.checkout(eq.id),
     onSuccess: () => {
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Checked out — ${eq.name}`);
@@ -677,7 +676,6 @@ function EquipmentItem({
   const returnMut = useMutation({
     mutationFn: () => api.equipment.return(eq.id),
     onSuccess: () => {
-      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
