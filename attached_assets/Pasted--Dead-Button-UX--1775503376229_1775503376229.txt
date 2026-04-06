@@ -1,0 +1,24 @@
+כפתור "מת" (Dead Button) שאי אפשר ללחוץ עליו הוא אחד מפשעי ה-UX החמורים ביותר. זה שובר את האמון של המשתמש במערכת, ובסביבת חירום כמו שלך, טכנאי שמעוצבן על האפליקציה הוא טכנאי שעושה טעויות. הצורך לרענן (Refresh) את כל הדף בגלל כפתור שלא עובד הורס לחלוטין את היתרון של אפליקציית Web מהירה.
+### למה זה קורה ברמת הקוד? (Root Cause)
+מה שקרה כאן הוא תופעה קלאסית של פיתוח מבוסס-קומפוננטות. המפתח (או הסוכן) עיצב רכיב שגיאה יפה עם כפתור "Try Again", אבל **שכח לחבר לו את צינור הנתונים**.
+ב-React, אם אתה משתמש בספריות כמו React Query (או אפילו סתם fetch רגיל), כשמתרחשת שגיאה האפליקציה עוצרת. כדי לנסות שוב, הכפתור חייב לעשות שלושה דברים במקביל:
+ 1. לאפס את סטטוס השגיאה (setError(null)).
+ 2. להפעיל מחדש את פונקציית משיכת הנתונים (למשל refetch()).
+ 3. **UX קריטי:** לשנות את הכפתור עצמו למצב "טוען..." (עם Spinner), כדי שהטכנאי לא ילחץ עליו 10 פעמים ברצף מתוך תסכול.
+### איך מתקנים את זה? (Execution)
+הנה פקודה מדויקת (Prompt) באנגלית שאתה צריך להזין לסוכן כדי שהוא יתקן את הכפתור הזה באופן רוחבי בכל האפליקציה, ויוודא שהוא באמת פונקציונלי.
+**העתק והדבק את הטקסט הבא לסוכן שלך:**
+> **BUG REPORT: NON-FUNCTIONAL "TRY AGAIN" BUTTONS**
+> **Issue:** > Whenever a data fetch fails and an Error State UI is displayed, the "Try Again" button is currently a "dead button". Clicking it does nothing, forcing the user to hard-refresh the browser to clear the error.
+> **Required Fix (Implement across all error states):**
+> **1. Wire the onClick Handler:**
+> Locate the error component(s) displaying the "Try Again" button (likely used in equipment-list.tsx, alerts.tsx, etc., or a standalone ErrorFallback component). Ensure the button's onClick prop is actually connected to the data-fetching refetch function (if using React Query/SWR) or the API retry logic.
+> **2. Clear the Error State:**
+> When "Try Again" is clicked, the local or global error state MUST be cleared immediately (e.g., setError(null) or resetErrorBoundary()) so the UI clears the red error message and re-enters the loading skeleton state.
+> **3. Add Visual Feedback (Crucial UX):**
+> The "Try Again" button must have a loading state. When clicked, disable the button and show a small loading spinner inside it until the refetch resolves (either to a success or a new error). Users must know their tap registered.
+> **Instructions for the Agent:**
+> Please review the codebase for the "Try Again" error UI. Fix the wiring so the button successfully re-triggers the network request and updates the UI accordingly. Output the specific code block you changed to fix this functionality.
+> 
+**מה הפקודה הזו תעשה?**
+היא לא סתם אומרת לו "תתקן את הכפתור", אלא מסבירה לו את **הלוגיקה** של מה חסר: ניקוי השגיאה, קריאה מחדש לשרת, וחיווי ויזואלי לטכנאי שלחץ על הכפתור. ברגע שהוא יסיים את זה, הלחיצה תעבוד בצורה חלקה וחלון השגיאה ייעלם מיד לטובת מסך טעינה.
