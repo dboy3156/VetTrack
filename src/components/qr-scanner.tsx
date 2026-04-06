@@ -549,16 +549,12 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
         {/* Scanning guide overlay */}
         {phase === "scanning" && (
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
-              className="relative"
+              className="relative flex-shrink-0"
               style={{
                 width: 250,
                 height: 250,
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
                 boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
                 borderRadius: "2px",
               }}
