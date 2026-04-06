@@ -1,16 +1,6 @@
 import { QrCode, X, Zap } from "lucide-react";
 import { ScanButton } from "./_shared/components";
 
-function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br" }) {
-  const borders = {
-    tl: "border-t-4 border-l-4 top-0 left-0",
-    tr: "border-t-4 border-r-4 top-0 right-0",
-    bl: "border-b-4 border-l-4 bottom-0 left-0",
-    br: "border-b-4 border-r-4 bottom-0 right-0",
-  };
-  return <div className={`absolute w-8 h-8 border-teal-400 ${borders[pos]}`} />;
-}
-
 export function QRScanner() {
   return (
     <div
@@ -33,10 +23,10 @@ export function QRScanner() {
             className="absolute inset-0 rounded-2xl"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
           />
-          <Corner pos="tl" />
-          <Corner pos="tr" />
-          <Corner pos="bl" />
-          <Corner pos="br" />
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-teal-400" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-teal-400" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-teal-400" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-teal-400" />
           <div className="absolute inset-0 flex items-center justify-center">
             <QrCode size={64} className="text-white/20" />
           </div>

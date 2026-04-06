@@ -1,0 +1,51 @@
+{
+  "description": "VetTrack mobile UI — four 390×844 iframes embedded on the workspace canvas in a horizontal row with 50px gutters",
+  "layout": "horizontal-row",
+  "gutterPx": 50,
+  "frames": [
+    {
+      "shapeId": "vt-dashboard",
+      "componentName": "VetTrack — Dashboard",
+      "componentPath": "artifacts/mockup-sandbox/src/components/mockups/vettrack/Dashboard.tsx",
+      "previewRoute": "/preview/vettrack/Dashboard",
+      "x": 100,
+      "y": -450,
+      "w": 390,
+      "h": 844,
+      "state": "live"
+    },
+    {
+      "shapeId": "vt-details",
+      "componentName": "VetTrack — Equipment Details",
+      "componentPath": "artifacts/mockup-sandbox/src/components/mockups/vettrack/EquipmentDetails.tsx",
+      "previewRoute": "/preview/vettrack/EquipmentDetails",
+      "x": 540,
+      "y": -450,
+      "w": 390,
+      "h": 844,
+      "state": "live"
+    },
+    {
+      "shapeId": "vt-scanner",
+      "componentName": "VetTrack — QR Scanner",
+      "componentPath": "artifacts/mockup-sandbox/src/components/mockups/vettrack/QRScanner.tsx",
+      "previewRoute": "/preview/vettrack/QRScanner",
+      "x": 980,
+      "y": -450,
+      "w": 390,
+      "h": 844,
+      "state": "live"
+    },
+    {
+      "shapeId": "vt-alerts",
+      "componentName": "VetTrack — Alerts",
+      "componentPath": "artifacts/mockup-sandbox/src/components/mockups/vettrack/Alerts.tsx",
+      "previewRoute": "/preview/vettrack/Alerts",
+      "x": 1420,
+      "y": -450,
+      "w": 390,
+      "h": 844,
+      "state": "live"
+    }
+  ]
+}

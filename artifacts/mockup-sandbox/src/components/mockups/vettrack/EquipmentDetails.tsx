@@ -8,39 +8,19 @@ import {
 } from "./_shared/components";
 
 const ITEM = {
-  id:           "VT-0041",
-  name:         "Vital Signs Monitor",
-  brand:        "Philips",
-  model:        "IntelliVue MX550",
-  serial:       "SN-2024-00391",
-  location:     "ER Bay 1",
-  status:       "in_use" as Status,
-  assignedTo:   "Dr. Sarah Cohen",
-  checkedOut:   "Today, 08:14 AM",
-  lastSeen:     "5 minutes ago",
-  nextService:  "2026-08-01",
-  notes:        "Calibrated March 2026. Battery at 87%.",
+  id:          "VT-0041",
+  name:        "Vital Signs Monitor",
+  brand:       "Philips",
+  model:       "IntelliVue MX550",
+  serial:      "SN-2024-00391",
+  location:    "ER Bay 1",
+  status:      "in_use" as Status,
+  assignedTo:  "Dr. Sarah Cohen",
+  checkedOut:  "Today, 08:14 AM",
+  lastSeen:    "5 minutes ago",
+  nextService: "2026-08-01",
+  notes:       "Calibrated March 2026. Battery at 87%.",
 };
-
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
-      <div className="text-gray-400 w-4 flex-shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[11px] text-gray-400 uppercase tracking-wide">{label}</div>
-        <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{value}</div>
-      </div>
-    </div>
-  );
-}
-
-function SectionLabel({ text }: { text: string }) {
-  return (
-    <div className="px-4 pt-6 pb-2">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">{text}</div>
-    </div>
-  );
-}
 
 export function EquipmentDetails() {
   return (
@@ -63,24 +43,64 @@ export function EquipmentDetails() {
       </div>
 
       <div className="flex-1 overflow-auto">
-        <SectionLabel text="Assignment" />
+        <div className="px-4 pt-6 pb-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Assignment</div>
+        </div>
         <div className="bg-white">
-          <InfoRow icon={<User size={14} />}    label="Assigned To" value={ITEM.assignedTo} />
-          <InfoRow icon={<Clock size={14} />}   label="Checked Out" value={ITEM.checkedOut} />
-          <InfoRow icon={<MapPin size={14} />}  label="Location"    value={ITEM.location}   />
-          <InfoRow icon={<Tag size={14} />}     label="Last Seen"   value={ITEM.lastSeen}   />
+          <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+            <User size={14} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Assigned To</div>
+              <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{ITEM.assignedTo}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+            <Clock size={14} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Checked Out</div>
+              <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{ITEM.checkedOut}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+            <MapPin size={14} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Location</div>
+              <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{ITEM.location}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+            <Tag size={14} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Last Seen</div>
+              <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{ITEM.lastSeen}</div>
+            </div>
+          </div>
         </div>
 
-        <SectionLabel text="Service" />
+        <div className="px-4 pt-6 pb-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Service</div>
+        </div>
         <div className="bg-white">
-          <InfoRow icon={<Wrench size={14} />}     label="Next Service" value={ITEM.nextService} />
-          <InfoRow icon={<FileText size={14} />}   label="Notes"        value={ITEM.notes}       />
+          <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+            <Wrench size={14} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Next Service</div>
+              <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{ITEM.nextService}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 px-4 py-4 border-b border-gray-100">
+            <FileText size={14} className="text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 uppercase tracking-wide">Notes</div>
+              <div className="text-[14px] font-medium text-gray-900 mt-2 truncate">{ITEM.notes}</div>
+            </div>
+          </div>
         </div>
 
         <div className="px-4 pt-6 pb-6 flex flex-col gap-2">
-          <Button label="Return Equipment"    variant="primary"   />
-          <Button label="Report Issue"        variant="secondary" />
-          <Button label="Transfer Ownership"  variant="secondary" />
+          <Button label="Return Equipment"   variant="primary"   />
+          <Button label="Report Issue"       variant="secondary" />
+          <Button label="Transfer Ownership" variant="secondary" />
         </div>
       </div>
 

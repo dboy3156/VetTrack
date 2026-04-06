@@ -123,7 +123,7 @@ export function ScanButton({ onClick }: { onClick?: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="fixed bottom-6 right-6 w-14 h-14 bg-teal-600 rounded-full flex items-center justify-center shadow-lg active:bg-teal-700 z-20"
+      className="fixed bottom-6 right-6 w-14 h-14 bg-teal-600 rounded-full flex items-center justify-center active:bg-teal-700 z-20"
     >
       <QrCode size={24} className="text-white" />
     </button>
