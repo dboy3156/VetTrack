@@ -4,8 +4,8 @@ import {
   Header,
   EquipmentCard,
   ScanButton,
-  SAMPLE_EQUIPMENT,
 } from "./_shared/components";
+import { SAMPLE_EQUIPMENT } from "./_shared/mockData";
 
 export function Dashboard() {
   const [query, setQuery] = useState("");
