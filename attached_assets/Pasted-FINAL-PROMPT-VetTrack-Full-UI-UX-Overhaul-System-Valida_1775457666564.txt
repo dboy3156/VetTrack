@@ -1,0 +1,135 @@
+FINAL PROMPT: VetTrack — Full UI/UX Overhaul + System Validation + Reporting
+
+You are a senior product designer, frontend engineer, and QA engineer combined.
+
+Your task is to fully audit, fix, improve, validate, and report the VetTrack application.
+
+Do not analyze only — execute all fixes.
+Do not stop at implementation — verify everything works in reality.
+Do not leave uncertainty — measure and report results.
+
+⸻
+
+CORE RULES
+	•	No partial fixes
+	•	No placeholders
+	•	No broken UI
+	•	No regressions
+	•	Every change must be validated
+
+⸻
+
+1. Layout & Spacing
+	•	Apply global padding (≥16px) on all screens
+	•	Ensure no element touches screen edges
+	•	Fix Safe Area (bottom nav, logout buttons must not collide with system UI)
+	•	Increase spacing between equipment cards (prevent misclicks)
+	•	Fix horizontal scroll in room chips
+→ last chip partially visible OR gradient indicator
+
+⸻
+
+2. Visual Hierarchy
+	•	Reduce dominance of “Mark In Use” button
+→ convert to outline or reposition
+	•	Make equipment name dominant
+→ larger + bold, first visual anchor
+	•	Improve contrast:
+	•	darken secondary text
+	•	darken search placeholder
+	•	Standardize all icons (no mixed styles)
+
+⸻
+
+3. UX & Feedback
+	•	Replace loaders with skeleton screens (matching real layout)
+	•	Replace blocking error banners with:
+→ centered message
+→ clear “Try Again” button
+→ empty/error illustration
+	•	Clean Settings:
+→ remove irrelevant system-level controls
+	•	Restructure Sidebar:
+	•	Operations: Home, Equipment, Alerts, Mine
+	•	Management: Admin, Analytics, Dashboard
+	•	System: Settings, About, Help
+
+⸻
+
+4. Accessibility & Usability
+	•	Do not rely on color alone
+→ add icons (✅ / ⚠️)
+	•	Ensure all touch targets ≥ 44x44px
+	•	Handle long text properly
+→ wrap OR ellipsis
+→ never overlap UI
+
+⸻
+
+5. Polishing
+	•	Add smooth transitions (fade instead of hard cuts)
+	•	Fix Dark Mode:
+→ maintain contrast
+→ avoid flat/unreadable surfaces
+
+⸻
+
+6. Push Notifications — FULL DEBUG (MANDATORY)
+
+You must verify end-to-end:
+	•	Permission request is triggered
+	•	Device token is generated
+	•	Notification handler / service worker is registered
+	•	Backend sends notifications successfully
+	•	Real trigger exists (e.g., status change)
+
+If anything fails → FIX IT and retest until working.
+
+⸻
+
+7. Full System Validation
+
+Test complete flows:
+	•	Scan QR
+	•	Update equipment status
+	•	View equipment list
+	•	Navigate between screens
+
+Check:
+	•	No layout breaks
+	•	No overlapping elements
+	•	No dead buttons
+	•	No console errors
+
+⸻
+
+8. Performance Validation
+
+Measure:
+	•	Initial load time
+	•	Screen transition speed
+	•	Interaction responsiveness
+
+If degraded → optimize immediately
+
+⸻
+
+9. Change Log (REQUIRED OUTPUT)
+
+Generate a clear report:
+	•	What was broken
+	•	What you fixed
+	•	What you improved
+	•	What you added
+	•	Any assumptions made
+	•	Any remaining risks
+
+⸻
+
+10. Final Quality Standard
+
+The app must feel:
+	•	Tight (no spacing issues)
+	•	Clear (strong hierarchy)
+	•	Fast (no perceived lag)
+	•	Reliable under pressure (ER environment)

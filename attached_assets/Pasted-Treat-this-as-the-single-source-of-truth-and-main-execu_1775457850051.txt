@@ -1,0 +1,207 @@
+Treat this as the single source of truth and main execution plan.
+Follow it strictly. No deviations.
+
+⸻
+
+PRE-EXECUTION (MANDATORY)
+
+Before writing or changing anything:
+	1.	Confirm understanding of the full scope
+	2.	Break the work into ordered execution steps
+	3.	Identify risks or missing components
+	4.	Then begin execution
+
+Do NOT start coding immediately.
+
+⸻
+
+OBJECTIVE
+
+Transform VetTrack into a production-grade, high-performance, hospital-ready system by:
+	•	Fixing all UI/UX issues
+	•	Improving usability under pressure (ER workflow)
+	•	Making push notifications fully functional end-to-end
+	•	Ensuring system stability (no regressions)
+	•	Validating performance and responsiveness
+	•	Producing a full technical and product-level report
+
+⸻
+
+GLOBAL RULES
+	•	No partial fixes
+	•	No placeholders
+	•	No assumptions without validation
+	•	No UI breaks
+	•	No regressions
+	•	Every change must be tested
+	•	If something fails → fix it before continuing
+
+⸻
+
+PHASE 1 — UI/UX IMPLEMENTATION
+
+Layout & Spacing
+	•	Apply global padding (≥16px) across all screens
+	•	Ensure no element touches screen edges
+	•	Fix Safe Area (bottom nav, logout buttons)
+	•	Increase spacing between equipment cards (prevent misclicks)
+	•	Fix horizontal scroll in room chips:
+→ last chip partially visible OR gradient indicator
+
+⸻
+
+Visual Hierarchy
+	•	Reduce dominance of “Mark In Use” button
+	•	Convert to outline OR reposition
+	•	Emphasize equipment name:
+→ larger + bold
+→ first visual anchor
+	•	Improve contrast:
+	•	darken secondary text
+	•	darken search placeholder
+	•	Standardize icon system:
+→ no mixed styles
+
+⸻
+
+UX & Feedback
+	•	Replace loaders with skeleton screens (match real layout)
+	•	Replace error states with:
+	•	centered message
+	•	clear “Try Again” button
+	•	empty/error illustration
+	•	Remove irrelevant settings (e.g., brightness)
+	•	Restructure Sidebar:
+	•	Operations: Home, Equipment, Alerts, Mine
+	•	Management: Admin, Analytics, Dashboard
+	•	System: Settings, About, Help
+
+⸻
+
+Accessibility
+	•	Do not rely on color alone
+→ add icons (✅ / ⚠️)
+	•	Ensure touch targets ≥44x44px
+	•	Handle long text:
+→ wrap OR ellipsis
+→ never overlap UI
+
+⸻
+
+Polishing
+	•	Add smooth transitions (fade, no hard cuts)
+	•	Fix Dark Mode:
+→ maintain contrast
+→ avoid flat/unreadable UI
+
+⸻
+
+PHASE 2 — PUSH NOTIFICATIONS (FULL SYSTEM DEBUG)
+
+You must verify the entire pipeline:
+	1.	Permission request is triggered
+	2.	User grants permission
+	3.	Device token is generated and stored
+	4.	Notification handler / service worker exists and runs
+	5.	Backend sends notifications successfully
+	6.	At least one real trigger exists (e.g., status change)
+
+If ANY step fails:
+→ Identify root cause
+→ Fix
+→ Retest
+
+Repeat until fully working.
+
+No simulation. Real notifications only.
+
+⸻
+
+PHASE 3 — FULL SYSTEM VALIDATION
+
+Test real flows end-to-end:
+	•	QR scan
+	•	Equipment status update
+	•	Equipment list rendering
+	•	Navigation between screens
+
+Validate:
+	•	No layout breaks
+	•	No overlapping elements
+	•	No dead buttons
+	•	No missing data
+	•	No console errors
+
+Fix immediately if found.
+
+⸻
+
+PHASE 4 — PERFORMANCE VALIDATION
+
+Measure:
+	•	Initial load time
+	•	Screen transition speed
+	•	Interaction responsiveness
+
+If performance is degraded:
+→ Optimize immediately
+
+Avoid unnecessary re-renders, heavy components, or blocking operations.
+
+⸻
+
+PHASE 5 — FULL UI CONSISTENCY PASS
+
+Across ALL screens:
+	•	Consistent spacing
+	•	Consistent typography
+	•	Consistent component behavior
+	•	No visual leaks
+	•	Works on multiple screen sizes
+
+⸻
+
+PHASE 6 — FAILURE LOOP (CRITICAL)
+
+If any of the following is true:
+	•	Push notifications do not work
+	•	UI breaks on any screen
+	•	Console errors exist
+	•	Flows are incomplete
+
+→ DO NOT STOP
+→ Continue fixing until resolved
+
+⸻
+
+FINAL OUTPUT (REQUIRED)
+
+Generate a structured report:
+	1.	Issues found
+	2.	Root causes
+	3.	Fixes applied
+	4.	Improvements made
+	5.	Push notification status (exactly what was fixed)
+	6.	Performance impact (before vs after if possible)
+	7.	Remaining risks or limitations
+
+⸻
+
+FINAL STANDARD
+
+The system must feel:
+	•	Tight (no spacing issues)
+	•	Clear (strong hierarchy)
+	•	Fast (no perceived lag)
+	•	Reliable under pressure (ER usage)
+
+⸻
+
+EXECUTION MODE
+
+Act like:
+	•	Senior Product Designer
+	•	Senior Frontend Engineer
+	•	QA Engineer
+
+All combined.
