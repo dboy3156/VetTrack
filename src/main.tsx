@@ -31,9 +31,27 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
-if ("serviceWorker" in navigator) {
+if ("serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js").then((registration) => {
+      function notifyUpdateAvailable(worker: ServiceWorker) {
+        window.dispatchEvent(new CustomEvent("sw-update-available", { detail: { worker } }));
+      }
+
+      if (registration.waiting) {
+        notifyUpdateAvailable(registration.waiting);
+      }
+
+      registration.addEventListener("updatefound", () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            notifyUpdateAvailable(newWorker);
+          }
+        });
+      });
+    }).catch(() => {});
 
     if ("PushManager" in window) {
       navigator.serviceWorker.ready.then((registration) => {

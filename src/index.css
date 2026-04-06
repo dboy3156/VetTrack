@@ -202,3 +202,37 @@
 .qr-scan-line {
   animation: qr-scan-line 1.8s ease-in-out infinite;
 }
+
+/* ── Native-feel PWA CSS ─────────────────────────────────────────────────── */
+
+/* Safe-area inset padding for the app shell */
+.app-shell {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Minimum 44×44px touch targets */
+button,
+a,
+[role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Disable text selection on interactive chrome elements only */
+button,
+nav,
+.bottom-bar,
+.tab-bar,
+.card-header,
+.toolbar {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Momentum scrolling for scroll containers */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+}
