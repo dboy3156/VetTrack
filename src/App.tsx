@@ -33,7 +33,8 @@ function PageLoader() {
   );
 }
 
-function ErrorFallback({ error, resetError }: { error: Error; resetError: () => void }) {
+function ErrorFallback({ error, resetError }: { error: unknown; resetError: () => void }) {
+  const message = error instanceof Error ? error.message : String(error);
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="max-w-sm w-full text-center">
@@ -44,9 +45,9 @@ function ErrorFallback({ error, resetError }: { error: Error; resetError: () => 
         <p className="text-sm text-muted-foreground mb-2">
           An unexpected error occurred. Please try refreshing the page.
         </p>
-        {error && (
+        {message && (
           <p className="text-xs text-muted-foreground mb-6 font-mono bg-muted rounded px-2 py-1 truncate">
-            {error.message}
+            {message}
           </p>
         )}
         <div className="flex flex-col gap-2">
