@@ -107,7 +107,7 @@ async function request<T>(
 
       if (offline.offlineEquipmentId) {
         const cached = await getCachedEquipmentById(offline.offlineEquipmentId);
-        if (cached) return cached as unknown as T;
+        if (cached) return cached as T;
       }
 
       throw new Error("Action queued for sync when back online");
@@ -315,7 +315,7 @@ export const api = {
           });
           const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
           await updateCachedEquipment(id, optimisticEquipment);
-          return { equipment: updated, undoToken: undefined as unknown as string, pendingSyncId: pendingSyncId as number };
+          return { equipment: updated, undoToken: undefined as string | undefined, pendingSyncId: pendingSyncId as number };
         }
         throw err;
       }
@@ -363,7 +363,7 @@ export const api = {
           });
           const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
           await updateCachedEquipment(id, optimisticEquipment);
-          return { equipment: updated, undoToken: undefined as unknown as string, pendingSyncId: pendingSyncId as number };
+          return { equipment: updated, undoToken: undefined as string | undefined, pendingSyncId: pendingSyncId as number };
         }
         throw err;
       }
