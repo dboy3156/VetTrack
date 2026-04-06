@@ -331,7 +331,7 @@ export default function EquipmentDetailPage() {
             toast("Issue reported — WhatsApp alert sent.", {
               duration: 10000,
               action: {
-                label: "Cancel",
+                label: "Dismiss",
                 onClick: () => {},
               },
             });
@@ -499,7 +499,7 @@ export default function EquipmentDetailPage() {
           toast("Issue reported — WhatsApp alert sent.", {
             duration: 10000,
             action: {
-              label: "Cancel",
+              label: "Dismiss",
               onClick: () => {},
             },
           });
