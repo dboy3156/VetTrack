@@ -20,6 +20,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import type { Payload } from "recharts/types/component/DefaultLegendContent";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -184,8 +185,8 @@ export default function AnalyticsPage() {
                     contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }}
                   />
                   <Legend
-                    formatter={(value, entry: any) =>
-                      `${value}: ${entry.payload.value}`
+                    formatter={(value, entry: Payload) =>
+                      `${value}: ${entry.payload?.value ?? 0}`
                     }
                     wrapperStyle={{ fontSize: "11px" }}
                   />
