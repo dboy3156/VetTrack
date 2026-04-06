@@ -51,6 +51,12 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -73,6 +79,8 @@ export default function EquipmentListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [folderSheetOpen, setFolderSheetOpen] = useState(false);
+  const [folderSearch, setFolderSearch] = useState("");
 
   const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
   const search = params.get("q") ?? "";
@@ -293,6 +301,7 @@ export default function EquipmentListPage() {
               <Button
                 size="sm"
                 variant="outline"
+                className="hidden md:inline-flex"
                 onClick={() => setImportOpen(true)}
                 data-testid="btn-import-csv"
               >
@@ -321,34 +330,108 @@ export default function EquipmentListPage() {
               data-testid="search-input"
             />
           </div>
-          <div className="flex gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="flex-1" data-testid="status-filter">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={folderFilter} onValueChange={setFolderFilter}>
-              <SelectTrigger className="flex-1" data-testid="folder-filter">
-                <SelectValue placeholder="All folders" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All folders</SelectItem>
-                <SelectItem value="unfiled">Unfiled</SelectItem>
-                {folders?.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Status chip filters */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" data-testid="status-filter-chips">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setStatusFilter(opt.value)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                  statusFilter === opt.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                }`}
+                data-testid={`status-chip-${opt.value}`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
+          {/* Folder filter trigger */}
+          <button
+            onClick={() => setFolderSheetOpen(true)}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-left transition-colors ${
+              folderFilter !== "all"
+                ? "border-primary bg-primary/5 text-primary"
+                : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            }`}
+            data-testid="folder-filter"
+          >
+            <FolderOpen className="w-4 h-4 shrink-0" />
+            <span className="flex-1 truncate">
+              {folderFilter === "all"
+                ? "All Folders"
+                : folderFilter === "unfiled"
+                ? "Unfiled"
+                : (folders?.find((f) => f.id === folderFilter)?.name ?? "Folder")}
+            </span>
+            <ChevronRight className="w-3.5 h-3.5 shrink-0 rotate-90" />
+          </button>
+          <Sheet open={folderSheetOpen} onOpenChange={(o) => { setFolderSheetOpen(o); if (!o) setFolderSearch(""); }}>
+            <SheetContent side="bottom" className="max-h-[75vh] flex flex-col p-0">
+              <SheetHeader className="px-4 pt-5 pb-3 border-b">
+                <SheetTitle>Filter by Folder</SheetTitle>
+              </SheetHeader>
+              <div className="px-4 py-3 border-b">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search folders…"
+                    value={folderSearch}
+                    onChange={(e) => setFolderSearch(e.target.value)}
+                    className="pl-9"
+                    data-testid="folder-search"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {[
+                  { id: "all", name: "All Folders" },
+                  { id: "unfiled", name: "Unfiled" },
+                  ...(folders ?? []),
+                ]
+                  .filter(
+                    (f) =>
+                      !folderSearch ||
+                      f.name.toLowerCase().includes(folderSearch.toLowerCase())
+                  )
+                  .map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        setFolderFilter(f.id);
+                        setFolderSheetOpen(false);
+                        setFolderSearch("");
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm text-left border-b border-border/50 transition-colors ${
+                        folderFilter === f.id
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "hover:bg-accent"
+                      }`}
+                      data-testid={`folder-option-${f.id}`}
+                    >
+                      <FolderOpen className="w-4 h-4 shrink-0" />
+                      <span className="flex-1">{f.name}</span>
+                      {folderFilter === f.id && (
+                        <CheckSquare className="w-4 h-4 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+              </div>
+              <div
+                className="p-4 border-t"
+                style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+              >
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setFolderSheetOpen(false)}
+                >
+                  Done
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
 
           {/* Location filter chips */}
           {locations.length > 0 && (

@@ -20,7 +20,7 @@ import type {
   SupportTicket,
   CreateSupportTicketRequest,
 } from "@/types";
-import { emitServerError, clearServerError } from "@/components/ui/server-error-banner";
+import { toast } from "sonner";
 import type { PendingSyncType } from "./offline-db";
 import {
   addPendingSync,
@@ -73,19 +73,16 @@ async function request<T>(
     const res = await fetch(url, { ...init, headers });
     if (!res.ok) {
       if (!silent && res.status >= 500) {
-        emitServerError("The server encountered an error. Please try again or reload the page.");
-      } else if (!silent) {
-        clearServerError();
+        toast.error("The server encountered an error. Please try again or reload the page.");
       }
       const error = await res.json().catch(() => ({ error: "Request failed" }));
       throw new Error(error.error || `HTTP ${res.status}`);
     }
-    if (!silent) clearServerError();
     if (res.status === 204) return undefined as T;
     return res.json();
   } catch (err) {
     if (!silent && isNetworkError(err)) {
-      emitServerError("Server is unreachable. You may be offline or the server is down.");
+      toast.error("Server is unreachable. You may be offline or the server is down.");
     }
     if (isNetworkError(err) && offline) {
       const clientTimestamp = Date.now();

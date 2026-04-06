@@ -13,7 +13,6 @@ import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
 import { addPendingSync, removePendingSync } from "@/lib/offline-db";
-import { GlobalServerErrorBanner } from "@/components/ui/server-error-banner";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -67,7 +66,6 @@ function InnerApp() {
   return (
     <SettingsProvider>
       <SyncProvider>
-        <GlobalServerErrorBanner />
         <App />
         <Toaster richColors position="top-center" />
       </SyncProvider>

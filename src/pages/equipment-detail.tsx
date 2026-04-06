@@ -351,6 +351,8 @@ export default function EquipmentDetailPage() {
       return { result, prev };
     },
     onSuccess: ({ result, prev }) => {
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       setCheckoutLocation("");
 
       const { equipment: updated, undoToken } = result;
@@ -392,6 +394,8 @@ export default function EquipmentDetailPage() {
       return { result, prev };
     },
     onSuccess: ({ result, prev }) => {
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       const { equipment: updated, undoToken } = result;
       const wasOffline = result.pendingSyncId !== undefined;
 
@@ -451,6 +455,8 @@ export default function EquipmentDetailPage() {
       return { result, prev, capturedNote };
     },
     onSuccess: ({ result, prev, capturedNote }) => {
+      // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.(50);
       setReportIssueOpen(false);
       setReportIssueNote("");
       setReportIssuePhoto(null);
@@ -718,44 +724,41 @@ export default function EquipmentDetailPage() {
           {/* Primary action based on checkout state */}
           {!isCheckedOut ? (
             <Button
-              size="lg"
               variant="outline"
-              className="w-full h-14 gap-3 text-base font-semibold rounded-2xl active:scale-[0.98] transition-all border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              className="w-full h-12 gap-2 text-sm font-semibold rounded-2xl active:scale-[0.98] transition-all border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50"
               onClick={() => checkoutMut.mutate()}
               disabled={checkoutMut.isPending}
               data-testid="btn-checkout"
             >
               {checkoutMut.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <LogIn className="w-5 h-5" />
+                <LogIn className="w-4 h-4" />
               )}
-              Mark In Use
+              In Use
             </Button>
           ) : (checkedOutByMe || isAdmin) ? (
             <Button
-              size="lg"
-              className="w-full h-14 gap-3 text-base font-bold rounded-2xl active:scale-[0.98] transition-all shadow-sm"
+              className="w-full h-12 gap-2 text-sm font-semibold rounded-2xl active:scale-[0.98] transition-all shadow-sm"
               variant="outline"
               onClick={() => returnMut.mutate()}
               disabled={returnMut.isPending}
               data-testid="btn-return"
             >
               {returnMut.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
               )}
-              Check In / Return
+              Return
             </Button>
           ) : null}
 
           {/* Secondary action row */}
           <div className="grid grid-cols-2 gap-2">
             <Button
-              size="lg"
               variant="outline"
-              className="h-12 gap-2 font-semibold rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
+              className="h-10 gap-2 text-sm font-medium rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
               onClick={() => {
                 setReportIssueNote("");
                 setReportIssuePhoto(null);
@@ -768,9 +771,8 @@ export default function EquipmentDetailPage() {
               Report Issue
             </Button>
             <Button
-              size="lg"
               variant="outline"
-              className="h-12 gap-2 font-semibold rounded-xl active:scale-[0.98] transition-all"
+              className="h-10 gap-2 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
               onClick={openScanDialog}
               data-testid="btn-scan"
             >

@@ -56,6 +56,12 @@ export function isInactive(equipment: Equipment): boolean {
   return isAfter(fourteenDaysAgo, new Date(equipment.lastSeen));
 }
 
+/**
+ * Compute alerts for the given equipment list.
+ * ALLOWLIST: only the 4 types below are valid — issue, overdue, sterilization_due, inactive.
+ * The else-if chain ensures exactly one alert per piece of equipment (priority: issue > overdue > sterilization_due > inactive).
+ * Do NOT add new alert types here without updating AlertType in @/types and ALERT_SEVERITY below.
+ */
 export function computeAlerts(equipment: Equipment[]): Alert[] {
   const alerts: Alert[] = [];
 
