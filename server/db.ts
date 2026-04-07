@@ -61,6 +61,7 @@ export const equipment = pgTable("vt_equipment", {
   checkedOutAt: timestamp("checked_out_at"),
   checkedOutLocation: text("checked_out_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  version: integer("version").notNull().default(1),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
 });
