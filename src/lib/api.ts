@@ -184,9 +184,9 @@ export const api = {
   equipment: {
     list: async () => {
       try {
-        const items = await request<Equipment[]>("/api/equipment");
-        cacheEquipment(items).catch(() => {});
-        return items;
+        const result = await request<EquipmentPage>("/api/equipment");
+        cacheEquipment(result.items).catch(() => {});
+        return result.items;
       } catch (err) {
         if (!navigator.onLine) {
           return getCachedEquipment();
@@ -255,7 +255,11 @@ export const api = {
       form.append("file", file);
       // Do NOT set Content-Type — browser sets it automatically with multipart boundary
       const headers: Record<string, string> = { ...getAuthHeaders() };
-      const res = await fetch("/api/equipment/import", { method: "POST", body: form, headers });
+      const res = await fetchWithTimeout(
+        "/api/equipment/import",
+        { method: "POST", body: form, headers },
+        FETCH_TIMEOUT_MS * 2
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Import failed" }));
         throw new Error(err.error || `HTTP ${res.status}`);
@@ -508,8 +512,11 @@ export const api = {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
   },
   users: {
-    list: (status?: "pending" | "active" | "blocked") =>
-      request<User[]>(status ? `/api/users?status=${status}` : "/api/users"),
+    list: async (status?: "pending" | "active" | "blocked"): Promise<User[]> => {
+      const url = status ? `/api/users?status=${status}` : "/api/users";
+      const result = await request<{ items: User[]; total: number }>(url);
+      return result.items;
+    },
     listPending: () => request<User[]>("/api/users/pending"),
     listDeleted: () => request<User[]>("/api/users/deleted"),
     updateRole: (id: string, role: "admin" | "vet" | "technician" | "viewer") =>

@@ -160,7 +160,10 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
     return EMPTY_AUTH_STATE;
   });
 
-  setAuthStateRef(() => ({ isSignedIn: state.isSignedIn && !state.isOfflineSession }));
+  setAuthStateRef(() => ({
+    isSignedIn: state.isSignedIn,
+    isOfflineSession: state.isOfflineSession,
+  }));
 
   useEffect(() => {
     if (isLoaded || state.isLoaded) return;

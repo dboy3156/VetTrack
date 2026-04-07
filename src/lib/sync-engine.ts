@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import * as Sentry from "@sentry/react";
 import {
   getPendingSync,
   updatePendingSync,
@@ -40,7 +41,7 @@ let circuitResetTimerId: ReturnType<typeof setTimeout> | null = null;
 let batchCurrent = 0;
 let batchTotal = 0;
 
-type AuthStateGetter = () => { isSignedIn: boolean } | null;
+type AuthStateGetter = () => { isSignedIn: boolean; isOfflineSession: boolean } | null;
 let authStateGetter: AuthStateGetter | null = null;
 
 export function setAuthStateRef(getter: AuthStateGetter) {
@@ -99,7 +100,7 @@ export async function processQueue(): Promise<void> {
 
   if (authStateGetter) {
     const authSnap = authStateGetter();
-    if (!authSnap?.isSignedIn) return;
+    if (!authSnap?.isSignedIn || authSnap.isOfflineSession) return;
   }
 
   syncing = true;
@@ -144,6 +145,7 @@ export async function processQueue(): Promise<void> {
     if (queryClientRef && !haltQueue) {
       queryClientRef.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClientRef.invalidateQueries({ queryKey: ["/api/equipment/my"] });
+      queryClientRef.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
       const processedIds = burst
         .map((item) => extractEquipmentId(item.endpoint))
         .filter((id): id is string => !!id);
@@ -260,20 +262,53 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
         status: "failed",
         errorMessage: "Auth error — please sign in again",
       });
+      toast.error("Session expired — please sign in again", {
+        description: "Your pending changes were saved and will sync after you sign in.",
+        duration: 10_000,
+      });
       return "auth_halt";
+    }
+
+    if (res.status === 403) {
+      const errData = await res.json().catch(() => ({}));
+      const errMsg = errData.error || `Permission denied: ${res.status}`;
+      Sentry.captureMessage("Sync 403 permission denied", {
+        level: "warning",
+        extra: {
+          endpoint: item.endpoint,
+          method: item.method,
+          itemType: item.type,
+          error: errMsg,
+        },
+      });
+      console.error("[sync] 403 permission denied:", item.endpoint, errMsg);
+      await updatePendingSync(item.id, {
+        status: "failed",
+        errorMessage: errMsg,
+      });
+      return "client_error";
     }
 
     if (res.status >= 400 && res.status < 500) {
       const errData = await res.json().catch(() => ({}));
+      const errMsg = errData.error || `Request failed: ${res.status}`;
+      console.error("[sync] client error:", item.endpoint, res.status, errMsg);
       await updatePendingSync(item.id, {
         status: "failed",
-        errorMessage: errData.error || `Request failed: ${res.status}`,
+        errorMessage: errMsg,
       });
       return "client_error";
     }
 
     return "transient_failure";
-  } catch (_err) {
+  } catch (err) {
+    const isAbort = err instanceof DOMException && err.name === "AbortError";
+    if (!isAbort) {
+      console.error("[sync] network error:", item.endpoint, err);
+      Sentry.captureException(err, {
+        extra: { endpoint: item.endpoint, method: item.method, itemType: item.type },
+      });
+    }
     return "transient_failure";
   }
 }

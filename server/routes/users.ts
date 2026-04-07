@@ -72,29 +72,23 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
-    const hasLimit = !isNaN(rawLimit) && rawLimit > 0;
-    const limit = hasLimit ? Math.min(rawLimit, 200) : undefined;
-    const page = hasLimit && !isNaN(rawPage) && rawPage > 1 ? rawPage : 1;
-    const offset = limit ? (page - 1) * limit : undefined;
+    const resolvedLimit = (!isNaN(rawLimit) && rawLimit > 0) ? Math.min(rawLimit, 500) : 500;
+    const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
+    const resolvedOffset = (page - 1) * resolvedLimit;
 
     const baseQuery = status
       ? db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
       : db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
 
-    if (limit) {
-      const whereClause = status
-        ? and(eq(users.status, status as string), isNull(users.deletedAt))
-        : isNull(users.deletedAt);
-      const [{ total }] = await db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(users)
-        .where(whereClause);
-      const items = await baseQuery.limit(limit).offset(offset ?? 0);
-      res.json({ items, total, page, pageSize: limit, hasMore: (offset ?? 0) + items.length < total });
-    } else {
-      const allUsers = await baseQuery;
-      res.json(allUsers);
-    }
+    const whereClause = status
+      ? and(eq(users.status, status as string), isNull(users.deletedAt))
+      : isNull(users.deletedAt);
+    const [{ total }] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(users)
+      .where(whereClause);
+    const items = await baseQuery.limit(resolvedLimit).offset(resolvedOffset);
+    res.json({ items, total, page, pageSize: resolvedLimit, hasMore: resolvedOffset + items.length < total });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to list users" });

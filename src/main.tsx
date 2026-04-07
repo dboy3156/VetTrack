@@ -76,7 +76,6 @@ const queryClient = new QueryClient({
 });
 
 initSyncEngine(queryClient);
-runStartupCleanup(queryClient).catch(() => {});
 
 if (import.meta.env.DEV) {
   window.__vettrack_test = {
@@ -145,8 +144,12 @@ function Root() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>
-);
+function mount() {
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <Root />
+    </StrictMode>
+  );
+}
+
+runStartupCleanup(queryClient).catch(() => {}).finally(mount);
