@@ -1,0 +1,154 @@
+You are a senior distributed systems engineer.
+
+Your task is NOT to write generic tests.
+Your task is to PROVE that the system enforces correct behavior under race conditions, offline writes, and conflict resolution.
+
+This is a STRICT validation task.
+
+---
+
+SCENARIO: Race + Offline + Conflict
+
+Initial state:
+equipment = {
+  status: "AVAILABLE",
+  version: 1
+}
+
+Actors:
+- Technician A (offline)
+- Technician B (online)
+
+---
+
+FLOW:
+
+1. A goes offline
+
+2. B performs update:
+   AVAILABLE → IN_USE
+   Server updates:
+     status = IN_USE
+     version = 2
+
+3. A (offline) performs:
+   AVAILABLE → IN_USE
+   This must be stored locally (simulate Dexie queue)
+
+4. A reconnects and sends the update to server
+
+---
+
+CRITICAL DECISION POINT:
+
+ONLY ONE VALID OUTCOME EXISTS:
+
+✔ Server MUST reject A's update (version mismatch)
+✔ Client MUST rollback local state
+✔ Final state MUST remain IN_USE (from B)
+✔ Conflict MUST be explicitly logged or returned
+
+---
+
+INVALID OUTCOMES (MUST FAIL TESTS):
+
+❌ Server accepts A update (overwrites B)
+❌ System ends in inconsistent state
+❌ Silent failure (no rejection, no rollback)
+
+---
+
+IMPLEMENTATION REQUIREMENTS:
+
+1. SERVER LOGIC
+
+Implement:
+
+function updateEquipment(current, incoming)
+
+Rules:
+- If incoming.version !== current.version → THROW ERROR
+- Else:
+    apply update
+    increment version
+
+---
+
+2. CLIENT LOGIC
+
+Simulate:
+
+- offline queue (array)
+- local optimistic update
+- retry on reconnect
+
+On server rejection:
+- rollback local state
+- fetch correct state
+- log conflict
+
+---
+
+3. TEST IMPLEMENTATION
+
+Create file:
+
+tests/conflict.test.js
+
+Test MUST:
+
+- simulate both A and B flows
+- simulate offline queue
+- simulate reconnect
+- assert ALL of the following:
+
+ASSERTIONS (MANDATORY):
+
+- server rejects stale update
+- error is thrown
+- rollback occurred
+- final state === IN_USE
+- version is correct (2)
+- NO overwrite happened
+
+If ANY of these fail → THROW ERROR
+
+---
+
+4. TEST STRICTNESS
+
+- No console-only validation
+- MUST use hard assertions
+- MUST fail loudly
+- MUST detect overwrite
+
+---
+
+5. INTEGRATION
+
+Ensure:
+
+package.json includes:
+
+"test": "node tests/basic.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js"
+
+---
+
+6. OUTPUT REQUIREMENTS
+
+- Provide FULL working code
+- No pseudo-code
+- No missing logic
+- Everything must run in Node.js
+- Code must FAIL if overwrite is allowed
+
+---
+
+FINAL GOAL:
+
+It must be IMPOSSIBLE for a stale offline update to override a newer server state without causing test failure.
+
+If the system allows overwrite → THE TEST MUST FAIL.
+
+Do not optimize for passing tests.
+Optimize for catching real system failure.
