@@ -214,7 +214,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
     }, 10000);
 
     try {
+      console.log("[VT-SCAN] ① calling Html5Qrcode.getCameras() — t=", performance.now().toFixed(1));
       const devices = await Html5Qrcode.getCameras();
+      console.log("[VT-SCAN] ① getCameras() resolved — t=", performance.now().toFixed(1), "devices=", devices.length);
       if (!devices || devices.length === 0) {
         if (initTimeoutRef.current) {
           clearTimeout(initTimeoutRef.current);
@@ -235,6 +237,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       );
       const cameraId = backCamera?.id || devices[devices.length - 1].id;
 
+      console.log("[VT-SCAN] ② calling scanner.start() — t=", performance.now().toFixed(1), "cameraId=", cameraId);
       await scanner.start(
         { deviceId: { exact: cameraId } },
         {
