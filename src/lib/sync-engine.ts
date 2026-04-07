@@ -85,7 +85,7 @@ function openCircuit() {
   circuitResetTimerId = setTimeout(() => {
     circuitResetTimerId = null;
     notifyListeners();
-    toast.info("Sync resumed", { duration: 3000 });
+    toast.success("Sync resumed — retrying pending changes", { duration: 3000 });
     if (navigator.onLine && !haltQueue) processQueue().catch(() => {});
   }, CIRCUIT_COOLDOWN_MS);
 }

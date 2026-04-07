@@ -235,6 +235,8 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             token: token ?? "",
           });
 
+          queryClient.clear();
+
           setState({
             userId: user.id,
             email,
@@ -246,8 +248,6 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             isAdmin: data.role === "admin",
             isOfflineSession: false,
           });
-
-          queryClient.invalidateQueries();
 
           return;
         }
