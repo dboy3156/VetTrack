@@ -171,7 +171,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   return (
     <div className="min-h-[100dvh] bg-background">
       {/* Top header */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-safe">
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-2xl bg-primary/10 flex items-center justify-center">
