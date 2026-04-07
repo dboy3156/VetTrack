@@ -51,7 +51,7 @@ export default function LandingPage() {
 
       <div className="min-h-[100dvh] bg-white font-sans">
         {/* ── Navigation ────────────────────────────────── */}
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
+        <header className="sticky top-safe z-50 bg-white/95 backdrop-blur border-b border-gray-100">
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
             <Link href="/landing" className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-teal-600 flex items-center justify-center">
