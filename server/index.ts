@@ -54,6 +54,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
+app.get("/health", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ 
+      status: "ok", 
+      db: "connected", 
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version ?? "unknown"
+    });
+  } catch (err) {
+    res.status(503).json({ 
+      status: "degraded", 
+      db: "disconnected",
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // --- CORS: lock to known origins only, fail closed in production ---
 const isDev = process.env.NODE_ENV !== "production";
 
