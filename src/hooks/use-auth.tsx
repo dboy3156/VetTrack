@@ -210,7 +210,6 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
       const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
 
       setAuthState({ userId: user.id, email, name, bearerToken: token });
-      clearHaltQueue();
 
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -225,6 +224,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
         if (res.ok && !cancelled) {
           const data = await res.json();
           fetchedFromServer = true;
+          clearHaltQueue();
 
           saveOfflineSession({
             userId: user.id,

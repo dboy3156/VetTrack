@@ -56,6 +56,7 @@ export function clearHaltQueue() {
 
 export function getSyncProgress() {
   return {
+    isSyncing: syncing,
     batchCurrent,
     batchTotal,
     isCircuitOpen: Date.now() < circuitOpenUntil,

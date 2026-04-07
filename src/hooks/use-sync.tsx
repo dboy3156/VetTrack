@@ -87,6 +87,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsub = onSyncStateChange(() => {
       const progress = getSyncProgress();
+      setIsSyncing(progress.isSyncing);
       setIsCircuitOpen(progress.isCircuitOpen);
       setCircuitResetsAt(progress.circuitResetsAt);
       setBatchCurrent(progress.batchCurrent);
@@ -96,12 +97,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const triggerSync = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      await processQueue();
-    } finally {
-      setIsSyncing(false);
-    }
+    await processQueue();
   }, []);
 
   const retry = useCallback(async (id: number) => {
