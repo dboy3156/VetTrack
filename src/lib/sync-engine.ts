@@ -101,10 +101,9 @@ export async function processQueue(): Promise<void> {
 
   if (haltQueue) return;
 
-  if (authStateGetter) {
-    const authSnap = authStateGetter();
-    if (!authSnap?.isSignedIn || authSnap.isOfflineSession) return;
-  }
+  if (!authStateGetter) return;
+  const authSnap = authStateGetter();
+  if (!authSnap?.isSignedIn || authSnap.isOfflineSession) return;
 
   syncing = true;
   notifyListeners();

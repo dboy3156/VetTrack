@@ -258,7 +258,7 @@ export const api = {
       const res = await fetchWithTimeout(
         "/api/equipment/import",
         { method: "POST", body: form, headers },
-        FETCH_TIMEOUT_MS * 2
+        FETCH_TIMEOUT_MS
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Import failed" }));
