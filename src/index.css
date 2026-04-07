@@ -63,6 +63,8 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: none;
+    /* Root-level safe-area: ALL screens inherit this, not just Layout pages */
+    padding-top: env(safe-area-inset-top);
   }
   html {
     scroll-behavior: smooth;
@@ -71,6 +73,10 @@
 }
 
 @layer utilities {
+  /* Sticky position anchored below the status bar */
+  .top-safe {
+    top: env(safe-area-inset-top);
+  }
   .safe-top {
     padding-top: env(safe-area-inset-top);
   }

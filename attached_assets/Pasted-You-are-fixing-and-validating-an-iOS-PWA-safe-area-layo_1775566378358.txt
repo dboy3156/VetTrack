@@ -1,0 +1,79 @@
+You are fixing and validating an iOS PWA safe-area layout bug where the header (topbar) is rendered underneath the system status bar (notch / dynamic island).
+
+Observation from UI:
+- The topbar is NOT fixed
+- It starts at y=0 without respecting safe area
+- Content is visually clipped under the status bar
+
+Goal:
+Ensure the entire layout correctly respects iOS safe areas, and fully resolve any remaining overlap or clipping issues.
+
+---
+
+PHASE 1 — ROOT FIX
+
+1. Apply safe-area padding at the root layout level (NOT just the topbar):
+   - Target the main app container (e.g. #root, .app, layout wrapper)
+   - Add:
+     padding-top: env(safe-area-inset-top);
+
+2. Add fallback spacing:
+   padding-top: max(16px, env(safe-area-inset-top));
+
+3. Verify viewport configuration in index.html:
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+4. Do NOT rely on the header component itself — fix must be applied at the root so all screens inherit it.
+
+---
+
+PHASE 2 — VALIDATION
+
+1. Check visually and via DOM:
+   - Is ANY content still rendered under the iOS status bar?
+   - Does spacing adapt correctly across devices (with and without notch)?
+
+2. Determine result:
+   - If fully fixed → report success
+   - If NOT fully fixed → continue to Phase 3
+
+---
+
+PHASE 3 — DEEP DEBUG + FIX (ONLY IF NEEDED)
+
+Identify the blocking layer:
+
+- Containers using height: 100vh
+- Flex layouts with constrained vertical sizing
+- overflow: hidden or clipping parents
+- Nested wrappers resetting layout origin
+
+Apply fixes:
+
+1. Replace problematic viewport height:
+   min-height: 100dvh;
+
+2. Ensure layout chain allows expansion:
+   html, body, #root must not clip content
+
+3. Fix flex constraints:
+   - Remove forced full-height behavior that ignores safe-area
+   - Ensure vertical flow can expand naturally
+
+4. Handle nested wrappers:
+   - Either propagate safe-area padding
+   - OR remove the constraining wrapper
+
+---
+
+OUTPUT REQUIREMENTS
+
+- Root container file + selector modified
+- Whether Phase 1 fully solved the issue (YES/NO)
+- If NO:
+  - Exact element causing the issue
+  - Problematic rule
+  - Fix applied
+- Final verified behavior (before vs after)
+
+Do not assume success. Validate aggressively and fix until stable.
