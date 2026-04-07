@@ -6,7 +6,7 @@ import {
   removePendingSync,
   type PendingSync,
 } from "@/lib/offline-db";
-import { processQueue } from "@/lib/sync-engine";
+import { processQueue, onSyncStateChange, getSyncProgress } from "@/lib/sync-engine";
 
 interface SyncState {
   pendingCount: number;
@@ -15,6 +15,10 @@ interface SyncState {
   justSynced: boolean;
   recentItems: PendingSync[];
   items: PendingSync[];
+  isCircuitOpen: boolean;
+  circuitResetsAt: number;
+  batchCurrent: number;
+  batchTotal: number;
   triggerSync: () => void;
   retry: (id: number) => Promise<void>;
   discard: (id: number) => Promise<void>;
@@ -27,6 +31,10 @@ const SyncContext = createContext<SyncState>({
   justSynced: false,
   recentItems: [],
   items: [],
+  isCircuitOpen: false,
+  circuitResetsAt: 0,
+  batchCurrent: 0,
+  batchTotal: 0,
   triggerSync: () => {},
   retry: async () => {},
   discard: async () => {},
@@ -39,6 +47,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [justSynced, setJustSynced] = useState(false);
   const [recentItems, setRecentItems] = useState<PendingSync[]>([]);
   const [items, setItems] = useState<PendingSync[]>([]);
+  const [isCircuitOpen, setIsCircuitOpen] = useState(false);
+  const [circuitResetsAt, setCircuitResetsAt] = useState(0);
+  const [batchCurrent, setBatchCurrent] = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
   const prevPendingRef = useRef(0);
   const justSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -72,6 +84,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [applyAll]);
 
+  useEffect(() => {
+    const unsub = onSyncStateChange(() => {
+      const progress = getSyncProgress();
+      setIsCircuitOpen(progress.isCircuitOpen);
+      setCircuitResetsAt(progress.circuitResetsAt);
+      setBatchCurrent(progress.batchCurrent);
+      setBatchTotal(progress.batchTotal);
+    });
+    return () => { unsub(); };
+  }, []);
 
   const triggerSync = useCallback(async () => {
     setIsSyncing(true);
@@ -98,7 +120,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <SyncContext.Provider value={{ pendingCount, failedCount, isSyncing, justSynced, recentItems, items, triggerSync, retry, discard }}>
+    <SyncContext.Provider value={{
+      pendingCount,
+      failedCount,
+      isSyncing,
+      justSynced,
+      recentItems,
+      items,
+      isCircuitOpen,
+      circuitResetsAt,
+      batchCurrent,
+      batchTotal,
+      triggerSync,
+      retry,
+      discard,
+    }}>
       {children}
     </SyncContext.Provider>
   );

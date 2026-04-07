@@ -69,9 +69,22 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     if (status !== undefined && !validStatuses.includes(status as string)) {
       return res.status(400).json({ error: "Invalid status filter. Must be one of: pending, active, blocked" });
     }
-    const allUsers = status
-      ? await db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
-      : await db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
+
+    const rawLimit = parseInt(req.query.limit as string, 10);
+    const rawPage = parseInt(req.query.page as string, 10);
+    const hasLimit = !isNaN(rawLimit) && rawLimit > 0;
+    const limit = hasLimit ? Math.min(rawLimit, 200) : undefined;
+    const page = hasLimit && !isNaN(rawPage) && rawPage > 1 ? rawPage : 1;
+    const offset = limit ? (page - 1) * limit : undefined;
+
+    const baseQuery = status
+      ? db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
+      : db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
+
+    const allUsers = limit
+      ? await baseQuery.limit(limit).offset(offset ?? 0)
+      : await baseQuery;
+
     res.json(allUsers);
   } catch (err) {
     console.error(err);

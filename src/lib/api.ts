@@ -61,6 +61,22 @@ function isNetworkError(err: unknown): boolean {
   return false;
 }
 
+const FETCH_TIMEOUT_MS = 10_000;
+
+function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+  const outer = init.signal as AbortSignal | undefined | null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (outer) {
+    const onAbort = () => controller.abort();
+    outer.addEventListener("abort", onAbort, { once: true });
+    controller.signal.addEventListener("abort", () => outer.removeEventListener("abort", onAbort), { once: true });
+  }
+
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 async function request<T>(
   url: string,
   init: RequestInit = {},
@@ -70,7 +86,7 @@ async function request<T>(
   const headers = { ...buildHeaders(), ...(init.headers as Record<string, string> | undefined) };
 
   try {
-    const res = await fetch(url, { ...init, headers });
+    const res = await fetchWithTimeout(url, { ...init, headers });
     if (!res.ok) {
       if (!silent && res.status >= 500) {
         toast.error("The server encountered an error. Please try again or reload the page.");
@@ -123,7 +139,7 @@ async function requestWithOfflineFallback<T>(
 ): Promise<T> {
   const headers = { ...buildHeaders(), ...(init.headers as Record<string, string> | undefined) };
   try {
-    const res = await fetch(url, { ...init, headers });
+    const res = await fetchWithTimeout(url, { ...init, headers });
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: "Request failed" }));
       throw new Error(error.error || `HTTP ${res.status}`);
@@ -141,7 +157,7 @@ export const api = {
   equipment: {
     list: async () => {
       try {
-        const items = await request<Equipment[]>("/api/equipment");
+        const items = await request<Equipment[]>("/api/equipment?limit=100");
         cacheEquipment(items).catch(() => {});
         return items;
       } catch (err) {
@@ -385,7 +401,7 @@ export const api = {
       }),
     logs: async (id: string) => {
       try {
-        const logs = await request<ScanLog[]>(`/api/equipment/${id}/logs`);
+        const logs = await request<ScanLog[]>(`/api/equipment/${id}/logs?limit=50`);
         cacheScanLogs(id, logs).catch(() => {});
         return logs;
       } catch (err) {

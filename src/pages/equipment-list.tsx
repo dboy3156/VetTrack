@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { Virtuoso } from "react-virtuoso";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
@@ -626,6 +627,22 @@ export default function EquipmentListPage() {
                 </Link>
               )
             }
+          />
+        ) : filtered.length > 100 ? (
+          <Virtuoso
+            style={{ height: "calc(100dvh - 280px)" }}
+            data={filtered}
+            data-testid="equipment-list"
+            itemContent={(_, eq) => (
+              <div className="pb-3">
+                <EquipmentItem
+                  equipment={eq}
+                  selectMode={selectMode}
+                  selected={selected.has(eq.id)}
+                  onToggleSelect={() => toggleSelect(eq.id)}
+                />
+              </div>
+            )}
           />
         ) : (
           <div className="flex flex-col gap-3" data-testid="equipment-list">

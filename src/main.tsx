@@ -12,7 +12,7 @@ import { SyncProvider } from "@/hooks/use-sync";
 import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
-import { addPendingSync, removePendingSync } from "@/lib/offline-db";
+import { addPendingSync, removePendingSync, runStartupCleanup } from "@/lib/offline-db";
 
 declare global {
   interface Window {
@@ -76,6 +76,7 @@ const queryClient = new QueryClient({
 });
 
 initSyncEngine(queryClient);
+runStartupCleanup().catch(() => {});
 
 if (import.meta.env.DEV) {
   window.__vettrack_test = {

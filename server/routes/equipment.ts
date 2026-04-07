@@ -233,9 +233,16 @@ router.get("/my", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/", requireAuth, async (_req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
-    const items = await db
+    const rawLimit = parseInt(req.query.limit as string, 10);
+    const rawPage = parseInt(req.query.page as string, 10);
+    const hasLimit = !isNaN(rawLimit) && rawLimit > 0;
+    const limit = hasLimit ? Math.min(rawLimit, 200) : undefined;
+    const page = hasLimit && !isNaN(rawPage) && rawPage > 1 ? rawPage : 1;
+    const offset = limit ? (page - 1) * limit : undefined;
+
+    const baseQuery = db
       .select({
         id: equipment.id,
         name: equipment.name,
@@ -263,6 +270,11 @@ router.get("/", requireAuth, async (_req, res) => {
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
       .where(isNull(equipment.deletedAt))
       .orderBy(desc(equipment.createdAt));
+
+    const items = limit
+      ? await baseQuery.limit(limit).offset(offset ?? 0)
+      : await baseQuery;
+
     res.json(items);
   } catch (err) {
     console.error(err);
@@ -919,11 +931,17 @@ router.post("/:id/revert", requireAuth, requireRole("vet"), validateUuid("id"), 
 
 router.get("/:id/logs", requireAuth, async (req, res) => {
   try {
-    const logs = await db
+    const rawLimit = parseInt(req.query.limit as string, 10);
+    const hasLimit = !isNaN(rawLimit) && rawLimit > 0;
+    const limit = hasLimit ? Math.min(rawLimit, 200) : undefined;
+
+    const baseQuery = db
       .select()
       .from(scanLogs)
       .where(eq(scanLogs.equipmentId, req.params.id))
       .orderBy(desc(scanLogs.timestamp));
+
+    const logs = limit ? await baseQuery.limit(limit) : await baseQuery;
     res.json(logs);
   } catch (err) {
     console.error(err);

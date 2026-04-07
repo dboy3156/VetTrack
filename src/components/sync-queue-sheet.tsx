@@ -10,6 +10,7 @@ import {
   Trash2,
   RotateCcw,
   CloudOff,
+  ShieldAlert,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import type { PendingSync, PendingSyncType } from "@/lib/offline-db";
@@ -182,9 +183,34 @@ function SyncQueueItem({
   );
 }
 
+function CircuitBreakerBanner({ resetsAt }: { resetsAt: number }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const secsLeft = Math.max(0, Math.ceil((resetsAt - now) / 1000));
+
+  return (
+    <div className="flex items-start gap-2 px-5 py-3 bg-orange-50 border-b border-orange-200">
+      <ShieldAlert className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-orange-800">Sync paused — too many errors</p>
+        <p className="text-xs text-orange-700">
+          {secsLeft > 0
+            ? `Auto-resumes in ${secsLeft}s`
+            : "Resuming now…"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
   const { items, pendingCount, failedCount, retry, discard } = useSyncQueue();
-  const { isSyncing, triggerSync } = useSync();
+  const { isSyncing, triggerSync, isCircuitOpen, circuitResetsAt, batchCurrent, batchTotal } = useSync();
   const sheetRef = useRef<HTMLDivElement>(null);
 
   const totalCount = pendingCount + failedCount;
@@ -224,7 +250,9 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
             <div>
               <h2 className="font-bold text-base leading-tight">Sync Queue</h2>
               <p className="text-xs text-muted-foreground">
-                {totalCount === 0
+                {isSyncing && batchTotal > 0
+                  ? `Syncing ${batchCurrent}/${batchTotal}…`
+                  : totalCount === 0
                   ? "All actions synced"
                   : `${totalCount} action${totalCount !== 1 ? "s" : ""} pending`}
               </p>
@@ -237,7 +265,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
                 size="sm"
                 className="gap-1.5 text-xs h-8"
                 onClick={triggerSync}
-                disabled={isSyncing}
+                disabled={isSyncing || isCircuitOpen}
                 data-testid="btn-sync-now"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
@@ -253,6 +281,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
             </button>
           </div>
         </div>
+        {isCircuitOpen && <CircuitBreakerBanner resetsAt={circuitResetsAt} />}
 
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
           {items.length === 0 ? (
