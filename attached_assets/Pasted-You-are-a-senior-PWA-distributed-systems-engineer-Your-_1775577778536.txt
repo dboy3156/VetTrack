@@ -1,0 +1,209 @@
+You are a senior PWA + distributed systems engineer.
+
+Your task is to build a FULL SYSTEM VALIDATION suite for a Progressive Web App.
+
+This is NOT unit testing.
+This is REAL behavior validation under real-world conditions.
+
+---
+
+GOAL:
+
+Prove that the PWA behaves correctly under:
+
+- offline usage
+- reconnection & sync
+- concurrency
+- conflict resolution
+- service worker caching
+- camera lifecycle (QR scanning)
+
+---
+
+TEST SUITE STRUCTURE:
+
+Create:
+
+tests/pwa.system.test.js
+
+---
+
+SECTION 1: OFFLINE QUEUE
+
+Simulate:
+
+- user goes offline
+- performs actions
+- actions stored in IndexedDB (Dexie-like queue)
+
+ASSERT:
+
+- queue length increases
+- no network calls are made
+- UI reflects optimistic state
+
+---
+
+SECTION 2: RECONNECT + SYNC
+
+Simulate:
+
+- network restored
+- queued actions flushed
+
+ASSERT:
+
+- actions sent in correct order
+- queue is cleared
+- server state is consistent
+
+---
+
+SECTION 3: CONFLICT RESOLUTION (CRITICAL)
+
+Simulate:
+
+- A offline
+- B updates online
+- A reconnects with stale version
+
+ASSERT:
+
+- server rejects update (version mismatch)
+- client performs rollback
+- UI reflects server truth
+- conflict is logged
+
+FAIL IF:
+
+- overwrite occurs
+- silent failure happens
+
+---
+
+SECTION 4: SERVICE WORKER CACHE
+
+Simulate:
+
+- first load → cache assets
+- offline reload
+
+ASSERT:
+
+- app loads without network
+- assets served from cache
+- no crash
+
+---
+
+SECTION 5: MULTI-CLIENT CONSISTENCY
+
+Simulate:
+
+- two clients updating same resource
+
+ASSERT:
+
+- no inconsistent state
+- deterministic final state
+
+---
+
+SECTION 6: CAMERA (QR SCAN)
+
+Simulate:
+
+User clicks "Scan QR"
+
+ASSERT:
+
+1. CAMERA OPEN
+- getUserMedia is called
+- stream.active === true
+- video track exists
+
+2. PERMISSION HANDLING
+- permission requested only ONCE
+- subsequent scans reuse permission
+
+FAIL if:
+- permission requested multiple times
+
+3. STREAM VALIDATION
+- track.readyState === "live"
+
+4. SCAN COMPLETE → CAMERA STOP
+Simulate scan success
+
+ASSERT:
+- all tracks stopped
+- readyState === "ended"
+- stream.active === false
+
+FAIL if:
+- camera remains active
+
+5. MULTIPLE SCANS
+
+Simulate:
+- open → scan → close → open again
+
+ASSERT:
+- new stream created
+- no reuse of old stream
+- no memory leaks
+
+---
+
+IMPLEMENTATION RULES:
+
+- Use Node.js simulation
+- Mock:
+  - network layer
+  - IndexedDB (Dexie)
+  - service worker
+  - mediaDevices
+
+---
+
+STRICT ASSERTIONS:
+
+- throw errors on ANY failure
+- no console-only validation
+- must detect:
+  - overwrite
+  - stale updates
+  - incorrect queue handling
+  - camera misuse
+
+---
+
+INTEGRATION:
+
+package.json:
+
+"test": "node tests/basic.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js && node tests/pwa.system.test.js"
+
+---
+
+OUTPUT:
+
+- FULL working code
+- No pseudo code
+- Fully runnable
+- Must FAIL on incorrect behavior
+
+---
+
+FINAL GOAL:
+
+Prove that:
+
+- The PWA works offline
+- Sync is correct and deterministic
+- Conflicts are handled safely
+- UI reflects truth
+- Camera behaves correctly (open → use → stop)
+
+NO assumptions allowed.
+Only verified behavior.
