@@ -285,15 +285,18 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
       }
 
       if (!cancelled) {
+        const snap = restoreOfflineSession();
+        const fallbackRole = (snap?.userId === user.id ? snap?.role : null) ?? "technician";
+        const fallbackStatus = (snap?.userId === user.id ? snap?.status : null) ?? "active";
         setState({
           userId: user.id,
           email,
           name,
-          role: "technician",
-          status: null,
+          role: fallbackRole as UserRole,
+          status: fallbackStatus as UserStatus,
           isLoaded: true,
           isSignedIn: true,
-          isAdmin: false,
+          isAdmin: fallbackRole === "admin",
           isOfflineSession: false,
         });
       }
