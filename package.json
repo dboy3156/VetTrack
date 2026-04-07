@@ -9,7 +9,7 @@
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "db:push": "drizzle-kit push",
     "validate:prod": "tsx scripts/validate-prod.ts",
-    "test": "node tests/basic.test.js && node tests/concurrency.test.js && node tests/offline.test.js"
+    "test": "node tests/basic.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.0.0",

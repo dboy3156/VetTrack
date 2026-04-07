@@ -35,3 +35,6 @@ jobs:
 
       - name: Run offline/sync tests
         run: node tests/offline.test.js
+
+      - name: Run conflict resolution tests
+        run: node tests/conflict.test.js

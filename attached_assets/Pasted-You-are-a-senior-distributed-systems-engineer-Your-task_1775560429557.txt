@@ -1,0 +1,114 @@
+You are a senior distributed systems engineer.
+
+Your task is to implement and validate a strict consistency scenario involving:
+- race conditions
+- offline updates
+- conflict resolution
+
+GOAL:
+The system MUST enforce server authority and reject stale updates.
+Only ONE correct behavior is allowed.
+
+SCENARIO:
+
+Initial state:
+equipment.status = "AVAILABLE"
+equipment.version = 1
+
+Actors:
+Technician A (offline)
+Technician B (online)
+
+FLOW:
+
+1. A goes offline
+
+2. B performs:
+   AVAILABLE → IN_USE
+   Server updates:
+     status = IN_USE
+     version = 2
+
+3. A (still offline) performs:
+   AVAILABLE → IN_USE
+   This is stored locally (simulate Dexie queue)
+
+4. A reconnects and sends the update
+
+CRITICAL REQUIREMENT:
+
+The server MUST detect version mismatch and reject A's update.
+
+VALID OUTCOME (ONLY THIS IS CORRECT):
+
+- Server rejects A's request (version mismatch)
+- Client performs rollback
+- Client reflects true server state (IN_USE from B)
+- Client logs or returns a clear conflict explanation
+
+INVALID OUTCOMES (MUST FAIL TESTS):
+
+- Server accepts A's update (overwrites B)
+- System ends in inconsistent or duplicated state
+
+---
+
+IMPLEMENTATION REQUIREMENTS:
+
+1. SERVER LOGIC
+
+Create a function:
+
+updateEquipment(currentState, incomingUpdate)
+
+Rules:
+- If incoming.version !== current.version → throw error
+- Otherwise apply update and increment version
+
+2. CLIENT LOGIC
+
+Simulate:
+- offline queue (array)
+- retry on reconnect
+
+On rejection:
+- rollback local state
+- fetch server state
+- log conflict
+
+3. TEST FILE
+
+Create:
+tests/conflict.test.js
+
+Test must:
+- simulate both A and B
+- simulate offline queue
+- assert that:
+  - server rejects stale update
+  - final state is correct
+  - no overwrite occurred
+
+Use explicit assertions:
+
+if (condition fails) throw new Error(...)
+
+4. INTEGRATION
+
+Ensure this test runs inside:
+npm test
+
+---
+
+OUTPUT REQUIREMENTS:
+
+- Provide FULL working code
+- No pseudo code
+- No missing parts
+- Must be runnable in Node.js
+- Must FAIL if system allows overwrite or inconsistency
+
+END GOAL:
+
+The test must prove that:
+"Stale offline updates can NEVER override newer server state"
