@@ -260,18 +260,25 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
       if (!fetchedFromServer) {
         const snap = restoreOfflineSession();
         if (snap && snap.userId === user.id) {
-          buildOfflineState(snap);
-          setState({
-            userId: snap.userId,
-            email: snap.email,
-            name: snap.name,
-            role: snap.role as UserRole,
-            status: snap.status as UserStatus,
-            isLoaded: true,
-            isSignedIn: true,
-            isAdmin: snap.role === "admin",
-            isOfflineSession: true,
+          setAuthState({
+            userId: user.id,
+            email,
+            name,
+            bearerToken: token,
           });
+          if (!cancelled) {
+            setState({
+              userId: snap.userId,
+              email: snap.email,
+              name: snap.name,
+              role: snap.role as UserRole,
+              status: snap.status as UserStatus,
+              isLoaded: true,
+              isSignedIn: true,
+              isAdmin: snap.role === "admin",
+              isOfflineSession: true,
+            });
+          }
           return;
         }
       }

@@ -40,6 +40,8 @@ let circuitResetTimerId: ReturnType<typeof setTimeout> | null = null;
 
 let batchCurrent = 0;
 let batchTotal = 0;
+let runTotal = 0;
+let isInRun = false;
 
 type AuthStateGetter = () => { isSignedIn: boolean; isOfflineSession: boolean } | null;
 let authStateGetter: AuthStateGetter | null = null;
@@ -108,10 +110,19 @@ export async function processQueue(): Promise<void> {
 
   try {
     const allPending = await getPendingSync();
-    if (allPending.length === 0) return;
+    if (allPending.length === 0) {
+      isInRun = false;
+      runTotal = 0;
+      return;
+    }
 
-    batchTotal = allPending.length;
-    batchCurrent = 0;
+    if (!isInRun) {
+      isInRun = true;
+      runTotal = allPending.length;
+    }
+
+    batchTotal = runTotal;
+    batchCurrent = Math.max(0, runTotal - allPending.length);
 
     const burst = allPending.slice(0, BURST_LIMIT);
     const hasMore = allPending.length > BURST_LIMIT;
@@ -132,6 +143,8 @@ export async function processQueue(): Promise<void> {
         }
       } else if (result === "auth_halt") {
         break;
+      } else if (result === "permission_error" || result === "client_error" || result === "conflict") {
+        consecutiveFailures = 0;
       }
 
       batchCurrent++;
@@ -140,6 +153,9 @@ export async function processQueue(): Promise<void> {
 
     if (hasMore && !haltQueue && Date.now() >= circuitOpenUntil) {
       setTimeout(() => processQueue(), BURST_DELAY_MS);
+    } else {
+      isInRun = false;
+      runTotal = 0;
     }
 
     if (queryClientRef && !haltQueue) {
@@ -157,8 +173,10 @@ export async function processQueue(): Promise<void> {
     }
   } finally {
     syncing = false;
-    batchCurrent = 0;
-    batchTotal = 0;
+    if (!isInRun) {
+      batchCurrent = 0;
+      batchTotal = 0;
+    }
     notifyListeners();
   }
 }
@@ -168,7 +186,7 @@ function extractEquipmentId(endpoint: string): string | null {
   return match ? match[1] : null;
 }
 
-type ItemResult = "success" | "conflict" | "auth_halt" | "client_error" | "transient_failure";
+type ItemResult = "success" | "conflict" | "auth_halt" | "permission_error" | "client_error" | "transient_failure";
 
 async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult> {
   if (!item.id) return "transient_failure";
@@ -186,7 +204,7 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
       return "success";
     }
 
-    if (result === "conflict" || result === "auth_halt" || result === "client_error") {
+    if (result === "conflict" || result === "auth_halt" || result === "client_error" || result === "permission_error") {
       return result;
     }
 
@@ -286,7 +304,7 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
         status: "failed",
         errorMessage: errMsg,
       });
-      return "client_error";
+      return "permission_error";
     }
 
     if (res.status >= 400 && res.status < 500) {
