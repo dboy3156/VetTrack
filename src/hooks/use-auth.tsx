@@ -146,7 +146,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
   const signOut = useCallback(async () => {
     clearOfflineSession();
     setState(EMPTY_AUTH_STATE);
-    queryClient.invalidateQueries({ queryKey: [] });
+    queryClient.clear();
     const keys = Object.keys(localStorage).filter((k) => k.startsWith("vettrack"));
     keys.forEach((k) => localStorage.removeItem(k));
     await clerkSignOut({ redirectUrl: "/landing" });
@@ -236,7 +236,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             token: token ?? "",
           });
 
-          queryClient.invalidateQueries({ queryKey: [] });
+          queryClient.clear();
 
           setState({
             userId: user.id,
