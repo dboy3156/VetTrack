@@ -462,7 +462,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       {/* Main content */}
       <main
         className={cn(
-          "max-w-2xl mx-auto px-4 pb-safe",
+          "max-w-2xl mx-auto px-4 pb-nav-safe",
           settings.density === "compact" ? "py-3" : "py-5"
         )}
       >
@@ -470,7 +470,10 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       </main>
 
       {/* Bottom nav (mobile) — 4 primary items + Scan in center */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur border-t border-border/60 supports-[backdrop-filter]:bg-background/80 pb-safe">
+      <nav
+        className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur border-t border-border/60 supports-[backdrop-filter]:bg-background/80 safe-bottom"
+        style={{ willChange: "transform", WebkitTransform: "translateZ(0)", transform: "translateZ(0)" }}
+      >
         <div className="flex max-w-2xl mx-auto items-center">
           {/* First 2 nav items */}
           {bottomItems.slice(0, 2).map((item) => (

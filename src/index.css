@@ -80,6 +80,10 @@
   .pb-safe {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+  /* Main content: clears the fixed bottom nav (3.5rem = 56px) + home indicator */
+  .pb-nav-safe {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom) + 0.75rem);
+  }
 }
 
 /* ── Compact density overrides ───────────────────────────────────────────── */
