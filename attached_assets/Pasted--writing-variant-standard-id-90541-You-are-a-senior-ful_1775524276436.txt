@@ -1,0 +1,179 @@
+:::writing{variant=“standard” id=“90541”}
+You are a senior full-stack engineer.
+
+Goal: Enforce HARD FAIL offline authentication in a React + Clerk app by blocking offline access when the stored Clerk JWT is expired.
+
+Context:
+	•	App uses Clerk (frontend auth)
+	•	React SPA + Express backend
+	•	Offline session persistence already exists (localStorage)
+	•	IndexedDB + sync queue already implemented
+	•	Current bug: expired tokens still allow offline access → causes silent sync failures later
+
+⸻
+
+MANDATORY STEP 0 — CODE AUDIT (DO THIS FIRST)
+
+Before changing anything:
+	1.	Locate actual implementation files:
+	•	src/lib/offline-session.ts (or equivalent)
+	•	src/hooks/use-auth.tsx
+	•	any auth/bootstrap logic
+	2.	Verify:
+	•	Where session is saved (token + tokenExp)
+	•	Where session is restored
+	•	How isLoaded / isSignedIn are controlled
+	•	Where Clerk initializes
+	3.	If code differs:
+→ ADAPT the solution to match real structure
+→ DO NOT blindly paste code
+
+⸻
+
+REQUIRED BEHAVIOR (HARD FAIL MODEL)
+
+Offline access is allowed ONLY IF:
+	•	local session exists
+	•	token exists
+	•	tokenExp is in the future
+	•	lastActiveAt < 24h
+
+Otherwise:
+→ treat user as NOT authenticated
+→ show login (even if offline)
+
+NO EXCEPTIONS
+
+⸻
+
+IMPLEMENTATION
+	1.	UPDATE restoreOfflineSession()
+
+If file exists → modify it
+If not → create src/lib/offline-session.ts
+
+export function restoreOfflineSession() {
+  try {
+    const raw = localStorage.getItem("vt_session");
+    if (!raw) return null;
+
+    const data = JSON.parse(raw);
+
+    // Validate structure
+    if (!data || !data.token || !data.tokenExp) return null;
+
+    // HARD FAIL — expired token blocks access
+    if (Date.now() > data.tokenExp) {
+      return null;
+    }
+
+    // Secondary TTL (24h safety)
+    const MAX_OFFLINE_AGE = 24 * 60 * 60 * 1000;
+    if (!data.lastActiveAt || Date.now() - data.lastActiveAt > MAX_OFFLINE_AGE) {
+      return null;
+    }
+
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+
+⸻
+
+	2.	UPDATE AUTH RESTORE FLOW (use-auth.tsx)
+
+Locate the initialization logic BEFORE Clerk fully resolves.
+
+Insert:
+
+if (!navigator.onLine && !isLoaded) {
+  const cached = restoreOfflineSession();
+
+  if (cached) {
+    setState({
+      isLoaded: true,
+      isSignedIn: true,
+      isOfflineSession: true,
+      user: {
+        id: cached.userId,
+        email: cached.email,
+        name: cached.name,
+        role: cached.role,
+        status: cached.status
+      }
+    });
+
+    return; // prevent Clerk blocking render
+  }
+}
+
+IMPORTANT:
+	•	This must run BEFORE any “if (!isLoaded) return” blocking logic
+	•	Must NOT override Clerk once it becomes available
+
+⸻
+
+	3.	ENSURE SAVE LOGIC INCLUDES tokenExp
+
+Where you save session:
+
+localStorage.setItem("vt_session", JSON.stringify({
+  userId,
+  email,
+  name,
+  role,
+  status,
+  token,
+  tokenExp, // REQUIRED
+  lastActiveAt: Date.now()
+}));
+
+If tokenExp is missing:
+→ extract it from Clerk JWT (decode exp)
+
+⸻
+
+	4.	DO NOT MODIFY
+
+	•	Clerk SDK behavior
+	•	Backend auth validation
+	•	Service worker
+	•	Sync engine
+
+⸻
+
+VALIDATION (MANDATORY — YOU MUST TEST)
+
+Confirm ALL:
+	1.	Valid token + offline → app loads normally
+	2.	Expired token + offline → login screen shown
+	3.	No session + offline → login screen shown
+	4.	Online → Clerk flow unchanged
+	5.	Returning online after offline → session revalidated correctly
+
+⸻
+
+OUTPUT REQUIREMENTS
+	•	Files modified
+	•	BEFORE / AFTER code (only relevant sections)
+	•	Any deviations from this prompt (with reasoning)
+	•	Edge cases handled
+
+⸻
+
+SUCCESS CRITERIA
+	•	No offline access with expired token
+	•	No “false working state”
+	•	No regression in online auth
+	•	Minimal changes only
+
+⸻
+
+CONSTRAINTS
+	•	No assumptions
+	•	Verify against actual code
+	•	Keep changes isolated
+	•	Do not refactor unrelated logic
+:::

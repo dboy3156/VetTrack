@@ -1,0 +1,88 @@
+PRODUCTION HARDENING — PRE-DEPLOYMENT (MANDATORY)
+
+The system must remain stable under load, dynamic data growth, and concurrent users.
+
+You MUST audit and enforce:
+
+1) CONCURRENCY & CONSISTENCY
+- Identify race conditions in:
+  - sync queue (enqueue/dequeue, retries)
+  - IndexedDB writes vs UI reads
+  - auth state transitions (offline → online)
+- Ensure idempotency for all mutations (server must tolerate replay)
+- Add request deduplication where applicable
+- Define conflict strategy (last-write-wins OR versioning). Be explicit.
+
+2) DATA GROWTH & MEMORY
+- Define IndexedDB limits (max items / TTL / eviction policy)
+- Implement cleanup:
+  - stale cache purge
+  - capped logs (scanLogs, activity)
+- Prevent unbounded arrays in React state
+
+3) OFFLINE SYNC ROBUSTNESS
+- Exponential backoff with jitter for retries
+- Dead-letter handling (max retries → surface error)
+- Persist retry metadata (attempts, lastError)
+- Guarantee ordering where required (e.g., checkout → return)
+
+4) NETWORK RESILIENCE
+- Timeouts for all fetch calls
+- Circuit breaker for repeated failures
+- Distinguish:
+  - offline
+  - server down (5xx)
+  - auth failure (401/403)
+- Never treat all failures the same
+
+5) PERFORMANCE (CLIENT)
+- Prevent unnecessary re-renders (memoization where needed)
+- Batch state updates
+- Avoid blocking main thread (large JSON parse, loops)
+- Lazy-load non-critical routes
+
+6) PERFORMANCE (API USAGE)
+- Add pagination for all list endpoints (equipment, logs, users)
+- Avoid full-table fetches
+- Cache GET responses with invalidation strategy
+
+7) ERROR VISIBILITY
+- No silent failures
+- Every failure path must:
+  - log (console + Sentry if enabled)
+  - surface minimal user feedback (non-blocking)
+- Tag errors with context (endpoint, action, offline/online)
+
+8) AUTH EDGE CASES
+- Token refresh race (multiple concurrent refresh calls)
+- Ensure single-flight token retrieval
+- On 401 during replay:
+  → pause queue
+  → require re-auth
+  → do NOT spam retries
+
+9) UI STATE INTEGRITY
+- No “stuck” states:
+  - loading
+  - disabled buttons
+- Every async action must resolve to:
+  success | retryable error | terminal error
+
+10) TEST SCENARIOS (YOU MUST VERIFY)
+- Rapid connect/disconnect loops
+- Multiple tabs open (same account)
+- Large dataset (10k+ items simulated)
+- Burst actions (scan 20 items quickly)
+- Server returns partial failures
+- Token expires mid-session
+
+OUTPUT REQUIREMENTS
+- List vulnerabilities found
+- Exact fixes applied
+- Any assumptions made
+- Residual risks (explicit)
+
+CONSTRAINT
+- No architectural rewrites
+- No new external infrastructure
+- Keep fixes surgical and justified

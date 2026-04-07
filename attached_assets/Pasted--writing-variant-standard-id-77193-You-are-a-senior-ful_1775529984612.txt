@@ -1,0 +1,128 @@
+:::writing{variant=“standard” id=“77193”}
+You are a senior full-stack engineer.
+
+Goal: Merge Task 63 (Offline Auth Hard-Fail) and Task 64 (Production Hardening) into a single, coherent, production-grade specification: Task 65.
+
+⸻
+
+PROBLEM
+
+You split the system into:
+	•	Task 63 → Auth / Offline restore
+	•	Task 64 → Stability / Sync / Performance
+
+This creates a fragmented architecture.
+
+In reality, these are NOT separate systems:
+→ Auth, sync, network, and state are tightly coupled
+
+Leaving them separate introduces:
+	•	hidden race conditions
+	•	inconsistent assumptions
+	•	gaps between auth state and sync behavior
+
+⸻
+
+REQUIRED ACTION
+
+You MUST:
+	1.	Merge Task 63 + Task 64 into ONE unified task → Task 65
+	2.	Remove duplication
+	3.	Resolve conflicts between the two tasks
+	4.	Ensure all requirements work together as ONE system
+
+⸻
+
+INTEGRATION REQUIREMENTS (MANDATORY)
+
+1. AUTH ↔ SYNC INTEGRATION
+	•	Sync engine MUST respect auth state:
+	•	If isOfflineSession === true → allow queueing, block server sync
+	•	If token invalid / expired → sync MUST NOT run
+	•	On 401 → halt entire queue (already defined) + require re-auth
+
+⸻
+
+2. AUTH ↔ NETWORK FAILURE
+	•	Offline restore + network layer MUST behave consistently:
+	•	No infinite loading states
+	•	No contradictory states (e.g. “authenticated but cannot sync” without explanation)
+
+⸻
+
+3. CONCURRENCY (GLOBAL)
+	•	Single source of truth for:
+	•	auth state
+	•	sync execution
+	•	No parallel sync loops
+	•	No parallel token refresh
+
+⸻
+
+4. STATE CONSISTENCY (GLOBAL)
+	•	UI, auth-store, IndexedDB, and sync queue MUST stay consistent
+	•	No stale references after cleanup or eviction
+	•	Auth changes MUST propagate to all layers immediately
+
+⸻
+
+5. FAILURE MODEL (UNIFIED)
+
+All failures must follow one model:
+	•	Auth failure → stop system (re-auth required)
+	•	Network failure → retry / queue
+	•	Permission failure → isolate item
+	•	System failure → visible + logged
+
+NO conflicting behaviors between layers
+
+⸻
+
+6. PERFORMANCE + STABILITY COEXIST
+	•	Pagination, virtualization, caching MUST NOT break:
+	•	auth assumptions
+	•	sync ordering
+	•	offline behavior
+
+⸻
+
+OUTPUT FORMAT
+
+You MUST produce:
+
+1. Task 65 — Unified Specification
+	•	Clean, structured
+	•	No duplication
+	•	No contradictions
+
+2. What Changed
+	•	What was merged
+	•	What conflicts were resolved
+
+3. Final Guarantees
+	•	List system invariants (what is ALWAYS true now)
+
+⸻
+
+SUCCESS CRITERIA
+	•	No gaps between auth, sync, and network layers
+	•	Deterministic behavior under:
+	•	offline
+	•	reconnect
+	•	high load
+	•	No race conditions
+	•	No silent failures
+	•	System behaves as ONE cohesive unit
+
+⸻
+
+CONSTRAINTS
+	•	No architectural rewrites
+	•	No new infrastructure
+	•	Keep it surgical but complete
+
+⸻
+
+Do NOT restate both tasks side-by-side.
+You MUST integrate them into a single system-level specification.
+:::

@@ -1,0 +1,92 @@
+You are a senior full-stack engineer.
+
+Goal: Solve the offline login blockage in a React + Express + Clerk app.
+
+Context:
+- App uses Clerk for authentication
+- Backend: Express + PostgreSQL
+- Frontend: React SPA
+- IndexedDB + offline cache already exist
+- Current failure: app is unusable offline due to Clerk dependency at startup
+
+---
+
+## CRITICAL CHANGE
+
+Before implementing anything, you MUST:
+
+### 0. STRATEGY SELECTION (MANDATORY)
+
+- Analyze the entire codebase
+- Identify ALL possible approaches to enable offline access for returning users
+- Compare at least 2–3 viable strategies (e.g. persisted session, Clerk token reuse, hybrid auth gate, etc.)
+
+For each option:
+- Implementation complexity
+- Security implications
+- Compatibility with existing architecture
+- Failure modes (especially offline + cold start)
+- Impact on Clerk integration
+
+Then:
+
+→ Choose the BEST option for THIS specific codebase  
+→ Justify the decision (brief, evidence-based)
+
+ONLY AFTER THIS → proceed to implementation
+
+---
+
+## RULES (STRICT)
+
+- DO NOT bypass Clerk permanently
+- DO NOT create fake users
+- DO NOT modify backend auth logic unless absolutely required (must justify)
+- Prefer minimal, isolated changes
+- Security must degrade gracefully
+
+---
+
+## IMPLEMENTATION (AFTER STRATEGY SELECTION)
+
+Implement the chosen approach to:
+
+- Allow returning users to access the app without network
+- Prevent login blocking on startup when offline
+- Maintain compatibility with Clerk when network is available
+
+---
+
+## REQUIREMENTS
+
+1. Must work for returning users with prior valid session
+2. Must NOT allow unauthorized access
+3. Must handle:
+   - offline startup
+   - network restoration
+   - expired/invalid sessions
+4. Must not break existing flows
+
+---
+
+## OUTPUT FORMAT
+
+1. Strategy Options (comparison table or bullets)
+2. Selected Strategy + justification
+3. Exact files modified
+4. BEFORE / AFTER code
+5. Edge cases handled
+6. Final verification checklist
+
+---
+
+## SUCCESS CRITERIA
+
+- App loads offline without login block (if prior session exists)
+- Clerk flow remains intact when online
+- No major security regression
+- Minimal architectural disruption
+
+---
+
+No fluff. No assumptions. Base everything on actual code findings.

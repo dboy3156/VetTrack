@@ -1,0 +1,298 @@
+:::writing{variant=“standard” id=“44291”}
+63 — Offline Cold-Start Auth — Hard-Fail Session Restore (Production-Ready)
+
+⸻
+
+What & Why
+
+When the app starts without network (cold-start offline), Clerk’s useUser() never resolves isLoaded: true because it cannot reach Clerk servers. ProtectedRoute and RootRoute block on !isLoaded and render an infinite spinner.
+
+Root cause:
+ClerkAuthProviderInner gates initialization behind if (!isLoaded) return, and downstream guards rely solely on Clerk state with no awareness of offline restoration.
+
+Fix:
+Persist a session snapshot after successful auth. On cold-start offline, restore synchronously before first render under strict hard-fail rules. All render guards must respect isOfflineSession.
+
+⸻
+
+PRIMARY OBJECTIVE — DEPLOYMENT READINESS
+
+This implementation MUST be production-ready:
+	•	Deterministic behavior (no race conditions)
+	•	No infinite loading states under any condition
+	•	Explicit failure states (no silent failures)
+	•	Stable under unstable networks and reconnection
+	•	Security preserved with controlled degradation
+
+If a tradeoff exists:
+→ Prefer predictability and reliability over convenience
+
+⸻
+
+Strategy Selection
+
+Option 1: Synchronous Init + Hard-Fail Restore (SELECTED)
+Option 2: Service Worker JWT Intercept (REJECTED — fragile, unsafe)
+Option 3: Offline Timeout UI (REJECTED — insufficient)
+
+Key decisions:
+	1.	Synchronous initialization (useState lazy init)
+	2.	Explicit guard updates across entire app
+	3.	Hard-fail validation (no fallback paths)
+	4.	Clerk remains source of truth when online
+
+⸻
+
+Hard-Fail Rules (Non-Negotiable)
+
+restoreOfflineSession() returns valid data ONLY if ALL:
+	1.	localStorage key "vt_session" exists
+	2.	token exists and non-empty
+	3.	Date.now() < tokenExp (NOT expired)
+	4.	Date.now() - lastActiveAt < 24h
+	5.	status === "active"
+
+Else:
+→ return null
+→ show sign-in
+
+NO EXCEPTIONS
+
+⸻
+
+Critical Architectural Constraint
+
+Offline restore MUST be synchronous (before first render).
+
+DO NOT use useEffect for initial auth.
+
+⸻
+
+Tasks
+
+1. Create: src/lib/offline-session.ts
+
+Functions:
+	•	saveOfflineSession(...)
+	•	restoreOfflineSession()
+	•	clearOfflineSession()
+
+Requirements:
+	•	Wrap ALL logic in try/catch
+	•	Never throw
+	•	Extract tokenExp from JWT if missing
+	•	Store lastActiveAt
+
+⸻
+
+2. Auth Context Update
+
+Add:
+
+isOfflineSession: boolean
+
+Default: false
+
+⸻
+
+3. Synchronous Restore (CRITICAL)
+
+Inside ClerkAuthProviderInner:
+
+const initialOfflineSession =
+  !navigator.onLine ? restoreOfflineSession() : null;
+
+const [state, setState] = useState(() => {
+  if (initialOfflineSession) {
+    setAuthState({
+      userId: initialOfflineSession.userId,
+      email: initialOfflineSession.email,
+      name: initialOfflineSession.name,
+      bearerToken: initialOfflineSession.token
+    });
+
+    return {
+      isLoaded: true,
+      isSignedIn: true,
+      isOfflineSession: true,
+      user: {
+        id: initialOfflineSession.userId,
+        email: initialOfflineSession.email,
+        name: initialOfflineSession.name,
+        role: initialOfflineSession.role,
+        status: initialOfflineSession.status
+      }
+    };
+  }
+
+  return {
+    isLoaded: false,
+    isSignedIn: false,
+    isOfflineSession: false
+  };
+});
+
+
+⸻
+
+CRITICAL ORDERING — AUTH STATE
+
+You MUST ensure:
+	1.	setAuthState(...) executes before any component performs API calls
+	2.	First render MUST already have correct auth context
+	3.	No component reads stale or empty auth state
+
+Failure → broken API calls / inconsistent UI
+
+⸻
+
+4. Save on Auth Success
+
+After /api/users/me success:
+
+saveOfflineSession({
+  userId,
+  email,
+  name,
+  role,
+  status,
+  token,
+  tokenExp
+});
+
+Also on token refresh.
+
+⸻
+
+5. Clear on Sign-out
+
+clearOfflineSession();
+
+BEFORE Clerk signOut
+
+⸻
+
+GLOBAL GUARD AUDIT (MANDATORY)
+
+You MUST scan ENTIRE codebase for any condition using:
+	•	isLoaded
+	•	isSignedIn
+	•	user presence
+
+ALL must support offline state:
+
+if (!isLoaded && !isOfflineSession)
+
+Do NOT assume only ProtectedRoute / RootRoute exist.
+
+⸻
+
+Render Guard Fix
+
+Update:
+
+if (!isLoaded && !isOfflineSession) return <Loader />
+
+
+⸻
+
+AUTH CONSISTENCY — TOKEN HANDLING
+
+You MUST ensure:
+	•	Only ONE active getToken() at a time (single-flight)
+	•	Prevent concurrent token fetches
+	•	On reconnect:
+	•	avoid multiple overlapping state updates
+	•	ensure deterministic overwrite
+
+⸻
+
+Clerk Reconciliation
+
+When network returns:
+	•	Clerk resolves → overrides offline state
+	•	MUST set:
+
+isOfflineSession: false
+
+	•	MUST update auth-store with fresh token
+
+Clerk always wins
+
+⸻
+
+NETWORK FAILURE EDGE CASE
+
+KNOWN LIMITATION HANDLING:
+
+If:
+	•	navigator.onLine === true
+	•	BUT Clerk unreachable
+
+You MUST:
+	•	detect prolonged loading (timeout)
+	•	fallback to:
+→ sign-in state OR safe offline restore
+
+NEVER allow infinite loading
+
+⸻
+
+OFFLINE SAFETY
+	•	No user creation offline
+	•	No role changes offline
+	•	No privilege escalation
+	•	Backend remains source of truth
+
+⸻
+
+Validation Checklist (MANDATORY)
+
+You MUST verify ALL:
+	•	valid token + offline → loads instantly
+	•	expired token → blocked
+	•	24h session → blocked
+	•	no session → blocked
+	•	pending/blocked user → blocked
+	•	sign-out → clears session
+	•	reconnect → Clerk overrides
+	•	localStorage failure → no crash
+	•	online flow → unchanged
+	•	rapid reconnect loops → stable
+	•	multiple tabs → no inconsistent auth
+	•	token refresh mid-session → stable
+
+⸻
+
+OUTPUT REQUIREMENTS
+	•	Files modified
+	•	BEFORE / AFTER code
+	•	Any deviations (with reason)
+	•	Edge cases found
+	•	Remaining risks
+
+⸻
+
+SUCCESS CRITERIA
+	•	Zero infinite loading states
+	•	Deterministic startup behavior
+	•	No stale/expired auth access
+	•	No race conditions
+	•	No regression in Clerk flow
+
+⸻
+
+CONSTRAINTS
+	•	No backend changes
+	•	No service worker changes
+	•	No new infrastructure
+	•	No unnecessary refactors
+
+⸻
+
+FINAL RULE
+
+Do NOT assume correctness.
+
+You MUST verify behavior against actual code and execution flow.
+:::

@@ -1,0 +1,122 @@
+:::writing{variant=“standard” id=“31864”}
+You are a senior full-stack engineer reviewing an existing implementation of offline authentication (Hard-Fail model) in a React + Clerk app.
+
+Goal: Identify and fix a potential race condition in the offline session restore flow that can still result in an infinite loading state.
+
+⸻
+
+CONTEXT
+
+The current implementation:
+	•	Uses localStorage to persist session (token + tokenExp + identity)
+	•	Restores session on cold-start when offline
+	•	Uses a useEffect() inside use-auth.tsx to restore session
+	•	Clerk’s useUser() controls isLoaded
+	•	There is a guard: if (!isLoaded) return which blocks rendering
+
+Problem:
+Even with offline restore logic, the app can still get stuck on a spinner due to timing issues between:
+	•	Clerk initialization
+	•	React render cycle
+	•	useEffect execution (which runs AFTER initial render)
+
+⸻
+
+ROOT ISSUE
+
+The offline restore runs too late (inside useEffect), while the render is already blocked by !isLoaded.
+
+This creates a race condition:
+	•	First render → blocked
+	•	useEffect runs → too late to affect initial render cleanly
+	•	Result → inconsistent behavior (sometimes works, sometimes stuck)
+
+⸻
+
+REQUIRED IMPROVEMENT
+
+Move offline session restore to a synchronous initialization phase, before first render.
+
+DO NOT rely on useEffect for initial auth state.
+
+⸻
+
+IMPLEMENTATION STRATEGY
+	1.	Precompute offline session BEFORE React state initialization:
+
+const initialOfflineSession =
+  !navigator.onLine ? restoreOfflineSession() : null;
+
+	2.	Initialize auth state synchronously:
+
+const [state, setState] = useState(() => {
+  if (initialOfflineSession) {
+    return {
+      isLoaded: true,
+      isSignedIn: true,
+      isOfflineSession: true,
+      user: {
+        id: initialOfflineSession.userId,
+        email: initialOfflineSession.email,
+        name: initialOfflineSession.name,
+        role: initialOfflineSession.role,
+        status: initialOfflineSession.status
+      }
+    };
+  }
+
+  return {
+    isLoaded: false,
+    isSignedIn: false,
+    isOfflineSession: false
+  };
+});
+
+	3.	Keep existing Clerk logic unchanged:
+
+	•	Clerk should still take over once isLoaded === true
+	•	On reconnect, Clerk reconciliation must overwrite offline state
+
+⸻
+
+RULES
+	•	DO NOT remove Clerk
+	•	DO NOT modify backend
+	•	DO NOT move logic into service worker
+	•	DO NOT introduce async logic into initial render
+	•	Changes must remain minimal and isolated
+
+⸻
+
+VALIDATION
+
+You MUST verify:
+	1.	Offline cold-start (valid token):
+→ App renders immediately (no spinner)
+	2.	Offline cold-start (expired token):
+→ Login screen shown
+	3.	Online startup:
+→ Clerk flow unchanged
+	4.	Network reconnect:
+→ Clerk overrides offline session correctly
+
+⸻
+
+OUTPUT REQUIREMENTS
+	•	Show EXACT location of change
+	•	BEFORE / AFTER code
+	•	Confirm no race condition remains
+	•	Mention any edge cases discovered
+
+⸻
+
+SUCCESS CRITERIA
+	•	No infinite loading state
+	•	No reliance on useEffect for initial auth
+	•	Deterministic startup behavior
+	•	Clerk remains source of truth when online
+
+⸻
+
+Do not assume correctness of existing implementation — verify and adapt.
+:::

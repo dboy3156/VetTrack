@@ -1,0 +1,126 @@
+:::writing{variant=“standard” id=“55682”}
+You are a senior full-stack engineer reviewing your own previous implementation.
+
+Goal: Identify missing production-critical requirements and update the implementation to fully meet a complete production-grade standard.
+
+⸻
+
+PROBLEM
+
+Your current implementation is strong in:
+	•	Network resilience
+	•	Sync logic
+	•	Data growth handling
+	•	Performance optimizations
+
+However, it is NOT complete.
+
+You have missed several critical system-level requirements that affect stability under real-world conditions (concurrency, auth consistency, state integrity).
+
+This means:
+→ The system may work under normal conditions
+→ But can break under load, race conditions, or edge cases
+
+⸻
+
+REQUIRED ACTION
+
+You MUST:
+	1.	Audit your current implementation
+	2.	Identify where the following requirements are missing or partially implemented
+	3.	Extend the system to include them
+	4.	Keep all changes minimal, surgical, and consistent with existing architecture
+
+⸻
+
+MISSING REQUIREMENTS (MANDATORY TO IMPLEMENT)
+
+1. CONCURRENCY GUARANTEES
+	•	Ensure only ONE sync loop runs at a time
+	•	Prevent overlapping processQueue() executions
+	•	Ensure queue operations are atomic (no duplicates, no double-processing)
+	•	Prevent reconnect events from triggering parallel sync runs
+
+⸻
+
+2. AUTH CONSISTENCY DURING SYNC
+	•	Ensure all requests use the latest valid token
+	•	Prevent multiple concurrent getToken() calls (single-flight)
+	•	If token updates mid-sync:
+→ remaining requests MUST use the updated token
+	•	On 401:
+→ STOP queue BEFORE sending additional requests
+
+⸻
+
+3. STATE CONSISTENCY (UI vs STORAGE)
+	•	UI must never reference deleted or evicted IndexedDB data
+	•	Cleanup operations must not break active UI views
+	•	Any eviction must trigger safe invalidation or refresh
+	•	No stale references allowed
+
+⸻
+
+4. CIRCUIT BREAKER
+
+Implement failure protection:
+	•	If N consecutive failures occur (e.g. 5):
+→ pause all outgoing requests
+	•	During cooldown:
+→ fail fast (no hanging requests)
+	•	Resume after timeout or manual retry
+
+⸻
+
+5. UI STATE FINALITY
+
+Every async operation MUST resolve to:
+	•	success
+	•	retryable error
+	•	terminal error
+
+STRICT:
+	•	No infinite loading states
+	•	No permanently disabled UI
+	•	No silent hangs
+
+⸻
+
+6. BURST CONTROL
+	•	Ensure system handles rapid user actions (e.g. 20–50 operations quickly)
+	•	Queue must not grow unbounded without visibility
+	•	Prevent UI freeze under burst load
+	•	Apply batching or throttling if necessary
+
+⸻
+
+CONSTRAINTS
+	•	DO NOT introduce new infrastructure
+	•	DO NOT rewrite architecture
+	•	DO NOT remove existing working logic
+	•	ONLY extend and harden
+
+⸻
+
+OUTPUT REQUIREMENTS
+	•	List what was missing
+	•	Show EXACT changes made
+	•	Explain how each requirement is now satisfied
+	•	Highlight any remaining risks
+
+⸻
+
+SUCCESS CRITERIA
+	•	System remains stable under:
+	•	high load
+	•	unstable network
+	•	rapid user interaction
+	•	concurrent events
+	•	No race conditions
+	•	No inconsistent state
+	•	No silent failures
+
+⸻
+
+Do NOT assume your previous implementation was complete. Validate and fix.
+:::

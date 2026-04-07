@@ -1,0 +1,152 @@
+You are a senior full-stack engineer.
+
+Goal: Perform a final refinement pass on Task 65.
+This is NOT a new task. This is a precision hardening + gap closure step to bring Task 65 to a fully production-ready, hard-to-break state.
+
+⸻
+
+CONTEXT
+
+Task 65 already defines:
+	•	Unified auth + sync + network system
+	•	Deterministic offline behavior
+	•	Hard-fail auth model
+	•	Concurrency guarantees
+	•	Circuit breaker
+	•	Pagination + performance handling
+
+The system is strong.
+
+However, several final gaps remain that can cause instability under real-world conditions.
+
+Your job:
+→ Identify where these are missing or incomplete
+→ Implement them without breaking existing behavior
+→ Keep all changes minimal and surgical
+
+⸻
+
+MANDATORY ADDITIONS (YOU MUST IMPLEMENT)
+
+1. UI STATE FINALITY (GLOBAL)
+
+Every async UI-triggered action MUST resolve to one of:
+	•	success
+	•	retryable error
+	•	terminal error
+
+STRICT:
+	•	No loading state may exceed 30 seconds
+	•	No button may remain disabled without resolution
+	•	No indefinite spinner under any condition
+
+This applies to:
+	•	sync actions
+	•	form submissions
+	•	mutations
+	•	navigation-triggered data loads
+
+⸻
+
+2. QUEUE VISIBILITY
+
+The sync queue MUST be visible to the user.
+
+You MUST expose:
+	•	Total pending items
+	•	Current batch size (processing window)
+
+This must integrate into the existing sync queue UI.
+
+Goal:
+→ No hidden backlog
+→ User always understands system state
+
+⸻
+
+3. REACT QUERY CONSISTENCY
+
+You MUST ensure full data consistency between server, cache, and UI:
+	•	After successful sync replay:
+→ invalidate affected queries
+	•	After auth state changes (login / logout / re-auth):
+→ invalidate ALL user-scoped queries
+	•	After IndexedDB eviction:
+→ ensure no UI references stale data
+
+NO stale data is allowed after:
+	•	sync
+	•	auth transitions
+	•	cache eviction
+
+⸻
+
+4. CIRCUIT BREAKER — COMPLETE BEHAVIOR
+
+The circuit breaker logic exists, but behavior must be completed.
+
+During cooldown:
+	•	NO requests are sent to server
+	•	ALL new mutations MUST still be queued (NOT rejected)
+	•	UI must indicate system is “temporarily paused”
+
+Goal:
+→ Prevent server overload WITHOUT losing user actions
+
+⸻
+
+RULES (STRICT)
+
+You MUST NOT:
+	•	Change architecture
+	•	Remove working logic
+	•	Introduce new infrastructure
+	•	Break any existing validation scenario from Task 65
+
+You MUST:
+	•	Integrate changes cleanly into existing flow
+	•	Preserve all invariants
+	•	Maintain deterministic behavior
+
+⸻
+
+VALIDATION (MANDATORY)
+
+You MUST re-verify ALL Task 65 scenarios PLUS:
+	•	Long-running UI actions never hang
+	•	Queue backlog is visible during large bursts
+	•	Data updates correctly after sync replay
+	•	Data resets correctly after auth changes
+	•	Circuit breaker pauses network but not user actions
+
+⸻
+
+OUTPUT REQUIREMENTS
+	•	Exact files modified
+	•	BEFORE / AFTER code (only relevant parts)
+	•	Where each gap was found
+	•	How each gap was resolved
+	•	Confirmation: “No behavioral regressions introduced”
+
+⸻
+
+SUCCESS CRITERIA
+	•	Zero infinite loading states anywhere
+	•	No hidden system state (queue, auth, sync)
+	•	No stale data after any transition
+	•	System remains stable under:
+	•	high load
+	•	unstable network
+	•	rapid user interaction
+
+⸻
+
+FINAL NOTE
+
+This is a refinement pass, not a redesign.
+
+Do NOT rebuild.
+Do NOT expand scope.
+Close the gaps and stabilize the system.
+
+Everything must remain aligned with Task 65.
