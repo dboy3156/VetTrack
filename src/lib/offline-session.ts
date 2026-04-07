@@ -57,14 +57,22 @@ export function restoreOfflineSession(): OfflineSessionSnapshot | null {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
 
-    const snapshot: OfflineSessionSnapshot = JSON.parse(raw);
+    const snapshot = JSON.parse(raw) as Partial<OfflineSessionSnapshot>;
 
-    if (!snapshot.token || snapshot.token.trim() === "") return null;
-    if (Date.now() >= snapshot.tokenExp) return null;
-    if (Date.now() - snapshot.lastActiveAt >= SESSION_MAX_AGE_MS) return null;
+    if (typeof snapshot.userId !== "string" || snapshot.userId.trim() === "") return null;
+    if (typeof snapshot.email !== "string" || snapshot.email.trim() === "") return null;
+    if (typeof snapshot.role !== "string" || snapshot.role.trim() === "") return null;
+    if (typeof snapshot.status !== "string" || snapshot.status.trim() === "") return null;
+    if (typeof snapshot.token !== "string" || snapshot.token.trim() === "") return null;
+
+    if (!Number.isFinite(snapshot.tokenExp) || (snapshot.tokenExp as number) <= 0) return null;
+    if (!Number.isFinite(snapshot.lastActiveAt) || (snapshot.lastActiveAt as number) <= 0) return null;
+
+    if (Date.now() >= (snapshot.tokenExp as number)) return null;
+    if (Date.now() - (snapshot.lastActiveAt as number) >= SESSION_MAX_AGE_MS) return null;
     if (snapshot.status !== "active") return null;
 
-    return snapshot;
+    return snapshot as OfflineSessionSnapshot;
   } catch {
     return null;
   }
