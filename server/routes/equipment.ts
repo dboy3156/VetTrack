@@ -271,11 +271,17 @@ router.get("/", requireAuth, async (req, res) => {
       .where(isNull(equipment.deletedAt))
       .orderBy(desc(equipment.createdAt));
 
-    const items = limit
-      ? await baseQuery.limit(limit).offset(offset ?? 0)
-      : await baseQuery;
-
-    res.json(items);
+    if (limit) {
+      const [{ total }] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(equipment)
+        .where(isNull(equipment.deletedAt));
+      const items = await baseQuery.limit(limit).offset(offset ?? 0);
+      res.json({ items, total, page, pageSize: limit, hasMore: (offset ?? 0) + items.length < total });
+    } else {
+      const items = await baseQuery;
+      res.json(items);
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to list equipment" });

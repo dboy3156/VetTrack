@@ -3,6 +3,8 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -19,7 +21,7 @@ import { setAuthStateRef, clearHaltQueue } from "@/lib/sync-engine";
 
 export type UserStatus = "pending" | "active" | "blocked" | null;
 
-interface AuthContextType {
+interface AuthState {
   userId: string | null;
   email: string | null;
   name: string | null;
@@ -29,6 +31,9 @@ interface AuthContextType {
   isSignedIn: boolean;
   isAdmin: boolean;
   isOfflineSession: boolean;
+}
+
+interface AuthContextType extends AuthState {
   signOut: () => Promise<void>;
 }
 
@@ -87,6 +92,41 @@ export function DevAuthProvider({ children }: ProviderProps) {
   return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
 }
 
+function buildOfflineState(
+  snapshot: ReturnType<typeof restoreOfflineSession>
+): AuthState | null {
+  if (!snapshot) return null;
+  setAuthState({
+    userId: snapshot.userId,
+    email: snapshot.email,
+    name: snapshot.name,
+    bearerToken: snapshot.token,
+  });
+  return {
+    userId: snapshot.userId,
+    email: snapshot.email,
+    name: snapshot.name,
+    role: snapshot.role as UserRole,
+    status: snapshot.status as UserStatus,
+    isLoaded: true,
+    isSignedIn: true,
+    isAdmin: snapshot.role === "admin",
+    isOfflineSession: true,
+  };
+}
+
+const EMPTY_AUTH_STATE: AuthState = {
+  userId: null,
+  email: null,
+  name: null,
+  role: "technician" as UserRole,
+  status: null,
+  isLoaded: false,
+  isSignedIn: false,
+  isAdmin: false,
+  isOfflineSession: false,
+};
+
 export function ClerkAuthProviderInner({ children }: ProviderProps) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { getToken, signOut: clerkSignOut } = useClerkAuth();
@@ -103,54 +143,39 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
     return p;
   }
 
-  const signOutFn = async () => {
+  const signOut = useCallback(async () => {
     clearOfflineSession();
     queryClient.clear();
     const keys = Object.keys(localStorage).filter((k) => k.startsWith("vettrack"));
     keys.forEach((k) => localStorage.removeItem(k));
     await clerkSignOut({ redirectUrl: "/landing" });
-  };
+  }, [queryClient, clerkSignOut]);
 
-  const [state, setState] = useState<AuthContextType>(() => {
-    const snapshot = restoreOfflineSession();
-    if (snapshot) {
-      return {
-        userId: snapshot.userId,
-        email: snapshot.email,
-        name: snapshot.name,
-        role: snapshot.role as UserRole,
-        status: snapshot.status as UserStatus,
-        isLoaded: true,
-        isSignedIn: true,
-        isAdmin: snapshot.role === "admin",
-        isOfflineSession: true,
-        signOut: signOutFn,
-      };
+  const [state, setState] = useState<AuthState>(() => {
+    if (!navigator.onLine) {
+      const snap = restoreOfflineSession();
+      const offlineState = buildOfflineState(snap);
+      if (offlineState) return offlineState;
     }
-    return {
-      userId: null,
-      email: null,
-      name: null,
-      role: "technician" as UserRole,
-      status: null,
-      isLoaded: false,
-      isSignedIn: false,
-      isAdmin: false,
-      isOfflineSession: false,
-      signOut: signOutFn,
-    };
+    return EMPTY_AUTH_STATE;
   });
 
-  useEffect(() => {
-    setState((s) => ({ ...s, signOut: signOutFn }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  setAuthStateRef(() => ({ isSignedIn: state.isSignedIn && !state.isOfflineSession }));
 
   useEffect(() => {
-    const currentState = state;
-    setAuthStateRef(() => ({ isSignedIn: currentState.isSignedIn && !currentState.isOfflineSession }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.isSignedIn, state.isOfflineSession]);
+    if (isLoaded || state.isLoaded) return;
+    const timer = setTimeout(() => {
+      if (state.isLoaded) return;
+      const snap = restoreOfflineSession();
+      const offlineState = buildOfflineState(snap);
+      if (offlineState) {
+        setState(offlineState);
+      } else {
+        setState((s) => ({ ...s, isLoaded: true }));
+      }
+    }, 10_000);
+    return () => clearTimeout(timer);
+  }, [isLoaded, state.isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -162,8 +187,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
         clearOfflineSession();
         setAuthState({ userId: "", email: "", name: "", bearerToken: null });
         if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
+          setState({
             userId: null,
             email: null,
             name: null,
@@ -173,7 +197,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             isSignedIn: false,
             isAdmin: false,
             isOfflineSession: false,
-          }));
+          });
         }
         return;
       }
@@ -190,8 +214,8 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5_000);
-
       let fetchedFromServer = false;
+
       try {
         const res = await fetch("/api/users/me", { headers, signal: controller.signal });
         clearTimeout(timeout);
@@ -209,8 +233,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
           });
 
           const wasOffline = state.isOfflineSession;
-          setState((prev) => ({
-            ...prev,
+          setState({
             userId: user.id,
             email,
             name,
@@ -220,7 +243,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             isSignedIn: true,
             isAdmin: data.role === "admin",
             isOfflineSession: false,
-          }));
+          });
 
           if (wasOffline) {
             queryClient.invalidateQueries();
@@ -235,27 +258,26 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
       if (cancelled) return;
 
       if (!fetchedFromServer) {
-        const snapshot = restoreOfflineSession();
-        if (snapshot && snapshot.userId === user.id) {
-          setState((prev) => ({
-            ...prev,
-            userId: snapshot.userId,
-            email: snapshot.email,
-            name: snapshot.name,
-            role: snapshot.role as UserRole,
-            status: snapshot.status as UserStatus,
+        const snap = restoreOfflineSession();
+        if (snap && snap.userId === user.id) {
+          buildOfflineState(snap);
+          setState({
+            userId: snap.userId,
+            email: snap.email,
+            name: snap.name,
+            role: snap.role as UserRole,
+            status: snap.status as UserStatus,
             isLoaded: true,
             isSignedIn: true,
-            isAdmin: snapshot.role === "admin",
+            isAdmin: snap.role === "admin",
             isOfflineSession: true,
-          }));
+          });
           return;
         }
       }
 
       if (!cancelled) {
-        setState((prev) => ({
-          ...prev,
+        setState({
           userId: user.id,
           email,
           name,
@@ -265,7 +287,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
           isSignedIn: true,
           isAdmin: false,
           isOfflineSession: false,
-        }));
+        });
       }
     }
 
@@ -279,7 +301,12 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn, user?.id]);
 
-  return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
+  const contextValue = useMemo<AuthContextType>(
+    () => ({ ...state, signOut }),
+    [state, signOut]
+  );
+
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

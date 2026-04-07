@@ -76,7 +76,7 @@ const queryClient = new QueryClient({
 });
 
 initSyncEngine(queryClient);
-runStartupCleanup().catch(() => {});
+runStartupCleanup(queryClient).catch(() => {});
 
 if (import.meta.env.DEV) {
   window.__vettrack_test = {

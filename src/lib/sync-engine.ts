@@ -6,6 +6,8 @@ import {
   removePendingSync,
   type PendingSync,
 } from "./offline-db";
+import { getAuthHeaders } from "./auth-store";
+import { clearOfflineSession } from "./offline-session";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [2000, 5000, 10000];
@@ -13,6 +15,7 @@ const BURST_LIMIT = 50;
 const BURST_DELAY_MS = 500;
 const CIRCUIT_THRESHOLD = 5;
 const CIRCUIT_COOLDOWN_MS = 60_000;
+const ITEM_TIMEOUT_MS = 30_000;
 
 type SyncListener = () => void;
 const listeners: Set<SyncListener> = new Set();
@@ -32,6 +35,7 @@ let haltQueue = false;
 
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
+let circuitResetTimerId: ReturnType<typeof setTimeout> | null = null;
 
 let batchCurrent = 0;
 let batchTotal = 0;
@@ -64,6 +68,25 @@ function jitteredDelay(base: number): number {
   return Math.round(base * (1 + Math.random() * 0.5));
 }
 
+function openCircuit() {
+  consecutiveFailures = 0;
+  circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
+  notifyListeners();
+
+  toast.warning("Sync paused — too many errors", {
+    description: `Will automatically retry in ${CIRCUIT_COOLDOWN_MS / 1000}s.`,
+    duration: 8000,
+  });
+
+  if (circuitResetTimerId) clearTimeout(circuitResetTimerId);
+  circuitResetTimerId = setTimeout(() => {
+    circuitResetTimerId = null;
+    notifyListeners();
+    toast.info("Sync resumed", { duration: 3000 });
+    if (navigator.onLine && !haltQueue) processQueue().catch(() => {});
+  }, CIRCUIT_COOLDOWN_MS);
+}
+
 export async function processQueue(): Promise<void> {
   if (syncing || !navigator.onLine) return;
 
@@ -86,27 +109,30 @@ export async function processQueue(): Promise<void> {
     const allPending = await getPendingSync();
     if (allPending.length === 0) return;
 
+    batchTotal = allPending.length;
+    batchCurrent = 0;
+
     const burst = allPending.slice(0, BURST_LIMIT);
     const hasMore = allPending.length > BURST_LIMIT;
-    batchTotal = burst.length;
-    batchCurrent = 0;
 
     for (const item of burst) {
       if (haltQueue) break;
       if (Date.now() < circuitOpenUntil) break;
+
       const result = await processSingleItemWithRetry(item);
-      if (result === "transient_failure") {
+
+      if (result === "success") {
+        consecutiveFailures = 0;
+      } else if (result === "transient_failure") {
         consecutiveFailures++;
         if (consecutiveFailures >= CIRCUIT_THRESHOLD) {
-          circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
-          notifyListeners();
+          openCircuit();
           break;
         }
-      } else if (result === "success") {
-        consecutiveFailures = 0;
       } else if (result === "auth_halt") {
         break;
       }
+
       batchCurrent++;
       notifyListeners();
     }
@@ -189,14 +215,17 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
 async function attemptSync(item: PendingSync): Promise<ItemResult> {
   if (!item.id) return "transient_failure";
 
+  const liveHeaders = getAuthHeaders();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(item.authHeaders || {}),
+    ...liveHeaders,
   };
+  const xTimestamp = (item.authHeaders || {})["X-Client-Timestamp"];
+  if (xTimestamp) headers["X-Client-Timestamp"] = xTimestamp;
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const timeout = setTimeout(() => controller.abort(), ITEM_TIMEOUT_MS);
     let res: Response;
     try {
       res = await fetch(item.endpoint, {
@@ -225,6 +254,7 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
 
     if (res.status === 401) {
       haltQueue = true;
+      clearOfflineSession();
       if (queryClientRef) queryClientRef.clear();
       await updatePendingSync(item.id, {
         status: "failed",
@@ -243,10 +273,7 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
     }
 
     return "transient_failure";
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      return "transient_failure";
-    }
+  } catch (_err) {
     return "transient_failure";
   }
 }

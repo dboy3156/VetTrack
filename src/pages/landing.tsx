@@ -17,7 +17,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 
 export default function LandingPage() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, isOfflineSession } = useAuth();
 
   return (
     <>
@@ -64,7 +64,7 @@ export default function LandingPage() {
                 <Play className="w-3.5 h-3.5" />
                 Watch demo
               </Link>
-              {isLoaded && (isSignedIn ? (
+              {(isLoaded || isOfflineSession) && (isSignedIn ? (
                 <Link
                   href="/"
                   className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
@@ -106,7 +106,7 @@ export default function LandingPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                {isLoaded && (isSignedIn ? (
+                {(isLoaded || isOfflineSession) && (isSignedIn ? (
                   <Link
                     href="/"
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
@@ -314,7 +314,7 @@ export default function LandingPage() {
                 Your team can be scanning equipment in minutes.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                {isLoaded && (isSignedIn ? (
+                {(isLoaded || isOfflineSession) && (isSignedIn ? (
                   <Link
                     href="/"
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-teal-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-teal-50 transition-colors shadow-sm"

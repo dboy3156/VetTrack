@@ -122,7 +122,7 @@ function BlockedScreen({ signOut }: { signOut: () => Promise<void> }) {
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, status, isOfflineSession, signOut } = useAuth();
-  if (!isLoaded) return <PageLoader />;
+  if (!isLoaded && !isOfflineSession) return <PageLoader />;
   if (!isSignedIn) return <Redirect to="/signin" />;
   if (!isOfflineSession && status === "pending") return <PendingApprovalScreen signOut={signOut} />;
   if (!isOfflineSession && status === "blocked") return <BlockedScreen signOut={signOut} />;
@@ -131,7 +131,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function RootRoute() {
   const { isLoaded, isSignedIn, status, isOfflineSession, signOut } = useAuth();
-  if (!isLoaded) return <PageLoader />;
+  if (!isLoaded && !isOfflineSession) return <PageLoader />;
   if (!isSignedIn) return <Redirect to="/signin" />;
   if (!isOfflineSession && status === "pending") return <PendingApprovalScreen signOut={signOut} />;
   if (!isOfflineSession && status === "blocked") return <BlockedScreen signOut={signOut} />;

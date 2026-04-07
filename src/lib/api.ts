@@ -53,7 +53,15 @@ interface OfflineOptions {
   optimisticResult?: unknown;
 }
 
+class TimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Request timed out after ${ms}ms`);
+    this.name = "TimeoutError";
+  }
+}
+
 function isNetworkError(err: unknown): boolean {
+  if (err instanceof TimeoutError) return true;
   if (err instanceof DOMException && err.name === "AbortError") return false;
   if (!navigator.onLine) return true;
   if (err instanceof TypeError) return true;
@@ -61,12 +69,16 @@ function isNetworkError(err: unknown): boolean {
   return false;
 }
 
-const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_TIMEOUT_MS = 30_000;
 
 function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const outer = init.signal as AbortSignal | undefined | null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
 
   if (outer) {
     const onAbort = () => controller.abort();
@@ -74,7 +86,14 @@ function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIME
     controller.signal.addEventListener("abort", () => outer.removeEventListener("abort", onAbort), { once: true });
   }
 
-  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+  return fetch(url, { ...init, signal: controller.signal })
+    .finally(() => clearTimeout(timer))
+    .catch((err) => {
+      if (timedOut && err instanceof DOMException && err.name === "AbortError") {
+        throw new TimeoutError(timeoutMs);
+      }
+      throw err;
+    });
 }
 
 async function request<T>(
@@ -153,16 +172,47 @@ async function requestWithOfflineFallback<T>(
   }
 }
 
+export interface EquipmentPage {
+  items: Equipment[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
 export const api = {
   equipment: {
     list: async () => {
       try {
-        const items = await request<Equipment[]>("/api/equipment?limit=100");
+        const items = await request<Equipment[]>("/api/equipment");
         cacheEquipment(items).catch(() => {});
         return items;
       } catch (err) {
         if (!navigator.onLine) {
           return getCachedEquipment();
+        }
+        throw err;
+      }
+    },
+    listPaginated: async (page = 1, pageSize = 100): Promise<EquipmentPage> => {
+      try {
+        const result = await request<EquipmentPage>(
+          `/api/equipment?limit=${pageSize}&page=${page}`
+        );
+        cacheEquipment(result.items).catch(() => {});
+        return result;
+      } catch (err) {
+        if (!navigator.onLine) {
+          const cached = await getCachedEquipment();
+          const start = (page - 1) * pageSize;
+          const slice = cached.slice(start, start + pageSize);
+          return {
+            items: slice,
+            total: cached.length,
+            page,
+            pageSize,
+            hasMore: start + pageSize < cached.length,
+          };
         }
         throw err;
       }

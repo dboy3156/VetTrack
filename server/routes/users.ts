@@ -81,11 +81,20 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       ? db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
       : db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
 
-    const allUsers = limit
-      ? await baseQuery.limit(limit).offset(offset ?? 0)
-      : await baseQuery;
-
-    res.json(allUsers);
+    if (limit) {
+      const whereClause = status
+        ? and(eq(users.status, status as string), isNull(users.deletedAt))
+        : isNull(users.deletedAt);
+      const [{ total }] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(users)
+        .where(whereClause);
+      const items = await baseQuery.limit(limit).offset(offset ?? 0);
+      res.json({ items, total, page, pageSize: limit, hasMore: (offset ?? 0) + items.length < total });
+    } else {
+      const allUsers = await baseQuery;
+      res.json(allUsers);
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to list users" });

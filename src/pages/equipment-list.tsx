@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
@@ -185,10 +185,26 @@ export default function EquipmentListPage() {
     reader.readAsDataURL(file);
   }
 
-  const { data: equipment, isLoading, isError, refetch } = useQuery({
-    queryKey: ["/api/equipment"],
-    queryFn: api.equipment.list,
+  const PAGE_SIZE = 100;
+  const {
+    data: equipmentPages,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["/api/equipment/paginated"],
+    queryFn: ({ pageParam = 1 }) => api.equipment.listPaginated(pageParam as number, PAGE_SIZE),
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    initialPageParam: 1,
   });
+
+  const equipment = useMemo(
+    () => equipmentPages?.pages.flatMap((p) => p.items),
+    [equipmentPages]
+  );
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -199,6 +215,7 @@ export default function EquipmentListPage() {
     mutationFn: (ids: string[]) => api.equipment.bulkDelete({ ids }),
     onSuccess: (_, ids) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
       setSelected(new Set());
       setSelectMode(false);
       toast.success(`Deleted ${ids.length} item${ids.length !== 1 ? "s" : ""}`);
@@ -211,6 +228,7 @@ export default function EquipmentListPage() {
       api.equipment.bulkMove({ ids, folderId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
       setSelected(new Set());
       setSelectMode(false);
       toast.success("Moved successfully");
@@ -655,6 +673,24 @@ export default function EquipmentListPage() {
                 onToggleSelect={() => toggleSelect(eq.id)}
               />
             ))}
+          </div>
+        )}
+
+        {hasNextPage && !isLoading && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              data-testid="btn-load-more"
+            >
+              {isFetchingNextPage ? (
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
+              ) : (
+                "Load more"
+              )}
+            </Button>
           </div>
         )}
       </div>

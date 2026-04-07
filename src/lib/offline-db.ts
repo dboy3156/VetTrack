@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import type { QueryClient } from "@tanstack/react-query";
 import type { Equipment, ScanLog, Folder } from "@/types";
 
 export type PendingSyncStatus = "pending" | "synced" | "failed";
@@ -106,9 +107,10 @@ export async function getFailedCount(): Promise<number> {
   return offlineDb.pendingSync.where("status").equals("failed").count();
 }
 
-export async function runStartupCleanup(): Promise<void> {
+export async function runStartupCleanup(queryClient?: QueryClient): Promise<void> {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    let didEvict = false;
 
     const failedOld = await offlineDb.pendingSync
       .where("status")
@@ -117,6 +119,7 @@ export async function runStartupCleanup(): Promise<void> {
       .primaryKeys();
     if (failedOld.length > 0) {
       await offlineDb.pendingSync.bulkDelete(failedOld as number[]);
+      didEvict = true;
     }
 
     const syncedIds = await offlineDb.pendingSync
@@ -156,6 +159,12 @@ export async function runStartupCleanup(): Promise<void> {
 
     if (toDeleteLogs.length > 0) {
       await offlineDb.scanLogs.bulkDelete(toDeleteLogs);
+      didEvict = true;
+    }
+
+    if (didEvict && queryClient) {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
     }
   } catch {
   }
