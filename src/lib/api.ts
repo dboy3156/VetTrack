@@ -106,6 +106,12 @@ async function request<T>(
 
   try {
     const res = await fetchWithTimeout(url, { ...init, headers });
+    if (res.status === 401) {
+      // Token expired or invalid — force a full page reload to re-authenticate
+      toast.error("Session expired. Please sign in again.");
+      setTimeout(() => window.location.reload(), 1500);
+      throw new Error("Session expired");
+    }
     if (!res.ok) {
       if (!silent && res.status >= 500) {
         toast.error("The server encountered an error. Please try again or reload the page.");
