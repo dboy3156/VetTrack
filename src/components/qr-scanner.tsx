@@ -214,32 +214,12 @@ export function QrScanner({ onClose }: QrScannerProps) {
     }, 10000);
 
     try {
-      console.log("[VT-SCAN] ① calling Html5Qrcode.getCameras() — t=", performance.now().toFixed(1));
-      const devices = await Html5Qrcode.getCameras();
-      console.log("[VT-SCAN] ① getCameras() resolved — t=", performance.now().toFixed(1), "devices=", devices.length);
-      if (!devices || devices.length === 0) {
-        if (initTimeoutRef.current) {
-          clearTimeout(initTimeoutRef.current);
-          initTimeoutRef.current = null;
-        }
-        setPhase("no_camera");
-        return;
-      }
-
       const scanner = new Html5Qrcode(containerId, { verbose: false });
       scannerRef.current = scanner;
 
-      const backCamera = devices.find(
-        (d) =>
-          d.label.toLowerCase().includes("back") ||
-          d.label.toLowerCase().includes("rear") ||
-          d.label.toLowerCase().includes("environment")
-      );
-      const cameraId = backCamera?.id || devices[devices.length - 1].id;
-
-      console.log("[VT-SCAN] ② calling scanner.start() — t=", performance.now().toFixed(1), "cameraId=", cameraId);
+      console.log("[VT-SCAN] single scanner.start(facingMode:environment) — t=", performance.now().toFixed(1));
       await scanner.start(
-        { deviceId: { exact: cameraId } },
+        { facingMode: "environment" },
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
