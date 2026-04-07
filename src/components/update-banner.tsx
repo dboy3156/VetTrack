@@ -44,7 +44,7 @@ export function UpdateBanner() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 px-4 py-2.5 bg-primary text-primary-foreground shadow-md"
+      className="w-full flex items-center justify-between gap-3 px-4 py-2 bg-primary text-primary-foreground border-b border-primary/80"
       data-testid="update-banner"
       role="status"
     >

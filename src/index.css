@@ -61,9 +61,12 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     -webkit-tap-highlight-color: transparent;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
   }
   html {
     scroll-behavior: smooth;
+    overscroll-behavior: none;
   }
 }
 

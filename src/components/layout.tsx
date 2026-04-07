@@ -44,6 +44,7 @@ import { SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { ReportIssueDialog } from "@/components/report-issue-dialog";
 import { SyncQueueSheet } from "@/components/sync-queue-sheet";
+import { UpdateBanner } from "@/components/update-banner";
 
 interface NavItem {
   href: string;
@@ -172,6 +173,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     <div className="min-h-[100dvh] bg-background">
       {/* Top header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-safe">
+        <UpdateBanner />
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-2xl bg-primary/10 flex items-center justify-center">

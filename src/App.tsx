@@ -4,7 +4,6 @@ import * as Sentry from "@sentry/react";
 import { Loader2, AlertTriangle, RefreshCw, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { UpdateBanner } from "@/components/update-banner";
 import { SwUpdateBanner } from "@/components/sw-update-banner";
 
 const HomePage = lazy(() => import("@/pages/home"));
@@ -141,7 +140,6 @@ function RootRoute() {
 export default function App() {
   return (
     <Sentry.ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>
-      <UpdateBanner />
       <SwUpdateBanner />
       <Suspense fallback={<PageLoader />}>
         <Switch>
