@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -629,11 +629,28 @@ function UsersSection() {
     newStatus: "pending" | "active" | "blocked";
   } | null>(null);
 
-  const { data: users, isLoading } = useQuery({
+  const {
+    data: usersPages,
+    isLoading,
+    fetchNextPage: fetchMoreUsers,
+    hasNextPage: hasMoreUsers,
+    isFetchingNextPage: isFetchingMoreUsers,
+  } = useInfiniteQuery({
     queryKey: ["/api/users", statusFilter],
-    queryFn: () =>
-      api.users.list(statusFilter === "all" ? undefined : statusFilter),
+    queryFn: ({ pageParam = 1 }) =>
+      api.users.listPaginated(
+        pageParam as number,
+        100,
+        statusFilter === "all" ? undefined : statusFilter
+      ),
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    initialPageParam: 1,
   });
+
+  const users = useMemo(
+    () => usersPages?.pages.flatMap((p) => p.items),
+    [usersPages]
+  );
 
   const updateRoleMut = useMutation({
     mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
@@ -719,7 +736,7 @@ function UsersSection() {
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {users.map((user) => (
+            {(users ?? []).map((user) => (
               <div
                 key={user.id}
                 data-testid={`user-row-${user.id}`}
@@ -850,6 +867,23 @@ function UsersSection() {
                 </div>
               </div>
             ))}
+            {hasMoreUsers && (
+              <div className="flex justify-center pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchMoreUsers()}
+                  disabled={isFetchingMoreUsers}
+                  data-testid="btn-load-more-users"
+                >
+                  {isFetchingMoreUsers ? (
+                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
+                  ) : (
+                    "Load more"
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

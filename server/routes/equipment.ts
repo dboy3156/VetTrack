@@ -233,15 +233,17 @@ router.get("/my", requireAuth, async (req, res) => {
   }
 });
 
-const DEFAULT_PAGE_SIZE = 500;
+const EQUIPMENT_DEFAULT_PAGE_SIZE = 100;
+const EQUIPMENT_MAX_PAGE_SIZE = 200;
 
 router.get("/", requireAuth, async (req, res) => {
   try {
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
-    const hasExplicitLimit = !isNaN(rawLimit) && rawLimit > 0;
-    const limit = hasExplicitLimit ? Math.min(rawLimit, 500) : DEFAULT_PAGE_SIZE;
-    const page = !isNaN(rawPage) && rawPage > 1 ? rawPage : 1;
+    const limit = (!isNaN(rawLimit) && rawLimit > 0)
+      ? Math.min(rawLimit, EQUIPMENT_MAX_PAGE_SIZE)
+      : EQUIPMENT_DEFAULT_PAGE_SIZE;
+    const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const offset = (page - 1) * limit;
 
     const baseQuery = db
@@ -932,20 +934,33 @@ router.post("/:id/revert", requireAuth, requireRole("vet"), validateUuid("id"), 
   }
 });
 
+const LOGS_DEFAULT_PAGE_SIZE = 50;
+const LOGS_MAX_PAGE_SIZE = 200;
+
 router.get("/:id/logs", requireAuth, async (req, res) => {
   try {
     const rawLimit = parseInt(req.query.limit as string, 10);
-    const hasLimit = !isNaN(rawLimit) && rawLimit > 0;
-    const limit = hasLimit ? Math.min(rawLimit, 200) : undefined;
+    const rawPage = parseInt(req.query.page as string, 10);
+    const limit = (!isNaN(rawLimit) && rawLimit > 0)
+      ? Math.min(rawLimit, LOGS_MAX_PAGE_SIZE)
+      : LOGS_DEFAULT_PAGE_SIZE;
+    const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
+    const offset = (page - 1) * limit;
 
-    const baseQuery = db
+    const [{ total }] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(scanLogs)
+      .where(eq(scanLogs.equipmentId, req.params.id));
+
+    const items = await db
       .select()
       .from(scanLogs)
       .where(eq(scanLogs.equipmentId, req.params.id))
-      .orderBy(desc(scanLogs.timestamp));
+      .orderBy(desc(scanLogs.timestamp))
+      .limit(limit)
+      .offset(offset);
 
-    const logs = limit ? await baseQuery.limit(limit) : await baseQuery;
-    res.json(logs);
+    res.json({ items, total, page, pageSize: limit, hasMore: offset + items.length < total });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to get logs" });

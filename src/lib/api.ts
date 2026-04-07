@@ -455,12 +455,35 @@ export const api = {
       }),
     logs: async (id: string) => {
       try {
-        const logs = await request<ScanLog[]>(`/api/equipment/${id}/logs?limit=50`);
-        cacheScanLogs(id, logs).catch(() => {});
-        return logs;
+        const result = await request<{ items: ScanLog[]; total: number; hasMore: boolean }>(
+          `/api/equipment/${id}/logs?limit=50`
+        );
+        cacheScanLogs(id, result.items).catch(() => {});
+        return result.items;
       } catch (err) {
         if (!navigator.onLine) {
           return getCachedScanLogs(id);
+        }
+        throw err;
+      }
+    },
+    logsPaginated: async (
+      id: string,
+      page = 1,
+      pageSize = 50
+    ): Promise<{ items: ScanLog[]; total: number; page: number; pageSize: number; hasMore: boolean }> => {
+      try {
+        const result = await request<{ items: ScanLog[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
+          `/api/equipment/${id}/logs?limit=${pageSize}&page=${page}`
+        );
+        cacheScanLogs(id, result.items).catch(() => {});
+        return result;
+      } catch (err) {
+        if (!navigator.onLine) {
+          const cached = await getCachedScanLogs(id);
+          const start = (page - 1) * pageSize;
+          const slice = cached.slice(start, start + pageSize);
+          return { items: slice, total: cached.length, page, pageSize, hasMore: start + pageSize < cached.length };
         }
         throw err;
       }
@@ -516,6 +539,17 @@ export const api = {
       const url = status ? `/api/users?status=${status}` : "/api/users";
       const result = await request<{ items: User[]; total: number }>(url);
       return result.items;
+    },
+    listPaginated: async (
+      page = 1,
+      pageSize = 100,
+      status?: "pending" | "active" | "blocked"
+    ): Promise<{ items: User[]; total: number; page: number; pageSize: number; hasMore: boolean }> => {
+      const params = new URLSearchParams({ limit: String(pageSize), page: String(page) });
+      if (status) params.set("status", status);
+      return request<{ items: User[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
+        `/api/users?${params}`
+      );
     },
     listPending: () => request<User[]>("/api/users/pending"),
     listDeleted: () => request<User[]>("/api/users/deleted"),

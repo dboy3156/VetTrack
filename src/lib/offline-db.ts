@@ -164,7 +164,7 @@ export async function runStartupCleanup(queryClient?: QueryClient): Promise<void
 
     if (didEvict && queryClient) {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
     }
   } catch {
   }

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useLocation, useSearch } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -249,11 +249,21 @@ export default function EquipmentDetailPage() {
     enabled: !!id,
   });
 
-  const { data: scanLogs, isLoading: logsLoading } = useQuery({
+  const {
+    data: scanLogsPages,
+    isLoading: logsLoading,
+    fetchNextPage: fetchOlderLogs,
+    hasNextPage: hasOlderLogs,
+    isFetchingNextPage: isFetchingOlderLogs,
+  } = useInfiniteQuery({
     queryKey: [`/api/equipment/${id}/logs`],
-    queryFn: () => api.equipment.logs(id!),
+    queryFn: ({ pageParam = 1 }) => api.equipment.logsPaginated(id!, pageParam as number, 50),
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    initialPageParam: 1,
     enabled: !!id,
   });
+
+  const scanLogs = scanLogsPages?.pages.flatMap((p) => p.items);
 
   const { data: transfers, isLoading: transfersLoading } = useQuery({
     queryKey: [`/api/equipment/${id}/transfers`],
@@ -946,37 +956,56 @@ export default function EquipmentDetailPage() {
                   </CardContent>
                 </Card>
               ) : (
-                scanLogs.map((log) => (
-                  <Card key={log.id} className="bg-card border-border/60 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <Badge variant={statusToBadgeVariant(log.status)}>
-                              {STATUS_LABELS[log.status as keyof typeof STATUS_LABELS] || log.status}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground truncate">
-                              {log.userEmail}
-                            </span>
+                <>
+                  {scanLogs.map((log) => (
+                    <Card key={log.id} className="bg-card border-border/60 shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={statusToBadgeVariant(log.status)}>
+                                {STATUS_LABELS[log.status as keyof typeof STATUS_LABELS] || log.status}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground truncate">
+                                {log.userEmail}
+                              </span>
+                            </div>
+                            {log.note && (
+                              <p className="text-xs text-muted-foreground mt-1">{log.note}</p>
+                            )}
+                            {log.photoUrl && (
+                              <img
+                                src={log.photoUrl}
+                                alt="Issue photo"
+                                className="mt-2 rounded-lg w-24 h-24 object-cover border"
+                              />
+                            )}
                           </div>
-                          {log.note && (
-                            <p className="text-xs text-muted-foreground mt-1">{log.note}</p>
-                          )}
-                          {log.photoUrl && (
-                            <img
-                              src={log.photoUrl}
-                              alt="Issue photo"
-                              className="mt-2 rounded-lg w-24 h-24 object-cover border"
-                            />
-                          )}
+                          <p className="text-xs text-muted-foreground shrink-0">
+                            {formatRelativeTime(log.timestamp.toString())}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground shrink-0">
-                          {formatRelativeTime(log.timestamp.toString())}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {hasOlderLogs && (
+                    <div className="flex justify-center pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fetchOlderLogs()}
+                        disabled={isFetchingOlderLogs}
+                        data-testid="btn-load-older-logs"
+                      >
+                        {isFetchingOlderLogs ? (
+                          <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
+                        ) : (
+                          "Load older"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </TabsContent>

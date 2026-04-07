@@ -250,8 +250,8 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
             <div>
               <h2 className="font-bold text-base leading-tight">Sync Queue</h2>
               <p className="text-xs text-muted-foreground">
-                {isSyncing && batchTotal > 0
-                  ? `Syncing ${batchCurrent}/${batchTotal}…`
+                {isSyncing && batchTotal > 50
+                  ? `Processing ${batchCurrent} of ${batchTotal}…`
                   : totalCount === 0
                   ? "All actions synced"
                   : `${totalCount} action${totalCount !== 1 ? "s" : ""} pending`}

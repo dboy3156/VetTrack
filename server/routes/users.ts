@@ -72,7 +72,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
-    const resolvedLimit = (!isNaN(rawLimit) && rawLimit > 0) ? Math.min(rawLimit, 500) : 500;
+    const resolvedLimit = (!isNaN(rawLimit) && rawLimit > 0) ? Math.min(rawLimit, 200) : 100;
     const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const resolvedOffset = (page - 1) * resolvedLimit;
 

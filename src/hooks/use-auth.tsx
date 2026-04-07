@@ -235,7 +235,6 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             token: token ?? "",
           });
 
-          const wasOffline = state.isOfflineSession;
           setState({
             userId: user.id,
             email,
@@ -248,9 +247,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             isOfflineSession: false,
           });
 
-          if (wasOffline) {
-            queryClient.invalidateQueries();
-          }
+          queryClient.invalidateQueries();
 
           return;
         }
