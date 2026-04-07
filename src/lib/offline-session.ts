@@ -16,7 +16,9 @@ function extractTokenExp(token: string): number {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return 0;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) b64 += "=";
+    const payload = JSON.parse(atob(b64));
     if (typeof payload.exp === "number") return payload.exp * 1000;
     return 0;
   } catch {
