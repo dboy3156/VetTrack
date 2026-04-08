@@ -39,6 +39,17 @@ export const folders = pgTable("vt_folders", {
   deletedBy: text("deleted_by"),
 });
 
+export const rooms = pgTable("vt_rooms", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  floor: text("floor"),
+  masterNfcTagId: text("master_nfc_tag_id").unique(),
+  syncStatus: varchar("sync_status", { length: 20 }).notNull().default("stale"),
+  lastAuditAt: timestamp("last_audit_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const equipment = pgTable("vt_equipment", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -48,6 +59,7 @@ export const equipment = pgTable("vt_equipment", {
   purchaseDate: text("purchase_date"),
   location: text("location"),
   folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
+  roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
   status: varchar("status", { length: 20 }).notNull().default("ok"),
   lastSeen: timestamp("last_seen"),
   lastStatus: varchar("last_status", { length: 20 }),
@@ -55,6 +67,9 @@ export const equipment = pgTable("vt_equipment", {
   lastSterilizationDate: timestamp("last_sterilization_date"),
   maintenanceIntervalDays: integer("maintenance_interval_days"),
   imageUrl: text("image_url"),
+  nfcTagId: text("nfc_tag_id").unique(),
+  lastVerifiedAt: timestamp("last_verified_at"),
+  lastVerifiedById: text("last_verified_by_id"),
   // Checkout / ownership
   checkedOutById: text("checked_out_by_id"),
   checkedOutByEmail: text("checked_out_by_email"),
