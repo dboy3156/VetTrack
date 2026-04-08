@@ -849,7 +849,7 @@ export default function EquipmentDetailPage() {
                     );
                     window.open(waUrl, "_blank");
                   }}
-                  className="h-8 text-green-700 border-green-200 hover:bg-green-50"
+                  className="h-11 text-green-700 border-green-200 hover:bg-green-50"
                   data-testid="btn-whatsapp"
                 >
                   <MessageCircle className="w-3.5 h-3.5 mr-1" />
@@ -993,6 +993,7 @@ export default function EquipmentDetailPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="h-11 text-xs"
                         onClick={() => fetchOlderLogs()}
                         disabled={isFetchingOlderLogs}
                         data-testid="btn-load-older-logs"
@@ -1134,7 +1135,7 @@ export default function EquipmentDetailPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="absolute top-1 right-1 bg-white/80 text-xs"
+                      className="absolute top-1 right-1 bg-white/80 text-xs h-11 min-w-[44px]"
                       onClick={() => setScanPhoto(null)}
                     >
                       Remove
@@ -1226,7 +1227,7 @@ export default function EquipmentDetailPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="absolute top-1 right-1 bg-white/80 text-xs"
+                    className="absolute top-1 right-1 bg-white/80 text-xs h-11 min-w-[44px]"
                     onClick={() => setReportIssuePhoto(null)}
                   >
                     Remove

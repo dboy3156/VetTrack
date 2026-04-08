@@ -311,6 +311,7 @@ export default function EquipmentListPage() {
             <Button
               size="sm"
               variant="outline"
+              className="h-11 text-xs"
               onClick={() => qrInputRef.current?.click()}
               data-testid="btn-scan-qr"
             >
@@ -321,7 +322,7 @@ export default function EquipmentListPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="hidden md:inline-flex"
+                className="hidden md:inline-flex h-11 text-xs"
                 onClick={() => setImportOpen(true)}
                 data-testid="btn-import-csv"
               >
@@ -330,7 +331,7 @@ export default function EquipmentListPage() {
               </Button>
             )}
             <Link href="/equipment/new">
-              <Button size="sm" data-testid="btn-add">
+              <Button size="sm" className="h-11 text-xs" data-testid="btn-add">
                 <Plus className="w-4 h-4 mr-1" />
                 Add
               </Button>
@@ -502,7 +503,7 @@ export default function EquipmentListPage() {
               setSelectMode(!selectMode);
               if (selectMode) setSelected(new Set());
             }}
-            className="text-xs"
+            className="text-xs h-11"
             data-testid="btn-select-mode"
           >
             {selectMode ? (
@@ -519,7 +520,7 @@ export default function EquipmentListPage() {
                 variant="ghost"
                 size="sm"
                 onClick={toggleAll}
-                className="text-xs"
+                className="text-xs h-11"
               >
                 {selected.size === filtered.length ? "Deselect all" : "Select all"}
               </Button>
@@ -537,7 +538,7 @@ export default function EquipmentListPage() {
                   }}
                   disabled={bulkMoveMut.isPending || bulkDeleteMut.isPending}
                 >
-                  <SelectTrigger className="h-9 text-xs" disabled={bulkMoveMut.isPending || bulkDeleteMut.isPending}>
+                  <SelectTrigger className="h-11 text-xs" disabled={bulkMoveMut.isPending || bulkDeleteMut.isPending}>
                     {bulkMoveMut.isPending ? (
                       <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
                     ) : (
@@ -560,6 +561,7 @@ export default function EquipmentListPage() {
                       <Button
                         variant="destructive"
                         size="sm"
+                        className="h-11 text-xs"
                         disabled={bulkDeleteMut.isPending || bulkMoveMut.isPending}
                         data-testid="btn-bulk-delete"
                       >
@@ -632,13 +634,14 @@ export default function EquipmentListPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-11 text-xs"
                   onClick={() => navigate("/equipment", { replace: true })}
                 >
                   Clear all filters
                 </Button>
               ) : (
                 <Link href="/equipment/new">
-                  <Button size="sm">
+                  <Button size="sm" className="h-11 text-xs">
                     <Plus className="w-4 h-4 mr-1" />
                     Add Equipment
                   </Button>
@@ -681,6 +684,7 @@ export default function EquipmentListPage() {
             <Button
               variant="outline"
               size="sm"
+              className="h-11 text-xs"
               onClick={() => fetchNextPage()}
               disabled={isFetchingNextPage}
               data-testid="btn-load-more"

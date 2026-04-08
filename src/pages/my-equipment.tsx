@@ -90,7 +90,7 @@ export default function MyEquipmentPage() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5 text-xs bg-card border-border/60 text-muted-foreground hover:text-foreground"
+            className="gap-1.5 text-xs h-11 bg-card border-border/60 text-muted-foreground hover:text-foreground"
             onClick={() => setShiftSummaryOpen(true)}
             data-testid="btn-shift-summary-my-eq"
           >
@@ -156,7 +156,7 @@ export default function MyEquipmentPage() {
             borderColor="border-border/60"
             action={
               <Link href="/equipment">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="h-11 text-xs">
                   Browse Equipment
                 </Button>
               </Link>
@@ -189,7 +189,7 @@ export default function MyEquipmentPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-border/60 text-muted-foreground hover:text-foreground min-h-[40px] px-3"
+                        className="border-border/60 text-muted-foreground hover:text-foreground min-h-[44px] px-3"
                         onClick={() => returnMut.mutate(item.id)}
                         disabled={returnMut.isPending}
                         data-testid={`btn-return-${item.id}`}
@@ -204,7 +204,7 @@ export default function MyEquipmentPage() {
                         )}
                       </Button>
                       <Link href={`/equipment/${item.id}`}>
-                        <Button variant="ghost" size="icon-sm" className="min-h-[40px] min-w-[40px] text-muted-foreground hover:text-foreground hover:bg-muted">
+                        <Button variant="ghost" size="icon-sm" className="min-h-[44px] min-w-[44px] text-muted-foreground hover:text-foreground hover:bg-muted">
                           <ChevronRight className="w-4 h-4" />
                         </Button>
                       </Link>
