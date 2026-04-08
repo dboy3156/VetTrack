@@ -217,7 +217,6 @@ export function QrScanner({ onClose }: QrScannerProps) {
       const scanner = new Html5Qrcode(containerId, { verbose: false });
       scannerRef.current = scanner;
 
-      console.log("[VT-SCAN] single scanner.start(facingMode:environment) — t=", performance.now().toFixed(1));
       await scanner.start(
         { facingMode: "environment" },
         {
