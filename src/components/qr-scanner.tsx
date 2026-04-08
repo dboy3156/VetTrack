@@ -182,6 +182,13 @@ export function QrScanner({ onClose }: QrScannerProps) {
       } catch {
         // ignore
       }
+      // Explicitly stop all media tracks to clear the iOS camera indicator
+      if (scannerRef.current?.getState() !== 1) { // 1 = IDLE
+        const stream = (scannerRef.current as any)?._videoElement?.srcObject as MediaStream;
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
       scannerRef.current = null;
     }
   }, []);
@@ -429,7 +436,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
               <Camera className="w-14 h-14 text-white/60" />
               <p className="font-bold text-lg">Camera Access Denied</p>
               <p className="text-sm text-white/70">
-                Allow camera access in your browser settings, then try again.
+                Enable camera in Settings → Safari → Camera
               </p>
               <Button
                 variant="outline"
