@@ -8,7 +8,6 @@ import {
   Scan,
   FileDown,
   ArrowRight,
-  Play,
   ShieldCheck,
   Zap,
   MapPin,
@@ -60,10 +59,6 @@ export default function LandingPage() {
               <span className="text-xl font-bold text-gray-900">VetTrack</span>
             </Link>
             <nav className="flex items-center gap-4">
-              <Link href="/video" className="hidden sm:flex items-center gap-1.5 text-sm text-gray-600 hover:text-teal-600 transition-colors">
-                <Play className="w-3.5 h-3.5" />
-                Watch demo
-              </Link>
               {(isLoaded || isOfflineSession) && (isSignedIn ? (
                 <Link
                   href="/"
@@ -123,13 +118,6 @@ export default function LandingPage() {
                     Get Started Free
                   </Link>
                 ))}
-                <Link
-                  href="/video"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-teal-400 text-gray-700 hover:text-teal-700 font-semibold px-8 py-3.5 rounded-xl text-base transition-colors"
-                >
-                  <Play className="w-4 h-4" />
-                  Watch 90-second demo
-                </Link>
               </div>
             </div>
           </section>
@@ -331,13 +319,6 @@ export default function LandingPage() {
                     Start Tracking Now
                   </Link>
                 ))}
-                <Link
-                  href="/video"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-white/40 text-white font-semibold px-8 py-3.5 rounded-xl text-base hover:bg-white/10 transition-colors"
-                >
-                  <Play className="w-4 h-4" />
-                  Watch the demo
-                </Link>
               </div>
             </div>
           </section>
@@ -355,7 +336,6 @@ export default function LandingPage() {
             </div>
             <nav className="flex items-center gap-4">
               <Link href="/" className="hover:text-teal-600 transition-colors">Dashboard</Link>
-              <Link href="/video" className="hover:text-teal-600 transition-colors">Demo</Link>
               <Link href="/equipment" className="hover:text-teal-600 transition-colors">Equipment</Link>
             </nav>
           </div>

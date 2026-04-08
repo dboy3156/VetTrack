@@ -21,7 +21,6 @@ const MyEquipmentPage = lazy(() => import("@/pages/my-equipment"));
 const DemoGuidePage = lazy(() => import("@/pages/demo-guide"));
 const ManagementDashboardPage = lazy(() => import("@/pages/management-dashboard"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
-const VideoPage = lazy(() => import("@/pages/video"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const StabilityDashboardPage = lazy(() => import("@/pages/stability-dashboard"));
@@ -148,7 +147,6 @@ export default function App() {
           <Route path="/landing" component={LandingPage} />
           <Route path="/signin" component={SignInPage} />
           <Route path="/signup" component={SignUpPage} />
-          <Route path="/video" component={VideoPage} />
           <Route path="/equipment">
             <ProtectedRoute><EquipmentListPage /></ProtectedRoute>
           </Route>
