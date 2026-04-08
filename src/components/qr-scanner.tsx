@@ -173,23 +173,23 @@ export function QrScanner({ onClose }: QrScannerProps) {
     if (scannerRef.current) {
       try {
         const state = scannerRef.current.getState();
-        if (
-          state === Html5QrcodeScannerState.SCANNING ||
-          state === Html5QrcodeScannerState.PAUSED
-        ) {
+        if (state !== 1) { // 1 = NOT_STARTED / IDLE
           await scannerRef.current.stop();
         }
       } catch {
         // ignore
       }
-      // Explicitly stop all media tracks to clear the iOS camera indicator
-      if (scannerRef.current?.getState() !== 1) { // 1 = IDLE
-        const stream = (scannerRef.current as any)?._videoElement?.srcObject as MediaStream;
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-      }
       scannerRef.current = null;
+    }
+    // Force stop all media tracks globally to clear iOS "Recording" indicator
+    navigator.mediaDevices?.getUserMedia({ video: true }).then(stream => {
+      stream.getTracks().forEach(track => track.stop());
+    }).catch(() => {});
+    // Also clear the srcObject from the video element if it exists
+    const videoEl = document.querySelector(`#${containerId} video`) as HTMLVideoElement | null;
+    if (videoEl) {
+      videoEl.srcObject = null;
+      videoEl.load();
     }
   }, []);
 
@@ -281,8 +281,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
   }, [handleScanResult]);
 
   useEffect(() => {
-    startScanner();
+    const t = setTimeout(() => startScanner(), 100);
     return () => {
+      clearTimeout(t);
       stopScanner();
     };
   }, []);
@@ -415,8 +416,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
         </div>
       </div>
 
-      {/* Camera viewport — hidden during manual entry / result */}
-      <div className={phase === "manual" || phase === "result" ? "hidden" : "flex-1 min-h-0 relative flex items-center justify-center bg-black overflow-hidden"}>
+      {/* Camera viewport — collapsed (not display:none) during manual/result so the
+          container div keeps its DOM presence for html5-qrcode re-init */}
+      <div className={`relative flex items-center justify-center bg-black overflow-hidden ${phase === "manual" || phase === "result" ? "flex-none h-0" : "flex-1 min-h-0"}`}>
         <div id={containerId} className="w-full h-full" />
 
         {/* Loading */}
@@ -541,9 +543,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
           </div>
         )}
 
-        {/* Scanning guide overlay */}
+        {/* Scanning guide overlay — z-10 ensures it sits above html5-qrcode's injected video UI */}
         {phase === "scanning" && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
             <div
               className="relative flex-shrink-0"
               style={{
