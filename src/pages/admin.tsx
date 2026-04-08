@@ -296,6 +296,7 @@ function FoldersSection() {
           </CardTitle>
           <Button
             size="sm"
+            className="h-11 text-xs"
             onClick={() => {
               setFolderName("");
               setCreateOpen(true);
@@ -507,7 +508,7 @@ function PendingUsersSection() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-8 px-2.5"
+                        className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-11 px-2.5"
                         disabled={updateStatusMut.isPending}
                         data-testid={`btn-reject-user-${user.id}`}
                       >
@@ -543,7 +544,7 @@ function PendingUsersSection() {
                   </AlertDialog>
                   <Button
                     size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-2.5"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 px-2.5"
                     onClick={() =>
                       updateStatusMut.mutate({ id: user.id, status: "active" })
                     }
@@ -763,7 +764,7 @@ function UsersSection() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-7 px-2 text-xs"
+                            className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-11 px-2 text-xs"
                             disabled={updateStatusMut.isPending}
                             data-testid={`btn-reject-user-${user.id}`}
                           >
@@ -799,7 +800,7 @@ function UsersSection() {
                       </AlertDialog>
                       <Button
                         size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2 text-xs"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 px-2 text-xs"
                         onClick={() =>
                           updateStatusMut.mutate({
                             id: user.id,
@@ -872,6 +873,7 @@ function UsersSection() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-11 text-xs"
                   onClick={() => fetchMoreUsers()}
                   disabled={isFetchingMoreUsers}
                   data-testid="btn-load-more-users"
@@ -1075,7 +1077,7 @@ function DeletedItemsSection() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="shrink-0 gap-1"
+                    className="shrink-0 gap-1 h-11 text-xs"
                     disabled={restoreEquipMut.isPending}
                     data-testid={`btn-restore-equipment-${item.id}`}
                     onClick={() => restoreEquipMut.mutate(item.id)}
@@ -1134,7 +1136,7 @@ function DeletedItemsSection() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="shrink-0 gap-1"
+                    className="shrink-0 gap-1 h-11 text-xs"
                     disabled={restoreUserMut.isPending}
                     data-testid={`btn-restore-user-${user.id}`}
                     onClick={() => restoreUserMut.mutate(user.id)}
@@ -1595,7 +1597,7 @@ function AuditLogsSection() {
             <Button
               size="sm"
               onClick={applyFilters}
-              className="text-xs h-7"
+              className="text-xs h-11"
               data-testid="btn-apply-filters"
             >
               Apply
@@ -1605,7 +1607,7 @@ function AuditLogsSection() {
                 variant="outline"
                 size="sm"
                 onClick={clearFilters}
-                className="text-xs h-7"
+                className="text-xs h-11"
                 data-testid="btn-clear-filters"
               >
                 Clear

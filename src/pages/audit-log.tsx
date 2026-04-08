@@ -197,8 +197,8 @@ export default function AuditLogPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleFilter}>Apply</Button>
-                <Button size="sm" variant="outline" onClick={handleReset}>Reset</Button>
+                <Button size="sm" className="h-11 text-xs" onClick={handleFilter}>Apply</Button>
+                <Button size="sm" variant="outline" className="h-11 text-xs" onClick={handleReset}>Reset</Button>
               </div>
             </div>
           </CardContent>
@@ -224,7 +224,7 @@ export default function AuditLogPage() {
                   size="sm"
                   onClick={() => refetch()}
                   disabled={isRefetching}
-                  className="gap-1.5"
+                  className="gap-1.5 h-11 text-xs"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
                   {isRefetching ? "Trying…" : "Try Again"}
@@ -252,7 +252,7 @@ export default function AuditLogPage() {
               size="sm"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="gap-1"
+              className="gap-1 h-11 text-xs"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
@@ -263,7 +263,7 @@ export default function AuditLogPage() {
               size="sm"
               disabled={!data.hasMore}
               onClick={() => setPage((p) => p + 1)}
-              className="gap-1"
+              className="gap-1 h-11 text-xs"
             >
               Next
               <ChevronRight className="w-4 h-4" />

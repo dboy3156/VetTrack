@@ -165,7 +165,7 @@ export default function QrPrintPage() {
             variant="ghost"
             size="sm"
             onClick={toggleAll}
-            className="text-xs gap-1"
+            className="text-xs gap-1 h-11"
             data-testid="btn-select-all"
           >
             {selected.size === (filtered?.length ?? 0) && filtered?.length! > 0 ? (
@@ -203,7 +203,7 @@ export default function QrPrintPage() {
               size="sm"
               onClick={() => refetch()}
               disabled={isRefetching}
-              className="gap-1.5"
+              className="gap-1.5 h-11 text-xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
               {isRefetching ? "Trying…" : "Try Again"}

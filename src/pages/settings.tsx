@@ -125,6 +125,7 @@ export default function SettingsPage() {
                 </div>
                 <Button
                   size="sm"
+                  className="h-11 text-xs"
                   variant={push.subscribed ? "outline" : "default"}
                   disabled={push.loading || push.permission === "denied"}
                   data-testid="push-toggle-btn"
@@ -158,6 +159,7 @@ export default function SettingsPage() {
                   </div>
                   <Button
                     size="sm"
+                    className="h-11 text-xs"
                     variant="outline"
                     disabled={push.loading}
                     data-testid="push-test-btn"
@@ -240,7 +242,7 @@ export default function SettingsPage() {
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 border-border/60" data-testid="settings-reset-btn">
+                <Button variant="outline" size="sm" className="gap-2 border-border/60 h-11 text-xs" data-testid="settings-reset-btn">
                   <RotateCcw className="w-4 h-4" />
                   Reset to Defaults
                 </Button>
