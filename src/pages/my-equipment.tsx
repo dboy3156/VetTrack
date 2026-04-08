@@ -33,13 +33,16 @@ import {
   Loader2,
   CheckCircle2,
   ClipboardCheck,
+  QrCode,
 } from "lucide-react";
 import { toast } from "sonner";
+import { QrScanner } from "@/components/qr-scanner";
 
 export default function MyEquipmentPage() {
   const queryClient = useQueryClient();
   const [returningAll, setReturningAll] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const { data: items, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment/my"],
@@ -87,16 +90,28 @@ export default function MyEquipmentPage() {
               <p className="text-sm text-muted-foreground mt-0.5">{items.length} checked out</p>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-11 bg-card border-border/60 text-muted-foreground hover:text-foreground"
-            onClick={() => setShiftSummaryOpen(true)}
-            data-testid="btn-shift-summary-my-eq"
-          >
-            <ClipboardCheck className="w-3.5 h-3.5" />
-            Shift Summary
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-11 bg-card border-border/60 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsScannerOpen(true)}
+              data-testid="btn-scan-qr-my-eq"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              Scan QR
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-11 bg-card border-border/60 text-muted-foreground hover:text-foreground"
+              onClick={() => setShiftSummaryOpen(true)}
+              data-testid="btn-shift-summary-my-eq"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              Shift Summary
+            </Button>
+          </div>
         </div>
 
         {isError && (
@@ -221,6 +236,10 @@ export default function MyEquipmentPage() {
         open={shiftSummaryOpen}
         onClose={() => setShiftSummaryOpen(false)}
       />
+
+      {isScannerOpen && (
+        <QrScanner onClose={() => setIsScannerOpen(false)} />
+      )}
     </Layout>
   );
 }

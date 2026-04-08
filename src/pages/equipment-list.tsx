@@ -62,7 +62,7 @@ import {
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import jsQR from "jsqr";
+import { QrScanner } from "@/components/qr-scanner";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -77,7 +77,7 @@ export default function EquipmentListPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
-  const qrInputRef = useRef<HTMLInputElement>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -149,40 +149,6 @@ export default function EquipmentListPage() {
 
   function setLocationFilter(val: string) {
     updateParams({ location: val });
-  }
-
-  function handleQrScan(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!e.target) return;
-    e.target.value = "";
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (!code) {
-          toast.error("No QR code found in image");
-          return;
-        }
-        const match = code.data.match(/\/equipment\/([a-zA-Z0-9_-]+)/);
-        if (match) {
-          navigate(`/equipment/${match[1]}`);
-        } else {
-          toast.error("QR code does not link to equipment");
-        }
-      };
-      img.src = evt.target?.result as string;
-    };
-    reader.readAsDataURL(file);
   }
 
   const PAGE_SIZE = 100;
@@ -299,20 +265,11 @@ export default function EquipmentListPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight">Equipment</h1>
           <div className="flex items-center gap-2">
-            <input
-              ref={qrInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleQrScan}
-              data-testid="qr-file-input"
-            />
             <Button
               size="sm"
               variant="outline"
               className="h-11 text-xs"
-              onClick={() => qrInputRef.current?.click()}
+              onClick={() => setIsScannerOpen(true)}
               data-testid="btn-scan-qr"
             >
               <QrCode className="w-4 h-4 mr-1" />
@@ -700,6 +657,10 @@ export default function EquipmentListPage() {
       </div>
 
       <CsvImportDialog open={importOpen} onOpenChange={setImportOpen} />
+
+      {isScannerOpen && (
+        <QrScanner onClose={() => setIsScannerOpen(false)} />
+      )}
     </Layout>
   );
 }
