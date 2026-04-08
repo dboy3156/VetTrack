@@ -266,7 +266,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               {todayCheckouts.length > 0 && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <ArrowUpRight className="w-4 h-4 text-teal-500" />
+                    <ArrowUpRight className="w-4 h-4 text-blue-500" />
                     <h3 className="text-sm font-semibold">Today's Checkouts</h3>
                     <Badge variant="secondary" className="ml-auto">
                       {todayCheckouts.length}
@@ -276,7 +276,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                     {todayCheckouts.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-teal-50 border border-teal-200"
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200"
                       >
                         <p className="font-medium text-sm truncate">{item.equipmentName}</p>
                         <p className="text-xs text-muted-foreground shrink-0">
