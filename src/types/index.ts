@@ -249,7 +249,7 @@ export const STATUS_COLORS: Record<EquipmentStatus, string> = {
   ok: "bg-emerald-100 text-emerald-800 border-emerald-200",
   issue: "bg-red-100 text-red-800 border-red-200",
   maintenance: "bg-amber-100 text-amber-800 border-amber-200",
-  sterilized: "bg-teal-100 text-teal-800 border-teal-200",
+  sterilized: "bg-blue-100 text-blue-800 border-blue-200",
 };
 
 export type SupportTicketSeverity = "low" | "medium" | "high";
