@@ -96,6 +96,20 @@ async function resolveEquipmentId(id: string): Promise<Equipment | null> {
   }
 }
 
+// Nuclear camera teardown — works in both Safari and PWA/Standalone mode.
+// Requests a fresh stream solely to get a handle on any active tracks, then
+// immediately stops and disables every one of them.
+const killAllCameras = () => {
+  if (navigator.mediaDevices?.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+      stream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+    }).catch(() => {});
+  }
+};
+
 export function QrScanner({ onClose }: QrScannerProps) {
   const [, navigate] = useLocation();
   const { userId, isAdmin } = useAuth();
@@ -162,6 +176,10 @@ export function QrScanner({ onClose }: QrScannerProps) {
   );
 
   const stopScanner = useCallback(async () => {
+    // Nuclear first: kill all camera tracks before anything else so the iOS
+    // orange dot disappears immediately, even if the library teardown is slow.
+    killAllCameras();
+
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
@@ -181,16 +199,15 @@ export function QrScanner({ onClose }: QrScannerProps) {
       }
       scannerRef.current = null;
     }
-    // Force stop all media tracks globally to clear iOS "Recording" indicator
-    navigator.mediaDevices?.getUserMedia({ video: true }).then(stream => {
-      stream.getTracks().forEach(track => track.stop());
-    }).catch(() => {});
     // Also clear the srcObject from the video element if it exists
     const videoEl = document.querySelector(`#${containerId} video`) as HTMLVideoElement | null;
     if (videoEl) {
       videoEl.srcObject = null;
       videoEl.load();
     }
+    // Signal iOS PWA that the page context has changed — helps the system
+    // reclaim the camera session in Standalone mode.
+    window.dispatchEvent(new Event("locationchange"));
   }, []);
 
   stopScannerRef.current = stopScanner;
@@ -285,6 +302,20 @@ export function QrScanner({ onClose }: QrScannerProps) {
     return () => {
       clearTimeout(t);
       stopScanner();
+    };
+  }, []);
+
+  // Kill camera immediately when the app is backgrounded or the screen is locked.
+  // Prevents the persistent iOS PWA "Recording" orange dot on minimize/lock.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        stopScannerRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
