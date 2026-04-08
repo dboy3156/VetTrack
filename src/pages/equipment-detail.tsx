@@ -833,7 +833,7 @@ export default function EquipmentDetailPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5 items-end shrink-0">
-                <Button variant="outline" size="sm" onClick={() => setShowQR(true)} data-testid="btn-show-qr" className="h-8">
+                <Button variant="outline" size="sm" onClick={() => setShowQR(true)} data-testid="btn-show-qr" className="h-11">
                   <QrCode className="w-3.5 h-3.5 mr-1" />
                   QR Code
                 </Button>

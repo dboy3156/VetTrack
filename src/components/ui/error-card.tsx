@@ -60,7 +60,7 @@ export function ErrorCard({
           <Button
             size="sm"
             variant="outline"
-            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-8 px-2.5 gap-1 text-xs"
+            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
             onClick={() => window.location.reload()}
           >
             Refresh Page
@@ -70,7 +70,7 @@ export function ErrorCard({
             <Button
               size="sm"
               variant="outline"
-              className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-8 px-2.5 gap-1 text-xs"
+              className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
               onClick={handleRetry}
               disabled={isRetrying}
             >

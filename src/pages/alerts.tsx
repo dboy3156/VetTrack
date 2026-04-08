@@ -280,7 +280,7 @@ export default function AlertsPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 text-xs w-full border-border/60 text-muted-foreground hover:text-foreground"
+                                className="h-11 text-xs w-full border-border/60 text-muted-foreground hover:text-foreground"
                                 onClick={() =>
                                   ackMut.mutate({
                                     equipmentId: alert.equipmentId,
