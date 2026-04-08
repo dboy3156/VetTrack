@@ -473,8 +473,16 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
       {/* Bottom nav (mobile) — 4 primary items + Scan in center */}
       <nav
-        className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur border-t border-border/60 supports-[backdrop-filter]:bg-background/80 safe-bottom"
-        style={{ willChange: "transform", WebkitTransform: "translateZ(0)", transform: "translateZ(0)" }}
+        className="fixed bottom-0 left-0 right-0 z-50 border-t"
+        style={{
+          height: "calc(72px + env(safe-area-inset-bottom))",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          background: "#ffffff",
+          borderTopColor: "#F1F5F9",
+          willChange: "transform",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
+        }}
       >
         <div className="flex max-w-2xl mx-auto items-center">
           {/* First 2 nav items */}
@@ -482,7 +490,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[56px] transition-colors relative",
+                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] min-w-[48px] transition-colors relative",
                   location === item.href ? "text-primary" : "text-muted-foreground"
                 )}
                 data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
@@ -498,24 +506,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             </Link>
           ))}
 
-          {/* Center Scan button */}
-          <div className="flex-1 flex items-center justify-center py-2">
-            <button
-              onClick={openScanner}
-              className="w-12 h-12 rounded-2xl bg-primary text-white flex flex-col items-center justify-center shadow-md hover:bg-primary/90 transition-colors -mt-3"
-              aria-label="Scan QR Code"
-              data-testid="bottom-nav-scan"
-            >
-              <Scan className="w-5 h-5" aria-hidden="true" />
-            </button>
-          </div>
+          {/* Center spacer — FAB is now fixed-positioned below */}
+          <div className="flex-1" />
 
           {/* Last 2 nav items */}
           {bottomItems.slice(2, 4).map((item) => (
             <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[56px] transition-colors relative",
+                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] min-w-[48px] transition-colors relative",
                   location === item.href ? "text-primary" : "text-muted-foreground"
                 )}
                 data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
@@ -532,6 +531,17 @@ export function Layout({ children, title, onScan }: LayoutProps) {
           ))}
         </div>
       </nav>
+
+      {/* ScanFAB — fixed above bottom nav, safe-area-aware, z-index above nav */}
+      <button
+        onClick={openScanner}
+        className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
+        style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
+        aria-label="Scan QR Code"
+        data-testid="bottom-nav-scan"
+      >
+        <Scan className="w-5 h-5" aria-hidden="true" />
+      </button>
 
       {/* Scanner opened from bottom nav (non-home pages) */}
       {scannerOpen && (
