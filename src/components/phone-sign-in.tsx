@@ -98,10 +98,10 @@ export function PhoneSignIn() {
               placeholder="+972501234567 or 0501234567"
               autoComplete="tel"
               required
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {isILLocal && e164Preview && (
-              <p className="text-xs text-teal-600 mt-1">
+              <p className="text-xs text-blue-600 mt-1">
                 Will be sent as <span className="font-mono">{e164Preview}</span>
               </p>
             )}
@@ -119,7 +119,7 @@ export function PhoneSignIn() {
           <button
             type="submit"
             disabled={loading || !phone.trim()}
-            className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
           >
             {loading ? "Sending code…" : "Send verification code"}
           </button>
@@ -144,7 +144,7 @@ export function PhoneSignIn() {
           maxLength={6}
           autoComplete="one-time-code"
           required
-          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         {errorMsg && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -154,14 +154,14 @@ export function PhoneSignIn() {
         <button
           type="submit"
           disabled={loading || code.length < 4}
-          className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
         >
           {loading ? "Verifying…" : "Verify"}
         </button>
         <button
           type="button"
           onClick={() => { setStep("phone"); setCode(""); setErrorMsg(null); }}
-          className="text-xs text-gray-500 hover:text-teal-600 transition-colors underline"
+          className="text-xs text-gray-500 hover:text-blue-600 transition-colors underline"
         >
           Change phone number
         </button>
