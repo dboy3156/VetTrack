@@ -53,7 +53,7 @@ export default function LandingPage() {
         <header className="sticky top-safe z-50 bg-white/95 backdrop-blur border-b border-gray-100">
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
             <Link href="/landing" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-teal-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
                 <QrCode className="w-4 h-4 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900">VetTrack</span>
@@ -62,7 +62,7 @@ export default function LandingPage() {
               {(isLoaded || isOfflineSession) && (isSignedIn ? (
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   Back to App
@@ -70,7 +70,7 @@ export default function LandingPage() {
               ) : (
                 <Link
                   href="/signin"
-                  className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
                 >
                   Sign In
                   <ArrowRight className="w-4 h-4" />
@@ -82,16 +82,16 @@ export default function LandingPage() {
 
         <main>
           {/* ── Hero ─────────────────────────────────────── */}
-          <section className="bg-gradient-to-b from-teal-50 to-white py-16 px-4 text-center">
+          <section className="bg-gradient-to-b from-blue-50 to-white py-16 px-4 text-center">
             <div className="max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+              <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
                 <Zap className="w-3 h-3" />
                 Built for veterinary ER teams
               </div>
 
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight mb-5">
                 Veterinary Equipment QR Tracking{" "}
-                <span className="text-teal-600">That Saves Every Minute.</span>
+                <span className="text-blue-600">That Saves Every Minute.</span>
               </h1>
 
               <p className="text-lg text-gray-600 leading-relaxed mb-8 max-w-2xl mx-auto">
@@ -104,7 +104,7 @@ export default function LandingPage() {
                 {(isLoaded || isOfflineSession) && (isSignedIn ? (
                   <Link
                     href="/"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
                   >
                     <LayoutDashboard className="w-5 h-5" />
                     Back to App
@@ -112,7 +112,7 @@ export default function LandingPage() {
                 ) : (
                   <Link
                     href="/signin"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
                   >
                     <Scan className="w-5 h-5" />
                     Get Started Free
@@ -125,11 +125,11 @@ export default function LandingPage() {
           {/* ── Trust bar ────────────────────────────────── */}
           <section className="border-y border-gray-100 bg-gray-50 py-5 px-4">
             <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-gray-500 font-medium">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-teal-500" />Works offline</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-teal-500" />QR code scanning</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-teal-500" />Real-time alerts</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-teal-500" />Shift handoffs</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-teal-500" />Monthly PDF reports</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Works offline</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />QR code scanning</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Real-time alerts</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Shift handoffs</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Monthly PDF reports</span>
             </div>
           </section>
 
@@ -148,8 +148,8 @@ export default function LandingPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center mb-4">
-                    <QrCode className="w-5 h-5 text-teal-600" />
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-4">
+                    <QrCode className="w-5 h-5 text-blue-600" />
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2">One-Tap QR Scanning</h3>
                   <p className="text-sm text-gray-500 leading-relaxed">
@@ -217,7 +217,7 @@ export default function LandingPage() {
           </section>
 
           {/* ── How it works ─────────────────────────────── */}
-          <section className="bg-teal-50 py-16 px-4" aria-labelledby="how-it-works-heading">
+          <section className="bg-blue-50 py-16 px-4" aria-labelledby="how-it-works-heading">
             <div className="max-w-4xl mx-auto">
               <div className="text-center mb-12">
                 <h2 id="how-it-works-heading" className="text-3xl font-bold text-gray-900 mb-3">
@@ -228,7 +228,7 @@ export default function LandingPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
                     1
                   </div>
                   <h3 className="font-bold text-gray-900 text-lg mb-2">Print & Stick</h3>
@@ -239,7 +239,7 @@ export default function LandingPage() {
                 </div>
 
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
                     2
                   </div>
                   <h3 className="font-bold text-gray-900 text-lg mb-2">Scan & Log</h3>
@@ -250,7 +250,7 @@ export default function LandingPage() {
                 </div>
 
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
                     3
                   </div>
                   <h3 className="font-bold text-gray-900 text-lg mb-2">Track & Report</h3>
@@ -292,12 +292,12 @@ export default function LandingPage() {
           </section>
 
           {/* ── Final CTA ─────────────────────────────────── */}
-          <section className="bg-teal-600 py-16 px-4 text-center text-white" aria-labelledby="cta-heading">
+          <section className="bg-blue-600 py-16 px-4 text-center text-white" aria-labelledby="cta-heading">
             <div className="max-w-2xl mx-auto">
               <h2 id="cta-heading" className="text-3xl font-bold mb-4">
                 Ready to stop losing equipment?
               </h2>
-              <p className="text-teal-100 mb-8 leading-relaxed">
+              <p className="text-blue-100 mb-8 leading-relaxed">
                 VetTrack is free to get started. No credit card. No setup fee.
                 Your team can be scanning equipment in minutes.
               </p>
@@ -305,7 +305,7 @@ export default function LandingPage() {
                 {(isLoaded || isOfflineSession) && (isSignedIn ? (
                   <Link
                     href="/"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-teal-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-teal-50 transition-colors shadow-sm"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-blue-50 transition-colors shadow-sm"
                   >
                     <LayoutDashboard className="w-5 h-5" />
                     Back to App
@@ -313,7 +313,7 @@ export default function LandingPage() {
                 ) : (
                   <Link
                     href="/signin"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-teal-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-teal-50 transition-colors shadow-sm"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-blue-50 transition-colors shadow-sm"
                   >
                     <Scan className="w-5 h-5" />
                     Start Tracking Now
@@ -328,15 +328,15 @@ export default function LandingPage() {
         <footer className="border-t border-gray-100 bg-white py-8 px-4">
           <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-teal-600 flex items-center justify-center">
+              <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center">
                 <QrCode className="w-3 h-3 text-white" />
               </div>
               <span className="font-semibold text-gray-700">VetTrack</span>
               <span>· QR Equipment Tracking for Veterinary Clinics</span>
             </div>
             <nav className="flex items-center gap-4">
-              <Link href="/" className="hover:text-teal-600 transition-colors">Dashboard</Link>
-              <Link href="/equipment" className="hover:text-teal-600 transition-colors">Equipment</Link>
+              <Link href="/" className="hover:text-blue-600 transition-colors">Dashboard</Link>
+              <Link href="/equipment" className="hover:text-blue-600 transition-colors">Equipment</Link>
             </nav>
           </div>
         </footer>
