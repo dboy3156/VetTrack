@@ -28,11 +28,11 @@ export default function SignInPage() {
         <meta name="robots" content="noindex" />
       </Helmet>
 
-      <div className="min-h-[100dvh] bg-gradient-to-b from-teal-50 to-white flex flex-col items-center justify-center px-4">
+      <div className="min-h-[100dvh] bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <Link href="/landing" className="inline-flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
                 <QrCode className="w-5 h-5 text-white" />
               </div>
               <span className="text-2xl font-bold text-gray-900">VetTrack</span>
@@ -49,7 +49,7 @@ export default function SignInPage() {
                   <button
                     type="button"
                     onClick={() => setUsePhoneFlow(false)}
-                    className="text-xs text-gray-500 hover:text-teal-600 transition-colors underline"
+                    className="text-xs text-gray-500 hover:text-blue-600 transition-colors underline"
                   >
                     ← Back to standard sign-in
                   </button>
@@ -61,7 +61,7 @@ export default function SignInPage() {
                     fallbackRedirectUrl="/"
                     appearance={{
                       variables: {
-                        colorPrimary: "#0d9488",
+                        colorPrimary: "#2563EB",
                         colorBackground: "#ffffff",
                         borderRadius: "1rem",
                       },
@@ -72,7 +72,7 @@ export default function SignInPage() {
                     <button
                       type="button"
                       onClick={() => setUsePhoneFlow(true)}
-                      className="underline hover:text-teal-600 transition-colors"
+                      className="underline hover:text-blue-600 transition-colors"
                     >
                       Use the Israeli phone sign-in
                     </button>{" "}
@@ -88,7 +88,7 @@ export default function SignInPage() {
               </p>
               <Link
                 href="/"
-                className="inline-flex items-center justify-center gap-2 w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
+                className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
               >
                 Continue to Dashboard
               </Link>
@@ -98,7 +98,7 @@ export default function SignInPage() {
           <div className="text-center mt-6">
             <Link
               href="/landing"
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-teal-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors"
             >
               ← Learn more about VetTrack
             </Link>
