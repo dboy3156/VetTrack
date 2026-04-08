@@ -11,7 +11,7 @@
     --card-foreground: 220 15% 20%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 20%;
-    --primary: 173 55% 38%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
     --secondary: 38 20% 92%;
     --secondary-foreground: 220 15% 30%;
@@ -23,12 +23,14 @@
     --destructive-foreground: 0 0% 100%;
     --border: 38 15% 88%;
     --input: 38 15% 88%;
-    --ring: 173 55% 38%;
+    --ring: 221 83% 53%;
     --radius: 1rem;
     --status-ok: 152 40% 45%;
     --status-issue: 0 72% 55%;
     --status-maintenance: 38 92% 50%;
-    --status-sterilized: 173 55% 44%;
+    --status-sterilized: 221 83% 53%;
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
   }
 
   .dark {
@@ -38,7 +40,7 @@
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 8%;
     --popover-foreground: 0 0% 100%;
-    --primary: 173 55% 44%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 90%;
@@ -50,7 +52,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 16%;
     --input: 0 0% 16%;
-    --ring: 173 55% 44%;
+    --ring: 221 83% 53%;
   }
 }
 
@@ -63,8 +65,10 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
     /* Root-level safe-area: ALL screens inherit this, not just Layout pages */
     padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   html {
     scroll-behavior: smooth;
