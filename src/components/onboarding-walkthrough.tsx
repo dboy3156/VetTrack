@@ -78,7 +78,7 @@ export function OnboardingWalkthrough({ show }: OnboardingWalkthroughProps) {
           </div>
           <button
             onClick={dismiss}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="w-11 h-11 flex items-center justify-center -mr-2 -mt-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             aria-label="Dismiss walkthrough"
             data-testid="btn-onboarding-dismiss"
           >
@@ -100,7 +100,7 @@ export function OnboardingWalkthrough({ show }: OnboardingWalkthroughProps) {
           <span className="text-xs text-muted-foreground">{step + 1} of {STEPS.length}</span>
           <Button
             size="sm"
-            className="gap-1.5 h-8"
+            className="gap-1.5 h-11"
             onClick={next}
             data-testid="btn-onboarding-next"
           >

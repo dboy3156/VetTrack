@@ -48,7 +48,7 @@ function DiscardConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCanc
       <Button
         size="sm"
         variant="outline"
-        className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-100"
+        className="h-11 text-xs border-red-300 text-red-700 hover:bg-red-100"
         onClick={onConfirm}
       >
         Remove
@@ -56,7 +56,7 @@ function DiscardConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCanc
       <Button
         size="sm"
         variant="ghost"
-        className="h-7 text-xs"
+        className="h-11 text-xs"
         onClick={onCancel}
       >
         Cancel
@@ -140,7 +140,7 @@ function SyncQueueItem({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-100"
+              className="h-11 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-100"
               onClick={handleRetry}
               disabled={retrying}
               data-testid={`btn-retry-${item.id}`}
@@ -155,7 +155,7 @@ function SyncQueueItem({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+              className="h-11 w-11 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
               onClick={() => setConfirmDiscard(true)}
               data-testid={`btn-discard-${item.id}`}
               aria-label="Discard"
@@ -263,7 +263,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-xs h-8"
+                className="gap-1.5 text-xs h-11"
                 onClick={triggerSync}
                 disabled={isSyncing || isCircuitOpen}
                 data-testid="btn-sync-now"
@@ -274,7 +274,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
             )}
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
+              className="w-11 h-11 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
               aria-label="Close"
             >
               <X className="w-4 h-4 text-muted-foreground" />
