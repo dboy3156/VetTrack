@@ -1,0 +1,73 @@
+STOP. Do not write any code yet.
+
+You previously said everything was fixed. It was not.
+Looking at the app RIGHT NOW on mobile — nothing changed.
+
+Before touching any file, run this verification protocol first.
+
+---
+
+## VERIFICATION PROTOCOL — prove each item works BEFORE claiming it is fixed
+
+### CHECK 1 — Safe Area
+Run this in the browser console on mobile:
+  console.log(getComputedStyle(document.documentElement).getPropertyValue('--sat'))
+Expected result: a value like "59px" or "47px" (not empty, not "0px")
+If result is empty or 0px → safe area is NOT implemented. Fix it.
+
+Show me the console output before continuing.
+
+### CHECK 2 — Color audit
+Run this in the browser console:
+  [...document.querySelectorAll('*')].filter(el => {
+    const s = getComputedStyle(el);
+    return [s.color, s.backgroundColor, s.borderColor]
+      .some(c => c.includes('0, 188') || c.includes('0, 150') || c.includes('20, 184'));
+  }).map(el => el.className)
+This finds any remaining teal/cyan elements.
+If list is not empty → color conflict is NOT fixed. Fix every element in the list.
+
+Show me the console output before continuing.
+
+### CHECK 3 — Camera vs Screen Recording
+Open the QR scanner on an iPhone.
+Answer these questions with YES or NO:
+  a) Does the iPhone show a camera permission prompt (not screen recording)?
+  b) Does the green recording dot appear in the status bar?
+  c) After closing the scanner, does the recording dot disappear immediately?
+
+If b) is YES → the bug is NOT fixed.
+Show me your answers before continuing.
+
+### CHECK 4 — Tap targets
+Run this in the browser console:
+  [...document.querySelectorAll('button, a, [role="button"]')].filter(el => {
+    const r = el.getBoundingClientRect();
+    return r.width < 44 || r.height < 44;
+  }).map(el => ({ text: el.innerText, w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height }))
+Expected: empty array []
+If not empty → there are still untouchable elements. Fix every one in the list.
+
+Show me the console output before continuing.
+
+### CHECK 5 — PWA manifest
+Fetch the manifest directly:
+  fetch('/manifest.json').then(r => r.json()).then(console.log)
+Expected: object with name, icons (192 + 512), display: standalone, theme_color: #2563eb
+If fetch fails or fields are missing → PWA is NOT ready.
+
+Show me the console output before continuing.
+
+---
+
+## RULES FOR THIS SESSION
+
+1. Run CHECK 1 through CHECK 5 NOW, before writing any code.
+2. Show me the actual console output for each check.
+3. Only fix what the checks prove is broken.
+4. After fixing, re-run the same check to confirm it now passes.
+5. Do NOT say "fixed" unless you show me the passing console output.
+6. Do NOT move to the next bug until the current one passes its check.
+
+If you cannot run console commands → tell me exactly which file to look at
+and what line to check, so I can verify it manually.
