@@ -9,6 +9,7 @@ import { SwUpdateBanner } from "@/components/sw-update-banner";
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
 const SignInPage = lazy(() => import("@/pages/signin"));
+const SignUpPage = lazy(() => import("@/pages/signup"));
 const EquipmentListPage = lazy(() => import("@/pages/equipment-list"));
 const EquipmentDetailPage = lazy(() => import("@/pages/equipment-detail"));
 const NewEquipmentPage = lazy(() => import("@/pages/new-equipment"));
@@ -146,6 +147,7 @@ export default function App() {
           <Route path="/" component={RootRoute} />
           <Route path="/landing" component={LandingPage} />
           <Route path="/signin" component={SignInPage} />
+          <Route path="/signup" component={SignUpPage} />
           <Route path="/video" component={VideoPage} />
           <Route path="/equipment">
             <ProtectedRoute><EquipmentListPage /></ProtectedRoute>

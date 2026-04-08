@@ -39,7 +39,7 @@ const syncUserSchema = z.object({
   name: z.string().optional(),
 });
 
-router.get("/me", requireAuthAny, async (req, res) => {
+router.get("/me", requireAuth, async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
     res.json(req.authUser);

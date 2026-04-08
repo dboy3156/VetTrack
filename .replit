@@ -73,3 +73,8 @@ channel = "stable-25_05"
 
 [userenv.shared]
 ADMIN_EMAILS = "danerez5@gmail.com"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["npm", "run", "start"]
+build = ["npm", "run", "build"]

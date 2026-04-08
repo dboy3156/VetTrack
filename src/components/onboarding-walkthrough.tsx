@@ -8,8 +8,8 @@ const ONBOARDING_KEY = "vettrack_onboarding_v1";
 const STEPS = [
   {
     icon: QrCode,
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
+    iconBg: "bg-teal-50",
+    iconColor: "text-teal-600",
     title: "Scan QR codes",
     description: "Tap the Scan button or use any QR scanner to instantly identify and log equipment status.",
   },
@@ -63,7 +63,7 @@ export function OnboardingWalkthrough({ show }: OnboardingWalkthroughProps) {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <Card className="border-2 border-blue-600/20 bg-gradient-to-br from-blue-600/5 to-blue-50/50" data-testid="onboarding-walkthrough">
+    <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-teal-50/50" data-testid="onboarding-walkthrough">
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex gap-1">

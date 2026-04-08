@@ -252,6 +252,33 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
 
           return;
         }
+
+        // requireAuth returns 403 for pending/blocked/deleted accounts.
+        // Map each 403 variant to its correct auth status so the UI renders
+        // the right screen (PendingApprovalScreen, BlockedScreen, etc.).
+        if (res.status === 403 && !cancelled) {
+          const errData = await res.json().catch(() => null) as { error?: string } | null;
+          const errStr = typeof errData?.error === "string" ? errData.error.toLowerCase() : "";
+          let mappedStatus: UserStatus = null;
+          if (errStr.includes("pending")) mappedStatus = "pending";
+          else if (errStr.includes("blocked")) mappedStatus = "blocked";
+          else if (errStr.includes("deleted")) mappedStatus = "blocked"; // treat deleted as blocked for UI
+          if (mappedStatus) {
+            fetchedFromServer = true;
+            setState({
+              userId: user.id,
+              email,
+              name,
+              role: "technician",
+              status: mappedStatus,
+              isLoaded: true,
+              isSignedIn: true,
+              isAdmin: false,
+              isOfflineSession: false,
+            });
+            return;
+          }
+        }
       } catch {
         clearTimeout(timeout);
       }

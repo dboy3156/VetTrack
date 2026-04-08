@@ -1,4 +1,4 @@
-const CACHE_NAME = "vettrack-v3";
+const CACHE_NAME = "vettrack-v2";
 const OFFLINE_URL = "/offline.html";
 const APP_SHELL_URL = "/";
 

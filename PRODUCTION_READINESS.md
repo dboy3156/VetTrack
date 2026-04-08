@@ -257,3 +257,36 @@ All criteria above must be marked **PASS** (or **N/A** with written justificatio
 ---
 
 *Document owner: Engineering Lead. Review this document before every production release and update thresholds as the system scales.*
+
+---
+
+## 6. Pre-Deployment Validation Run Log
+
+### Run: 2026-04-07 — Production Key Switchover
+
+**Script**: `scripts/validate-prod.ts` (`npm run validate:prod`)
+
+**Trigger**: Switching from development Clerk keys (`pk_test_` / `sk_test_`) to production keys (`pk_live_` / `sk_live_`).
+
+**Secrets configured**:
+- `VITE_CLERK_PUBLISHABLE_KEY` — set to `pk_live_` production key
+- `CLERK_SECRET_KEY` — set to `sk_live_` production key
+- `ALLOWED_ORIGIN` — set to production deployment URL for CORS enforcement
+
+| Check | Result | Details |
+|---|---|---|
+| Environment Variables | PASS | All 4 required variables present and valid (`DATABASE_URL`, `SESSION_SECRET`, `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`) |
+| Secret Scan | PASS | No hardcoded secrets detected in source tree |
+| Frontend Build | PASS | 62 file(s) compiled successfully to `dist/public` via Vite |
+| Runtime Health Check | PASS | `/api/health` responded 200 — `db=ok, clerk=ok, vapid=ok, session=ok` |
+
+**Overall**: ALL CHECKS PASSED — ready to deploy.
+
+**Deployment config applied**: `autoscale` target, `build = npm run build`, `run = npm run start`.
+
+**Post-deploy steps (must complete after clicking Deploy in Replit)**:
+1. Verify the sign-in page loads at the production URL with no "development keys" warning in the browser console
+2. In Clerk Dashboard → Configure → Paths, add the production URL to:
+   - **Allowed redirect URLs**: `https://<your-app>.replit.app/*`
+   - **Allowed origins**: `https://<your-app>.replit.app`
+3. Sign in with an `ADMIN_EMAILS` address and confirm the dashboard loads

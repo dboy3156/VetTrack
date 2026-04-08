@@ -1,17 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { QrCode } from "lucide-react";
-import { SignIn } from "@clerk/clerk-react";
+import { SignUp } from "@clerk/clerk-react";
 import { useAuth } from "@/hooks/use-auth";
-import { PhoneSignIn } from "@/components/phone-sign-in";
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
-export default function SignInPage() {
+export default function SignUpPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const [, navigate] = useLocation();
-  const [usePhoneFlow, setUsePhoneFlow] = useState(false);
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
@@ -22,9 +20,9 @@ export default function SignInPage() {
   return (
     <>
       <Helmet>
-        <title>Sign In — VetTrack</title>
-        <meta name="description" content="Sign in to VetTrack to manage veterinary equipment, scan QR codes, and track your clinic's fleet in real time." />
-        <link rel="canonical" href="https://vettrack.replit.app/signin" />
+        <title>Sign Up — VetTrack</title>
+        <meta name="description" content="Create a VetTrack account to manage veterinary equipment, scan QR codes, and track your clinic's fleet in real time." />
+        <link rel="canonical" href="https://vettrack.replit.app/signup" />
         <meta name="robots" content="noindex" />
       </Helmet>
 
@@ -37,49 +35,23 @@ export default function SignInPage() {
               </div>
               <span className="text-2xl font-bold text-gray-900">VetTrack</span>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>
-            <p className="text-sm text-gray-500">Sign in to access your veterinary equipment dashboard</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Create your account</h1>
+            <p className="text-sm text-gray-500">Sign up to access your veterinary equipment dashboard</p>
           </div>
 
           {CLERK_PUBLISHABLE_KEY ? (
             <div className="flex flex-col items-center gap-4">
-              {usePhoneFlow ? (
-                <>
-                  <PhoneSignIn />
-                  <button
-                    type="button"
-                    onClick={() => setUsePhoneFlow(false)}
-                    className="text-xs text-gray-500 hover:text-teal-600 transition-colors underline"
-                  >
-                    ← Back to standard sign-in
-                  </button>
-                </>
-              ) : (
-                <>
-                  <SignIn
-                    routing="hash"
-                    fallbackRedirectUrl="/"
-                    appearance={{
-                      variables: {
-                        colorPrimary: "#0d9488",
-                        colorBackground: "#ffffff",
-                        borderRadius: "1rem",
-                      },
-                    }}
-                  />
-                  <p className="text-xs text-gray-400 text-center max-w-xs">
-                    Signing in with an Israeli number (+972)?{" "}
-                    <button
-                      type="button"
-                      onClick={() => setUsePhoneFlow(true)}
-                      className="underline hover:text-teal-600 transition-colors"
-                    >
-                      Use the Israeli phone sign-in
-                    </button>{" "}
-                    to enter your number in local format (e.g. 0501234567).
-                  </p>
-                </>
-              )}
+              <SignUp
+                routing="hash"
+                fallbackRedirectUrl="/"
+                appearance={{
+                  variables: {
+                    colorPrimary: "#0d9488",
+                    colorBackground: "#ffffff",
+                    borderRadius: "1rem",
+                  },
+                }}
+              />
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm text-center">
