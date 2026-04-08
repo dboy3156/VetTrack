@@ -1,4 +1,4 @@
-const CACHE_NAME = "vettrack-v2";
+const CACHE_NAME = "vettrack-v3";
 const OFFLINE_URL = "/offline.html";
 const APP_SHELL_URL = "/";
 
@@ -69,11 +69,23 @@ self.addEventListener("fetch", (event) => {
 
   if (isApiRequest(url)) {
     event.respondWith(
-      fetch(event.request).catch(() =>
-        new Response(JSON.stringify({ offline: true }), {
-          status: 503,
-          headers: { "Content-Type": "application/json" },
-        })
+      caches.open(CACHE_NAME).then((cache) =>
+        fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              cache.put(event.request, response.clone());
+            }
+            return response;
+          })
+          .catch(() =>
+            cache.match(event.request).then((cached) =>
+              cached ||
+              new Response(JSON.stringify({ offline: true }), {
+                status: 503,
+                headers: { "Content-Type": "application/json" },
+              })
+            )
+          )
       )
     );
     return;
