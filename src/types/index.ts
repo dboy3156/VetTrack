@@ -63,6 +63,19 @@ export interface Room {
   availableCount?: number;
   inUseCount?: number;
   issueCount?: number;
+  recentlyVerifiedCount?: number;
+}
+
+export interface RoomActivityEntry {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName?: string | null;
+  equipmentId?: string | null;
+  equipmentName?: string | null;
+  status: string;
+  note?: string | null;
+  timestamp: string;
 }
 
 export interface CreateRoomRequest {
@@ -98,6 +111,7 @@ export interface Equipment {
   nfcTagId?: string | null;
   lastVerifiedAt?: string | null;
   lastVerifiedById?: string | null;
+  lastVerifiedByName?: string | null;
   status: EquipmentStatus;
   lastSeen?: string | null;
   lastStatus?: string | null;

@@ -58,22 +58,60 @@ function SyncBadge({ status }: { status: string }) {
   );
 }
 
+function HealthRing({ total, recentlyVerified }: { total: number; recentlyVerified: number }) {
+  if (total === 0) {
+    return (
+      <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 p-[2.5px]"
+        style={{ background: "rgba(0,0,0,0.08)" }}
+      >
+        <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
+          <DoorOpen className="w-5 h-5 text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  const pct = Math.round((recentlyVerified / total) * 100);
+  const color = pct >= 80 ? "#22c55e" : pct >= 40 ? "#f59e0b" : "#ef4444";
+  const labelColor = pct >= 80
+    ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800"
+    : pct >= 40
+    ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-800"
+    : "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800";
+
+  return (
+    <div className="relative shrink-0">
+      <div
+        className="w-11 h-11 rounded-full flex items-center justify-center p-[2.5px]"
+        style={{ background: `conic-gradient(${color} ${pct}%, rgba(0,0,0,0.08) ${pct}%)` }}
+        title={`${pct}% of items verified in last 24h`}
+      >
+        <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
+          <DoorOpen className="w-5 h-5 text-primary" />
+        </div>
+      </div>
+      <span className={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[8px] font-bold px-1 py-px rounded-full border whitespace-nowrap ${labelColor}`}>
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
 function RoomCard({ room }: { room: Room }) {
   const available = room.availableCount ?? 0;
   const total = room.totalEquipment ?? 0;
   const inUse = room.inUseCount ?? 0;
   const issues = room.issueCount ?? 0;
+  const recentlyVerified = room.recentlyVerifiedCount ?? 0;
   const utilPct = total > 0 ? (available / total) * 100 : 0;
 
   return (
     <Link href={`/rooms/${room.id}`}>
       <Card className="bg-card border-border/60 shadow-sm hover:shadow-md active:scale-[0.98] transition-all cursor-pointer h-full">
         <CardContent className="p-4 flex flex-col gap-3">
-          {/* Top row */}
+          {/* Top row: health ring + sync badge */}
           <div className="flex items-start justify-between gap-1">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <DoorOpen className="w-5 h-5 text-primary" />
-            </div>
+            <HealthRing total={total} recentlyVerified={recentlyVerified} />
             <SyncBadge status={room.syncStatus} />
           </div>
 

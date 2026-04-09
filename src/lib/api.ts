@@ -697,5 +697,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ roomId }),
       }),
+    activity: (roomId: string) =>
+      request<import("@/types").RoomActivityEntry[]>(`/api/rooms/${roomId}/activity`),
   },
 };

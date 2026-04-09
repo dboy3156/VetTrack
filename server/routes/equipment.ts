@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
-import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens } from "../db.js";
+import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens, users } from "../db.js";
 import { eq, inArray, desc, and, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
@@ -222,6 +222,7 @@ router.get("/my", requireAuth, async (req, res) => {
         nfcTagId: equipment.nfcTagId,
         lastVerifiedAt: equipment.lastVerifiedAt,
         lastVerifiedById: equipment.lastVerifiedById,
+        lastVerifiedByName: users.name,
         status: equipment.status,
         lastSeen: equipment.lastSeen,
         lastStatus: equipment.lastStatus,
@@ -238,6 +239,7 @@ router.get("/my", requireAuth, async (req, res) => {
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
       .leftJoin(rooms, eq(equipment.roomId, rooms.id))
+      .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
       .where(and(eq(equipment.checkedOutById, req.authUser!.id), isNull(equipment.deletedAt)))
       .orderBy(desc(equipment.checkedOutAt));
     res.json(items);
@@ -276,6 +278,7 @@ router.get("/", requireAuth, async (req, res) => {
         nfcTagId: equipment.nfcTagId,
         lastVerifiedAt: equipment.lastVerifiedAt,
         lastVerifiedById: equipment.lastVerifiedById,
+        lastVerifiedByName: users.name,
         status: equipment.status,
         lastSeen: equipment.lastSeen,
         lastStatus: equipment.lastStatus,
@@ -292,6 +295,7 @@ router.get("/", requireAuth, async (req, res) => {
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
       .leftJoin(rooms, eq(equipment.roomId, rooms.id))
+      .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
       .where(isNull(equipment.deletedAt))
       .orderBy(desc(equipment.createdAt));
 
@@ -350,6 +354,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         nfcTagId: equipment.nfcTagId,
         lastVerifiedAt: equipment.lastVerifiedAt,
         lastVerifiedById: equipment.lastVerifiedById,
+        lastVerifiedByName: users.name,
         status: equipment.status,
         lastSeen: equipment.lastSeen,
         lastStatus: equipment.lastStatus,
@@ -366,6 +371,7 @@ router.get("/:id", requireAuth, async (req, res) => {
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
       .leftJoin(rooms, eq(equipment.roomId, rooms.id))
+      .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
       .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
     if (!item) return res.status(404).json({ error: "Equipment not found" });

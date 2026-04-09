@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { db, rooms, equipment } from "../db.js";
-import { eq, and, isNull, isNotNull, sql } from "drizzle-orm";
+import { db, rooms, equipment, scanLogs, users } from "../db.js";
+import { eq, and, isNull, isNotNull, sql, desc, gt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { logAudit } from "../lib/audit.js";
@@ -45,12 +45,15 @@ router.get("/", requireAuth, async (req, res) => {
       return res.json([]);
     }
 
+    const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const counts = await db
       .select({
         roomId: equipment.roomId,
         total: sql<number>`count(*)::int`,
         inUse: sql<number>`count(*) filter (where ${equipment.checkedOutById} is not null)::int`,
         issue: sql<number>`count(*) filter (where ${equipment.status} in ('issue', 'maintenance'))::int`,
+        recentlyVerified: sql<number>`count(*) filter (where ${equipment.lastVerifiedAt} > ${cutoff24h})::int`,
       })
       .from(equipment)
       .where(and(isNotNull(equipment.roomId), isNull(equipment.deletedAt)))
@@ -63,12 +66,14 @@ router.get("/", requireAuth, async (req, res) => {
       const total = c?.total ?? 0;
       const inUse = c?.inUse ?? 0;
       const issue = c?.issue ?? 0;
+      const recentlyVerified = c?.recentlyVerified ?? 0;
       return {
         ...room,
         totalEquipment: total,
         availableCount: total - inUse,
         inUseCount: inUse,
         issueCount: issue,
+        recentlyVerifiedCount: recentlyVerified,
       };
     });
 
@@ -90,11 +95,14 @@ router.get("/:id", requireAuth, async (req, res) => {
 
     if (!room) return res.status(404).json({ error: "Room not found" });
 
+    const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const [counts] = await db
       .select({
         total: sql<number>`count(*)::int`,
         inUse: sql<number>`count(*) filter (where ${equipment.checkedOutById} is not null)::int`,
         issue: sql<number>`count(*) filter (where ${equipment.status} in ('issue', 'maintenance'))::int`,
+        recentlyVerified: sql<number>`count(*) filter (where ${equipment.lastVerifiedAt} > ${cutoff24h})::int`,
       })
       .from(equipment)
       .where(and(eq(equipment.roomId, room.id), isNull(equipment.deletedAt)));
@@ -102,6 +110,7 @@ router.get("/:id", requireAuth, async (req, res) => {
     const total = counts?.total ?? 0;
     const inUse = counts?.inUse ?? 0;
     const issue = counts?.issue ?? 0;
+    const recentlyVerified = counts?.recentlyVerified ?? 0;
 
     res.json({
       ...room,
@@ -109,10 +118,47 @@ router.get("/:id", requireAuth, async (req, res) => {
       availableCount: total - inUse,
       inUseCount: inUse,
       issueCount: issue,
+      recentlyVerifiedCount: recentlyVerified,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch room" });
+  }
+});
+
+// GET /api/rooms/:id/activity — last 5 scan_log entries for equipment in this room
+router.get("/:id/activity", requireAuth, async (req, res) => {
+  try {
+    const entries = await db
+      .select({
+        id: scanLogs.id,
+        userId: scanLogs.userId,
+        userEmail: scanLogs.userEmail,
+        userName: users.name,
+        equipmentId: scanLogs.equipmentId,
+        equipmentName: equipment.name,
+        status: scanLogs.status,
+        note: scanLogs.note,
+        timestamp: scanLogs.timestamp,
+      })
+      .from(scanLogs)
+      .innerJoin(
+        equipment,
+        and(eq(scanLogs.equipmentId, equipment.id), eq(equipment.roomId, req.params.id))
+      )
+      .leftJoin(users, eq(scanLogs.userId, users.id))
+      .orderBy(desc(scanLogs.timestamp))
+      .limit(5);
+
+    res.json(
+      entries.map((e) => ({
+        ...e,
+        timestamp: new Date(e.timestamp).toISOString(),
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch room activity" });
   }
 });
 

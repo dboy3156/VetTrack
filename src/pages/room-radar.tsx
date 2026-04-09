@@ -19,6 +19,8 @@ import {
   DoorOpen,
   Package,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   ShieldCheck,
   MapPin,
@@ -26,13 +28,30 @@ import {
   Eye,
   EyeOff,
   Radar,
+  Activity,
+  User,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { STATUS_LABELS } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Equipment, Room } from "@/types";
+import type { Equipment, Room, RoomActivityEntry } from "@/types";
+
+function toInitials(name: string | null | undefined): string {
+  if (!name?.trim()) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase() + ".";
+  return parts[0][0].toUpperCase() + "." + parts[parts.length - 1][0].toUpperCase() + ".";
+}
+
+function activityActionLabel(entry: RoomActivityEntry): string {
+  if (entry.note?.startsWith("Room verified:")) return "verified (room reset)";
+  if (entry.status === "ok") return "scanned — OK";
+  if (entry.status === "issue") return "flagged issue on";
+  if (entry.status === "maintenance") return "logged maintenance for";
+  return `scanned (${entry.status})`;
+}
 
 function SyncBadge({ status }: { status: string }) {
   if (status === "synced") {
@@ -85,10 +104,11 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
   const isCheckedOut = !!eq.checkedOutById;
   const statusVariant = statusToBadgeVariant(eq.status);
 
+  const verifierInitials = justVerified ? null : toInitials(eq.lastVerifiedByName);
   const verifiedLabel = justVerified
     ? "Verified just now"
     : eq.lastVerifiedAt
-    ? `Verified ${formatRelativeTime(eq.lastVerifiedAt)}`
+    ? `Verified ${formatRelativeTime(eq.lastVerifiedAt)}${verifierInitials ? ` · ${verifierInitials}` : ""}`
     : null;
 
   return (
@@ -181,6 +201,7 @@ export default function RoomRadarPage() {
   const queryClient = useQueryClient();
 
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [verifyState, setVerifyState] = useState<"idle" | "verifying" | "done">("idle");
   const [verifiedCount, setVerifiedCount] = useState(0);
   const verifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,6 +209,13 @@ export default function RoomRadarPage() {
   useEffect(() => {
     return () => { if (verifyTimerRef.current) clearTimeout(verifyTimerRef.current); };
   }, []);
+
+  const { data: activityEntries, isLoading: activityLoading } = useQuery({
+    queryKey: ["/api/rooms", id, "activity"],
+    queryFn: () => api.rooms.activity(id!),
+    enabled: !!id && activityOpen,
+    staleTime: 30_000,
+  });
 
   const { data: room, isLoading: roomLoading } = useQuery({
     queryKey: ["/api/rooms", id],
@@ -390,6 +418,71 @@ export default function RoomRadarPage() {
               Show all
             </button>
           </p>
+        )}
+
+        {/* Activity Feed — collapsible */}
+        {!isLoading && (
+          <div className="border border-border/60 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setActivityOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Room Activity</span>
+                <span className="text-[10px] font-medium text-muted-foreground bg-background border border-border rounded-full px-2 py-0.5">
+                  Last 5 scans
+                </span>
+              </div>
+              {activityOpen
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              }
+            </button>
+
+            {activityOpen && (
+              <div className="divide-y divide-border/60 bg-card">
+                {activityLoading ? (
+                  <div className="flex flex-col gap-3 p-4">
+                    {[...Array(3)].map((_, i) => (
+                      <Skeleton key={i} className="h-10 rounded-lg" />
+                    ))}
+                  </div>
+                ) : !activityEntries || activityEntries.length === 0 ? (
+                  <div className="px-4 py-6 text-center">
+                    <p className="text-sm text-muted-foreground">No scan activity for this room yet.</p>
+                  </div>
+                ) : (
+                  activityEntries.map((entry) => {
+                    const name = entry.userName || entry.userEmail.split("@")[0];
+                    const initials = toInitials(entry.userName || name);
+                    const action = activityActionLabel(entry);
+                    return (
+                      <div key={entry.id} className="flex items-start gap-3 px-4 py-3">
+                        {/* Avatar */}
+                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="text-[10px] font-bold text-primary">{initials}</span>
+                        </div>
+                        {/* Text */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs leading-snug text-foreground">
+                            <span className="font-semibold">{name}</span>
+                            {" "}<span className="text-muted-foreground">{action}</span>
+                            {entry.equipmentName && !entry.note?.startsWith("Room verified:") && (
+                              <>{" "}<span className="font-medium">{entry.equipmentName}</span></>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {formatRelativeTime(entry.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </Layout>
