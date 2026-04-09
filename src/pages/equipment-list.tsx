@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Virtuoso } from "react-virtuoso";
-import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
@@ -9,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonEquipmentCard } from "@/components/ui/skeleton-cards";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 import {
   Select,
   SelectContent,
@@ -45,6 +44,7 @@ import {
   FolderInput,
   Package,
   ChevronRight,
+  ChevronLeft,
   MapPin,
   Upload,
   Loader2,
@@ -72,6 +72,12 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "sterilized", label: "Sterilized" },
 ];
 
+// 9 cards per page — DOM never holds more than 9 <div>s regardless of dataset size.
+const PAGE_SIZE = 9;
+
+// Minimum skeleton visibility duration (ms) — ensures the shimmer is always seen.
+const SKELETON_MIN_MS = 1200;
+
 export default function EquipmentListPage() {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
@@ -83,6 +89,11 @@ export default function EquipmentListPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [folderSheetOpen, setFolderSheetOpen] = useState(false);
   const [folderSearch, setFolderSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  // 1.2-second minimum skeleton — guarantees the shimmer phase is always visible.
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
   const search = params.get("q") ?? "";
@@ -121,6 +132,7 @@ export default function EquipmentListPage() {
       navigate(qs ? `/equipment?${qs}` : "/equipment", { replace: true });
       setSelected(new Set());
       setSelectMode(false);
+      setPage(1);
     }, 250);
   }
 
@@ -137,40 +149,38 @@ export default function EquipmentListPage() {
     navigate(qs ? `/equipment?${qs}` : "/equipment", { replace: true });
     setSelected(new Set());
     setSelectMode(false);
+    setPage(1);
   }
 
-  function setStatusFilter(val: string) {
-    updateParams({ status: val });
-  }
+  function setStatusFilter(val: string) { updateParams({ status: val }); }
+  function setFolderFilter(val: string) { updateParams({ folder: val }); }
+  function setLocationFilter(val: string) { updateParams({ location: val }); }
 
-  function setFolderFilter(val: string) {
-    updateParams({ folder: val });
-  }
-
-  function setLocationFilter(val: string) {
-    updateParams({ location: val });
-  }
-
-  const PAGE_SIZE = 100;
   const {
-    data: equipmentPages,
-    isLoading,
+    data: equipment,
+    isLoading: isQueryLoading,
     isError,
     refetch,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: ["/api/equipment/paginated"],
-    queryFn: ({ pageParam = 1 }) => api.equipment.listPaginated(pageParam as number, PAGE_SIZE),
-    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
-    initialPageParam: 1,
+  } = useQuery({
+    queryKey: ["/api/equipment"],
+    queryFn: api.equipment.list,
   });
 
-  const equipment = useMemo(
-    () => equipmentPages?.pages.flatMap((p) => p.items),
-    [equipmentPages]
-  );
+  // Enforce minimum skeleton visibility: keep showSkeleton=true for at least SKELETON_MIN_MS
+  // after the query starts, so the shimmer phase is always visible on every refresh.
+  useEffect(() => {
+    if (isQueryLoading) {
+      setShowSkeleton(true);
+      if (skeletonTimerRef.current) clearTimeout(skeletonTimerRef.current);
+    } else {
+      skeletonTimerRef.current = setTimeout(() => setShowSkeleton(false), SKELETON_MIN_MS);
+    }
+    return () => {
+      if (skeletonTimerRef.current) clearTimeout(skeletonTimerRef.current);
+    };
+  }, [isQueryLoading]);
+
+  const isLoading = isQueryLoading || showSkeleton;
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -181,9 +191,9 @@ export default function EquipmentListPage() {
     mutationFn: (ids: string[]) => api.equipment.bulkDelete({ ids }),
     onSuccess: (_, ids) => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
       setSelected(new Set());
       setSelectMode(false);
+      setPage(1);
       toast.success(`Deleted ${ids.length} item${ids.length !== 1 ? "s" : ""}`);
     },
     onError: () => toast.error("Delete failed"),
@@ -194,7 +204,6 @@ export default function EquipmentListPage() {
       api.equipment.bulkMove({ ids, folderId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/equipment/paginated"] });
       setSelected(new Set());
       setSelectMode(false);
       toast.success("Moved successfully");
@@ -212,6 +221,7 @@ export default function EquipmentListPage() {
     return Array.from(locs).sort();
   }, [equipment]);
 
+  // Full filtered set (no DOM nodes yet — pure array computation)
   const filtered = useMemo(() => {
     if (!equipment) return [];
     return equipment.filter((eq) => {
@@ -233,6 +243,21 @@ export default function EquipmentListPage() {
       return matchesSearch && matchesStatus && matchesFolder && matchesLocation;
     });
   }, [equipment, search, statusFilter, folderFilter, locationFilter]);
+
+  // Stable pagination guards — out-of-bound pages are impossible.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+
+  // Exactly PAGE_SIZE nodes rendered — DOM size is bounded regardless of dataset.
+  const pageItems = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage],
+  );
+
+  // Reset to page 1 when totalPages changes (filter changed to fewer results).
+  useEffect(() => {
+    if (page > totalPages) setPage(1);
+  }, [totalPages, page]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -554,9 +579,12 @@ export default function EquipmentListPage() {
           )}
         </div>
 
-        {/* Count */}
+        {/* Count + page info */}
         <p className="text-xs text-muted-foreground -mt-2">
           {filtered.length} of {equipment?.length ?? 0} items
+          {!isLoading && totalPages > 1 && (
+            <span className="ml-1">· page {safePage} of {totalPages}</span>
+          )}
           {locationFilter !== "all" && (
             <span className="ml-1">· <button onClick={() => setLocationFilter("all")} className="underline">Clear room filter</button></span>
           )}
@@ -570,87 +598,85 @@ export default function EquipmentListPage() {
           />
         )}
 
-        {/* Equipment list */}
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            {[...Array(6)].map((_, i) => (
-              <SkeletonEquipmentCard key={i} />
-            ))}
-          </div>
-        ) : !isError && filtered.length === 0 ? (
-          <EmptyState
-            icon={Package}
-            message="No equipment found"
-            subMessage={
-              search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all"
-                ? "Try adjusting your filters or search query."
-                : "Add your first piece of equipment to start tracking."
-            }
-            action={
-              search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-11 text-xs"
-                  onClick={() => navigate("/equipment", { replace: true })}
-                >
-                  Clear all filters
-                </Button>
-              ) : (
-                <Link href="/equipment/new">
-                  <Button size="sm" className="h-11 text-xs">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Equipment
+        {/* Equipment list — bounded to PAGE_SIZE nodes in the DOM */}
+        <PageErrorBoundary fallbackLabel="Equipment list failed to render">
+          {isLoading ? (
+            <div className="flex flex-col gap-2">
+              {[...Array(PAGE_SIZE)].map((_, i) => (
+                <SkeletonEquipmentCard key={i} />
+              ))}
+            </div>
+          ) : !isError && filtered.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              message="No equipment found"
+              subMessage={
+                search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all"
+                  ? "Try adjusting your filters or search query."
+                  : "Add your first piece of equipment to start tracking."
+              }
+              action={
+                search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-11 text-xs"
+                    onClick={() => navigate("/equipment", { replace: true })}
+                  >
+                    Clear all filters
                   </Button>
-                </Link>
-              )
-            }
-          />
-        ) : filtered.length > 100 ? (
-          <Virtuoso
-            style={{ height: "calc(100dvh - 280px)" }}
-            data={filtered}
-            data-testid="equipment-list"
-            itemContent={(_, eq) => (
-              <div className="pb-3">
+                ) : (
+                  <Link href="/equipment/new">
+                    <Button size="sm" className="h-11 text-xs">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Equipment
+                    </Button>
+                  </Link>
+                )
+              }
+            />
+          ) : (
+            <div className="flex flex-col gap-3" data-testid="equipment-list">
+              {pageItems.map((eq) => (
                 <EquipmentItem
+                  key={eq.id}
                   equipment={eq}
                   selectMode={selectMode}
                   selected={selected.has(eq.id)}
                   onToggleSelect={() => toggleSelect(eq.id)}
                 />
-              </div>
-            )}
-          />
-        ) : (
-          <div className="flex flex-col gap-3" data-testid="equipment-list">
-            {filtered.map((eq) => (
-              <EquipmentItem
-                key={eq.id}
-                equipment={eq}
-                selectMode={selectMode}
-                selected={selected.has(eq.id)}
-                onToggleSelect={() => toggleSelect(eq.id)}
-              />
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </PageErrorBoundary>
 
-        {hasNextPage && !isLoading && (
-          <div className="flex justify-center pt-2">
+        {/* Pagination controls — only shown when there are multiple pages */}
+        {!isLoading && !isError && totalPages > 1 && (
+          <div className="flex items-center justify-between pt-1">
             <Button
               variant="outline"
               size="sm"
-              className="h-11 text-xs"
-              onClick={() => fetchNextPage()}
-              disabled={isFetchingNextPage}
-              data-testid="btn-load-more"
+              className="h-11 text-xs gap-1"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              data-testid="btn-prev-page"
             >
-              {isFetchingNextPage ? (
-                <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
-              ) : (
-                "Load more"
-              )}
+              <ChevronLeft className="w-4 h-4" />
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {safePage} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 text-xs gap-1"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              data-testid="btn-next-page"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         )}
@@ -735,7 +761,15 @@ function EquipmentItem({
             className={`bg-card border-border/60 shadow-sm transition-all hover:shadow-md active:scale-[0.99] ${selected ? "border-primary bg-primary/5" : ""}`}
             data-testid={`equipment-item-${eq.id}`}
           >
-            <CardContent className="p-4 flex items-center gap-3 min-h-[72px]">
+            {/*
+              aspectRatio "5/4" — card always reserves its space before data arrives.
+              minHeight 72 — floor so tiny-content cards stay tap-friendly.
+              flexShrink 0 on all trailing elements prevents sibling shift during load.
+            */}
+            <CardContent
+              className="p-4 flex items-center gap-3"
+              style={{ aspectRatio: "5/4", minHeight: 72 }}
+            >
               {/* Icon / Image — explicit w/h + loading=lazy prevents CLS */}
               {eq.imageUrl ? (
                 <img
@@ -777,14 +811,19 @@ function EquipmentItem({
                   </span>
                 </div>
               </div>
-              {/* Trailing: compact in-card quick action or status badge + chevron */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              {/* Trailing: compact in-card quick action or status badge + chevron.
+                  flexShrink:0 + minWidth prevent these from collapsing during load. */}
+              <div
+                className="flex items-center gap-1.5"
+                style={{ flexShrink: 0, minWidth: 0 }}
+              >
                 {!selectMode && quickAction ? (
                   quickAction.action ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); e.preventDefault(); quickAction.action!(); }}
                       disabled={quickAction.pending}
                       className={`flex items-center gap-1.5 px-3 rounded-lg border text-xs font-semibold min-h-[44px] transition-colors ${quickAction.className}`}
+                      style={{ flexShrink: 0 }}
                       data-testid={`quick-action-${eq.id}`}
                     >
                       {quickAction.pending ? (
@@ -798,6 +837,7 @@ function EquipmentItem({
                     <Link href={quickAction.href!} onClick={(e) => e.stopPropagation()}>
                       <button
                         className={`flex items-center gap-1.5 px-3 rounded-lg border text-xs font-semibold min-h-[44px] transition-colors ${quickAction.className}`}
+                        style={{ flexShrink: 0 }}
                         data-testid={`quick-action-${eq.id}`}
                       >
                         <quickAction.icon className="w-3.5 h-3.5" />
@@ -807,11 +847,15 @@ function EquipmentItem({
                   )
                 ) : (
                   <>
-                    <Badge variant={statusVariant} className="font-semibold">
+                    <Badge
+                      variant={statusVariant}
+                      className="font-semibold"
+                      style={{ flexShrink: 0 }}
+                    >
                       {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] || eq.status}
                     </Badge>
                     {!selectMode && (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" style={{ flexShrink: 0 }} />
                     )}
                   </>
                 )}

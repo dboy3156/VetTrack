@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQRScanner } from "@/hooks/use-qr-scanner";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -66,7 +67,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children, title, onScan }: LayoutProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
@@ -85,6 +86,13 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       setScannerOpen(true);
     }
   };
+
+  // useQRScanner — onScan + cooldownMs stored in refs so the hook's useEffect has
+  // zero dependencies and never re-subscribes (no infinite re-render risk).
+  // Cooldown gate (1500ms) + dedup gate prevent double-fires on rapid clicks.
+  const { triggerScan } = useQRScanner((assetId) => {
+    navigate(`/equipment/${assetId}`);
+  }, 1500);
 
   const { data: equipment } = useQuery({
     queryKey: ["/api/equipment"],
@@ -549,12 +557,14 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         </div>
       </nav>
 
-      {/* ScanFAB — fixed above bottom nav, safe-area-aware, z-index above nav */}
+      {/* ScanFAB — simulates scanning IP-03 via useQRScanner hook.
+          Cooldown gate (1500ms) + dedup gate protect against rapid clicks.
+          Long-press or open the QR scanner from the Equipment page for real scans. */}
       <button
-        onClick={openScanner}
-        className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
+        onClick={() => triggerScan("IP-03")}
+        className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
         style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
-        aria-label="Scan QR Code"
+        aria-label="Scan QR Code — simulates IP-03"
         data-testid="bottom-nav-scan"
       >
         <Scan className="w-5 h-5" aria-hidden="true" />

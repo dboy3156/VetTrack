@@ -274,9 +274,9 @@ export default function RoomsListPage() {
           </div>
         )}
 
-        {/* Grid */}
+        {/* Grid — minHeight:240 prevents CLS when skeleton → rooms transition occurs */}
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3" style={{ minHeight: 240 }}>
             {[...Array(4)].map((_, i) => <RoomCardSkeleton key={i} />)}
           </div>
         ) : isError ? (
@@ -300,7 +300,7 @@ export default function RoomsListPage() {
             }
           />
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3" style={{ minHeight: 240 }}>
             {rooms.map((room) => (
               <RoomCard key={room.id} room={room} />
             ))}

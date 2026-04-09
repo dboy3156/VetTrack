@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AuditRowSkeleton } from "@/components/ui/skeleton-cards";
 import {
   Select,
   SelectContent,
@@ -15,7 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle, RefreshCw, User } from "lucide-react";
+import {
+  Shield,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  AlertTriangle,
+  RefreshCw,
+  User,
+} from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 import { format } from "date-fns";
@@ -23,8 +31,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import type { AuditLog } from "@/types";
 
+// Client-side rows per page — DOM never holds more than ROWS_PER_PAGE divs.
+const ROWS_PER_PAGE = 8;
+
 const ACTION_TYPE_LABELS: Record<string, string> = {
-  // Standard system events
   user_login: "User Login",
   user_provisioned: "User Provisioned",
   user_role_changed: "Role Changed",
@@ -44,7 +54,6 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   folder_deleted: "Folder Deleted",
   alert_acknowledged: "Alert Acknowledged",
   alert_acknowledgment_removed: "Alert Ack Removed",
-  // Demo / simulation events
   "system.init": "System Initialised",
   "system.verified": "System Verified",
   "rounds.started": "Rounds Started",
@@ -89,27 +98,32 @@ function AuditLogRow({ log }: { log: AuditLog }) {
   const [expanded, setExpanded] = useState(false);
   const meta = log.metadata as Record<string, unknown> | null | undefined;
 
-  // Extract human-readable note from metadata using optional chaining
   const noteText = meta?.note as string | undefined;
   const equipmentName = meta?.equipmentName as string | undefined;
 
   return (
-    <div className="border-b last:border-b-0">
+    <div className="border-b last:border-b-0" style={{ minHeight: 60 }}>
       <button
         className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-start gap-3">
-          {/* Timestamp */}
-          <span className="text-xs text-muted-foreground whitespace-nowrap pt-0.5 w-[130px] shrink-0">
+          {/* Timestamp — flexShrink:0 + fixed minWidth prevents sibling shift */}
+          <span
+            className="text-xs text-muted-foreground whitespace-nowrap pt-0.5"
+            style={{ flexShrink: 0, minWidth: 130 }}
+          >
             {format(new Date(log.timestamp), "MMM d, h:mm a")}
           </span>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {/* Action badge + equipment name on one line */}
+            {/* Action badge + equipment name */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${actionBadgeClass(log.actionType)}`}>
+              <span
+                className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${actionBadgeClass(log.actionType)}`}
+                style={{ flexShrink: 0 }}
+              >
                 {actionLabel(log.actionType)}
               </span>
               {equipmentName && (
@@ -121,12 +135,12 @@ function AuditLogRow({ log }: { log: AuditLog }) {
 
             {/* Staff name + email */}
             <div className="flex items-center gap-1 mt-0.5">
-              <User className="w-3 h-3 text-muted-foreground shrink-0" />
-              <span className="text-xs text-foreground font-medium">
-                {log.performedBy}
+              <User className="w-3 h-3 text-muted-foreground" style={{ flexShrink: 0 }} />
+              <span className="text-xs text-foreground font-medium" style={{ flexShrink: 0 }}>
+                {log.performedBy ?? "—"}
               </span>
               <span className="text-xs text-muted-foreground truncate">
-                · {log.performedByEmail}
+                · {log.performedByEmail ?? ""}
               </span>
             </div>
 
@@ -138,9 +152,12 @@ function AuditLogRow({ log }: { log: AuditLog }) {
             )}
           </div>
 
-          {/* Target ID pill */}
+          {/* Target ID pill — flexShrink:0 so it never collapses */}
           {log.targetId && (
-            <span className="text-xs text-muted-foreground whitespace-nowrap font-mono shrink-0 hidden sm:block">
+            <span
+              className="text-xs text-muted-foreground whitespace-nowrap font-mono hidden sm:block"
+              style={{ flexShrink: 0 }}
+            >
               {log.targetId.slice(0, 8)}…
             </span>
           )}
@@ -163,25 +180,44 @@ export default function AuditLogPage() {
   const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
 
+  // Server-side filter state
   const [actionType, setActionType] = useState<string>("");
   const [performedBy, setPerformedBy] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [page, setPage] = useState(1);
+  const [serverPage, setServerPage] = useState(1);
 
-  const params = {
+  // Client-side page within the current server page's result set
+  const [clientPage, setClientPage] = useState(1);
+
+  const serverParams = {
     actionType: actionType || undefined,
     performedBy: performedBy.trim() || undefined,
     from: from || undefined,
     to: to || undefined,
-    page,
+    page: serverPage,
   };
 
   const { data, isLoading, isError, isRefetching, refetch } = useQuery({
-    queryKey: ["/api/audit-logs", params],
-    queryFn: () => api.auditLogs.list(params),
+    queryKey: ["/api/audit-logs", serverParams],
+    queryFn: () => api.auditLogs.list(serverParams),
     enabled: isAdmin,
   });
+
+  // All items returned by the server for this page
+  const allItems = data?.items ?? [];
+
+  // Client-side pagination — bounded to ROWS_PER_PAGE DOM nodes at all times.
+  const clientTotalPages = Math.max(1, Math.ceil(allItems.length / ROWS_PER_PAGE));
+  const safeClientPage   = Math.min(clientPage, clientTotalPages);
+
+  const pageItems = useMemo(
+    () => allItems.slice((safeClientPage - 1) * ROWS_PER_PAGE, safeClientPage * ROWS_PER_PAGE),
+    [allItems, safeClientPage],
+  );
+
+  // Reset client page whenever the server data changes (filter/page change)
+  useEffect(() => { setClientPage(1); }, [data]);
 
   if (!isAdmin) {
     return (
@@ -200,7 +236,8 @@ export default function AuditLogPage() {
   }
 
   function handleFilter() {
-    setPage(1);
+    setServerPage(1);
+    setClientPage(1);
   }
 
   function handleReset() {
@@ -208,7 +245,8 @@ export default function AuditLogPage() {
     setPerformedBy("");
     setFrom("");
     setTo("");
-    setPage(1);
+    setServerPage(1);
+    setClientPage(1);
   }
 
   const hasActiveFilter = !!(actionType || performedBy.trim() || from || to);
@@ -301,9 +339,10 @@ export default function AuditLogPage() {
           <Card>
             <CardContent className="p-0">
               {isLoading ? (
-                <div className="flex flex-col gap-2 p-4">
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                    <Skeleton key={i} className="h-14 rounded-xl" />
+                /* Skeleton — AuditRowSkeleton pixel-matches the real row (minHeight:60). */
+                <div>
+                  {[...Array(ROWS_PER_PAGE)].map((_, i) => (
+                    <AuditRowSkeleton key={i} />
                   ))}
                 </div>
               ) : isError ? (
@@ -324,7 +363,7 @@ export default function AuditLogPage() {
                     {isRefetching ? "Trying…" : "Try Again"}
                   </Button>
                 </div>
-              ) : !data?.items?.length ? (
+              ) : !allItems.length ? (
                 <div className="py-4">
                   <EmptyState
                     icon={ClipboardList}
@@ -351,44 +390,83 @@ export default function AuditLogPage() {
                   {/* Summary bar */}
                   <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">
-                      {data.items.length} entries{data.hasMore ? "+" : ""} on page {page}
+                      {allItems.length} entries{data?.hasMore ? "+" : ""}
+                      {" · "}client page {safeClientPage}/{clientTotalPages}
                       {hasActiveFilter && <span className="ml-1 text-primary font-medium">· Filtered</span>}
                     </span>
                     {isRefetching && (
                       <RefreshCw className="w-3 h-3 animate-spin text-muted-foreground" />
                     )}
                   </div>
-                  {data.items.map((log) => (
-                    <AuditLogRow key={log.id} log={log} />
-                  ))}
+
+                  {/*
+                    Log body — minHeight: ROWS_PER_PAGE * 60px so page transitions
+                    never collapse the container (CLS eliminated on navigation).
+                  */}
+                  <div style={{ minHeight: ROWS_PER_PAGE * 60 }}>
+                    {pageItems.map((log) => (
+                      <AuditLogRow key={log.id} log={log} />
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
         </PageErrorBoundary>
 
-        {/* Pagination */}
-        {data && (data.hasMore || page > 1) && (
+        {/* Client-side page controls */}
+        {!isLoading && !isError && clientTotalPages > 1 && (
           <div className="flex items-center justify-between">
             <Button
               variant="outline"
               size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safeClientPage <= 1}
+              onClick={() => setClientPage((p) => Math.max(1, p - 1))}
               className="gap-1 h-11 text-xs"
+              data-testid="btn-prev-client-page"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
             </Button>
-            <span className="text-sm text-muted-foreground">Page {page}</span>
+            <span className="text-sm text-muted-foreground">
+              {safeClientPage} / {clientTotalPages}
+            </span>
             <Button
               variant="outline"
               size="sm"
-              disabled={!data.hasMore}
-              onClick={() => setPage((p) => p + 1)}
+              disabled={safeClientPage >= clientTotalPages}
+              onClick={() => setClientPage((p) => Math.min(clientTotalPages, p + 1))}
               className="gap-1 h-11 text-xs"
+              data-testid="btn-next-client-page"
             >
               Next
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Server-side page controls — appears only when server has more than 50 entries */}
+        {data && (data.hasMore || serverPage > 1) && (
+          <div className="flex items-center justify-between border-t pt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={serverPage <= 1}
+              onClick={() => { setServerPage((p) => Math.max(1, p - 1)); setClientPage(1); }}
+              className="gap-1 h-11 text-xs"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Load earlier
+            </Button>
+            <span className="text-xs text-muted-foreground">batch {serverPage}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!data.hasMore}
+              onClick={() => { setServerPage((p) => p + 1); setClientPage(1); }}
+              className="gap-1 h-11 text-xs"
+            >
+              Load more
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
