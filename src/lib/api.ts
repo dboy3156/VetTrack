@@ -6,6 +6,10 @@ import type {
   ScanLog,
   TransferLog,
   Folder,
+  Room,
+  CreateRoomRequest,
+  UpdateRoomRequest,
+  BulkVerifyRoomResult,
   ActivityFeedItem,
   AnalyticsSummary,
   BulkDeleteRequest,
@@ -28,9 +32,11 @@ import {
   getCachedEquipmentById,
   getCachedScanLogs,
   getCachedFolders,
+  getCachedRooms,
   cacheEquipment,
   cacheScanLogs,
   cacheFolders,
+  cacheRooms,
   updateCachedEquipment,
 } from "./offline-db";
 import {
@@ -654,5 +660,42 @@ export const api = {
       const query = qs.toString() ? `?${qs.toString()}` : "";
       return request<{ items: import("@/types").AuditLog[]; hasMore: boolean; page: number; pageSize: number }>(`/api/audit-logs${query}`);
     },
+  },
+  rooms: {
+    list: async (): Promise<Room[]> => {
+      try {
+        const items = await request<Room[]>("/api/rooms");
+        cacheRooms(items).catch(() => {});
+        return items;
+      } catch (err) {
+        if (!navigator.onLine) {
+          return getCachedRooms();
+        }
+        throw err;
+      }
+    },
+    get: async (id: string): Promise<Room> => {
+      try {
+        return await request<Room>(`/api/rooms/${id}`);
+      } catch (err) {
+        if (!navigator.onLine) {
+          const { getCachedRoomById } = await import("./offline-db");
+          const cached = await getCachedRoomById(id);
+          if (cached) return cached;
+        }
+        throw err;
+      }
+    },
+    create: (data: CreateRoomRequest) =>
+      request<Room>("/api/rooms", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: UpdateRoomRequest) =>
+      request<Room>(`/api/rooms/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      request<void>(`/api/rooms/${id}`, { method: "DELETE" }),
+    bulkVerify: (roomId: string) =>
+      request<BulkVerifyRoomResult>("/api/equipment/bulk-verify-room", {
+        method: "POST",
+        body: JSON.stringify({ roomId }),
+      }),
   },
 };

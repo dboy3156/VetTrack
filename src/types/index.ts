@@ -47,6 +47,42 @@ export interface Folder {
   createdAt: string;
 }
 
+export type RoomSyncStatus = "synced" | "stale" | "requires_audit";
+
+export interface Room {
+  id: string;
+  name: string;
+  floor?: string | null;
+  masterNfcTagId?: string | null;
+  syncStatus: RoomSyncStatus;
+  lastAuditAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Computed counts (returned by GET /api/rooms)
+  totalEquipment?: number;
+  availableCount?: number;
+  inUseCount?: number;
+  issueCount?: number;
+}
+
+export interface CreateRoomRequest {
+  name: string;
+  floor?: string;
+  masterNfcTagId?: string;
+}
+
+export interface UpdateRoomRequest {
+  name?: string;
+  floor?: string | null;
+  masterNfcTagId?: string | null;
+  syncStatus?: RoomSyncStatus;
+}
+
+export interface BulkVerifyRoomResult {
+  affected: number;
+  roomName: string;
+}
+
 export interface Equipment {
   id: string;
   name: string;
@@ -57,6 +93,11 @@ export interface Equipment {
   location?: string | null;
   folderId?: string | null;
   folderName?: string | null;
+  roomId?: string | null;
+  roomName?: string | null;
+  nfcTagId?: string | null;
+  lastVerifiedAt?: string | null;
+  lastVerifiedById?: string | null;
   status: EquipmentStatus;
   lastSeen?: string | null;
   lastStatus?: string | null;
@@ -80,6 +121,8 @@ export interface CreateEquipmentRequest {
   purchaseDate?: string;
   location?: string;
   folderId?: string;
+  roomId?: string;
+  nfcTagId?: string;
   maintenanceIntervalDays?: number;
   imageUrl?: string;
 }
@@ -92,6 +135,8 @@ export interface UpdateEquipmentRequest {
   purchaseDate?: string | null;
   location?: string | null;
   folderId?: string | null;
+  roomId?: string | null;
+  nfcTagId?: string | null;
   maintenanceIntervalDays?: number | null;
   imageUrl?: string | null;
   status?: EquipmentStatus;

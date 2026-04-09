@@ -49,6 +49,7 @@ import { initVapid } from "./lib/push.js";
 import { cleanExpiredUndoTokens } from "./routes/equipment.js";
 import { startAlertReminderScheduler } from "./lib/alert-reminder.js";
 import healthRoutes from "./routes/health.js";
+import roomsRoutes from "./routes/rooms.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -224,6 +225,7 @@ app.use("/api/metrics", metricsRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/stability", stabilityRoutes);
+app.use("/api/rooms", roomsRoutes);
 
 Sentry.setupExpressErrorHandler(app);
 

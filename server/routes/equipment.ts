@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
-import { db, equipment, folders, scanLogs, transferLogs, undoTokens } from "../db.js";
+import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens } from "../db.js";
 import { eq, inArray, desc, and, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
@@ -21,6 +21,8 @@ const createEquipmentSchema = z.object({
   purchaseDate: z.string().optional(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
+  roomId: z.string().optional().nullable(),
+  nfcTagId: z.string().max(500).optional().nullable(),
   maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
 });
@@ -33,9 +35,15 @@ const patchEquipmentSchema = z.object({
   purchaseDate: z.string().optional(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
+  roomId: z.string().optional().nullable(),
+  nfcTagId: z.string().max(500).optional().nullable(),
   maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
   status: z.enum(EQUIPMENT_STATUS_VALUES).optional(),
+});
+
+const bulkVerifyRoomSchema = z.object({
+  roomId: z.string().min(1, "roomId is required"),
 });
 
 const checkoutSchema = z.object({
@@ -209,6 +217,11 @@ router.get("/my", requireAuth, async (req, res) => {
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
+        roomId: equipment.roomId,
+        roomName: rooms.name,
+        nfcTagId: equipment.nfcTagId,
+        lastVerifiedAt: equipment.lastVerifiedAt,
+        lastVerifiedById: equipment.lastVerifiedById,
         status: equipment.status,
         lastSeen: equipment.lastSeen,
         lastStatus: equipment.lastStatus,
@@ -224,6 +237,7 @@ router.get("/my", requireAuth, async (req, res) => {
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
+      .leftJoin(rooms, eq(equipment.roomId, rooms.id))
       .where(and(eq(equipment.checkedOutById, req.authUser!.id), isNull(equipment.deletedAt)))
       .orderBy(desc(equipment.checkedOutAt));
     res.json(items);
@@ -257,6 +271,11 @@ router.get("/", requireAuth, async (req, res) => {
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
+        roomId: equipment.roomId,
+        roomName: rooms.name,
+        nfcTagId: equipment.nfcTagId,
+        lastVerifiedAt: equipment.lastVerifiedAt,
+        lastVerifiedById: equipment.lastVerifiedById,
         status: equipment.status,
         lastSeen: equipment.lastSeen,
         lastStatus: equipment.lastStatus,
@@ -272,6 +291,7 @@ router.get("/", requireAuth, async (req, res) => {
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
+      .leftJoin(rooms, eq(equipment.roomId, rooms.id))
       .where(isNull(equipment.deletedAt))
       .orderBy(desc(equipment.createdAt));
 
@@ -325,6 +345,11 @@ router.get("/:id", requireAuth, async (req, res) => {
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
+        roomId: equipment.roomId,
+        roomName: rooms.name,
+        nfcTagId: equipment.nfcTagId,
+        lastVerifiedAt: equipment.lastVerifiedAt,
+        lastVerifiedById: equipment.lastVerifiedById,
         status: equipment.status,
         lastSeen: equipment.lastSeen,
         lastStatus: equipment.lastStatus,
@@ -340,6 +365,7 @@ router.get("/:id", requireAuth, async (req, res) => {
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
+      .leftJoin(rooms, eq(equipment.roomId, rooms.id))
       .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
     if (!item) return res.status(404).json({ error: "Equipment not found" });
@@ -360,6 +386,8 @@ router.post("/", requireAuth, requireRole("technician"), validateBody(createEqui
       purchaseDate,
       location,
       folderId,
+      roomId,
+      nfcTagId,
       maintenanceIntervalDays,
       imageUrl,
     } = req.body as z.infer<typeof createEquipmentSchema>;
@@ -375,6 +403,8 @@ router.post("/", requireAuth, requireRole("technician"), validateBody(createEqui
         purchaseDate: purchaseDate ?? null,
         location: location ?? null,
         folderId: folderId ?? null,
+        roomId: roomId ?? null,
+        nfcTagId: nfcTagId ?? null,
         maintenanceIntervalDays: maintenanceIntervalDays ?? null,
         imageUrl: imageUrl ?? null,
         status: "ok",
@@ -408,6 +438,8 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
       purchaseDate,
       location,
       folderId,
+      roomId,
+      nfcTagId,
       maintenanceIntervalDays,
       imageUrl,
       status,
@@ -432,6 +464,8 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
           ...(purchaseDate !== undefined && { purchaseDate }),
           ...(location !== undefined && { location }),
           ...(folderId !== undefined && { folderId: folderId ?? null }),
+          ...(roomId !== undefined && { roomId: roomId ?? null }),
+          ...(nfcTagId !== undefined && { nfcTagId: nfcTagId ?? null }),
           ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays }),
           ...(imageUrl !== undefined && { imageUrl }),
           ...(status !== undefined && { status }),
@@ -1313,5 +1347,102 @@ router.post("/bulk-move", requireAuth, requireRole("technician"), validateBody(b
     res.status(500).json({ error: "Bulk move failed" });
   }
 });
+
+// POST /api/equipment/bulk-verify-room
+// Marks every item in a room as verified and sets the room's sync status to 'synced'.
+router.post(
+  "/bulk-verify-room",
+  requireAuth,
+  requireRole("technician"),
+  validateBody(bulkVerifyRoomSchema),
+  async (req, res) => {
+    try {
+      const { roomId: targetRoomId } = req.body as z.infer<typeof bulkVerifyRoomSchema>;
+
+      let affected = 0;
+      let roomName = "";
+
+      await db.transaction(async (tx) => {
+        // 1. Confirm the room exists
+        const [room] = await tx
+          .select()
+          .from(rooms)
+          .where(eq(rooms.id, targetRoomId))
+          .limit(1);
+
+        if (!room) {
+          throw Object.assign(new Error("Room not found"), { status: 404 });
+        }
+        roomName = room.name;
+
+        // 2. Fetch all active equipment in the room
+        const items = await tx
+          .select({ id: equipment.id, name: equipment.name, status: equipment.status })
+          .from(equipment)
+          .where(and(eq(equipment.roomId, targetRoomId), isNull(equipment.deletedAt)));
+
+        if (items.length === 0) {
+          // Nothing to verify — still mark room synced
+          await tx
+            .update(rooms)
+            .set({ syncStatus: "synced", lastAuditAt: new Date(), updatedAt: new Date() })
+            .where(eq(rooms.id, targetRoomId));
+          return;
+        }
+
+        const now = new Date();
+        const itemIds = items.map((i) => i.id);
+
+        // 3. Stamp every item with lastVerifiedAt + lastVerifiedById + lastSeen
+        await tx
+          .update(equipment)
+          .set({
+            lastVerifiedAt: now,
+            lastVerifiedById: req.authUser!.id,
+            lastSeen: now,
+          })
+          .where(inArray(equipment.id, itemIds));
+
+        // 4. Insert a scan log entry per item for audit trail
+        await tx.insert(scanLogs).values(
+          items.map((item) => ({
+            id: randomUUID(),
+            equipmentId: item.id,
+            userId: req.authUser!.id,
+            userEmail: req.authUser!.email,
+            status: item.status,
+            note: `Room verified: ${room.name}`,
+            timestamp: now,
+          }))
+        );
+
+        // 5. Update the room's sync status
+        await tx
+          .update(rooms)
+          .set({ syncStatus: "synced", lastAuditAt: now, updatedAt: now })
+          .where(eq(rooms.id, targetRoomId));
+
+        affected = items.length;
+      });
+
+      logAudit({
+        actionType: "room_bulk_verified",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email,
+        targetId: targetRoomId,
+        targetType: "room",
+        metadata: { roomName, count: affected },
+      });
+
+      res.json({ affected, roomName });
+    } catch (err: unknown) {
+      if (err instanceof Error && (err as Error & { status?: number }).status === 404) {
+        return res.status(404).json({ error: "Room not found" });
+      }
+      console.error(err);
+      res.status(500).json({ error: "Bulk verify failed" });
+    }
+  }
+);
 
 export default router;

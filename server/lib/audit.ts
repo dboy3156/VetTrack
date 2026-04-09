@@ -20,7 +20,11 @@ export type AuditActionType =
   | "folder_updated"
   | "folder_deleted"
   | "alert_acknowledged"
-  | "alert_acknowledgment_removed";
+  | "alert_acknowledgment_removed"
+  | "room_created"
+  | "room_updated"
+  | "room_deleted"
+  | "room_bulk_verified";
 
 export interface LogAuditParams {
   actionType: AuditActionType;

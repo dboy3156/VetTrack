@@ -1,6 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { QueryClient } from "@tanstack/react-query";
-import type { Equipment, ScanLog, Folder } from "@/types";
+import type { Equipment, ScanLog, Folder, Room } from "@/types";
 
 export type PendingSyncStatus = "pending" | "synced" | "failed";
 export type PendingSyncType = "scan" | "create" | "update" | "delete" | "checkout" | "return";
@@ -25,6 +25,7 @@ class VetTrackDB extends Dexie {
   equipment!: Table<Equipment>;
   scanLogs!: Table<ScanLog>;
   folders!: Table<Folder>;
+  rooms!: Table<Room>;
   pendingSync!: Table<PendingSync>;
 
   constructor() {
@@ -33,6 +34,13 @@ class VetTrackDB extends Dexie {
       equipment: "id, name, status, folderId, lastSeen, createdAt",
       scanLogs: "id, equipmentId, timestamp",
       folders: "id, name, type",
+      pendingSync: "++id, type, createdAt, status, clientTimestamp",
+    });
+    this.version(4).stores({
+      equipment: "id, name, status, folderId, roomId, location, lastSeen, createdAt",
+      scanLogs: "id, equipmentId, timestamp",
+      folders: "id, name, type",
+      rooms: "id, name, syncStatus",
       pendingSync: "++id, type, createdAt, status, clientTimestamp",
     });
   }
@@ -74,6 +82,18 @@ export async function cacheFolders(items: Folder[]) {
 
 export async function getCachedFolders(): Promise<Folder[]> {
   return offlineDb.folders.toArray();
+}
+
+export async function cacheRooms(items: Room[]) {
+  await offlineDb.rooms.bulkPut(items);
+}
+
+export async function getCachedRooms(): Promise<Room[]> {
+  return offlineDb.rooms.toArray();
+}
+
+export async function getCachedRoomById(id: string): Promise<Room | undefined> {
+  return offlineDb.rooms.get(id);
 }
 
 export async function addPendingSync(op: Omit<PendingSync, "id">) {
