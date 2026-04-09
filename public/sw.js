@@ -247,7 +247,7 @@ self.addEventListener("push", (event) => {
   const title = data.title || "VetTrack";
   const options = {
     body: data.body || "",
-    tag: data.tag || "vettrack",
+    tag: data.tag || `vettrack-${data.equipmentId || Date.now()}`,
     renotify: true,
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
