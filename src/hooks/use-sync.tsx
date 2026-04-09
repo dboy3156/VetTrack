@@ -53,6 +53,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [batchTotal, setBatchTotal] = useState(0);
   const prevPendingRef = useRef(0);
   const justSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lastPendingCountRef = useRef(0);
+  const lastFailedCountRef = useRef(0);
+  const lastItemsFingerprintRef = useRef("");
+  const lastRecentFingerprintRef = useRef("");
 
   const applyAll = useCallback((all: PendingSync[]) => {
     const p = all.filter((i) => i.status === "pending").length;
@@ -65,10 +70,29 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
     prevPendingRef.current = p;
 
-    setPendingCount(p);
-    setFailedCount(f);
-    setRecentItems(all.slice(-20));
-    setItems(all.filter((i) => i.status === "pending" || i.status === "failed"));
+    if (p !== lastPendingCountRef.current) {
+      lastPendingCountRef.current = p;
+      setPendingCount(p);
+    }
+
+    if (f !== lastFailedCountRef.current) {
+      lastFailedCountRef.current = f;
+      setFailedCount(f);
+    }
+
+    const nextItems = all.filter((i) => i.status === "pending" || i.status === "failed");
+    const itemsFingerprint = nextItems.map((i) => `${i.id}:${i.status}`).join(",");
+    if (itemsFingerprint !== lastItemsFingerprintRef.current) {
+      lastItemsFingerprintRef.current = itemsFingerprint;
+      setItems(nextItems);
+    }
+
+    const nextRecent = all.slice(-20);
+    const recentFingerprint = nextRecent.map((i) => `${i.id}:${i.status}`).join(",");
+    if (recentFingerprint !== lastRecentFingerprintRef.current) {
+      lastRecentFingerprintRef.current = recentFingerprint;
+      setRecentItems(nextRecent);
+    }
   }, []);
 
   useEffect(() => {
@@ -77,11 +101,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     );
 
     const subscription = observable.subscribe({
-      next: (all) => applyAll(all),
+      next: (all) => {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => applyAll(all), 100);
+      },
       error: () => {},
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
   }, [applyAll]);
 
   useEffect(() => {

@@ -1,0 +1,112 @@
+You are debugging a React + Dexie (liveQuery) system with excessive re-renders.
+
+MAIN PROBLEM:
+- UI feels like it “refreshes” frequently
+- Caused by liveQuery emitting updates → triggering React state updates every time
+- Even when data has not meaningfully changed
+
+GOAL:
+Reduce unnecessary re-renders by stabilizing state updates from liveQuery.
+
+---
+
+CONTEXT:
+- Dexie liveQuery is used to observe `pendingSync`
+- applyAll() processes results and sets multiple React states
+- Arrays are recreated on every emission → causing rerenders
+- React Query is already stabilized — focus ONLY on this sync layer
+
+---
+
+TASKS (DO IN ORDER):
+
+1. PREVENT UNNECESSARY STATE UPDATES (CRITICAL)
+
+Inside applyAll():
+- Before calling setState, compare previous vs next values
+- If no meaningful change → DO NOT update state
+
+Specifically:
+- items
+- recentItems
+- pendingCount
+- failedCount
+
+Use shallow comparison:
+- Compare length
+- Compare ids + status (not full object)
+
+---
+
+2. STABILIZE ARRAY REFERENCES
+
+For:
+- items
+- recentItems
+
+Ensure:
+- If content is identical → return previous state (prev)
+- Do NOT create new arrays unless data actually changed
+
+---
+
+3. DEBOUNCE liveQuery UPDATES
+
+Wrap applyAll with debounce (~100ms)
+
+Goal:
+- Prevent rapid bursts of updates from Dexie
+- Group UI updates
+
+---
+
+4. MINIMIZE STATE SETS
+
+Inside applyAll:
+- Only update values that actually changed
+- Avoid unnecessary multiple setState calls
+
+---
+
+5. DO NOT CHANGE ARCHITECTURE
+
+- Keep SyncProvider
+- Keep Dexie
+- Keep liveQuery
+
+Only optimize behavior (no rewrites)
+
+---
+
+OUTPUT REQUIREMENTS (MANDATORY):
+
+1. List all modified files
+
+2. For EACH file, provide DIFF:
+
+--- BEFORE
+<original code>
+
++++ AFTER
+<updated code>
+
+3. Show EXACT changes (no summaries)
+
+4. Keep changes minimal and focused
+
+---
+
+EXPECTED RESULT:
+
+- Fewer React re-renders
+- No UI “micro-refreshing”
+- Stable UI even when Dexie emits frequently
+- Improved performance without changing behavior
+
+---
+
+IMPORTANT:
+
+- Do NOT refactor entire file
+- Do NOT introduce new libraries
+- Focus ONLY on eliminating unnecessary updates
