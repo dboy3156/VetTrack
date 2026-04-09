@@ -58,6 +58,15 @@
 | **Fail condition** | < 95% delivery success rate (measured over a 48-hour active-use period with at least 50 send attempts) |
 | **Verification method** | Add a Sentry breadcrumb / custom event in `server/lib/push.ts` on each send attempt and each failure; review the Sentry event rate. The 60-second in-memory deduplication window must not be counted as failures |
 
+### 1.6 Service Worker Shell Integrity
+
+| Attribute | Value |
+|---|---|
+| **Pass threshold** | 100% of offline navigation attempts to any registered SPA route must resolve to the App Shell (`index.html`) — zero white screens, zero browser-generated "This site can't be reached" pages |
+| **Fail condition** | Any navigation attempt while offline renders a blank white page, a raw browser error screen, or any response other than the rendered React application |
+| **Verification method** | Manual test on a physical device or DevTools offline simulation: (1) load the app on a live network and navigate to `/equipment`, `/rooms`, and `/` to warm the SW cache; (2) enable Airplane Mode (or set DevTools Network to "Offline"); (3) navigate directly to `/rooms/<any-uuid>`, `/equipment/<any-uuid>`, and `/equipment` using the browser address bar; (4) confirm the VetTrack UI renders and displays cached or Dexie-sourced data instead of a white screen. Repeat on Chrome (Android) and Safari (iOS). The `vettrack-v5` cache key must be present in DevTools → Application → Cache Storage before the test |
+| **Implementation reference** | `public/sw.js` — navigation handler fallback chain: `fetch()` → `cache.match("/index.html")` → `cache.match("/")` → inline branded offline page. `src/main.tsx` — `unhandledrejection` + `error` listeners with `recoverFromChunkError()` for ChunkLoadError recovery |
+
 ---
 
 ## 2. Pillar 2 — Performance
@@ -109,6 +118,15 @@
 | **Fail condition** | Generation exceeds 8 seconds for a 200-item dataset |
 | **Verification method** | Manual end-to-end test: seed the DB with 200 items, trigger the PDF export (QR print page or report download), measure wall-clock time from button click to browser download dialog using DevTools Network waterfall |
 
+### 2.6 NFC-to-Overlay Latency
+
+| Attribute | Value |
+|---|---|
+| **Pass threshold** | Time elapsed from NFC deep-link activation (`/rooms/:id?verify=true`) to the "NFC Room Reset" confirmation overlay becoming fully visible and interactive must be ≤ 1.5 seconds |
+| **Fail condition** | Overlay appears > 1.5 s after the deep-link URL is processed, OR the overlay is missing the room name / item count (indicating the room query has not yet resolved) |
+| **Verification method** | Physical NFC test on iOS and Android: (1) write `https://<production-url>/rooms/<room-uuid>?verify=true` to an NFC sticker using NFC Tools; (2) tap the sticker with the phone in an active session; (3) use a screen recording at 60 fps and measure frame delta from the moment the browser opens the URL to the first frame where the overlay backdrop and "Confirm Inventory" button are fully visible; (4) repeat 5 times per platform and record median latency. Acceptable substitute for physical NFC: navigate manually to the deep-link URL in the browser address bar and measure with `performance.now()` in DevTools Console — log the delta between `navigationStart` and when the overlay `open` state becomes `true` |
+| **Implementation reference** | `src/pages/room-radar.tsx` — `useSearch()` reads `?verify=true`; `useEffect([nfcParam, id])` sets `nfcOverlayOpen(true)`; room data loaded via `useQuery` with `staleTime: 15_000` |
+
 ---
 
 ## 3. Pillar 3 — Data Reliability
@@ -152,6 +170,15 @@
 | **Pass threshold** | A full PostgreSQL backup can be created and restored to a clean database in under 30 minutes with zero data loss. After restore, the application boots and all API health checks pass |
 | **Fail condition** | Restore fails, takes > 30 minutes, or the restored database produces schema errors on application startup |
 | **Verification method** | Perform `pg_dump $DATABASE_URL > vettrack_backup.sql`; provision a clean PostgreSQL instance; run `psql <new-db-url> < vettrack_backup.sql`; point the application's `DATABASE_URL` at the restored instance; run `npm run dev` and confirm `GET /api/equipment` returns 200 |
+
+### 3.6 Multi-User Conflict Resolution
+
+| Attribute | Value |
+|---|---|
+| **Pass threshold** | When two or more users trigger a "Verify All" (`POST /api/equipment/bulk-verify-room`) on the same room within the same second, the `vt_scan_logs` table must contain a distinct entry for **each** user's verification event — no entries may be silently dropped, overwritten, or merged. Each entry must carry the correct `userId`, `userEmail`, and `timestamp` of the individual who performed the action |
+| **Fail condition** | Fewer audit/scan log rows are present than the number of concurrent verify calls made, OR any row's `userId` or `timestamp` does not match the corresponding request's authenticated identity and server time |
+| **Verification method** | Controlled concurrency test: (1) assign two Technician accounts to a test session; (2) simultaneously trigger `POST /api/equipment/bulk-verify-room` with the same `roomId` from both accounts (use two browser tabs or two `curl` processes launched within 100 ms of each other); (3) immediately query `SELECT id, user_id, user_email, timestamp FROM vt_scan_logs WHERE note LIKE 'Room verified:%' ORDER BY timestamp DESC LIMIT 20`; (4) confirm exactly two rows per equipment item are present — one per user — with distinct `user_id` values and timestamps within 1 second of each other. The `lastVerifiedById` on `vt_equipment` should reflect the last writer (last-write-wins is acceptable for the equipment row; the audit trail in `vt_scan_logs` must be complete) |
+| **Implementation reference** | `server/routes/equipment.ts` — `POST /bulk-verify-room` runs inside a `db.transaction()` that writes one `vt_scan_logs` row per equipment item; the transaction does not use `ON CONFLICT DO NOTHING`, so concurrent calls produce additive log rows |
 
 ---
 
@@ -197,6 +224,15 @@
 | **Fail condition** | < 80% of test participants complete all three tasks unassisted, OR average time-to-complete any single task exceeds 3 minutes |
 | **Verification method** | Usability test with ≥ 5 participants (clinic staff unfamiliar with VetTrack). Provide a test device logged in as a Technician-role user. Observe task completion silently (no hints). The first-run onboarding walkthrough cards (implemented per `clinical-scan-ux-and-onboarding.md`) must be visible and must not have been previously dismissed |
 
+### 4.6 Clinical Usability — Gloves and Stress Conditions
+
+| Attribute | Value |
+|---|---|
+| **Pass threshold** | The "Move to Room" and "Verify All" interactive controls must each present a minimum touch target of 44 × 44 px (per Apple Human Interface Guidelines §Pointing devices and Apple/Android accessibility standards). No operationally critical button in the Equipment Detail and Room Radar views may fall below this threshold |
+| **Fail condition** | Any of the following buttons renders a touch target smaller than 44 × 44 px at standard (1×) device pixel ratio: **Move** (Equipment Detail secondary row), **Verify All** (Room Radar), **Confirm Inventory** (NFC overlay CTA), **Return** / **In Use** (Equipment Detail primary row) |
+| **Verification method** | (1) Inspect via Chrome DevTools → Elements: select each button element and confirm computed `height` and `width` (or `min-height` / `min-width`) meet ≥ 44 px. The `h-10` Tailwind class equals 40 px — any button using `h-10` must pair with sufficient padding so the accessible touch area reaches 44 px, or be upgraded to `h-11` (44 px) or `h-12` (48 px); (2) Physical usability test: have one participant don a standard pair of nitrile clinical gloves (size M) and perform the following on a mid-range Android phone: tap "Move", select a room, confirm; tap "Verify All", confirm. Both actions must succeed on the first tap attempt in ≥ 4 of 5 trials. Record pass/fail per action |
+| **Implementation reference** | `src/pages/equipment-detail.tsx` — secondary action row (`grid-cols-3`, buttons `h-10`); `src/pages/room-radar.tsx` — Verify All button (`h-12`) and NFC overlay Confirm button (`h-12`). Minimum recommended class for clinical-glove use: `h-11` (44 px). `h-12` (48 px) preferred for primary actions |
+
 ---
 
 ## 5. Sign-Off Checklist
@@ -210,6 +246,7 @@ Complete this table before each release candidate. Every criterion must be PASS 
 | S3 | Stability | Crash-free session rate | ≥ 99.5% / 7 days | Sentry Releases — crash-free sessions | ☐ | ☐ | ☐ | |
 | S4 | Stability | Offline sync failure rate | ≤ 1% permanent failures / 7 days | Sentry custom `sync.failure` events | ☐ | ☐ | ☐ | |
 | S5 | Stability | Push notification delivery success | ≥ 95% / 48-hour window (≥ 50 attempts) | Sentry custom push send/failure events | ☐ | ☐ | ☐ | |
+| S6 | Stability | Service Worker shell integrity (offline navigation) | 100% of offline navigations render the App Shell — 0 white screens | Manual: Airplane Mode → address-bar navigate to `/rooms` and `/equipment`; repeat on Chrome (Android) + Safari (iOS) | ☐ | ☐ | ☐ | |
 | P1a | Performance | API p50 response time — read endpoints | ≤ 150 ms | `artillery` / `k6` load test (10 VUs, 5 min) | ☐ | ☐ | ☐ | |
 | P1b | Performance | API p95 response time — read endpoints | ≤ 500 ms | `artillery` / `k6` load test (10 VUs, 5 min) | ☐ | ☐ | ☐ | |
 | P2a | Performance | API p50 response time — mutation endpoints | ≤ 300 ms | `artillery` / `k6` load test (10 VUs, 5 min) | ☐ | ☐ | ☐ | |
@@ -226,16 +263,19 @@ Complete this table before each release candidate. Every criterion must be PASS 
 | P7 | Performance | TTI — Scan page (4G mobile) | ≤ 3 s | Lighthouse TTI metric | ☐ | ☐ | ☐ | |
 | P8 | Performance | IndexedDB sync queue flush (50 items) | ≤ 30 s after connectivity restored | Manual test + DevTools IndexedDB viewer | ☐ | ☐ | ☐ | |
 | P9 | Performance | PDF report generation (200 items) | ≤ 8 s | Manual end-to-end test with DevTools Network | ☐ | ☐ | ☐ | |
+| P10 | Performance | NFC-to-overlay latency (`?verify=true`) | ≤ 1.5 s from deep-link activation to overlay fully interactive | 60 fps screen recording (5 NFC taps per platform) or `performance.now()` in DevTools Console | ☐ | ☐ | ☐ | |
 | D1 | Data Reliability | Offline→online sync correctness | 0 lost actions, 0 duplicate records | Controlled integration test (3 cycles) | ☐ | ☐ | ☐ | |
 | D2 | Data Reliability | Audit log completeness | 100% of covered action types logged | Per-action SQL verify (`vt_audit_logs`) | ☐ | ☐ | ☐ | |
 | D3 | Data Reliability | Soft-delete correctness | 0 deleted items in API responses; 404 on all ops | Manual + automated endpoint checks | ☐ | ☐ | ☐ | |
 | D4 | Data Reliability | RBAC enforcement (no privilege escalation) | Viewer → 403; Unauthenticated → 401; Spoofed header → no effect | Jest / curl integration tests | ☐ | ☐ | ☐ | |
 | D5 | Data Reliability | Database backup and restore | Restore < 30 min, 0 data loss, app boots cleanly | `pg_dump` → restore → smoke test | ☐ | ☐ | ☐ | |
+| D6 | Data Reliability | Multi-user conflict resolution (concurrent verify) | `vt_scan_logs` contains one distinct row per user per item — 0 dropped or merged entries | Concurrent `POST /bulk-verify-room` from 2 accounts; verify row count via `psql` query | ☐ | ☐ | ☐ | |
 | U1 | UX Clarity | Empty state coverage (all list views) | 0 blank screens when data is empty | Manual walkthrough on minimal-data env | ☐ | ☐ | ☐ | |
 | U2 | UX Clarity | Loading state coverage (all data-fetching views) | 0 blank layouts during fetch (Slow 4G) | Chrome DevTools Network throttle walkthrough | ☐ | ☐ | ☐ | |
 | U3 | UX Clarity | Actionable error messages | 0 raw stack traces or `[object Object]` shown to users | Trigger error conditions, observe UI | ☐ | ☐ | ☐ | |
 | U4 | UX Clarity | QR scan success rate — low-light conditions | ≥ 90% in ≤ 2 attempts (50 lux, 30 scans) | Physical field test on mid-range Android + iOS | ☐ | ☐ | ☐ | |
 | U5 | UX Clarity | Staff onboarding task completion | ≥ 80% complete all 3 tasks unassisted; each task ≤ 3 min | Usability test with ≥ 5 participants | ☐ | ☐ | ☐ | |
+| U6 | UX Clarity | Clinical usability — gloves and stress conditions | "Move" and "Verify All" buttons ≥ 44 × 44 px; ≥ 4/5 first-tap success with nitrile gloves | DevTools computed size check; physical glove test on mid-range Android | ☐ | ☐ | ☐ | |
 
 ---
 
