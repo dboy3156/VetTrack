@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
-import * as Sentry from "@sentry/react";
 import { ClerkProvider } from "@clerk/clerk-react";
 import "./index.css";
 import App from "./App";
@@ -232,4 +231,11 @@ function mount() {
   );
 }
 
-runStartupCleanup(queryClient).catch(() => {}).finally(mount);
+const startupTimeout = setTimeout(mount, 3000);
+
+runStartupCleanup(queryClient)
+.catch(() => {})
+.finally(() => {
+  clearTimeout(startupTimeout);
+  mount();
+});
