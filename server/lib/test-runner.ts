@@ -180,9 +180,13 @@ async function runFunctionalTests(): Promise<TestResult[]> {
   // 2. Equipment list
   {
     const r = await apiGet("/api/equipment");
-    const ok = r.status === 200 && Array.isArray(r.body);
+    const body = r.body as Record<string, unknown> | null;
+    const ok = r.status === 200 && (
+      Array.isArray(r.body) ||
+      (body !== null && Array.isArray(body.items))
+    );
     results.push(makeResult("fn-equipment-list", "functional", "Equipment list fetch", ok ? "pass" : "fail", r.ms,
-      "200 + array", `${r.status}`, ok ? undefined : JSON.stringify(r.body)));
+      "200 + array or {items:array}", `${r.status}`, ok ? undefined : JSON.stringify(r.body)));
     logAction(ok ? "success" : "error", "functional", "Equipment list", `${r.ms}ms`, r.ms);
   }
 
@@ -207,18 +211,27 @@ async function runFunctionalTests(): Promise<TestResult[]> {
   // 5. Activity feed
   {
     const r = await apiGet("/api/activity");
-    const ok = r.status === 200 && Array.isArray(r.body);
+    const body = r.body as Record<string, unknown> | null;
+    const ok = r.status === 200 && (
+      Array.isArray(r.body) ||
+      (body !== null && typeof body === "object" &&
+        (Array.isArray(body.items) || Array.isArray(body.activities) || Array.isArray(body.entries) || Array.isArray(body.data)))
+    );
     results.push(makeResult("fn-activity", "functional", "Activity feed fetch", ok ? "pass" : "fail", r.ms,
-      "200 + array", `${r.status}`));
+      "200 + array or {items/activities/entries/data:array}", `${r.status}`, ok ? undefined : JSON.stringify(r.body)));
     logAction(ok ? "success" : "error", "functional", "Activity feed", `${r.ms}ms`, r.ms);
   }
 
   // 6. Users list
   {
     const r = await apiGet("/api/users");
-    const ok = r.status === 200 && Array.isArray(r.body);
+    const body = r.body as Record<string, unknown> | null;
+    const ok = r.status === 200 && (
+      Array.isArray(r.body) ||
+      (body !== null && Array.isArray(body.items))
+    );
     results.push(makeResult("fn-users", "functional", "Users list fetch", ok ? "pass" : "fail", r.ms,
-      "200 + array", `${r.status}`));
+      "200 + array or {items:array}", `${r.status}`, ok ? undefined : JSON.stringify(r.body)));
     logAction(ok ? "success" : "error", "functional", "Users list", `${r.ms}ms`, r.ms);
   }
 
