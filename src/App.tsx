@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect } from "wouter";
-import { Suspense, lazy, type ReactNode } from "react";
+import { Suspense, lazy, useState, useEffect, type ReactNode } from "react";
 import * as Sentry from "@sentry/react";
 import { Loader2, AlertTriangle, RefreshCw, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -140,11 +140,21 @@ function RootRoute() {
   return <HomePage />;
 }
 
+function DelayedFallback() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 150);
+    return () => clearTimeout(t);
+  }, []);
+  if (!show) return null;
+  return <PageLoader />;
+}
+
 export default function App() {
   return (
     <Sentry.ErrorBoundary fallback={(props) => <ErrorFallback {...props} />}>
       <SwUpdateBanner />
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<DelayedFallback />}>
         <Switch>
           <Route path="/" component={RootRoute} />
           <Route path="/landing" component={LandingPage} />

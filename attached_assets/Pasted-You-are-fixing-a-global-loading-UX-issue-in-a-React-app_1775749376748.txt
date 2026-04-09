@@ -1,0 +1,132 @@
+You are fixing a global loading UX issue in a React application.
+
+MAIN PROBLEM:
+- A spinner appears on EVERY page load / navigation
+- Even when skeletons are implemented correctly
+- This creates a flicker: spinner → skeleton → content
+
+ROOT CAUSE:
+- A global <Suspense fallback={<Loader />}> is rendering immediately
+- This fallback triggers before page-level skeletons
+
+GOAL:
+Remove unnecessary spinner flicker while preserving safe loading behavior
+
+---
+
+CONTEXT:
+- React + lazy loading (Suspense)
+- Skeletons already implemented on pages
+- SmartLoader exists
+- We want clean transitions (no double loading states)
+
+---
+
+TASKS (DO IN ORDER):
+
+========================================
+1. LOCATE GLOBAL SUSPENSE
+========================================
+
+Find where Suspense is used, likely in:
+- main.tsx
+- App.tsx
+- layout root
+
+Example:
+<Suspense fallback={<Loader />}>
+  <App />
+</Suspense>
+
+---
+
+========================================
+2. REPLACE FALLBACK WITH DELAYED FALLBACK
+========================================
+
+Create component:
+
+function DelayedFallback() {
+  const [show, setShow] = React.useState(false)
+
+  React.useEffect(() => {
+    const t = setTimeout(() => setShow(true), 150)
+    return () => clearTimeout(t)
+  }, [])
+
+  if (!show) return null
+
+  return <SmartLoader />
+}
+
+---
+
+========================================
+3. APPLY FIX
+========================================
+
+Replace:
+
+<Suspense fallback={<Loader />}>
+
+WITH:
+
+<Suspense fallback={<DelayedFallback />}>
+
+---
+
+========================================
+4. OPTIONAL (ADVANCED CLEANUP)
+========================================
+
+If page-level skeletons are fully implemented:
+
+You MAY replace fallback with null:
+
+<Suspense fallback={null}>
+
+BUT ONLY if:
+- All routes/components handle loading themselves
+
+---
+
+========================================
+5. VERIFY BEHAVIOR
+========================================
+
+Ensure:
+- No spinner flash on fast navigation
+- Skeletons appear directly
+- SmartLoader only appears on real delays
+
+---
+
+OUTPUT REQUIREMENTS (MANDATORY):
+
+1. List modified files
+
+2. Show DIFF:
+
+--- BEFORE
+<code>
+
++++ AFTER
+<code>
+
+3. Do NOT summarize — show exact changes
+
+---
+
+EXPECTED RESULT:
+
+- No more spinner flicker
+- Smooth transition: skeleton → content
+- Cleaner, more professional UX
+
+---
+
+IMPORTANT:
+
+- Do NOT refactor unrelated code
+- Do NOT remove Suspense entirely
+- Only fix fallback behavior
