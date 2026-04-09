@@ -216,7 +216,7 @@ A full stability testing system accessible at `/stability` (admin-only):
 - **Live dashboard** — Real-time system status (Stable / Warnings / Issues Detected / Testing), per-test pass/fail details, latency stats
 
 ## Error Tracking & Monitoring
-- **Sentry frontend** — `@sentry/react` initialized in `src/main.tsx` if `VITE_SENTRY_DSN` is set. Uses `Sentry.ErrorBoundary` in `App.tsx` with friendly fallback + "Report Issue" button. `sync-engine.ts` emits `captureEvent` with `sync.failure` tag on permanent failures (no-op without DSN).
+- **Sentry frontend** — `@sentry/react` initialized in `src/instrument.ts` (imported as the very first line of `src/main.tsx`). Configured with `browserTracingIntegration()`, `replayIntegration()`, `enableLogs: true`, `sendDefaultPii: true`, `tracePropagationTargets: [/^\/api/, "localhost"]`, production sample rate `0.2`. Guard: `if (import.meta.env.VITE_SENTRY_DSN)` — safe no-op in dev. Uses `Sentry.ErrorBoundary` in `App.tsx` with friendly fallback + "Report Issue" button. `sync-engine.ts` emits `captureEvent` with `sync.failure` tag on permanent failures. Source maps: `vite.config.ts` uses `sentryVitePlugin` conditionally when `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` are set; build outputs `sourcemap: "hidden"`.
 - **Sentry backend** — `@sentry/node` initialized in `server/index.ts` if `SENTRY_DSN` is set. Uses `setupExpressErrorHandler(app)` and sets user context in `requireAuth` middleware. `server/lib/push.ts` emits breadcrumbs and `captureEvent` with `push.failure` tag on send errors, guarded by `process.env.SENTRY_DSN`.
 - **Global error banner** — `GlobalServerErrorBanner` in `src/components/ui/server-error-banner.tsx` — fires on 5xx responses or network failure via `emitServerError()` in `src/lib/api.ts`
 - **ChunkLoadError recovery** — `main.tsx` catches `"Failed to fetch dynamically imported module"`, `"ChunkLoadError"`, and related patterns via `window.onerror` and `window.onunhandledrejection`. On first detection: clears all SW caches, then reloads. `sessionStorage` flag prevents infinite reload loops.
@@ -251,6 +251,9 @@ VetTrack ships with a formal production readiness gate documented in `PRODUCTION
 - `ADMIN_EMAILS` — Comma-separated emails auto-promoted to admin on every login (e.g. `danerez5@gmail.com`)
 - `VITE_SENTRY_DSN` — Optional: Sentry DSN for frontend error tracking (enables S1, S3, S4 metrics)
 - `SENTRY_DSN` — Optional: Sentry DSN for backend error tracking (enables S2, S5 metrics)
+- `SENTRY_AUTH_TOKEN` — Optional: Sentry auth token for source map upload at build time (`sntrys_...`)
+- `SENTRY_ORG` — Optional: Sentry organization slug (required alongside `SENTRY_AUTH_TOKEN`)
+- `SENTRY_PROJECT` — Optional: Sentry project slug (required alongside `SENTRY_AUTH_TOKEN`)
 - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — Optional: override auto-generated VAPID keys
 - `UNDO_TTL_MS` — Optional: override undo token TTL in milliseconds (default: 90,000)
 
