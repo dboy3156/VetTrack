@@ -1,0 +1,155 @@
+You are improving a React application by fixing scan navigation safety and simplifying authentication.
+
+GOALS:
+1. Prevent navigation to invalid equipment pages after scanning
+2. Ensure a single, stable source of truth for authentication (Clerk)
+
+---
+
+CONTEXT:
+- React app with routing (wouter or similar)
+- QR scanner returns an equipment ID
+- Current behavior: scan → navigate directly → may fail ("Failed to load equipment")
+- Clerk is used (useUser, useAuth)
+- There is ALSO a custom auth store and/or DevAuthProvider
+- React Query is used
+
+---
+
+TASKS (DO IN ORDER):
+
+========================================
+1. SAFE SCAN NAVIGATION (CRITICAL)
+========================================
+
+Locate scan handling logic:
+- onScan callback
+- openScanner / QrScanner usage
+- any navigate(`/equipment/${id}`)
+
+REPLACE direct navigation with validation:
+
+NEW FLOW:
+1. Scan returns ID
+2. Fetch equipment by ID
+3. IF exists → navigate
+4. IF NOT → show error + stay in scanner
+
+IMPLEMENT:
+
+- Add async validation before navigation
+- Do NOT navigate blindly
+
+Example logic:
+
+const equipment = await fetchEquipment(id)
+
+if (!equipment) {
+  showToast("Equipment not found")
+  return
+}
+
+navigate(`/equipment/${id}`)
+
+---
+
+UX REQUIREMENTS:
+- Do NOT show full error page for invalid scan
+- Stay on scanner screen
+- Allow immediate retry
+
+---
+
+========================================
+2. AUTH SIMPLIFICATION (IMPORTANT)
+========================================
+
+GOAL:
+Use Clerk as the ONLY source of truth for auth
+
+---
+
+FIND:
+- Custom auth store
+- DevAuthProvider
+- Any duplication of user state
+
+---
+
+REFactor so that:
+
+ONLY THIS DEFINES AUTH:
+const { user, isLoaded, isSignedIn } = useUser()
+
+---
+
+REMOVE / SIMPLIFY:
+
+- Any logic like:
+  const user = clerkUser || customUser
+  or duplicated user states
+
+- Custom auth state should:
+  EITHER be removed
+  OR derive from Clerk (read-only)
+
+---
+
+ENSURE:
+
+- No auth state flipping between null/object
+- No multiple sources updating user
+- Components rely ONLY on Clerk user
+
+---
+
+========================================
+3. REACT QUERY INTEGRATION CHECK
+========================================
+
+For queries depending on auth:
+
+- Ensure:
+  enabled: !!user?.id
+
+- Ensure queryKey uses:
+  ['resource', user?.id]
+
+---
+
+========================================
+OUTPUT REQUIREMENTS (MANDATORY)
+========================================
+
+1. List all modified files
+
+2. For EACH file, provide DIFF:
+
+--- BEFORE
+<code>
+
++++ AFTER
+<code>
+
+3. Show exact changes (no summaries)
+
+4. Keep changes minimal and focused
+
+---
+
+EXPECTED RESULT:
+
+- Scan only navigates when equipment exists
+- Invalid scans do NOT break UI
+- No "Failed to load equipment" from bad scans
+- Auth is stable and predictable
+- No user state flickering
+- Queries behave consistently
+
+---
+
+IMPORTANT:
+
+- Do NOT rewrite the entire app
+- Do NOT introduce new libraries
+- Focus on correctness and stability

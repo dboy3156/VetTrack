@@ -45,6 +45,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSync } from "@/hooks/use-sync";
 import { QrScanner } from "@/components/qr-scanner";
 import { useSettings } from "@/hooks/use-settings";
+import { toast } from "sonner";
 import { SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { ReportIssueDialog } from "@/components/report-issue-dialog";
@@ -87,11 +88,16 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     }
   };
 
-  // useQRScanner — onScan + cooldownMs stored in refs so the hook's useEffect has
-  // zero dependencies and never re-subscribes (no infinite re-render risk).
-  // Cooldown gate (1500ms) + dedup gate prevent double-fires on rapid clicks.
-  const { triggerScan } = useQRScanner((assetId) => {
-    navigate(`/equipment/${assetId}`);
+  // useQRScanner — handles hardware barcode scanners (keyboard-based).
+  // Validates that the equipment exists before navigating so an unknown ID
+  // never lands on the "Failed to load equipment" error screen.
+  const { triggerScan } = useQRScanner(async (assetId) => {
+    try {
+      await api.equipment.get(assetId);
+      navigate(`/equipment/${assetId}`);
+    } catch {
+      toast.error("Equipment not found — please try again");
+    }
   }, 1500);
 
   const { data: equipment } = useQuery({
