@@ -1,0 +1,332 @@
+VetTrack — Phase 1–4: Real-time, Conflict Resolution, Product Features, Integration
+You are working on VetTrack, a mobile-first React/TypeScript veterinary equipment tracking app. Implement all four phases below exactly as written. Do not modify any files not mentioned. After all changes run tsc --noEmit and fix any type errors before finishing.
+This work must satisfy the Production Readiness Gate in PRODUCTION_READINESS.md. Update the relevant criteria to PASS after each phase.
+
+Phase 1 — Real-time System (WebSocket)
+Production Readiness criteria this satisfies:
+	•	Pillar: Reliability — “UI reflects server state in real time without requiring a page refresh”
+	•	Pillar: Reliability — “WebSocket reconnects automatically with exponential backoff”
+	•	Pillar: Security — “WebSocket token is read from auth layer at connect time, never hardcoded”
+Create src/lib/realtime.ts:
+
+import type { QueryClient } from "@tanstack/react-query";
+import type { Equipment } from "@/types";
+import { getAuthHeaders } from "@/lib/auth";
+
+let socket: WebSocket | null = null;
+let retryDelay = 1000;
+const MAX_RETRY_DELAY = 30000;
+
+export function connectRealtime(queryClient: QueryClient) {
+  const headers = getAuthHeaders();
+  const token = headers.Authorization?.split(" ")[1];
+  if (!token) return;
+
+  socket = new WebSocket(
+    `${import.meta.env.VITE\_WS\_URL}?token=${token}`
+  );
+
+  socket.onopen = () => {
+    retryDelay = 1000; // reset backoff on successful connection
+  };
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    switch (data.type) {
+      case "equipment.updated":
+        queryClient.setQueryData(
+          ["/api/equipment"],
+          (old: Equipment[]) =>
+            old?.map((e) => (e.id === data.payload.id ? data.payload : e))
+        );
+        break;
+      case "equipment.created":
+        queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+        break;
+      case "equipment.deleted":
+        queryClient.setQueryData(
+          ["/api/equipment"],
+          (old: Equipment[]) =>
+            old?.filter((e) => e.id !== data.payload.id)
+        );
+        break;
+    }
+  };
+
+  socket.onclose = () => {
+    retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
+    setTimeout(() => connectRealtime(queryClient), retryDelay);
+  };
+}
+
+export function disconnectRealtime() {
+  socket?.close();
+  socket = null;
+}
+
+
+Create src/hooks/useRealtime.ts:
+
+import { useEffect } from "react";
+import type { QueryClient } from "@tanstack/react-query";
+import { connectRealtime, disconnectRealtime } from "@/lib/realtime";
+
+export function useRealtime(queryClient: QueryClient) {
+  useEffect(() => {
+    connectRealtime(queryClient);
+    return () => disconnectRealtime(); // prevent memory leak on unmount
+  }, []);
+}
+
+
+Add VITE_WS_URL to .env.example:
+
+VITE_WS_URL=wss://your-api/ws
+
+
+After completing Phase 1, update PRODUCTION_READINESS.md:
+	•	Mark “UI reflects server state in real time” → PASS
+	•	Mark “WebSocket reconnects with exponential backoff” → PASS
+	•	Mark “WebSocket token read from auth layer at connect time” → PASS
+
+Phase 2 — Conflict Resolution System
+Production Readiness criteria this satisfies:
+	•	Pillar: Reliability — “409 conflicts are surfaced to the user, never silently discarded”
+	•	Pillar: Reliability — “User can choose to keep local or server version on conflict”
+	•	Pillar: Reliability — “Conflict store is reactive — UI updates immediately when conflicts are added or removed”
+Create src/lib/conflict-store.ts:
+
+import { useState, useEffect } from "react";
+
+export type ConflictItem = {
+  id: number;
+  endpoint: string;
+  method: string;
+  serverData: unknown;
+  localData: unknown;
+};
+
+let conflicts: ConflictItem[] = [];
+const listeners = new Set<() => void>();
+
+function notify() {
+  listeners.forEach((fn) => fn());
+}
+
+export function addConflict(item: ConflictItem) {
+  conflicts = [...conflicts, item];
+  notify();
+}
+
+export function removeConflict(id: number) {
+  conflicts = conflicts.filter((c) => c.id !== id);
+  notify();
+}
+
+export function useConflicts(): ConflictItem[] {
+  const [state, setState] = useState<ConflictItem[]>(conflicts);
+  useEffect(() => {
+    const handler = () => setState([...conflicts]);
+    listeners.add(handler);
+    return () => listeners.delete(handler);
+  }, []);
+  return state;
+}
+
+
+In src/lib/sync-engine.ts, find the response status handler and add the 409 case. Import addConflict and ConflictItem:
+
+if (res.status === 409) {
+  const serverData = await res.json().catch(() => ({}));
+
+  addConflict({
+    id: item.id!,
+    endpoint: item.endpoint,
+    method: item.method,
+    serverData,
+    localData: JSON.parse(item.body || "{}"),
+  });
+
+  return "conflict";
+}
+
+
+Create src/components/ConflictModal.tsx:
+
+import type { QueryClient } from "@tanstack/react-query";
+import { useConflicts, removeConflict, type ConflictItem } from "@/lib/conflict-store";
+import { request } from "@/lib/api";
+
+async function resolveConflict(
+  item: ConflictItem,
+  resolution: "overwrite" | "discard",
+  queryClient: QueryClient
+) {
+  if (resolution === "overwrite") {
+    await request(item.endpoint, {
+      method: item.method,
+      body: JSON.stringify(item.localData),
+      headers: { "X-Force-Overwrite": "true" },
+    });
+    queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+  }
+  removeConflict(item.id);
+}
+
+export function ConflictModal({ queryClient }: { queryClient: QueryClient }) {
+  const conflicts = useConflicts();
+  if (conflicts.length === 0) return null;
+
+  return (
+    <div className="conflict-modal">
+      <h2>Sync Conflicts</h2>
+      <p>These items were changed on another device while you were offline.</p>
+      {conflicts.map((c) => (
+        <div key={c.id} className="conflict-item">
+          <p><strong>Server version:</strong></p>
+          <pre>{JSON.stringify(c.serverData, null, 2)}</pre>
+          <p><strong>Your version:</strong></p>
+          <pre>{JSON.stringify(c.localData, null, 2)}</pre>
+          <button
+            onClick={() => resolveConflict(c, "overwrite", queryClient)}
+          >
+            Keep Mine
+          </button>
+          <button
+            onClick={() => resolveConflict(c, "discard", queryClient)}
+          >
+            Use Server Version
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+After completing Phase 2, update PRODUCTION_READINESS.md:
+	•	Mark “409 conflicts surfaced to user, never silently discarded” → PASS
+	•	Mark “User can choose local or server version on conflict” → PASS
+	•	Mark “Conflict store is reactive” → PASS
+
+Phase 3 — Product Features
+Production Readiness criteria this satisfies:
+	•	Pillar: Product — “Equipment timeline groups scan history by date”
+	•	Pillar: Product — “Anomaly detection threshold matches dashboard missing threshold (24h)”
+	•	Pillar: Product — “Search covers name, location, department, and serial number”
+	•	Pillar: Product — “Bulk selection uses immutable Set pattern”
+Create src/lib/equipment-utils.ts:
+
+import type { Equipment, ScanLog } from "@/types";
+
+// Threshold matches dashboard-utils.ts — always keep these in sync
+const MISSING_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+export function detectAnomalies(equipment: Equipment[]): Equipment[] {
+  return equipment.filter((eq) => {
+    const lastSeen = eq.lastSeen ? Date.parse(eq.lastSeen) : 0;
+    // Exclude checked-out equipment — consistent with dashboard isMissing logic
+    return (
+      !eq.checkedOutById &&
+      Date.now() - lastSeen > MISSING_THRESHOLD_MS
+    );
+  });
+}
+
+export function searchEquipment(
+  equipment: Equipment[],
+  query: string
+): Equipment[] {
+  const q = query.toLowerCase();
+  return equipment.filter(
+    (e) =>
+      e.name.toLowerCase().includes(q) ||
+      (e.location || "").toLowerCase().includes(q) ||
+      (e.department || "").toLowerCase().includes(q) ||
+      (e.serialNumber || "").toLowerCase().includes(q)
+  );
+}
+
+export function groupLogsByDate(
+  logs: ScanLog[]
+): Record<string, ScanLog[]> {
+  return logs.reduce((acc, log) => {
+    // Use Date constructor — safe for all valid timestamp formats
+    const date = new Date(log.timestamp).toISOString().split("T")[0];
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(log);
+    return acc;
+  }, {} as Record<string, ScanLog[]>);
+}
+
+
+In any component that needs bulk selection, use this pattern:
+
+const [selected, setSelected] = useState<Set<string>>(new Set());
+
+function toggleSelected(id: string) {
+  setSelected((prev) => {
+    const next = new Set(prev); // immutable — never mutate prev directly
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+}
+
+function clearSelected() {
+  setSelected(new Set());
+}
+
+function selectAll(ids: string[]) {
+  setSelected(new Set(ids));
+}
+
+
+After completing Phase 3, update PRODUCTION_READINESS.md:
+	•	Mark “Equipment timeline groups scan history by date” → PASS
+	•	Mark “Anomaly detection threshold matches dashboard (24h)” → PASS
+	•	Mark “Search covers name, location, department, serial number” → PASS
+	•	Mark “Bulk selection uses immutable Set pattern” → PASS
+
+Phase 4 — Final Integration
+Production Readiness criteria this satisfies:
+	•	Pillar: Reliability — “Real-time connection is only established after successful authentication”
+	•	Pillar: Reliability — “Conflict modal is mounted at app root so it is visible from any screen”
+In src/main.tsx or the root app component, add the following. useRealtime must only be called inside a component that is rendered after auth is confirmed — not at the top level before login:
+
+import { useRealtime } from "@/hooks/useRealtime";
+import { ConflictModal } from "@/components/ConflictModal";
+import { useQueryClient } from "@tanstack/react-query";
+
+// Inside your authenticated layout component (not in main.tsx directly):
+function AuthenticatedApp() {
+  const queryClient = useQueryClient();
+  useRealtime(queryClient);
+
+  return (
+    <>
+      <ConflictModal queryClient={queryClient} />
+      {/* rest of app */}
+    </>
+  );
+}
+
+
+useRealtime and ConflictModal must be placed inside the authenticated route wrapper — not in the unauthenticated shell. If no such wrapper exists, create one.
+After completing Phase 4, update PRODUCTION_READINESS.md:
+	•	Mark “Real-time connection only established after authentication” → PASS
+	•	Mark “Conflict modal mounted at app root” → PASS
+
+Completion checklist
+Before finishing, verify every item:
+	•	[ ] tsc --noEmit passes with zero new errors
+	•	[ ] VITE_WS_URL is in .env.example — no hardcoded WebSocket URLs anywhere
+	•	[ ] WebSocket reconnect uses exponential backoff, capped at 30s
+	•	[ ] disconnectRealtime() is called in the useRealtime cleanup function
+	•	[ ] conflict-store.ts uses the listener pattern — UI re-renders reactively when conflicts change
+	•	[ ] resolveConflict is defined and handles both "overwrite" and "discard" branches
+	•	[ ] detectAnomalies excludes checked-out equipment and uses 24h threshold
+	•	[ ] searchEquipment searches name, location, department, and serialNumber
+	•	[ ] groupLogsByDate uses new Date(log.timestamp) not a raw string split
+	•	[ ] useRealtime is only called inside the authenticated app boundary
+	•	[ ] ConflictModal is mounted at app root inside the authenticated boundary
+	•	[ ] PRODUCTION_READINESS.md updated with PASS for all criteria listed above, all others unchanged​​​​​​​​​​​​​​​​

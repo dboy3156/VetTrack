@@ -3,7 +3,7 @@ import "./instrument";
 import { StrictMode, Component } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import * as Sentry from "@sentry/react";
 import { ClerkProvider } from "@clerk/clerk-react";
@@ -15,6 +15,8 @@ import { SettingsProvider } from "@/hooks/use-settings";
 import { Toaster } from "sonner";
 import { initSyncEngine } from "@/lib/sync-engine";
 import { addPendingSync, removePendingSync, runStartupCleanup } from "@/lib/offline-db";
+import { useRealtime } from "@/hooks/useRealtime";
+import { ConflictModal } from "@/components/ConflictModal";
 
 declare global {
   interface Window {
@@ -131,9 +133,13 @@ if (import.meta.env.DEV) {
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
 function InnerApp() {
+  const queryClient = useQueryClient();
+  useRealtime(queryClient);
+
   return (
     <SettingsProvider>
       <SyncProvider>
+        <ConflictModal queryClient={queryClient} />
         <App />
         <Toaster richColors position="top-center" />
       </SyncProvider>

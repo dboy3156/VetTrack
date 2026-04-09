@@ -9,6 +9,7 @@ import {
 } from "./offline-db";
 import { getAuthHeaders } from "./auth-store";
 import { clearOfflineSession } from "./offline-session";
+import { addConflict } from "./conflict-store";
 
 const MAX_RETRIES = 5;
 const RETRY_DELAYS_MS = [2000, 5000, 10000];
@@ -278,12 +279,23 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
     }
 
     if (res.status === 409) {
-      const conflictData = await res.json().catch(() => ({}));
-      await updatePendingSync(item.id, {
-        status: "failed",
-        errorMessage: conflictData.error || "Conflict: another change was made to this item",
+      const serverData = await res.json().catch(() => ({}));
+
+      addConflict({
+        id: item.id!,
+        endpoint: item.endpoint,
+        method: item.method,
+        serverData,
+        localData: JSON.parse(item.body || "{}"),
       });
-      notifyConflict(item, conflictData);
+
+      try {
+        await updatePendingSync(item.id, {
+          status: "failed",
+          errorMessage: (serverData as Record<string, string>).error || "Conflict: another change was made to this item",
+        });
+      } catch {}
+
       return "conflict";
     }
 

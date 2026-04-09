@@ -4,11 +4,15 @@
 
 ## Hardening Changelog
 
-### 2026-04-09
+### 2026-04-09 — Phase 1–4 Implementation
 - **Security** — Removed `authHeaders` field from `PendingSync` (IndexedDB). Clerk JWTs are no longer persisted to IndexedDB. `sync-engine` now reads live auth headers at sync time via `getAuthHeaders()` and forwards `clientTimestamp` as `X-Client-Timestamp`.
 - **Sync reliability** — `MAX_RETRIES` raised from 3 → 5. All `updatePendingSync` calls wrapped in `try/catch` so an IndexedDB failure cannot halt the sync queue.
 - **API** — Shared `handleOptimisticMutation` helper introduced. `checkout` and `return` refactored to use it, eliminating duplicated try/catch/addPendingSync logic.
 - **Performance** — `computeDashboardData` single-pass function added to `dashboard-utils.ts`. Dashboard now computes counts, critical items, user groups, location groups, cost estimates, and operational percent in one O(n) pass. `isEquipmentMissing` fixed to return `false` for checked-out equipment.
+- **Real-time (Phase 1)** — `src/lib/realtime.ts` created. WebSocket client connects using live Bearer token (never hardcoded), handles `equipment.updated`, `equipment.created`, `equipment.deleted` messages, and reconnects with exponential back-off capped at 30 s. `VITE_WS_URL` added to `.env.example`.
+- **Conflict resolution (Phase 2)** — `src/lib/conflict-store.ts` created (reactive listener pattern). 409 handler in `sync-engine` now calls `addConflict()` to surface conflicts in the UI. `src/components/ConflictModal.tsx` lets users choose "Keep Mine" (overwrite) or "Use Server Version" (discard).
+- **Product utilities (Phase 3)** — `src/lib/equipment-utils.ts` created: `detectAnomalies` (24 h threshold, excludes checked-out), `searchEquipment` (name/location/department/serialNumber), `groupLogsByDate` (date-keyed history). `department` field added to `Equipment` type.
+- **Integration (Phase 4)** — `useRealtime` and `ConflictModal` mounted inside `InnerApp` (authenticated app boundary in `main.tsx`). Real-time connection is only established after auth providers have initialised.
 
 ---
 
@@ -284,6 +288,17 @@ Complete this table before each release candidate. Every criterion must be PASS 
 | U4 | UX Clarity | QR scan success rate — low-light conditions | ≥ 90% in ≤ 2 attempts (50 lux, 30 scans) | Physical field test on mid-range Android + iOS | ☐ | ☐ | ☐ | |
 | U5 | UX Clarity | Staff onboarding task completion | ≥ 80% complete all 3 tasks unassisted; each task ≤ 3 min | Usability test with ≥ 5 participants | ☐ | ☐ | ☐ | |
 | U6 | UX Clarity | Clinical usability — gloves and stress conditions | "Move" and "Verify All" buttons ≥ 44 × 44 px; ≥ 4/5 first-tap success with nitrile gloves | DevTools computed size check; physical glove test on mid-range Android | ☐ | ☐ | ☐ | |
+| RT1 | Reliability | UI reflects server state in real time without a page refresh | Equipment list updates within 1 s of a server-side change | `realtime.ts` WebSocket delivers `equipment.updated/created/deleted` to `setQueryData` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT2 | Reliability | WebSocket reconnects automatically with exponential back-off | Back-off doubles on each close, capped at 30 s | `realtime.ts` `socket.onclose` handler — `retryDelay = Math.min(retryDelay * 2, 30000)` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT3 | Security | WebSocket token is read from auth layer at connect time, never hardcoded | `connectRealtime` calls `getAuthHeaders()` immediately before opening the socket | `realtime.ts` — token extracted from live `Authorization` header at call time | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT4 | Reliability | 409 conflicts are surfaced to the user, never silently discarded | Conflict modal appears within 1 s of a 409 response | `sync-engine.ts` 409 handler calls `addConflict()`; `ConflictModal` renders when `useConflicts().length > 0` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT5 | Reliability | User can choose to keep local or server version on conflict | "Keep Mine" sends overwrite request; "Use Server Version" discards local | `ConflictModal.tsx` — `resolveConflict("overwrite")` and `resolveConflict("discard")` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT6 | Reliability | Conflict store is reactive — UI updates immediately when conflicts are added or removed | Conflict modal appears/disappears without a re-mount | `conflict-store.ts` — global listener set calls `setState` on every `addConflict`/`removeConflict` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| P11 | Product | Equipment timeline groups scan history by date | `groupLogsByDate(logs)` returns a `Record<ISO-date, ScanLog[]>` | `equipment-utils.ts` — uses `new Date(log.timestamp).toISOString().split("T")[0]` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| P12 | Product | Anomaly detection threshold matches dashboard missing threshold (24 h) | `detectAnomalies` uses same 24 h constant as `isEquipmentMissing`; excludes checked-out | `equipment-utils.ts` — `MISSING_THRESHOLD_MS = 24 * 60 * 60 * 1000`; guard `!eq.checkedOutById` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| P13 | Product | Search covers name, location, department, and serial number | `searchEquipment` matches across all four fields | `equipment-utils.ts` — four `.toLowerCase().includes(q)` clauses | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT7 | Reliability | Real-time connection is only established after successful authentication | `useRealtime` is mounted inside `InnerApp` (inside both `ClerkAuthProviderInner` and `DevAuthProvider`) | `main.tsx` — `useRealtime(queryClient)` inside `InnerApp`; `connectRealtime` guards with token check | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
+| RT8 | Reliability | Conflict modal is mounted at app root so it is visible from any screen | `ConflictModal` rendered at top of `InnerApp` before any page content | `main.tsx` — `<ConflictModal queryClient={queryClient} />` is first child of `InnerApp` | ✅ PASS | ☐ | ☐ | Implemented 2026-04-09 |
 
 ---
 

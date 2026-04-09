@@ -108,6 +108,7 @@ export interface Equipment {
   folderName?: string | null;
   roomId?: string | null;
   roomName?: string | null;
+  department?: string | null;
   nfcTagId?: string | null;
   lastVerifiedAt?: string | null;
   lastVerifiedById?: string | null;

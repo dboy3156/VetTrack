@@ -102,7 +102,7 @@ function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIME
     });
 }
 
-async function request<T>(
+export async function request<T>(
   url: string,
   init: RequestInit = {},
   offline?: OfflineOptions,
