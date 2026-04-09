@@ -1,0 +1,168 @@
+You are upgrading the loading UX of a React application.
+
+GOAL:
+Implement a consistent, professional loading system with:
+1. Branded loader
+2. Sync-aware loader (based on sync state)
+3. Skeleton loaders per screen
+
+---
+
+CONTEXT:
+- React + Tailwind
+- Existing useSync() hook (provides isSyncing)
+- App currently uses inconsistent spinners
+- Goal is UX improvement, NOT architecture rewrite
+
+---
+
+TASKS (DO IN ORDER):
+
+========================================
+1. CREATE BRANDED LOADER (GLOBAL)
+========================================
+
+Create file:
+src/components/ui/loader.tsx
+
+Requirements:
+- Circular spinner
+- Clean, minimal, “medical-tech” style
+- Support props:
+  - label (optional text)
+  - size: sm | md | lg
+  - variant: default | syncing
+
+Behavior:
+- default → blue spinner
+- syncing → yellow spinner
+
+Keep it lightweight (Tailwind only, no libraries)
+
+---
+
+========================================
+2. CREATE SYNC-AWARE LOADER
+========================================
+
+Create:
+src/components/ui/smart-loader.tsx
+
+Behavior:
+- Uses useSync()
+- If isSyncing → show Loader with:
+  variant="syncing"
+  label="Syncing data..."
+- Otherwise:
+  show normal Loader
+
+---
+
+========================================
+3. CREATE BASE SKELETON COMPONENT
+========================================
+
+Create:
+src/components/ui/skeleton.tsx
+
+Requirements:
+- Simple div
+- animate-pulse
+- rounded
+- reusable via className
+
+---
+
+========================================
+4. CREATE SCREEN SKELETONS
+========================================
+
+Create at least:
+
+1. Equipment List Skeleton
+src/components/skeletons/equipment-list-skeleton.tsx
+
+- 5–8 placeholder cards
+- Each card:
+  - title line
+  - subtitle line
+
+2. Equipment Detail Skeleton
+src/components/skeletons/equipment-detail-skeleton.tsx
+
+- title
+- metadata lines
+- large block (for main content)
+
+---
+
+========================================
+5. REPLACE EXISTING LOADERS
+========================================
+
+Rules:
+
+- For full pages (lists, detail pages):
+  REPLACE spinners → skeletons
+
+- For small/loading states:
+  USE Loader
+
+- For global async states:
+  USE SmartLoader
+
+Examples:
+
+BEFORE:
+if (isLoading) return <Spinner />
+
+AFTER:
+if (isLoading) return <EquipmentListSkeleton />
+
+---
+
+========================================
+6. KEEP CHANGES SAFE
+========================================
+
+- Do NOT refactor unrelated code
+- Do NOT change business logic
+- Only replace loading UI
+
+---
+
+========================================
+OUTPUT REQUIREMENTS (MANDATORY)
+========================================
+
+1. List all created/modified files
+
+2. For EACH file, provide DIFF:
+
+--- BEFORE
+<code>
+
++++ AFTER
+<code>
+
+3. Show exact changes (no summaries)
+
+4. Keep implementation clean and minimal
+
+---
+
+EXPECTED RESULT:
+
+- Consistent loader across app
+- No more “ugly default spinner”
+- Skeletons replace most loading states
+- Sync state is visually clear
+- UI feels faster and more professional
+
+---
+
+IMPORTANT:
+
+- Do NOT introduce new libraries
+- Use Tailwind only
+- Keep design minimal and consistent

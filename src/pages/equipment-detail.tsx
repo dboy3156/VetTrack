@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EquipmentDetailSkeleton } from "@/components/skeletons/equipment-detail-skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -600,15 +601,7 @@ export default function EquipmentDetailPage() {
   }
 
   if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex flex-col gap-4 pb-24">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-48 w-full rounded-2xl" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
-        </div>
-      </Layout>
-    );
+    return <EquipmentDetailSkeleton />;
   }
 
   if (isError) {

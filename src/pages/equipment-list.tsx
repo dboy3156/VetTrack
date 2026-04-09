@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { SkeletonEquipmentCard } from "@/components/ui/skeleton-cards";
+import { EquipmentListSkeleton } from "@/components/skeletons/equipment-list-skeleton";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
@@ -614,11 +614,7 @@ export default function EquipmentListPage() {
         {/* Equipment list — uses virtualization for large datasets (>100 items) */}
         <PageErrorBoundary fallbackLabel="Equipment list failed to render">
           {isLoading ? (
-            <div className="flex flex-col gap-2">
-              {[...Array(PAGE_SIZE)].map((_, i) => (
-                <SkeletonEquipmentCard key={i} />
-              ))}
-            </div>
+            <EquipmentListSkeleton count={PAGE_SIZE} />
           ) : !isError && filtered.length === 0 ? (
             <EmptyState
               icon={Package}
