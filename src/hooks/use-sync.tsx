@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { liveQuery } from "dexie";
 import {
   offlineDb,
@@ -41,12 +41,9 @@ const SyncContext = createContext<SyncState>({
 });
 
 export function SyncProvider({ children }: { children: ReactNode }) {
-  const [pendingCount, setPendingCount] = useState(0);
-  const [failedCount, setFailedCount] = useState(0);
+  const [allItems, setAllItems] = useState<PendingSync[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
-  const [recentItems, setRecentItems] = useState<PendingSync[]>([]);
-  const [items, setItems] = useState<PendingSync[]>([]);
   const [isCircuitOpen, setIsCircuitOpen] = useState(false);
   const [circuitResetsAt, setCircuitResetsAt] = useState(0);
   const [batchCurrent, setBatchCurrent] = useState(0);
@@ -54,10 +51,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const prevPendingRef = useRef(0);
   const justSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const lastPendingCountRef = useRef(0);
-  const lastFailedCountRef = useRef(0);
-  const lastItemsFingerprintRef = useRef("");
-  const lastRecentFingerprintRef = useRef("");
+
+  const pendingCount = useMemo(() => allItems.filter((i) => i.status === "pending").length, [allItems]);
+  const failedCount = useMemo(() => allItems.filter((i) => i.status === "failed").length, [allItems]);
+  const items = useMemo(() => allItems.filter((i) => i.status === "pending" || i.status === "failed"), [allItems]);
+  const recentItems = useMemo(() => allItems.slice(-20), [allItems]);
 
   const applyAll = useCallback((all: PendingSync[]) => {
     const p = all.filter((i) => i.status === "pending").length;
@@ -70,29 +68,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
     prevPendingRef.current = p;
 
-    if (p !== lastPendingCountRef.current) {
-      lastPendingCountRef.current = p;
-      setPendingCount(p);
-    }
-
-    if (f !== lastFailedCountRef.current) {
-      lastFailedCountRef.current = f;
-      setFailedCount(f);
-    }
-
-    const nextItems = all.filter((i) => i.status === "pending" || i.status === "failed");
-    const itemsFingerprint = nextItems.map((i) => `${i.id}:${i.status}`).join(",");
-    if (itemsFingerprint !== lastItemsFingerprintRef.current) {
-      lastItemsFingerprintRef.current = itemsFingerprint;
-      setItems(nextItems);
-    }
-
-    const nextRecent = all.slice(-20);
-    const recentFingerprint = nextRecent.map((i) => `${i.id}:${i.status}`).join(",");
-    if (recentFingerprint !== lastRecentFingerprintRef.current) {
-      lastRecentFingerprintRef.current = recentFingerprint;
-      setRecentItems(nextRecent);
-    }
+    setAllItems((prev) => {
+      const fingerprint = all.map((i) => `${i.id}:${i.status}`).join(",");
+      const prevFingerprint = prev.map((i) => `${i.id}:${i.status}`).join(",");
+      return fingerprint === prevFingerprint ? prev : all;
+    });
   }, []);
 
   useEffect(() => {

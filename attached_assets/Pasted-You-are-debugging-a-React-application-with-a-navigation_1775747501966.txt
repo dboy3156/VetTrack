@@ -1,0 +1,116 @@
+You are debugging a React application with a navigation bug AND improving state management.
+
+MAIN BUG:
+- Pressing the floating scan button (blue button) navigates to "/equipment"
+- Expected behavior: open camera / scanner
+- Actual behavior: opens Equipment page → shows "Failed to load equipment"
+
+GOAL:
+1. Fix incorrect navigation for scan button
+2. (Optional but recommended) simplify sync state using derived state
+
+---
+
+CONTEXT:
+- React app with routing (likely wouter or similar)
+- Floating Action Button (FAB) used for scan
+- SyncProvider uses multiple useState values derived from the same data
+- Dexie liveQuery feeds sync data
+
+---
+
+TASKS (DO IN ORDER):
+
+1. FIX SCAN BUTTON (CRITICAL)
+
+- Locate the floating scan button component
+- Remove ANY navigation to "/equipment"
+
+Check and fix:
+- <Link to="/equipment">
+- navigate("/equipment")
+- href="/equipment"
+
+Replace with:
+- Direct function call to open scanner
+OR
+- navigate("/scan") (ONLY if scan is route-based)
+
+Expected result:
+- Button opens camera / scanner
+- Does NOT navigate to equipment page
+
+---
+
+2. VERIFY ROUTING
+
+- Ensure scan route exists (if using routing)
+- Ensure equipment page is NOT used as fallback
+
+---
+
+3. (OPTIONAL — IMPROVEMENT) DERIVED STATE REFACTOR
+
+Inside SyncProvider:
+
+- Replace multiple states:
+  pendingCount
+  failedCount
+  items
+  recentItems
+
+WITH:
+  single state:
+  allItems
+
+- Use useMemo to derive:
+  pendingCount
+  failedCount
+  items
+  recentItems
+
+- Remove:
+  unnecessary setState calls
+  fingerprint refs (if no longer needed)
+
+---
+
+4. KEEP PERFORMANCE STABLE
+
+- Keep debounce on liveQuery
+- Ensure only ONE setState (setAllItems)
+
+---
+
+OUTPUT REQUIREMENTS (MANDATORY):
+
+1. List all changed files
+
+2. For EACH file, show DIFF:
+
+--- BEFORE
+<code>
+
++++ AFTER
+<code>
+
+3. Do NOT summarize — show exact edits
+
+4. Keep changes minimal and focused
+
+---
+
+EXPECTED RESULT:
+
+- Scan button opens camera (no navigation bug)
+- Equipment page no longer opens incorrectly
+- Sync state is simpler and more stable
+- Fewer re-renders
+
+---
+
+IMPORTANT:
+
+- Do NOT rewrite the whole app
+- Do NOT change architecture outside SyncProvider
+- Focus on correctness first, then simplification

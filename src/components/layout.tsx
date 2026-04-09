@@ -557,14 +557,12 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         </div>
       </nav>
 
-      {/* ScanFAB — simulates scanning IP-03 via useQRScanner hook.
-          Cooldown gate (1500ms) + dedup gate protect against rapid clicks.
-          Long-press or open the QR scanner from the Equipment page for real scans. */}
+      {/* ScanFAB — opens camera QR scanner */}
       <button
-        onClick={() => triggerScan("IP-03")}
+        onClick={openScanner}
         className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
         style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
-        aria-label="Scan QR Code — simulates IP-03"
+        aria-label="Scan QR Code"
         data-testid="bottom-nav-scan"
       >
         <Scan className="w-5 h-5" aria-hidden="true" />
