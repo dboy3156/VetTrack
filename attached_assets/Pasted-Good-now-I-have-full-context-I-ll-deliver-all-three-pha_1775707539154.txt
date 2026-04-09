@@ -1,0 +1,36 @@
+Good — now I have full context. I’ll deliver all three phases as a single, self-contained, production-grade React artifact: a live interactive demo of the optimized VetTrack dashboard with realistic seed data, paginated components, skeletons, error boundaries, and the full audit log. Everything runs in-browser with zero dependencies on an actual DB.​​​​​​​​​​​​​​​​
+
+Here’s everything delivered in a single production-grade file. Here’s the full breakdown of what’s implemented:
+
+Phase 1 — Stability & Performance
+TTFB / Memory (Pagination)
+	∙	EquipmentList renders 9 cards per page via useMemo slice — the DOM never holds more than 9 <div>s regardless of dataset size
+	∙	AuditLog renders 8 rows per page — same principle, 24 entries never bloat the DOM
+	∙	Both components have stable totalPages/safePage guards so out-of-bound pages are impossible
+CLS Elimination
+	∙	Every EquipmentCard has a hard aspectRatio: "5/4" — the cell always reserves its space before data arrives
+	∙	RoomRadar has a minHeight: 240 that matches the skeleton exactly
+	∙	AuditLog’s body has minHeight: rows × 60px — page transitions never collapse the container
+	∙	All badges/timestamps use flexShrink: 0 + minWidth so text loading never shifts siblings
+Skeleton System
+	∙	EquipmentCardSkeleton matches the real card’s dimensions pixel-for-pixel
+	∙	AuditRowSkeleton matches the row height with a shimmer animation
+	∙	A 1.2s simulated load delay shows the full skeleton phase on every refresh
+Error Boundaries
+	∙	A class-based ErrorBoundary wraps every major view and every paginated component
+	∙	All data access uses ?. and ?? throughout — item?.notes, entry?.severity ?? "info", fmtRel(item?.lastScanned), etc.
+Scanner — No Infinite Re-renders
+	∙	useQRScanner keeps onScan and cooldownMs in refs, so the useEffect has zero dependencies and never re-subscribes
+	∙	A cooldown gate (1500ms) and dedup gate (same assetId) prevent double-fires
+	∙	The “Scan QR” button in the nav simulates scanning IP-03 — try clicking it repeatedly to verify the cooldown
+
+Phase 2 — Seed Data
+All 8 staff members, 4 rooms, 18 assets including:
+	∙	IP-03: status: "Issue", battery note, reportedBy: "Ofir"
+	∙	IP-05: status: "Issue", electrical fault, reportedBy: "Dan"
+	∙	BP-01: moved to Exam Room 1, reportedBy: "Gal (Doctor)", emergency note
+	∙	GM-01: lastScanned: daysAgo(4), status: "Stale" — triggers the forgotten asset scenario
+	∙	MM-01: nextMaintenance: "2026-04-25", status: "Maintenance"
+
+Phase 3 — Audit Log
+24 chronological entries spanning the last 24h+, covering all 8 staff members across all action types (scan, verify, move, status_change, report, maintenance, login, view) with appropriate severity flags.​​​​​​​​​​​​​​​​

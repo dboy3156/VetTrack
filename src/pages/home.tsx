@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
@@ -21,8 +21,9 @@ import {
   Scan,
   ClipboardCheck,
   Activity,
-  User,
   Droplets,
+  Clock,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
@@ -42,6 +43,171 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   maintenance: "text-amber-500",
   sterilized: "text-teal-500",
 };
+
+const ROOM_ICONS: Record<string, string> = {
+  icu: "🏥",
+  "exam room 1": "🩺",
+  "exam room 2": "🩺",
+  kennel: "🐕",
+  cattery: "🐈",
+  surgery: "⚕️",
+  lab: "🔬",
+  pharmacy: "💊",
+  reception: "🪪",
+};
+
+function getRoomIcon(name: string): string {
+  return ROOM_ICONS[name.toLowerCase()] ?? "🏠";
+}
+
+const THREE_DAYS_MS = 72 * 60 * 60 * 1000;
+
+interface RoomStat {
+  name: string;
+  total: number;
+  issues: number;
+  attention: number;
+  ok: number;
+}
+
+interface EquipmentItem {
+  id: string;
+  name: string;
+  status: string;
+  roomName?: string | null;
+  location?: string | null;
+  lastSeen?: string | Date | null;
+  lastStatus?: string | null;
+  lastMaintenanceDate?: string | Date | null;
+  maintenanceIntervalDays?: number | null;
+  lastSterilizationDate?: string | Date | null;
+  imageUrl?: string | null;
+  checkedOutById?: string | null;
+  equipmentName?: string;
+  equipmentId?: string;
+  note?: string;
+  toFolder?: string;
+  timestamp?: string;
+  type?: string;
+}
+
+function RoomRadar({
+  equipment,
+  isLoading,
+}: {
+  equipment: EquipmentItem[];
+  isLoading: boolean;
+}) {
+  const [, navigate] = useLocation();
+
+  const stats = useMemo<RoomStat[]>(() => {
+    if (!equipment.length) return [];
+    const now = Date.now();
+    const map: Record<string, RoomStat> = {};
+
+    for (const eq of equipment) {
+      const room = ((eq.roomName ?? eq.location ?? "").trim() || "Unassigned");
+      if (!map[room]) map[room] = { name: room, total: 0, issues: 0, attention: 0, ok: 0 };
+      map[room].total++;
+      if (eq.status === "issue") {
+        map[room].issues++;
+      } else if (
+        eq.status === "maintenance" ||
+        (eq.status === "ok" && eq.lastSeen && now - new Date(eq.lastSeen as string).getTime() > THREE_DAYS_MS)
+      ) {
+        map[room].attention++;
+      } else {
+        map[room].ok++;
+      }
+    }
+
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [equipment]);
+
+  if (isLoading) {
+    return (
+      <div>
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
+          <MapPin className="w-4 h-4 text-muted-foreground" />
+          Room Radar
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats.length) return null;
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
+        <MapPin className="w-4 h-4 text-muted-foreground" />
+        Room Radar
+      </h2>
+      <div className="grid grid-cols-2 gap-2">
+        {stats.map((s) => {
+          const hasIssue = s.issues > 0;
+          const hasAttention = s.attention > 0;
+
+          return (
+            <button
+              key={s.name}
+              type="button"
+              onClick={() => navigate(`/equipment?room=${encodeURIComponent(s.name)}`)}
+              className={[
+                "text-left rounded-2xl p-3.5 border transition-all active:scale-[0.98] cursor-pointer",
+                hasIssue
+                  ? "bg-red-50 border-red-200 hover:border-red-300"
+                  : hasAttention
+                  ? "bg-amber-50 border-amber-200 hover:border-amber-300"
+                  : "bg-card border-border/60 hover:border-primary/30 hover:shadow-md",
+              ].join(" ")}
+            >
+              <div className="text-xl mb-1 leading-none">{getRoomIcon(s.name)}</div>
+              <p
+                className={[
+                  "font-semibold text-xs truncate mb-1",
+                  hasIssue ? "text-red-700" : hasAttention ? "text-amber-700" : "text-foreground",
+                ].join(" ")}
+              >
+                {s.name}
+              </p>
+              <p
+                className={[
+                  "text-2xl font-bold leading-none mb-2",
+                  hasIssue ? "text-red-700" : hasAttention ? "text-amber-700" : "text-foreground",
+                ].join(" ")}
+              >
+                {s.total}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {s.issues > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                    {s.issues} issue{s.issues !== 1 ? "s" : ""}
+                  </span>
+                )}
+                {s.attention > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {s.attention} attention
+                  </span>
+                )}
+                {s.ok > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    {s.ok} ok
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const { name } = useAuth();
@@ -67,12 +233,17 @@ export default function HomePage() {
     queryFn: () => api.activity.feed(),
   });
 
+  const now = Date.now();
+
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
   const totalCount = equipment?.length ?? 0;
   const okCount = equipment?.filter((e) => e.status === "ok").length ?? 0;
   const issueCount = equipment?.filter((e) => e.status === "issue").length ?? 0;
   const maintenanceCount = equipment?.filter((e) => e.status === "maintenance").length ?? 0;
+  const staleCount = equipment?.filter(
+    (e) => e.status === "ok" && e.lastSeen && now - new Date(e.lastSeen as string).getTime() > THREE_DAYS_MS
+  ).length ?? 0;
 
   return (
     <Layout onScan={() => setScannerOpen(true)}>
@@ -121,58 +292,78 @@ export default function HomePage() {
           Scan QR Code
         </Button>
 
-        {/* 3. Status overview — 4 stat tiles */}
-        <div className="grid grid-cols-4 gap-2">
+        {/* 3. Status overview — stat tiles */}
+        <div className="grid grid-cols-5 gap-1.5" data-testid="stat-tiles">
           <Link href="/equipment">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-total">
-              <Package className="w-4 h-4 text-muted-foreground mb-1.5" />
+            <div className="flex flex-col items-center p-2.5 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[68px] justify-center" data-testid="stat-total">
+              <Package className="w-3.5 h-3.5 text-muted-foreground mb-1" />
               {isLoading ? (
-                <Skeleton className="h-5 w-6" />
+                <Skeleton className="h-5 w-5" />
               ) : (
-                <p className="text-lg font-bold text-foreground leading-none">{totalCount}</p>
+                <p className="text-base font-bold text-foreground leading-none">{totalCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">Total</p>
+              <p className="text-[9px] text-muted-foreground mt-1 text-center">Total</p>
             </div>
           </Link>
 
           <Link href="/equipment?status=ok">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-ok">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 mb-1.5" />
+            <div className="flex flex-col items-center p-2.5 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[68px] justify-center" data-testid="stat-ok">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mb-1" />
               {isLoading ? (
-                <Skeleton className="h-5 w-6" />
+                <Skeleton className="h-5 w-5" />
               ) : (
-                <p className="text-lg font-bold text-foreground leading-none">{okCount}</p>
+                <p className="text-base font-bold text-foreground leading-none">{okCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">OK</p>
+              <p className="text-[9px] text-muted-foreground mt-1 text-center">OK</p>
             </div>
           </Link>
 
           <Link href="/equipment?status=issue">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-issues">
-              <AlertTriangle className={`w-4 h-4 mb-1.5 ${issueCount > 0 ? "text-red-400" : "text-muted-foreground"}`} />
+            <div className="flex flex-col items-center p-2.5 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[68px] justify-center" data-testid="stat-issues">
+              <AlertTriangle className={`w-3.5 h-3.5 mb-1 ${issueCount > 0 ? "text-red-400" : "text-muted-foreground"}`} />
               {isLoading ? (
-                <Skeleton className="h-5 w-6" />
+                <Skeleton className="h-5 w-5" />
               ) : (
-                <p className={`text-lg font-bold leading-none ${issueCount > 0 ? "text-red-500" : "text-foreground"}`}>{issueCount}</p>
+                <p className={`text-base font-bold leading-none ${issueCount > 0 ? "text-red-500" : "text-foreground"}`}>{issueCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">Issues</p>
+              <p className="text-[9px] text-muted-foreground mt-1 text-center">Issues</p>
             </div>
           </Link>
 
           <Link href="/equipment?status=maintenance">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-maintenance">
-              <Wrench className={`w-4 h-4 mb-1.5 ${maintenanceCount > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
+            <div className="flex flex-col items-center p-2.5 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[68px] justify-center" data-testid="stat-maintenance">
+              <Wrench className={`w-3.5 h-3.5 mb-1 ${maintenanceCount > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
               {isLoading ? (
-                <Skeleton className="h-5 w-6" />
+                <Skeleton className="h-5 w-5" />
               ) : (
-                <p className={`text-lg font-bold leading-none ${maintenanceCount > 0 ? "text-amber-600" : "text-foreground"}`}>{maintenanceCount}</p>
+                <p className={`text-base font-bold leading-none ${maintenanceCount > 0 ? "text-amber-600" : "text-foreground"}`}>{maintenanceCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">Maint.</p>
+              <p className="text-[9px] text-muted-foreground mt-1 text-center">Maint.</p>
+            </div>
+          </Link>
+
+          <Link href="/equipment">
+            <div className="flex flex-col items-center p-2.5 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[68px] justify-center" data-testid="stat-stale">
+              <Clock className={`w-3.5 h-3.5 mb-1 ${staleCount > 0 ? "text-slate-500" : "text-muted-foreground"}`} />
+              {isLoading ? (
+                <Skeleton className="h-5 w-5" />
+              ) : (
+                <p className={`text-base font-bold leading-none ${staleCount > 0 ? "text-slate-600" : "text-foreground"}`}>{staleCount}</p>
+              )}
+              <p className="text-[9px] text-muted-foreground mt-1 text-center">Stale</p>
             </div>
           </Link>
         </div>
 
-        {/* 4. Active alerts — only shown when relevant */}
+        {/* 4. Room Radar */}
+        {!equipmentError && (
+          <RoomRadar
+            equipment={(equipment ?? []) as EquipmentItem[]}
+            isLoading={isLoading}
+          />
+        )}
+
+        {/* 5. Active alerts — only shown when relevant */}
         {alertCount > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -224,7 +415,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Recent activity — compact, max 4 items */}
+        {/* 6. Recent activity — compact, max 4 items */}
         {activityData?.items && activityData.items.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
@@ -235,9 +426,9 @@ export default function HomePage() {
               {activityData.items.slice(0, 4).map((item) => {
                 const StatusIcon = STATUS_ICON_MAP[item.status ?? "ok"] ?? Activity;
                 const statusColor = STATUS_COLOR_MAP[item.status ?? "ok"] ?? "text-muted-foreground";
-                const actionText = item.type === "scan"
-                  ? (item.note ?? `Updated status to ${item.status}`)
-                  : (item.note ?? `Moved to ${item.toFolder || "unfiled"}`);
+                const actionText = (item as any).type === "scan"
+                  ? ((item as any).note ?? `Updated status to ${item.status}`)
+                  : ((item as any).note ?? `Moved to ${(item as any).toFolder || "unfiled"}`);
 
                 return (
                   <Link key={item.id} href={`/equipment/${item.equipmentId}`}>
@@ -250,7 +441,7 @@ export default function HomePage() {
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-medium text-sm truncate leading-snug">{item.equipmentName}</p>
                             <p className="text-[11px] text-muted-foreground shrink-0 whitespace-nowrap">
-                              {formatRelativeTime(item.timestamp)}
+                              {formatRelativeTime(item.timestamp as string)}
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground truncate">{actionText}</p>
