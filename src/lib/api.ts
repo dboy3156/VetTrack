@@ -138,7 +138,6 @@ async function request<T>(
         endpoint: url,
         method: (init.method as string) || "GET",
         body: (init.body as string) || "",
-        authHeaders: getAuthHeaders(),
         createdAt: new Date(),
         retries: 0,
         status: "pending",
@@ -190,6 +189,54 @@ export interface EquipmentPage {
   page: number;
   pageSize: number;
   hasMore: boolean;
+}
+
+interface MutationResponse {
+  equipment: Equipment;
+  undoToken: string | undefined;
+  pendingSyncId?: number;
+}
+
+async function handleOptimisticMutation(opts: {
+  id: string;
+  endpoint: string;
+  syncType: PendingSyncType;
+  requestBody: Record<string, unknown>;
+  optimisticEquipment: Partial<Equipment>;
+  cachedEquipment: Equipment | undefined;
+}): Promise<MutationResponse> {
+  const clientTimestamp = Date.now();
+  try {
+    const result = await request<{ equipment: Equipment; undoToken: string }>(
+      opts.endpoint,
+      {
+        method: "POST",
+        body: JSON.stringify(opts.requestBody),
+        headers: { "X-Client-Timestamp": String(clientTimestamp) },
+      }
+    );
+    updateCachedEquipment(opts.id, result.equipment).catch(() => {});
+    return { ...result, pendingSyncId: undefined };
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const pendingSyncId = await addPendingSync({
+        type: opts.syncType,
+        endpoint: opts.endpoint,
+        method: "POST",
+        body: JSON.stringify(opts.requestBody),
+        createdAt: new Date(),
+        retries: 0,
+        status: "pending",
+        clientTimestamp,
+        optimisticData: JSON.stringify(opts.optimisticEquipment),
+        equipmentName: opts.cachedEquipment?.name,
+      });
+      const updated = { ...(opts.cachedEquipment || {}), ...opts.optimisticEquipment, id: opts.id } as Equipment;
+      await updateCachedEquipment(opts.id, opts.optimisticEquipment);
+      return { equipment: updated, undoToken: undefined, pendingSyncId: pendingSyncId as number };
+    }
+    throw err;
+  }
 }
 
 export const api = {
@@ -340,7 +387,6 @@ export const api = {
             endpoint: `/api/equipment/${id}/scan`,
             method: "POST",
             body: JSON.stringify(data),
-            authHeaders: { ...getAuthHeaders(), "X-Client-Timestamp": String(clientTimestamp) },
             createdAt: new Date(),
             retries: 0,
             status: "pending",
@@ -358,97 +404,39 @@ export const api = {
     checkout: async (id: string, location?: string) => {
       const cached = await getCachedEquipmentById(id);
       const now = new Date().toISOString();
-      const clientTimestamp = Date.now();
-      const userId = getCurrentUserId();
-      const userEmail = getCurrentUserEmail();
-
-      const optimisticEquipment: Partial<Equipment> = {
-        checkedOutById: userId,
-        checkedOutByEmail: userEmail,
-        checkedOutAt: now,
-        checkedOutLocation: location || null,
-      };
-
-      try {
-        const result = await request<{ equipment: Equipment; undoToken: string }>(
-          `/api/equipment/${id}/checkout`,
-          {
-            method: "POST",
-            body: JSON.stringify({ location }),
-            headers: { "X-Client-Timestamp": String(clientTimestamp) },
-          }
-        );
-        updateCachedEquipment(id, result.equipment).catch(() => {});
-        return { ...result, pendingSyncId: undefined as number | undefined };
-      } catch (err) {
-        if (isNetworkError(err)) {
-          const pendingSyncId = await addPendingSync({
-            type: "checkout",
-            endpoint: `/api/equipment/${id}/checkout`,
-            method: "POST",
-            body: JSON.stringify({ location }),
-            authHeaders: { ...getAuthHeaders(), "X-Client-Timestamp": String(clientTimestamp) },
-            createdAt: new Date(),
-            retries: 0,
-            status: "pending",
-            clientTimestamp,
-            optimisticData: JSON.stringify(optimisticEquipment),
-            equipmentName: cached?.name,
-          });
-          const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
-          await updateCachedEquipment(id, optimisticEquipment);
-          return { equipment: updated, undoToken: undefined as string | undefined, pendingSyncId: pendingSyncId as number };
-        }
-        throw err;
-      }
+      return handleOptimisticMutation({
+        id,
+        endpoint: `/api/equipment/${id}/checkout`,
+        syncType: "checkout",
+        requestBody: { location },
+        optimisticEquipment: {
+          checkedOutById: getCurrentUserId(),
+          checkedOutByEmail: getCurrentUserEmail(),
+          checkedOutAt: now,
+          checkedOutLocation: location || null,
+        },
+        cachedEquipment: cached,
+      });
     },
     return: async (id: string) => {
       const cached = await getCachedEquipmentById(id);
       const now = new Date().toISOString();
-      const clientTimestamp = Date.now();
-
-      const optimisticEquipment: Partial<Equipment> = {
-        checkedOutById: null,
-        checkedOutByEmail: null,
-        checkedOutAt: null,
-        checkedOutLocation: null,
-        status: "ok",
-        lastSeen: now,
-        lastStatus: "ok",
-      };
-
-      try {
-        const result = await request<{ equipment: Equipment; undoToken: string }>(
-          `/api/equipment/${id}/return`,
-          {
-            method: "POST",
-            body: JSON.stringify({}),
-            headers: { "X-Client-Timestamp": String(clientTimestamp) },
-          }
-        );
-        updateCachedEquipment(id, result.equipment).catch(() => {});
-        return { ...result, pendingSyncId: undefined as number | undefined };
-      } catch (err) {
-        if (isNetworkError(err)) {
-          const pendingSyncId = await addPendingSync({
-            type: "return",
-            endpoint: `/api/equipment/${id}/return`,
-            method: "POST",
-            body: JSON.stringify({}),
-            authHeaders: { ...getAuthHeaders(), "X-Client-Timestamp": String(clientTimestamp) },
-            createdAt: new Date(),
-            retries: 0,
-            status: "pending",
-            clientTimestamp,
-            optimisticData: JSON.stringify(optimisticEquipment),
-            equipmentName: cached?.name,
-          });
-          const updated = { ...(cached || {}), ...optimisticEquipment, id } as Equipment;
-          await updateCachedEquipment(id, optimisticEquipment);
-          return { equipment: updated, undoToken: undefined as string | undefined, pendingSyncId: pendingSyncId as number };
-        }
-        throw err;
-      }
+      return handleOptimisticMutation({
+        id,
+        endpoint: `/api/equipment/${id}/return`,
+        syncType: "return",
+        requestBody: {},
+        optimisticEquipment: {
+          checkedOutById: null,
+          checkedOutByEmail: null,
+          checkedOutAt: null,
+          checkedOutLocation: null,
+          status: "ok",
+          lastSeen: now,
+          lastStatus: "ok",
+        },
+        cachedEquipment: cached,
+      });
     },
     bulkDelete: (data: BulkDeleteRequest) =>
       request<BulkResult>(

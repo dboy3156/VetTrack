@@ -9,12 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  computeDashboardCounts,
-  computeCriticalItems,
-  computeUserGroups,
-  computeLocationGroups,
-} from "@/lib/dashboard-utils";
+import { computeDashboardData } from "@/lib/dashboard-utils";
 import { generateMonthlyReport } from "@/lib/generate-report";
 import {
   LayoutDashboard,
@@ -63,10 +58,11 @@ export default function ManagementDashboardPage() {
     retry: false,
   });
 
-  const counts = equipment ? computeDashboardCounts(equipment) : { available: 0, inUse: 0, issues: 0, missing: 0 };
-  const criticalItems = equipment ? computeCriticalItems(equipment) : [];
-  const userGroups = equipment ? computeUserGroups(equipment) : [];
-  const locationGroups = equipment ? computeLocationGroups(equipment) : [];
+  const dashData = equipment ? computeDashboardData(equipment) : null;
+  const counts = dashData?.counts ?? { available: 0, inUse: 0, issues: 0, missing: 0 };
+  const criticalItems = dashData?.criticalItems ?? [];
+  const userGroups = dashData?.userGroups ?? [];
+  const locationGroups = dashData?.locationGroups ?? [];
 
   const lastUpdated = dataUpdatedAt
     ? format(new Date(dataUpdatedAt), "h:mm:ss a")

@@ -1,0 +1,334 @@
+Here’s the updated Replit agent prompt with the Production Readiness Protocol fully integrated:
+
+VetTrack — 4-Task Refactor + Production Readiness Gate
+You are working on VetTrack, a mobile-first React/TypeScript veterinary equipment tracking app. Apply all four tasks below exactly as written. Do not modify any files not mentioned.
+This work must satisfy the Production Readiness Gate documented in PRODUCTION_READINESS.md. All 26 criteria across 4 Pillars must be marked PASS or formally waived before any deployment to a live clinic. Every task below maps explicitly to one or more criteria. Do not mark any criterion PASS unless the code change is fully implemented and verified.
+
+Task 1 — Security: Remove auth from persisted sync records
+Production Readiness criteria this satisfies:
+	•	Pillar: Security — “Auth tokens are never written to persistent storage (IndexedDB, localStorage, or any offline queue)”
+	•	Pillar: Security — “All credentials are injected at runtime from a volatile in-memory source”
+In src/types/sync.ts, ensure the interface matches this exactly — no auth tokens, no Authorization strings, no header fields:
+
+export interface PendingSync {
+  id?: number;
+  type: PendingSyncType;
+  endpoint: string;
+  method: string;
+  body: string;
+  createdAt: Date;
+  retries: number;
+  status: PendingSyncStatus;
+  clientTimestamp: number;
+  optimisticData?: string;
+  errorMessage?: string;
+  equipmentName?: string;
+}
+
+
+In src/lib/api.ts, find every call to addPendingSync in the offline fallback path and confirm none store auth headers:
+
+await addPendingSync({
+  type: offline.offlineType,
+  endpoint: url,
+  method: (init.method as string) || "GET",
+  body: (init.body as string) || "",
+  createdAt: new Date(),
+  retries: 0,
+  status: "pending",
+  clientTimestamp,
+  optimisticData: offline.optimisticResult
+    ? JSON.stringify(offline.optimisticResult)
+    : undefined,
+});
+
+
+In src/lib/sync-engine.ts, ensure getAuthHeaders() is called fresh at runtime — never read from the stored record:
+
+const headers: Record<string, string> = {
+  "Content-Type": "application/json",
+  ...getAuthHeaders(), // injected fresh at sync time, never stored in DB
+};
+
+if (item.clientTimestamp) {
+  headers["X-Client-Timestamp"] = String(item.clientTimestamp);
+}
+
+
+After completing Task 1, update PRODUCTION_READINESS.md:
+	•	Mark “Auth tokens never written to persistent storage” → PASS
+	•	Mark “Credentials injected at runtime from volatile source” → PASS
+
+Task 2 — API Refactor: Add shared handleOptimisticMutation helper
+Production Readiness criteria this satisfies:
+	•	Pillar: Reliability — “All mutations have a consistent offline fallback path”
+	•	Pillar: Reliability — “No mutation silently drops data when offline”
+	•	Pillar: Code Quality — “No duplicated try/catch/offline blocks across mutation calls”
+In src/lib/api.ts, add this helper. Two bug fixes are included: body !== undefined check prevents storing "{}" when no body was intended; null guard on optimisticData prevents storing "null" in IndexedDB:
+
+async function handleOptimisticMutation<T>({
+  endpoint,
+  method,
+  body,
+  optimisticUpdate,
+  cacheUpdate,
+  syncType,
+}: {
+  endpoint: string;
+  method: string;
+  body?: unknown;
+  optimisticUpdate: () => Promise<T>;
+  cacheUpdate?: (result: T) => void;
+  syncType: PendingSyncType;
+}): Promise<T> {
+  const clientTimestamp = Date.now();
+
+  try {
+    const result = await request<T>(endpoint, {
+      method,
+      // Do NOT fall back to "{}" — preserve absence of body when none was intended
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers: { "X-Client-Timestamp": String(clientTimestamp) },
+    });
+
+    cacheUpdate?.(result);
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      const optimistic = await optimisticUpdate();
+
+      await addPendingSync({
+        type: syncType,
+        endpoint,
+        method,
+        // Store empty string (not "{}") when body is absent
+        body: body !== undefined ? JSON.stringify(body) : "",
+        createdAt: new Date(),
+        retries: 0,
+        status: "pending",
+        clientTimestamp,
+        // Guard against optimisticUpdate returning undefined/null
+        optimisticData: optimistic ? JSON.stringify(optimistic) : undefined,
+      });
+
+      return optimistic;
+    }
+    throw err;
+  }
+}
+
+
+Refactor checkout to use it:
+
+checkout: (id: string, location?: string) =>
+  handleOptimisticMutation({
+    endpoint: `/api/equipment/${id}/checkout`,
+    method: "POST",
+    body: { location },
+    syncType: "checkout",
+    optimisticUpdate: async () => {
+      const cached = await getCachedEquipmentById(id);
+      const now = new Date().toISOString();
+
+      const updated = {
+        ...(cached || {}),
+        id,
+        checkedOutById: getCurrentUserId(),
+        checkedOutByEmail: getCurrentUserEmail(),
+        checkedOutAt: now,
+        checkedOutLocation: location || null,
+      } as Equipment;
+
+      await updateCachedEquipment(id, updated);
+      return { equipment: updated, undoToken: undefined };
+    },
+  }),
+
+
+Apply the same refactor to checkin and any other mutations with duplicated inline try/catch/offline/addPendingSync logic.
+After completing Task 2, update PRODUCTION_READINESS.md:
+	•	Mark “All mutations have consistent offline fallback path” → PASS
+	•	Mark “No mutation silently drops data when offline” → PASS
+	•	Mark “No duplicated try/catch/offline blocks” → PASS
+
+Task 3 — Performance: Single-pass dashboard computation
+Production Readiness criteria this satisfies:
+	•	Pillar: Performance — “Dashboard renders without multi-pass array iteration over equipment list”
+	•	Pillar: Reliability — “Checked-out equipment is never incorrectly flagged as missing”
+	•	Pillar: Code Quality — “Dashboard aggregation logic is unit-testable in isolation”
+Create src/lib/dashboard-utils.ts with this exact content:
+
+import type { Equipment, CriticalItem, UserEquipmentGroup } from "@/types";
+
+export function computeDashboardData(equipment: Equipment[]) {
+  const now = Date.now();
+
+  let available = 0;
+  let inUse = 0;
+  let issues = 0;
+  let missing = 0;
+
+  let missingCost = 0;
+  let issueCost = 0;
+
+  const criticalItems: CriticalItem[] = [];
+  const userMap = new Map<string, UserEquipmentGroup>();
+  const locationMap = new Map<string, number>();
+
+  for (const eq of equipment) {
+    const lastSeenTs = eq.lastSeen ? Date.parse(eq.lastSeen) : 0;
+    const isInUse = !!eq.checkedOutById;
+    const isIssue = eq.status === "issue";
+    const isAvailable = eq.status === "ok" && !isInUse;
+
+    // FIX: checked-out equipment is with someone — never flag as missing
+    const isMissing =
+      !isInUse && (!lastSeenTs || now - lastSeenTs > 86400000);
+
+    if (isAvailable) available++;
+    if (isInUse) inUse++;
+    if (isIssue) issues++;
+    if (isMissing) missing++;
+
+    if (isMissing) missingCost += 500;
+    if (isIssue) issueCost += 75;
+
+    if (isIssue || isMissing) {
+      criticalItems.push({
+        id: eq.id,
+        name: eq.name,
+        reason: isIssue
+          ? "Active Issue"
+          : eq.lastSeen
+          ? "Not seen in 24+ hours"
+          : "Never scanned",
+        location: eq.location,
+        status: isIssue ? "issue" : "missing",
+      });
+    }
+
+    if (isInUse && eq.checkedOutById) {
+      if (!userMap.has(eq.checkedOutById)) {
+        userMap.set(eq.checkedOutById, {
+          userId: eq.checkedOutById,
+          userEmail: eq.checkedOutByEmail || eq.checkedOutById,
+          items: [],
+        });
+      }
+      userMap.get(eq.checkedOutById)!.items.push(eq);
+    }
+
+    const loc = eq.location || "Unknown";
+    locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
+  }
+
+  const userGroups = Array.from(userMap.values()).sort(
+    (a, b) => b.items.length - a.items.length
+  );
+
+  const locationGroups = Array.from(locationMap.entries())
+    .map(([location, count]) => ({ location, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const total = equipment.length;
+  const operational = available + inUse;
+
+  return {
+    counts: { available, inUse, issues, missing },
+    criticalItems,
+    userGroups,
+    locationGroups,
+    costEstimate: {
+      missingCost,
+      issueCost,
+      total: missingCost + issueCost,
+    },
+    operationalPercent:
+      total === 0 ? 100 : Math.round((operational / total) * 100),
+  };
+}
+
+
+In the dashboard component, replace all multi-pass aggregation with:
+
+import { computeDashboardData } from "@/lib/dashboard-utils";
+
+const dashboard = useMemo(
+  () => computeDashboardData(equipment || []),
+  [equipment]
+);
+
+
+Update all JSX references to use dashboard.counts.available, dashboard.criticalItems, dashboard.userGroups, etc.
+After completing Task 3, update PRODUCTION_READINESS.md:
+	•	Mark “Dashboard renders without multi-pass array iteration” → PASS
+	•	Mark “Checked-out equipment never flagged as missing” → PASS
+	•	Mark “Dashboard aggregation logic is unit-testable in isolation” → PASS
+
+Task 4 — Sync hardening: Retry guard with safe error handling
+Production Readiness criteria this satisfies:
+	•	Pillar: Reliability — “Sync items cannot retry infinitely”
+	•	Pillar: Reliability — “Failed sync items are marked with a human-readable error message”
+	•	Pillar: Reliability — “Sync engine does not crash silently if IndexedDB write fails during failure handling”
+In src/lib/sync-engine.ts, confirm MAX_RETRIES is defined as a named constant near the top of the file:
+
+const MAX_RETRIES = 5;
+
+
+Replace any existing max-retry guard with this version. The added try/catch around updatePendingSync ensures a failed DB write during error handling does not silently stall the sync queue:
+
+if (currentRetries >= MAX_RETRIES) {
+  try {
+    await updatePendingSync(item.id, {
+      status: "failed",
+      retries: currentRetries,
+      errorMessage: `Failed after ${MAX_RETRIES} attempts`,
+    });
+  } catch (updateErr) {
+    // Log but do not throw — we must still stop retrying this item
+    console.error(
+      `[SyncEngine] Failed to mark item ${item.id} as failed:`,
+      updateErr
+    );
+  }
+  return "transient_failure";
+}
+
+
+After completing Task 4, update PRODUCTION_READINESS.md:
+	•	Mark “Sync items cannot retry infinitely” → PASS
+	•	Mark “Failed sync items marked with human-readable error” → PASS
+	•	Mark “Sync engine does not crash silently on IndexedDB failure during error handling” → PASS
+
+Final Gate: Update PRODUCTION_READINESS.md
+After all four tasks are complete, open PRODUCTION_READINESS.md and update the status of every criterion touched by this work. The file must use this format consistently:
+
+| Criterion                                              | Pillar      | Status  | Notes                          |
+|--------------------------------------------------------|-------------|---------|--------------------------------|
+| Auth tokens never written to persistent storage        | Security    | PASS    | Verified in PendingSync type   |
+| Credentials injected at runtime from volatile source   | Security    | PASS    | getAuthHeaders() in sync-engine|
+| All mutations have consistent offline fallback path    | Reliability | PASS    | handleOptimisticMutation       |
+| No mutation silently drops data when offline           | Reliability | PASS    | handleOptimisticMutation       |
+| Checked-out equipment never flagged as missing         | Reliability | PASS    | isMissing fix in dashboard-utils|
+| Sync items cannot retry infinitely                     | Reliability | PASS    | MAX_RETRIES = 5                |
+| Failed sync items marked with human-readable error     | Reliability | PASS    | errorMessage field populated   |
+| Sync engine stable if IndexedDB fails during handling  | Reliability | PASS    | try/catch around updatePendingSync|
+| Dashboard renders without multi-pass array iteration   | Performance | PASS    | computeDashboardData single loop|
+| No duplicated try/catch/offline blocks                 | Code Quality| PASS    | All mutations use shared helper|
+| Dashboard aggregation logic unit-testable in isolation | Code Quality| PASS    | Pure function in dashboard-utils|
+
+
+Any of the 26 criteria not touched by this work must retain their existing status unchanged. Do not mark anything PASS that has not been implemented and verified in this session.
+
+Completion checklist
+Before finishing, verify every item:
+	•	[ ] tsc --noEmit passes with zero new errors
+	•	[ ] No PendingSync record anywhere in the codebase stores an auth token or Authorization header string
+	•	[ ] handleOptimisticMutation is the single path for all optimistic mutations — no duplicated try/catch/offline blocks remain
+	•	[ ] body !== undefined is used (not body ||) in both the request call and the addPendingSync call
+	•	[ ] optimisticData is guarded against null/undefined before JSON.stringify
+	•	[ ] The dashboard component has exactly one useMemo calling computeDashboardData — no separate filter/reduce passes over equipment
+	•	[ ] isMissing excludes checked-out equipment
+	•	[ ] MAX_RETRIES is a named constant, not a magic number
+	•	[ ] updatePendingSync in the retry guard is wrapped in try/catch
+	•	[ ] PRODUCTION_READINESS.md is updated with PASS for all 11 criteria above, all others unchanged​​​​​​​​​​​​​​​​

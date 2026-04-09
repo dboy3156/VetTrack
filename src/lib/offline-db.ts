@@ -11,7 +11,6 @@ export interface PendingSync {
   endpoint: string;
   method: string;
   body: string;
-  authHeaders: Record<string, string>;
   createdAt: Date;
   retries: number;
   status: PendingSyncStatus;

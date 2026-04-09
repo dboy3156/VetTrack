@@ -37,6 +37,7 @@ export interface CostEstimate {
 }
 
 export function isEquipmentMissing(eq: Equipment): boolean {
+  if (eq.checkedOutById) return false;
   if (!eq.lastSeen) return true;
   const hoursSinceLastSeen =
     (Date.now() - new Date(eq.lastSeen).getTime()) / (1000 * 60 * 60);
@@ -152,4 +153,106 @@ export function computeOperationalPercent(equipment: Equipment[]): number {
   const counts = computeDashboardCounts(equipment);
   const operational = counts.available + counts.inUse;
   return Math.round((operational / equipment.length) * 100);
+}
+
+export interface DashboardData {
+  counts: DashboardCounts;
+  criticalItems: CriticalItem[];
+  userGroups: UserEquipmentGroup[];
+  locationGroups: LocationGroup[];
+  costEstimate: CostEstimate;
+  operationalPercent: number;
+}
+
+export function computeDashboardData(equipment: Equipment[]): DashboardData {
+  let available = 0;
+  let inUse = 0;
+  let issues = 0;
+  let missing = 0;
+  let missingCost = 0;
+  let issueCost = 0;
+
+  const criticalItems: CriticalItem[] = [];
+  const userMap = new Map<string, UserEquipmentGroup>();
+  const locationMap = new Map<string, number>();
+
+  const now = Date.now();
+  const MISSING_MS = MISSING_HOURS * 60 * 60 * 1000;
+
+  for (const eq of equipment) {
+    const isInUse = !!eq.checkedOutById;
+    const isAvailable = eq.status === "ok" && !isInUse;
+    const hasIssue = eq.status === "issue";
+    const isMissing =
+      !isInUse &&
+      (!eq.lastSeen || now - new Date(eq.lastSeen).getTime() > MISSING_MS);
+
+    if (isAvailable) available++;
+    if (isInUse) inUse++;
+    if (hasIssue) issues++;
+    if (isMissing) missing++;
+
+    if (hasIssue) {
+      issueCost += ISSUE_COST_DEFAULT;
+      criticalItems.push({
+        id: eq.id,
+        name: eq.name,
+        reason: "Active Issue",
+        location: eq.location,
+        status: "issue",
+      });
+    } else if (isMissing) {
+      missingCost += MISSING_COST_DEFAULT;
+      criticalItems.push({
+        id: eq.id,
+        name: eq.name,
+        reason: eq.lastSeen ? "Not seen in 24+ hours" : "Never scanned",
+        location: eq.location,
+        status: "missing",
+      });
+    }
+
+    if (isInUse) {
+      const key = eq.checkedOutById!;
+      if (!userMap.has(key)) {
+        userMap.set(key, {
+          userId: key,
+          userEmail: eq.checkedOutByEmail || key,
+          items: [],
+        });
+      }
+      userMap.get(key)!.items.push(eq);
+    }
+
+    const loc = eq.location || "Unknown";
+    locationMap.set(loc, (locationMap.get(loc) ?? 0) + 1);
+  }
+
+  const userGroups = Array.from(userMap.values()).sort(
+    (a, b) => b.items.length - a.items.length
+  );
+  const locationGroups = Array.from(locationMap.entries())
+    .map(([location, count]) => ({ location, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const counts: DashboardCounts = { available, inUse, issues, missing };
+  const operational = available + inUse;
+  const operationalPercent =
+    equipment.length === 0
+      ? 100
+      : Math.round((operational / equipment.length) * 100);
+  const costEstimate: CostEstimate = {
+    missingCost,
+    issueCost,
+    total: missingCost + issueCost,
+  };
+
+  return {
+    counts,
+    criticalItems,
+    userGroups,
+    locationGroups,
+    costEstimate,
+    operationalPercent,
+  };
 }

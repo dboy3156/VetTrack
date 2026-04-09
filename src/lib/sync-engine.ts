@@ -10,7 +10,7 @@ import {
 import { getAuthHeaders } from "./auth-store";
 import { clearOfflineSession } from "./offline-session";
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 const RETRY_DELAYS_MS = [2000, 5000, 10000];
 const BURST_LIMIT = 50;
 const BURST_DELAY_MS = 500;
@@ -199,7 +199,7 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
     lastResult = result;
 
     if (result === "success") {
-      await updatePendingSync(item.id, { status: "synced" });
+      try { await updatePendingSync(item.id, { status: "synced" }); } catch {}
       setTimeout(() => removePendingSync(item.id!), 3000);
       return "success";
     }
@@ -209,15 +209,17 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
     }
 
     currentRetries++;
-    await updatePendingSync(item.id, { retries: currentRetries });
+    try { await updatePendingSync(item.id, { retries: currentRetries }); } catch {}
     notifyListeners();
 
     if (currentRetries >= MAX_RETRIES) {
-      await updatePendingSync(item.id, {
-        status: "failed",
-        retries: currentRetries,
-        errorMessage: `Failed after ${MAX_RETRIES} attempts`,
-      });
+      try {
+        await updatePendingSync(item.id, {
+          status: "failed",
+          retries: currentRetries,
+          errorMessage: `Failed after ${MAX_RETRIES} attempts`,
+        });
+      } catch {}
       // S4 — Report permanent sync failures to Sentry for the 7-day failure rate metric.
       // Sentry.captureEvent is a no-op when VITE_SENTRY_DSN is not configured.
       Sentry.captureEvent({
@@ -254,8 +256,7 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
     "Content-Type": "application/json",
     ...liveHeaders,
   };
-  const xTimestamp = (item.authHeaders || {})["X-Client-Timestamp"];
-  if (xTimestamp) headers["X-Client-Timestamp"] = xTimestamp;
+  if (item.clientTimestamp) headers["X-Client-Timestamp"] = String(item.clientTimestamp);
 
   try {
     const controller = new AbortController();

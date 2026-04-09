@@ -2,6 +2,14 @@
 
 > **Purpose**: This document defines the objective pass/fail gate that must be cleared before any deployment of VetTrack to a live clinic environment. Any engineer or product owner can read it and determine independently whether VetTrack is ready to deploy.
 
+## Hardening Changelog
+
+### 2026-04-09
+- **Security** — Removed `authHeaders` field from `PendingSync` (IndexedDB). Clerk JWTs are no longer persisted to IndexedDB. `sync-engine` now reads live auth headers at sync time via `getAuthHeaders()` and forwards `clientTimestamp` as `X-Client-Timestamp`.
+- **Sync reliability** — `MAX_RETRIES` raised from 3 → 5. All `updatePendingSync` calls wrapped in `try/catch` so an IndexedDB failure cannot halt the sync queue.
+- **API** — Shared `handleOptimisticMutation` helper introduced. `checkout` and `return` refactored to use it, eliminating duplicated try/catch/addPendingSync logic.
+- **Performance** — `computeDashboardData` single-pass function added to `dashboard-utils.ts`. Dashboard now computes counts, critical items, user groups, location groups, cost estimates, and operational percent in one O(n) pass. `isEquipmentMissing` fixed to return `false` for checked-out equipment.
+
 ---
 
 ## Table of Contents
