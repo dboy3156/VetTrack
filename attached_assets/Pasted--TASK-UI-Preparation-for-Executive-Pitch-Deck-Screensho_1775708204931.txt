@@ -1,0 +1,40 @@
+# TASK: UI Preparation for Executive Pitch Deck Screenshots
+# Objective: Force specific data states and UI cleanliness to match the presentation narrative (Chaos to Control).
+
+1. PREPARATION & CLEANUP (Critical):
+- Wipe all current mock data/database entries.
+- Disable any active scanning loops or auto-refresh timers during this process to ensure stability.
+- Hide debug menus, test buttons, or unfinished UI elements.
+- Apply the 'deep navy' + 'teal accents' theme consistently across all components.
+- Ensure all numbers use professional, large font rendering.
+
+2. SCENE 1: GENERATING THE "CHAOS" STATE (For Slide 1/2)
+- Target: Main Dashboard / Room List.
+- Goal: Visually represent unverified equipment and staff frustration (searching).
+- Data: Create the ICU room entry.
+- State: Populate the ICU with 4 mock items (e.g., Infusion Pumps). Set 3 of them to 'Stale' (Grey) status and 1 to 'Missing/Unverified' (Red/Orange warning) with the note: *"Last seen in Exam Room 2 - Needs verification"*.
+- UI Requirement: The ICU Room Card must display a dominant RED indicator or text: *"4 Assets Unverified"*.
+
+3. SCENE 2: GENERATING THE "CONTROL" STATE (For Slide 6 - Operating Flow)
+- Target: ICU Room Radar View.
+- Goal: Demonstrate immediate clarity and speed (the "How it works").
+- Scenario: User just completed an NFC scan of the ICU tag.
+- Data: Populate the ICU with 5 validated assets (e.g., IP-01 through IP-05).
+- UI Requirement: The ICU Radar must show a massive GREEN indicator and text: *"ICU Verified (5/5 Assets OK)"*. Last Scan timestamp: *"Just Now"*. The "Scan NFC" button should have a visual accent (e.g., teal shadow) indicating recent use.
+
+4. SCENE 3: GENERATING "OWNERSHIP" VIA AUDIT LOG (For Slide 10/11)
+- Target: Audit Log View.
+- Goal: Prove collaborative workflow and accountability (who did what).
+- Staff (Mock): Use these names: Dan (System Owner), Aseel (Manager), Dana (Chief Vet), Sigal (Chief Tech), Gal (Doctor), Lihi, Ofir, Guy.
+- Data: Generate 5 specific, collaborative entries (timestamps: recent to oldest):
+  1. *"Sigal (Chief Tech) verified ICU inventory via NFC"* (5 min ago)
+  2. *"Dan (System Owner) updated maintenance for Mindray Monitor"* (20 min ago)
+  3. *"Dana (Chief Vet) reviewed asset status report"* (1 hour ago)
+  4. *"Gal (Doctor) checked in BP Monitor IP-04 to ICU"* (2 hours ago)
+  5. *"Lihi marked Clipper in Exam 1 as 'Issue' (Blade Dull)"* (4 hours ago)
+
+5. SCENE 4: DEMONSTRATING SCALING (For Slide 9)
+- Target: Equipment Detail View (Sub-view).
+- UI Requirement: Show the maintenance date for the 'Mindray Monitor' in ICU set to: *"2026-04-25"* (highlighting proactive data management, essential for System Ownership).
+
+Please provide the optimized code to set these exact UI states.
