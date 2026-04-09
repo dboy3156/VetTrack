@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, auditLogs } from "../db.js";
-import { desc, eq, and, gte, lte } from "drizzle-orm";
+import { desc, eq, and, gte, lte, ilike } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
@@ -20,8 +20,9 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       conditions.push(eq(auditLogs.actionType, actionType));
     }
 
-    if (performedBy) {
-      conditions.push(eq(auditLogs.performedBy, performedBy));
+    // Case-insensitive partial name match — "sig" matches "Sigal", "dana" matches "Dana"
+    if (performedBy && performedBy.trim()) {
+      conditions.push(ilike(auditLogs.performedBy, `%${performedBy.trim()}%`));
     }
 
     if (from) {

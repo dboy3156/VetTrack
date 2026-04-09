@@ -736,15 +736,23 @@ function EquipmentItem({
             data-testid={`equipment-item-${eq.id}`}
           >
             <CardContent className="p-4 flex items-center gap-3 min-h-[72px]">
-              {/* Icon / Image */}
+              {/* Icon / Image — explicit w/h + loading=lazy prevents CLS */}
               {eq.imageUrl ? (
                 <img
                   src={eq.imageUrl}
                   alt={eq.name}
+                  width={40}
+                  height={40}
+                  loading="lazy"
+                  decoding="async"
                   className="w-10 h-10 rounded-lg object-cover shrink-0"
+                  style={{ aspectRatio: "1 / 1" }}
                 />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                <div
+                  className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0"
+                  style={{ aspectRatio: "1 / 1" }}
+                >
                   <Package className="w-5 h-5 text-muted-foreground" />
                 </div>
               )}

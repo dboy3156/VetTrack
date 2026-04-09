@@ -1,0 +1,32 @@
+Subject: Final Production-Ready Optimization & Realistic Data Seeding
+
+Objective: Fix stability issues based on Sentry's Core Web Vitals (TTFB, CLS) and populate the database with a high-fidelity simulation of our hospital's staff and operations. This is for an executive pitch to the Manager (Aseel) and Chief Vet (Dana).
+
+Phase 1: Performance & Stability (Sentry Best Practices)
+1. Fix "Brutal TTFB": Implement data pagination and optimize database queries for the Equipment list and Audit Log. Ensure the server responds in <200ms.
+2. Eliminate CLS (Layout Shifts): Assign fixed dimensions (aspect-ratio, width, height) to all image containers and dynamic UI elements (like Equipment Cards) to prevent content jumping during load.
+3. Memory & Crash Prevention: 
+   - Implement Error Boundaries across all major components to prevent a single error from crashing the whole app.
+   - Use Optional Chaining for all data rendering (e.g., item?.notes) to prevent "undefined" runtime crashes.
+   - Implement Lazy Loading for the Audit Log and high-density lists.
+
+Phase 2: Database Sanitization & Realistic Staff Seeding
+1. Full Reset: Wipe all existing test data (Equipment, Rooms, and Logs).
+2. Staff Hierarchy: Simulate activity for: Dan (Admin), Aseel (Manager), Dana (Chief Vet), Sigal (Chief Tech), Gal (Doctor), Lihi, Ofir, and Guy.
+3. Room Creation: Create: ICU, Exam Room 1, Kennel, and Cattery.
+4. Realistic Equipment Scenarios:
+   - Infusion Pumps (IP-01 to IP-06):
+     - IP-01 & IP-02: Status OK (Verified by Sigal).
+     - IP-03: Status Issue (Marked by Ofir). Note: "Battery failing - spotted during night shift".
+     - IP-05: Status Issue (Marked by Dan). Note: "Electrical fault - housing gets hot".
+   - The "Equipment Shortage" Scenario:
+     - Add a Blood Pressure Monitor. Log entry: Gal (Doctor) moved it from ICU to Exam Room 1. Note: "Emergency in Exam 1 - No other units available".
+     - Follow-up log: Dan located it via Audit Log and returned it to ICU per Dana's request.
+   - Clipper & Glucose Meter:
+     - Clipper in Kennel: Status Issue (Marked by Lihi). Note: "Blade dull - causing skin irritation".
+     - Glucose Meter in Cattery: Set to Stale state (last scan: 4 days ago) to demonstrate the "Forgotten Asset" alert.
+   - High-Level Oversight: Set a Mindray Patient Monitor in ICU with a Next Maintenance Date of 2026-04-25. Add a log entry: "Dana (Chief Vet) reviewed maintenance schedule".
+
+Phase 3: Audit Log Simulation
+- Generate 20+ recent logs spread over the last 24h. Mix staff names (e.g., "Sigal verified ICU inventory", "Aseel viewed asset report", "Guy checked in IP-04", "Ofir reported issue with IP-03").
+- Ensure all Dan's activities are timestamped within the last 2 hours.

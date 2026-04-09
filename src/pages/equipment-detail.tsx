@@ -995,7 +995,12 @@ export default function EquipmentDetailPage() {
                               <img
                                 src={log.photoUrl}
                                 alt="Issue photo"
+                                width={96}
+                                height={96}
+                                loading="lazy"
+                                decoding="async"
                                 className="mt-2 rounded-lg w-24 h-24 object-cover border"
+                                style={{ aspectRatio: "1 / 1" }}
                               />
                             )}
                           </div>

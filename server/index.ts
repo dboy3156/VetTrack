@@ -7,6 +7,7 @@ import * as Sentry from "@sentry/node";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -132,8 +133,21 @@ app.use(
 );
 
 app.set("trust proxy", 1);
+
+// Gzip/Brotli compression — reduces JSON payload size by 60–80% (fixes TTFB)
+app.use(compression({
+  threshold: 1024, // only compress responses > 1 KB
+  level: 6,        // balanced speed vs ratio
+}));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Cache-Control for API routes — prevent stale data in browser cache
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 
 app.use("/api/health", healthRoutes);
 

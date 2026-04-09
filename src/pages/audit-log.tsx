@@ -15,14 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle, RefreshCw } from "lucide-react";
+import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle, RefreshCw, User } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import type { AuditLog } from "@/types";
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
+  // Standard system events
   user_login: "User Login",
   user_provisioned: "User Provisioned",
   user_role_changed: "Role Changed",
@@ -42,6 +44,19 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   folder_deleted: "Folder Deleted",
   alert_acknowledged: "Alert Acknowledged",
   alert_acknowledgment_removed: "Alert Ack Removed",
+  // Demo / simulation events
+  "system.init": "System Initialised",
+  "system.verified": "System Verified",
+  "rounds.started": "Rounds Started",
+  "rounds.completed": "Rounds Completed",
+  "equipment.scan": "Equipment Scanned",
+  "equipment.checkout": "Equipment Checked Out",
+  "equipment.transfer": "Equipment Transferred",
+  "equipment.maintenance_review": "Maintenance Review",
+  "equipment.request": "Equipment Requested",
+  "alert.received": "Alert Received",
+  "audit_log.search": "Audit Log Search",
+  "report.viewed": "Report Viewed",
 };
 
 const ALL_ACTION_TYPES = Object.keys(ACTION_TYPE_LABELS);
@@ -51,15 +66,32 @@ function actionLabel(actionType: string): string {
 }
 
 function actionBadgeClass(actionType: string): string {
-  if (actionType.includes("deleted")) return "bg-destructive/10 text-destructive";
-  if (actionType.includes("created") || actionType.includes("provisioned")) return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-  if (actionType.includes("login")) return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
-  if (actionType.includes("role") || actionType.includes("status")) return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  if (actionType.includes("deleted") || actionType.includes("issue")) return "bg-destructive/10 text-destructive";
+  if (actionType.includes("created") || actionType.includes("provisioned") || actionType.includes("init") || actionType.includes("verified")) {
+    return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+  }
+  if (actionType.includes("login") || actionType.includes("checkout") || actionType.includes("scan")) {
+    return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+  }
+  if (actionType.includes("transfer") || actionType.includes("moved") || actionType.includes("request")) {
+    return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
+  }
+  if (actionType.includes("rounds") || actionType.includes("report") || actionType.includes("review") || actionType.includes("maintenance")) {
+    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  }
+  if (actionType.includes("role") || actionType.includes("status")) {
+    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  }
   return "bg-muted text-muted-foreground";
 }
 
 function AuditLogRow({ log }: { log: AuditLog }) {
   const [expanded, setExpanded] = useState(false);
+  const meta = log.metadata as Record<string, unknown> | null | undefined;
+
+  // Extract human-readable note from metadata using optional chaining
+  const noteText = meta?.note as string | undefined;
+  const equipmentName = meta?.equipmentName as string | undefined;
 
   return (
     <div className="border-b last:border-b-0">
@@ -67,27 +99,59 @@ function AuditLogRow({ log }: { log: AuditLog }) {
         className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className="flex items-start gap-3 flex-wrap">
-          <span className="text-xs text-muted-foreground whitespace-nowrap pt-0.5 min-w-[140px]">
-            {format(new Date(log.timestamp), "MMM d, yyyy h:mm a")}
+        <div className="flex items-start gap-3">
+          {/* Timestamp */}
+          <span className="text-xs text-muted-foreground whitespace-nowrap pt-0.5 w-[130px] shrink-0">
+            {format(new Date(log.timestamp), "MMM d, h:mm a")}
           </span>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${actionBadgeClass(log.actionType)}`}>
-            {actionLabel(log.actionType)}
-          </span>
-          <span className="text-sm text-foreground truncate flex-1 min-w-0">
-            {log.performedByEmail}
-          </span>
-          {log.targetType && log.targetId && (
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {log.targetType}: <span className="font-mono">{log.targetId.slice(0, 8)}…</span>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            {/* Action badge + equipment name on one line */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${actionBadgeClass(log.actionType)}`}>
+                {actionLabel(log.actionType)}
+              </span>
+              {equipmentName && (
+                <span className="text-xs font-medium text-foreground truncate">
+                  {equipmentName}
+                </span>
+              )}
+            </div>
+
+            {/* Staff name + email */}
+            <div className="flex items-center gap-1 mt-0.5">
+              <User className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-xs text-foreground font-medium">
+                {log.performedBy}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                · {log.performedByEmail}
+              </span>
+            </div>
+
+            {/* Note preview */}
+            {noteText && !expanded && (
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {noteText}
+              </p>
+            )}
+          </div>
+
+          {/* Target ID pill */}
+          {log.targetId && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap font-mono shrink-0 hidden sm:block">
+              {log.targetId.slice(0, 8)}…
             </span>
           )}
         </div>
       </button>
-      {expanded && log.metadata && (
+
+      {/* Expanded metadata */}
+      {expanded && meta && (
         <div className="px-4 pb-3">
           <pre className="text-xs bg-muted rounded-lg p-3 overflow-auto max-h-48 whitespace-pre-wrap break-words">
-            {JSON.stringify(log.metadata, null, 2)}
+            {JSON.stringify(meta, null, 2)}
           </pre>
         </div>
       )}
@@ -100,12 +164,14 @@ export default function AuditLogPage() {
   const [, navigate] = useLocation();
 
   const [actionType, setActionType] = useState<string>("");
+  const [performedBy, setPerformedBy] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
 
   const params = {
     actionType: actionType || undefined,
+    performedBy: performedBy.trim() || undefined,
     from: from || undefined,
     to: to || undefined,
     page,
@@ -139,10 +205,13 @@ export default function AuditLogPage() {
 
   function handleReset() {
     setActionType("");
+    setPerformedBy("");
     setFrom("");
     setTo("");
     setPage(1);
   }
+
+  const hasActiveFilter = !!(actionType || performedBy.trim() || from || to);
 
   return (
     <Layout>
@@ -156,113 +225,149 @@ export default function AuditLogPage() {
           Audit Log
         </h1>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex flex-col gap-1.5 min-w-[180px]">
-                <Label className="text-xs">Action Type</Label>
-                <Select value={actionType || "all"} onValueChange={(v) => setActionType(v === "all" ? "" : v)}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="All actions" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All actions</SelectItem>
-                    {ALL_ACTION_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>{ACTION_TYPE_LABELS[type]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">From</Label>
-                <Input
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  className="h-8 text-sm w-36"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">To</Label>
-                <Input
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  className="h-8 text-sm w-36"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button size="sm" className="h-11 text-xs" onClick={handleFilter}>Apply</Button>
-                <Button size="sm" variant="outline" className="h-11 text-xs" onClick={handleReset}>Reset</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex flex-col gap-2 p-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} className="h-12 rounded-xl" />
-                ))}
-              </div>
-            ) : isError ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
-                <AlertTriangle className="w-8 h-8 text-destructive opacity-60" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Failed to load audit log</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again</p>
+        {/* Filters */}
+        <PageErrorBoundary fallbackLabel="Filters failed to render">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Filters</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4 items-end">
+                {/* Staff name filter */}
+                <div className="flex flex-col gap-1.5 min-w-[160px]">
+                  <Label className="text-xs">Staff Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="e.g. Sigal, Dana…"
+                      value={performedBy}
+                      onChange={(e) => setPerformedBy(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleFilter()}
+                      className="h-8 text-sm pl-8"
+                    />
+                  </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => refetch()}
-                  disabled={isRefetching}
-                  className="gap-1.5 h-11 text-xs"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
-                  {isRefetching ? "Trying…" : "Try Again"}
-                </Button>
-              </div>
-            ) : !data?.items.length ? (
-              <div className="py-4">
-                <EmptyState
-                  icon={ClipboardList}
-                  message="No log entries found"
-                  subMessage={
-                    actionType || from || to
-                      ? "No entries match the current filters. Try adjusting the action type or date range."
-                      : "Audit entries appear here as actions are performed in VetTrack."
-                  }
-                  action={
-                    actionType || from || to ? (
-                      <button
-                        onClick={handleReset}
-                        className="text-sm text-primary hover:underline font-medium"
-                      >
-                        Clear filters
-                      </button>
-                    ) : undefined
-                  }
-                />
-              </div>
-            ) : (
-              <div>
-                {data.items.map((log) => (
-                  <AuditLogRow key={log.id} log={log} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
+                {/* Action type */}
+                <div className="flex flex-col gap-1.5 min-w-[180px]">
+                  <Label className="text-xs">Action Type</Label>
+                  <Select value={actionType || "all"} onValueChange={(v) => setActionType(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="All actions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All actions</SelectItem>
+                      {ALL_ACTION_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>{ACTION_TYPE_LABELS[type]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date range */}
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">From</Label>
+                  <Input
+                    type="date"
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    className="h-8 text-sm w-36"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs">To</Label>
+                  <Input
+                    type="date"
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                    className="h-8 text-sm w-36"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-11 text-xs" onClick={handleFilter}>Apply</Button>
+                  {hasActiveFilter && (
+                    <Button size="sm" variant="outline" className="h-11 text-xs" onClick={handleReset}>Reset</Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </PageErrorBoundary>
+
+        {/* Log table */}
+        <PageErrorBoundary fallbackLabel="Audit log table failed to render">
+          <Card>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="flex flex-col gap-2 p-4">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <Skeleton key={i} className="h-14 rounded-xl" />
+                  ))}
+                </div>
+              ) : isError ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
+                  <AlertTriangle className="w-8 h-8 text-destructive opacity-60" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Failed to load audit log</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetch()}
+                    disabled={isRefetching}
+                    className="gap-1.5 h-11 text-xs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+                    {isRefetching ? "Trying…" : "Try Again"}
+                  </Button>
+                </div>
+              ) : !data?.items?.length ? (
+                <div className="py-4">
+                  <EmptyState
+                    icon={ClipboardList}
+                    message="No log entries found"
+                    subMessage={
+                      hasActiveFilter
+                        ? "No entries match the current filters. Try adjusting the staff name, action type, or date range."
+                        : "Audit entries appear here as actions are performed in VetTrack."
+                    }
+                    action={
+                      hasActiveFilter ? (
+                        <button
+                          onClick={handleReset}
+                          className="text-sm text-primary hover:underline font-medium"
+                        >
+                          Clear filters
+                        </button>
+                      ) : undefined
+                    }
+                  />
+                </div>
+              ) : (
+                <div>
+                  {/* Summary bar */}
+                  <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {data.items.length} entries{data.hasMore ? "+" : ""} on page {page}
+                      {hasActiveFilter && <span className="ml-1 text-primary font-medium">· Filtered</span>}
+                    </span>
+                    {isRefetching && (
+                      <RefreshCw className="w-3 h-3 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {data.items.map((log) => (
+                    <AuditLogRow key={log.id} log={log} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </PageErrorBoundary>
+
+        {/* Pagination */}
         {data && (data.hasMore || page > 1) && (
           <div className="flex items-center justify-between">
             <Button
