@@ -325,6 +325,10 @@ export default function RoomRadarPage() {
                 <span className="text-muted-foreground">Items in room</span>
                 <span className="font-bold text-foreground">{roomEquipment.length}</span>
               </div>
+
+              <p className="text-[11px] text-muted-foreground text-center mt-1">
+                💡 Tap the door sticker to verify all items instantly — no scanning required.
+              </p>
             </div>
 
             {/* Actions */}

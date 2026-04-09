@@ -32,7 +32,10 @@ import {
   CloudOff,
   FlaskConical,
   Radar,
+  HelpCircle,
 } from "lucide-react";
+import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +144,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     { href: "/print", label: "QR Print", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
     { href: "/admin", label: "Admin", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/stability", label: "Stability", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/help", label: "Quick Guide", icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: "Settings", icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: "About VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ];
@@ -247,6 +251,17 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   {(pendingCount + failedCount) > 9 ? "9+" : pendingCount + failedCount}
                 </span>
               </Button>
+            )}
+
+            {(hasPending || hasFailed) && (
+              <HelpTooltip
+                side="bottom"
+                content={
+                  hasFailed
+                    ? "Some actions failed to sync after several attempts. Tap the cloud icon to view and retry them."
+                    : `${pendingCount} action${pendingCount !== 1 ? "s" : ""} saved locally and waiting to send to the server. Tap the clock pill to sync now, or it will sync automatically when connected.`
+                }
+              />
             )}
 
             {alertCount > 0 && (
@@ -421,7 +436,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
               {/* System group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">System</p>
-              {["/settings", "/landing"].map((href) => {
+              {["/help", "/settings", "/landing"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
                 return (
@@ -561,6 +576,9 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         open={syncQueueOpen}
         onClose={() => setSyncQueueOpen(false)}
       />
+
+      {/* First-run onboarding overlay — self-managed via localStorage */}
+      <OnboardingWalkthrough />
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   Loader2,
   Radar,
 } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import type { CreateRoomRequest, Room } from "@/types";
@@ -230,6 +231,10 @@ export default function RoomsListPage() {
                 <Radar className="w-4 h-4 text-primary" />
               </div>
               <h1 className="text-2xl font-bold leading-tight">Asset Radar</h1>
+              <HelpTooltip
+                side="bottom"
+                content="Each room card shows a Health Ring: a coloured circle showing what % of items were verified in the last 24 hours. Green ≥ 80%, Amber ≥ 40%, Red < 40%. Stale = not audited in 24+ hours."
+              />
             </div>
             <p className="text-sm text-muted-foreground">
               {rooms ? `${rooms.length} room${rooms.length !== 1 ? "s" : ""} · tap a card to inspect` : "Room-by-room inventory"}

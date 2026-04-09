@@ -26,6 +26,7 @@ const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const StabilityDashboardPage = lazy(() => import("@/pages/stability-dashboard"));
 const RoomsListPage = lazy(() => import("@/pages/rooms-list"));
 const RoomRadarPage = lazy(() => import("@/pages/room-radar"));
+const HelpPage = lazy(() => import("@/pages/help"));
 
 function PageLoader() {
   return (
@@ -196,6 +197,9 @@ export default function App() {
           </Route>
           <Route path="/rooms/:id">
             <ProtectedRoute><RoomRadarPage /></ProtectedRoute>
+          </Route>
+          <Route path="/help">
+            <ProtectedRoute><HelpPage /></ProtectedRoute>
           </Route>
           <Route component={NotFoundPage} />
         </Switch>

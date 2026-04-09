@@ -28,7 +28,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { QrScanner } from "@/components/qr-scanner";
-import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 
 const STATUS_ICON_MAP: Record<string, React.ElementType> = {
   ok: CheckCircle2,
@@ -67,13 +66,6 @@ export default function HomePage() {
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
   });
-
-  const { data: scanCountData } = useQuery({
-    queryKey: ["/api/activity/my-scan-count"],
-    queryFn: api.activity.myScanCount,
-  });
-
-  const hasScanned = scanCountData !== undefined ? scanCountData.count > 0 : true;
 
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
@@ -116,11 +108,6 @@ export default function HomePage() {
             message="Failed to load equipment data. Please try again."
             onRetry={() => refetch()}
           />
-        )}
-
-        {/* Onboarding — shown once for new users with no scan history */}
-        {!isLoading && scanCountData !== undefined && (
-          <OnboardingWalkthrough show={!hasScanned} />
         )}
 
         {/* 2. Primary action — Scan QR Code */}
