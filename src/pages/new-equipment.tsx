@@ -1,5 +1,5 @@
-import { useRef, useMemo } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useRef, useMemo, useEffect } from "react";
+import { useLocation, useSearch, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { useForm } from "react-hook-form";
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +41,8 @@ type FormValues = z.infer<typeof schema>;
 export default function NewEquipmentPage() {
   const [, navigate] = useLocation();
   const searchStr = useSearch();
+  const { id: editId } = useParams<{ id?: string }>();
+  const isEditing = !!editId;
   const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,17 +61,24 @@ export default function NewEquipmentPage() {
     };
   }, [searchStr]);
 
-  const isCopy = !!prefill.copiedFrom;
+  const isCopy = !isEditing && !!prefill.copiedFrom;
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
   });
 
+  const { data: existingEquipment, isLoading: editLoading } = useQuery({
+    queryKey: [`/api/equipment/${editId}`],
+    queryFn: () => api.equipment.get(editId!),
+    enabled: isEditing,
+  });
+
   const {
     register,
     handleSubmit,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -84,6 +94,22 @@ export default function NewEquipmentPage() {
         : undefined,
     },
   });
+
+  useEffect(() => {
+    if (isEditing && existingEquipment) {
+      reset({
+        name: existingEquipment.name,
+        serialNumber: existingEquipment.serialNumber ?? undefined,
+        model: existingEquipment.model ?? undefined,
+        manufacturer: existingEquipment.manufacturer ?? undefined,
+        purchaseDate: existingEquipment.purchaseDate ?? undefined,
+        location: existingEquipment.location ?? undefined,
+        folderId: existingEquipment.folderId ?? undefined,
+        maintenanceIntervalDays: existingEquipment.maintenanceIntervalDays ?? undefined,
+        imageUrl: existingEquipment.imageUrl ?? undefined,
+      });
+    }
+  }, [isEditing, existingEquipment, reset]);
 
   const createMut = useMutation({
     mutationFn: ({ data, signal }: { data: Parameters<(typeof api.equipment)["create"]>[0]; signal: AbortSignal }) =>
@@ -104,6 +130,36 @@ export default function NewEquipmentPage() {
     },
   });
 
+  const updateMut = useMutation({
+    mutationFn: (data: FormValues) =>
+      api.equipment.update(editId!, {
+        name: data.name,
+        serialNumber: data.serialNumber,
+        model: data.model,
+        manufacturer: data.manufacturer,
+        purchaseDate: data.purchaseDate,
+        location: data.location,
+        folderId: data.folderId === "none" ? null : data.folderId,
+        maintenanceIntervalDays: data.maintenanceIntervalDays,
+        imageUrl: data.imageUrl,
+      }),
+    onSuccess: () => {
+      navigator.vibrate?.(50);
+      clearSubmitTimeout();
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/equipment/${editId}`] });
+      toast.success("Equipment updated!");
+      navigate(`/equipment/${editId}`);
+    },
+    onError: (err: Error) => {
+      clearSubmitTimeout();
+      toast.error(err.message || "Failed to update equipment. Please try again.");
+    },
+    onSettled: () => {
+      clearSubmitTimeout();
+    },
+  });
+
   function clearSubmitTimeout() {
     if (timeoutRef.current !== null) {
       clearTimeout(timeoutRef.current);
@@ -115,6 +171,11 @@ export default function NewEquipmentPage() {
   }
 
   const onSubmit = (data: FormValues) => {
+    if (isEditing) {
+      updateMut.mutate(data);
+      return;
+    }
+
     if (abortRef.current) {
       abortRef.current.abort();
     }
@@ -136,11 +197,30 @@ export default function NewEquipmentPage() {
   };
 
   const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
+  const isPending = createMut.isPending || updateMut.isPending;
+
+  if (isEditing && editLoading) {
+    return (
+      <Layout>
+        <div className="flex flex-col gap-4 pb-24">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-64 w-full rounded-2xl" />
+          <Skeleton className="h-40 w-full rounded-2xl" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
       <Helmet>
-        <title>{isCopy ? `New Equipment (copied from ${prefill.copiedFrom}) — VetTrack` : "Add Equipment — VetTrack"}</title>
+        <title>
+          {isEditing
+            ? `Edit ${existingEquipment?.name ?? "Equipment"} — VetTrack`
+            : isCopy
+            ? `New Equipment (copied from ${prefill.copiedFrom}) — VetTrack`
+            : "Add Equipment — VetTrack"}
+        </title>
         <meta name="description" content="Register a new piece of veterinary equipment. Assign a name, serial number, location, folder, and maintenance schedule to begin QR tracking." />
         <link rel="canonical" href="https://vettrack.replit.app/equipment/new" />
       </Helmet>
@@ -149,7 +229,7 @@ export default function NewEquipmentPage() {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => navigate("/equipment")}
+            onClick={() => isEditing ? navigate(`/equipment/${editId}`) : navigate("/equipment")}
             data-testid="btn-back"
             className="text-muted-foreground hover:text-foreground hover:bg-muted"
           >
@@ -157,7 +237,7 @@ export default function NewEquipmentPage() {
           </Button>
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">
-              {isCopy ? "Duplicate Equipment" : "Add Equipment"}
+              {isEditing ? "Edit Equipment" : isCopy ? "Duplicate Equipment" : "Add Equipment"}
             </h1>
             {isCopy && (
               <p className="text-xs text-muted-foreground mt-0.5">Copied from {prefill.copiedFrom}</p>
@@ -230,6 +310,7 @@ export default function NewEquipmentPage() {
                 <Label className="text-sm font-medium">Folder / Category</Label>
                 <Select
                   defaultValue={prefill.folderId || "none"}
+                  key={isEditing ? (existingEquipment?.folderId ?? "none") : undefined}
                   onValueChange={(v) => setValue("folderId", v)}
                 >
                   <SelectTrigger className="h-12 rounded-xl border-border/60 bg-background" data-testid="select-folder">
@@ -299,16 +380,16 @@ export default function NewEquipmentPage() {
           <Button
             type="submit"
             size="lg"
-            disabled={createMut.isPending}
+            disabled={isPending}
             className="h-14 rounded-2xl text-base font-semibold shadow-sm"
             data-testid="btn-save"
           >
-            {createMut.isPending ? (
+            {isPending ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
-            Save Equipment
+            {isEditing ? "Save Changes" : "Save Equipment"}
           </Button>
         </form>
       </div>

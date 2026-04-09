@@ -57,6 +57,7 @@ import {
   User,
   Camera,
   Copy,
+  MoveHorizontal,
 } from "lucide-react";
 import {
   formatDate,
@@ -71,7 +72,8 @@ import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QRCodeSVG } from "qrcode.react";
-import { removePendingSync } from "@/lib/offline-db";
+import { removePendingSync, updateCachedEquipment } from "@/lib/offline-db";
+import { MoveRoomSheet } from "@/components/move-room-sheet";
 import { useSettings } from "@/hooks/use-settings";
 import { playCriticalAlertTone } from "@/lib/sounds";
 
@@ -82,7 +84,7 @@ const STATUS_CONFIG = {
   sterilized: { icon: Droplets, color: "text-teal-500", iconBg: "bg-teal-50" },
 };
 
-const UNDO_WINDOW_MS = 90_000;
+const UNDO_WINDOW_MS = 8_000;
 
 interface UndoState {
   actionLabel: string;
@@ -117,6 +119,7 @@ export default function EquipmentDetailPage() {
   const [undoCountdown, setUndoCountdown] = useState(0);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [moveRoomOpen, setMoveRoomOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
   const [reportIssueNote, setReportIssueNote] = useState("");
   const [reportIssuePhoto, setReportIssuePhoto] = useState<string | null>(null);
@@ -196,6 +199,7 @@ export default function EquipmentDetailPage() {
     toast(`${state.actionLabel}`, {
       id: toastId,
       duration: UNDO_WINDOW_MS,
+      onDismiss: () => clearUndoState(),
       action: {
         label: getLabel(Math.ceil(UNDO_WINDOW_MS / 1000)),
         onClick: () => {
@@ -207,6 +211,10 @@ export default function EquipmentDetailPage() {
     });
 
     const intervalId = setInterval(() => {
+      if (!undoStateRef.current || undoStateRef.current.toastId !== toastId) {
+        clearInterval(intervalId);
+        return;
+      }
       const remaining = Math.ceil((UNDO_WINDOW_MS - (Date.now() - startTime)) / 1000);
       if (remaining <= 0) {
         clearInterval(intervalId);
@@ -216,6 +224,7 @@ export default function EquipmentDetailPage() {
         toast(`${state.actionLabel}`, {
           id: toastId,
           duration: UNDO_WINDOW_MS - (Date.now() - startTime),
+          onDismiss: () => clearUndoState(),
           action: {
             label: getLabel(remaining),
             onClick: () => {
@@ -771,10 +780,10 @@ export default function EquipmentDetailPage() {
           ) : null}
 
           {/* Secondary action row */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Button
               variant="outline"
-              className="h-10 gap-2 text-sm font-medium rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
+              className="h-10 gap-1.5 text-sm font-medium rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
               onClick={() => {
                 setReportIssueNote("");
                 setReportIssuePhoto(null);
@@ -783,17 +792,26 @@ export default function EquipmentDetailPage() {
               }}
               data-testid="btn-report-issue"
             >
-              <AlertTriangle className="w-4 h-4" />
-              Report Issue
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Issue
             </Button>
             <Button
               variant="outline"
-              className="h-10 gap-2 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
+              className="h-10 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
               onClick={openScanDialog}
               data-testid="btn-scan"
             >
-              <ClipboardEdit className="w-4 h-4" />
-              Update Status
+              <ClipboardEdit className="w-3.5 h-3.5" />
+              Status
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
+              onClick={() => setMoveRoomOpen(true)}
+              data-testid="btn-move-room"
+            >
+              <MoveHorizontal className="w-3.5 h-3.5" />
+              Move
             </Button>
           </div>
 
@@ -1446,6 +1464,23 @@ export default function EquipmentDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Move to Room bottom sheet */}
+      {equipment && (
+        <MoveRoomSheet
+          equipment={equipment}
+          open={moveRoomOpen}
+          onOpenChange={setMoveRoomOpen}
+          onMoved={(newRoomId) => {
+            queryClient.setQueryData(
+              [`/api/equipment/${id}`],
+              (prev: Equipment | undefined) => prev ? { ...prev, roomId: newRoomId } : prev,
+            );
+            queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}`] });
+            updateCachedEquipment(id!, { roomId: newRoomId });
+          }}
+        />
       )}
     </Layout>
   );

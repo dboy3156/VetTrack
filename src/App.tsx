@@ -155,6 +155,9 @@ export default function App() {
           <Route path="/equipment/new">
             <ProtectedRoute><NewEquipmentPage /></ProtectedRoute>
           </Route>
+          <Route path="/equipment/:id/edit">
+            <ProtectedRoute><NewEquipmentPage /></ProtectedRoute>
+          </Route>
           <Route path="/equipment/:id">
             <ProtectedRoute><EquipmentDetailPage /></ProtectedRoute>
           </Route>

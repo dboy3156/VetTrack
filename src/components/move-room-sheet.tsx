@@ -15,7 +15,7 @@ interface MoveRoomSheetProps {
   equipment: Equipment;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onMoved?: () => void;
+  onMoved?: (newRoomId: string | null) => void;
 }
 
 export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRoomSheetProps) {
@@ -37,7 +37,7 @@ export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRo
       toast.success(roomId ? `Moved to ${room?.name ?? "room"}` : "Removed from room");
       setMovingToId(null);
       onOpenChange(false);
-      onMoved?.();
+      onMoved?.(roomId);
     },
     onError: () => {
       toast.error("Failed to move equipment");
