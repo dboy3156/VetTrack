@@ -85,7 +85,7 @@ const SKELETON_MIN_MS = 1200;
 
 export default function EquipmentListPage() {
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { userId, isAdmin } = useAuth();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -169,7 +169,7 @@ export default function EquipmentListPage() {
     isLoading: isQueryLoading,
     isError,
     refetch,
-  } = usePaginatedEquipment({ page: 1, pageSize: LARGE_DATASET_PAGE_SIZE });
+  } = usePaginatedEquipment({ page: 1, pageSize: LARGE_DATASET_PAGE_SIZE, enabled: !!userId });
 
   const equipment = equipmentPage?.items ?? [];
   const totalCount = equipmentPage?.total ?? 0;

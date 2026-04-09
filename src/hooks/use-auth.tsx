@@ -133,6 +133,7 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
   const queryClient = useQueryClient();
 
   const tokenFlightRef = useRef<Promise<string | null> | null>(null);
+  const lastClearedUserIdRef = useRef<string | null>(null);
 
   function getSingleFlightToken(): Promise<string | null> {
     if (tokenFlightRef.current) return tokenFlightRef.current;
@@ -236,7 +237,10 @@ export function ClerkAuthProviderInner({ children }: ProviderProps) {
             token: token ?? "",
           });
 
-          queryClient.clear();
+          if (lastClearedUserIdRef.current !== user.id) {
+            lastClearedUserIdRef.current = user.id;
+            queryClient.clear();
+          }
 
           setState({
             userId: user.id,

@@ -1,0 +1,119 @@
+You are debugging a React application with the following issues:
+
+MAIN PROBLEM:
+- After login, the app enters a loop:
+  - Repeated network requests
+  - UI flashing / remounting
+  - React Query refetching continuously
+
+GOAL:
+Stabilize the app by fixing auth state, query behavior, and component mounting.
+
+---
+
+CONTEXT:
+- React + TanStack Query
+- Clerk authentication (useUser, useAuth)
+- Custom auth store also exists
+- DevAuthProvider exists
+- Offline/sync engine exists
+- Lazy loading + Suspense + wouter routing
+
+---
+
+TASKS (DO IN ORDER):
+
+1. AUTH STABILITY (CRITICAL)
+- Ensure there is a SINGLE source of truth for auth (prefer Clerk)
+- Prevent user state from flipping between null and defined
+- Remove or isolate conflicting custom auth logic if needed
+
+---
+
+2. FIX QUERY LOOPS
+For all useQuery calls:
+- Add:
+  enabled: !!user?.id
+- Ensure queryKey is stable (no objects/functions)
+
+Example:
+queryKey: ['equipment', user?.id]
+
+---
+
+3. GLOBAL QUERY CONFIG
+Update QueryClient:
+- refetchOnWindowFocus: false
+- retry: false
+- staleTime: ~5 minutes
+
+---
+
+4. PREVENT REMOUNT LOOPS
+Replace:
+if (!user) return null;
+
+WITH:
+if (isLoading) return <Loading />
+
+---
+
+5. FIX EFFECT LOOPS
+- Only depend on stable values (user?.id)
+- Guard effects properly
+
+---
+
+6. SYNC ENGINE GUARD
+Ensure sync runs ONLY when user is stable:
+
+useEffect(() => {
+  if (!user?.id) return;
+  startSync(user.id);
+}, [user?.id]);
+
+---
+
+7. DEBUG LOGGING (TEMPORARY)
+Add logs for:
+- user?.id
+- isSignedIn
+- component mounts
+
+---
+
+OUTPUT REQUIREMENTS (MANDATORY):
+
+You MUST output:
+
+1. A clear list of ALL files changed
+
+2. For EACH file, provide a DIFF in this format:
+
+--- BEFORE
+<original code>
+
++++ AFTER
+<updated code>
+
+3. Do NOT summarize changes — show exact code edits
+
+4. Do NOT rewrite entire files unless absolutely necessary
+
+5. Keep changes minimal and focused
+
+---
+
+EXPECTED RESULT:
+- No repeated network calls
+- No UI flashing
+- Queries run once after login
+- Stable user session
+
+---
+
+IMPORTANT:
+- Do NOT refactor the entire app
+- Do NOT introduce new architecture
+- Only fix instability and loops
+- Be precise and minimal
