@@ -97,6 +97,17 @@ function HealthRing({ total, recentlyVerified }: { total: number; recentlyVerifi
   );
 }
 
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function computeEffectiveStatus(room: Room): string {
+  if (room.syncStatus === "requires_audit") return "requires_audit";
+  const auditAge = room.lastAuditAt
+    ? Date.now() - new Date(room.lastAuditAt).getTime()
+    : Infinity;
+  if (auditAge > STALE_THRESHOLD_MS) return "stale";
+  return room.syncStatus;
+}
+
 function RoomCard({ room }: { room: Room }) {
   const available = room.availableCount ?? 0;
   const total = room.totalEquipment ?? 0;
@@ -104,6 +115,7 @@ function RoomCard({ room }: { room: Room }) {
   const issues = room.issueCount ?? 0;
   const recentlyVerified = room.recentlyVerifiedCount ?? 0;
   const utilPct = total > 0 ? (available / total) * 100 : 0;
+  const effectiveStatus = computeEffectiveStatus(room);
 
   return (
     <Link href={`/rooms/${room.id}`}>
@@ -112,7 +124,7 @@ function RoomCard({ room }: { room: Room }) {
           {/* Top row: health ring + sync badge */}
           <div className="flex items-start justify-between gap-1">
             <HealthRing total={total} recentlyVerified={recentlyVerified} />
-            <SyncBadge status={room.syncStatus} />
+            <SyncBadge status={effectiveStatus} />
           </div>
 
           {/* Room name */}
