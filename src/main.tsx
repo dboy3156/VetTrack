@@ -31,6 +31,59 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
+// ─── Chunk / Module-load error recovery ──────────────────────────────────────
+// When a Vite deploy replaces hashed JS bundles, any tab still running the
+// previous index.html will try to load old chunk URLs that no longer exist on
+// the server. This produces "Failed to fetch dynamically imported module" or
+// "ChunkLoadError" — the page goes blank. We recover by:
+//   1. Detecting these specific error patterns.
+//   2. Wiping the SW cache (removes the stale index.html and old chunks).
+//   3. Hard-reloading once. sessionStorage prevents an infinite reload loop.
+
+const CHUNK_ERROR_PATTERNS = [
+  "Failed to fetch dynamically imported module",
+  "Importing a module script failed",
+  "ChunkLoadError",
+  "Unable to preload CSS",
+];
+
+function isChunkError(message: string): boolean {
+  return CHUNK_ERROR_PATTERNS.some((p) => message.includes(p));
+}
+
+async function recoverFromChunkError(): Promise<void> {
+  const RELOAD_FLAG = "vettrack_chunk_reload";
+  if (sessionStorage.getItem(RELOAD_FLAG)) return; // already tried — don't loop
+  sessionStorage.setItem(RELOAD_FLAG, "1");
+
+  // Wipe all SW caches so the next load fetches fresh assets from the server
+  if ("caches" in window) {
+    const keys = await caches.keys().catch(() => [] as string[]);
+    await Promise.allSettled(keys.map((k) => caches.delete(k)));
+  }
+
+  console.warn("[VetTrack] Chunk load error detected — clearing cache and reloading");
+  window.location.reload();
+}
+
+// Synchronous script errors (rare for dynamic imports but catches some environments)
+window.addEventListener("error", (event) => {
+  if (event.message && isChunkError(event.message)) {
+    recoverFromChunkError();
+  }
+});
+
+// Dynamic import failures surface as unhandled promise rejections
+window.addEventListener("unhandledrejection", (event) => {
+  const msg =
+    (event.reason as Error)?.message ??
+    (typeof event.reason === "string" ? event.reason : "");
+  if (isChunkError(msg)) {
+    event.preventDefault(); // don't spam the console with the raw rejection
+    recoverFromChunkError();
+  }
+});
+
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").then((registration) => {

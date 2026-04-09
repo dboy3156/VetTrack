@@ -6,7 +6,9 @@
 //   API mutate  →  pass-through (handled by the app layer / pending-sync)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = "v4";
+// Bump this version whenever you need to invalidate ALL existing caches
+// across ALL user devices. v5 deliberately purges v1-v4.
+const CACHE_VERSION = "v5";
 const CACHE_NAME = `vettrack-${CACHE_VERSION}`;
 
 // Cached independently so one 404 never poisons the whole install.
@@ -36,24 +38,27 @@ function isMutatingRequest(method) {
   return ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 }
 
-// ─── Install — pre-cache app shell individually ───────────────────────────────
-// Using Promise.allSettled so a single missing file (e.g. /offline.html in dev)
-// never aborts the install and leaves the cache empty.
+// ─── Install — pre-cache app shell, then activate immediately ────────────────
+// Promise.allSettled means one missing file never poisons the whole install.
+// self.skipWaiting() is called here (not only on message) so a new SW with
+// fixed caching takes over immediately for ALL open tabs — critical for
+// getting offline fixes out to users who never click the update banner.
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.allSettled(
-        PRECACHE_URLS.map((url) =>
-          cache.add(url).catch((err) =>
-            console.warn(`[SW] pre-cache skipped: ${url}`, err)
+    caches
+      .open(CACHE_NAME)
+      .then((cache) =>
+        Promise.allSettled(
+          PRECACHE_URLS.map((url) =>
+            cache.add(url).catch((err) =>
+              console.warn(`[SW] pre-cache skipped: ${url}`, err)
+            )
           )
         )
       )
-    )
+      .then(() => self.skipWaiting())   // activate immediately, don't wait
   );
-  // Do NOT call skipWaiting() here — let the app's update banner control it
-  // so an open session is never interrupted mid-use.
 });
 
 // ─── Activate — delete stale caches, claim all clients ───────────────────────
