@@ -24,6 +24,8 @@ const NotFoundPage = lazy(() => import("@/pages/not-found"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const StabilityDashboardPage = lazy(() => import("@/pages/stability-dashboard"));
+const RoomsListPage = lazy(() => import("@/pages/rooms-list"));
+const RoomRadarPage = lazy(() => import("@/pages/room-radar"));
 
 function PageLoader() {
   return (
@@ -185,6 +187,12 @@ export default function App() {
           </Route>
           <Route path="/stability">
             <ProtectedRoute><StabilityDashboardPage /></ProtectedRoute>
+          </Route>
+          <Route path="/rooms">
+            <ProtectedRoute><RoomsListPage /></ProtectedRoute>
+          </Route>
+          <Route path="/rooms/:id">
+            <ProtectedRoute><RoomRadarPage /></ProtectedRoute>
           </Route>
           <Route component={NotFoundPage} />
         </Switch>

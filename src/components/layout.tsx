@@ -31,6 +31,7 @@ import {
   Bug,
   CloudOff,
   FlaskConical,
+  Radar,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       icon: <PackageOpen className="w-5 h-5" />,
       badgeCount: myCount,
     },
+    { href: "/rooms", label: "Radar", icon: <Radar className="w-5 h-5" /> },
     { href: "/analytics", label: "Analytics", icon: <BarChart3 className="w-5 h-5" /> },
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: "QR Print", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
@@ -356,7 +358,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             <nav className="flex flex-col gap-1">
               {/* Operations group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
-              {["/", "/equipment", "/alerts", "/my-equipment"].map((href) => {
+              {["/", "/equipment", "/alerts", "/my-equipment", "/rooms"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
                 return (
