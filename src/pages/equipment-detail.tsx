@@ -783,7 +783,7 @@ export default function EquipmentDetailPage() {
           <div className="grid grid-cols-3 gap-2">
             <Button
               variant="outline"
-              className="h-10 gap-1.5 text-sm font-medium rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
+              className="h-11 gap-1.5 text-sm font-medium rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
               onClick={() => {
                 setReportIssueNote("");
                 setReportIssuePhoto(null);
@@ -797,7 +797,7 @@ export default function EquipmentDetailPage() {
             </Button>
             <Button
               variant="outline"
-              className="h-10 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
+              className="h-11 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
               onClick={openScanDialog}
               data-testid="btn-scan"
             >
@@ -806,7 +806,7 @@ export default function EquipmentDetailPage() {
             </Button>
             <Button
               variant="outline"
-              className="h-10 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
+              className="h-11 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
               onClick={() => setMoveRoomOpen(true)}
               data-testid="btn-move-room"
             >

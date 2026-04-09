@@ -164,10 +164,39 @@ class ClerkErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 32, fontFamily: "monospace", color: "red" }}>
-          <h2>Clerk initialization failed</h2>
-          <pre>{this.state.error.message}</pre>
-          <p>Check your VITE_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY secrets.</p>
+        <div
+          style={{
+            padding: "2rem",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            color: "#1e293b",
+            textAlign: "center",
+            maxWidth: 360,
+            margin: "0 auto",
+            paddingTop: "4rem",
+          }}
+        >
+          <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🔌</div>
+          <h2 style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+            Having trouble connecting
+          </h2>
+          <p style={{ color: "#64748b", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "1.5rem" }}>
+            We couldn't reach the authentication service. Please check your internet connection and try again.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: "0.625rem 1.5rem",
+              background: "#2563eb",
+              color: "#fff",
+              border: "none",
+              borderRadius: "0.5rem",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Refresh page
+          </button>
         </div>
       );
     }

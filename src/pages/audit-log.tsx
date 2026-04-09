@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Shield, ChevronLeft, ChevronRight, ClipboardList, AlertTriangle, RefreshCw } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -231,9 +232,26 @@ export default function AuditLogPage() {
                 </Button>
               </div>
             ) : !data?.items.length ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <ClipboardList className="w-10 h-10 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No audit log entries found.</p>
+              <div className="py-4">
+                <EmptyState
+                  icon={ClipboardList}
+                  message="No log entries found"
+                  subMessage={
+                    actionType || from || to
+                      ? "No entries match the current filters. Try adjusting the action type or date range."
+                      : "Audit entries appear here as actions are performed in VetTrack."
+                  }
+                  action={
+                    actionType || from || to ? (
+                      <button
+                        onClick={handleReset}
+                        className="text-sm text-primary hover:underline font-medium"
+                      >
+                        Clear filters
+                      </button>
+                    ) : undefined
+                  }
+                />
               </div>
             ) : (
               <div>

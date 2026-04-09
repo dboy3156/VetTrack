@@ -218,6 +218,20 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
         retries: currentRetries,
         errorMessage: `Failed after ${MAX_RETRIES} attempts`,
       });
+      // S4 — Report permanent sync failures to Sentry for the 7-day failure rate metric.
+      // Sentry.captureEvent is a no-op when VITE_SENTRY_DSN is not configured.
+      Sentry.captureEvent({
+        message: "Sync permanent failure",
+        level: "error",
+        tags: { "sync.failure": "true" },
+        extra: {
+          endpoint: item.endpoint,
+          method: item.method,
+          itemType: item.type,
+          retries: currentRetries,
+          errorMessage: `Failed after ${MAX_RETRIES} attempts`,
+        },
+      });
       return "transient_failure";
     }
 

@@ -57,6 +57,7 @@ import {
   RotateCcw,
   Wrench,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -730,11 +731,19 @@ function UsersSection() {
             ))}
           </div>
         ) : !users || users.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            {statusFilter === "all"
-              ? "No users found. Users appear here once they sign in."
-              : `No ${statusFilter} users.`}
-          </p>
+          <EmptyState
+            icon={Users}
+            message={
+              statusFilter === "all"
+                ? "No users yet"
+                : `No ${statusFilter} users`
+            }
+            subMessage={
+              statusFilter === "all"
+                ? "Users appear here the first time they sign in to VetTrack."
+                : "Try switching to a different filter to see other users."
+            }
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {(users ?? []).map((user) => (

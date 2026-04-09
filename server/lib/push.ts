@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { db, pushSubscriptions, serverConfig } from "../db.js";
 import { eq } from "drizzle-orm";
+import * as Sentry from "@sentry/node";
 
 let vapidReady = false;
 
@@ -97,6 +98,16 @@ async function dispatchToSub(
   sub: { endpoint: string; p256dh: string; auth: string },
   payload: string
 ): Promise<"ok" | "expired" | "error"> {
+  // S5 — Breadcrumb on every attempt so the Sentry timeline shows push activity.
+  // Guard with SENTRY_DSN so these are no-ops when monitoring is not configured.
+  if (process.env.SENTRY_DSN) {
+    Sentry.addBreadcrumb({
+      category: "push.send",
+      message: `Push dispatch → ${sub.endpoint.slice(-30)}`,
+      level: "info",
+    });
+  }
+
   try {
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -107,6 +118,21 @@ async function dispatchToSub(
   } catch (err: unknown) {
     const e = err as { statusCode?: number };
     if (e?.statusCode === 410 || e?.statusCode === 404) return "expired";
+
+    // S5 — Capture non-expiry send errors as distinct Sentry events so they
+    // appear in the "push.failure" tag query on the Sentry dashboard.
+    if (process.env.SENTRY_DSN) {
+      Sentry.captureEvent({
+        message: "Push notification send failed",
+        level: "error",
+        tags: { "push.failure": "true" },
+        extra: {
+          endpoint: sub.endpoint.slice(-40),
+          statusCode: e?.statusCode ?? "unknown",
+        },
+      });
+    }
+
     return "error";
   }
 }
