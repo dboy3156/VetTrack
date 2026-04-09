@@ -358,27 +358,6 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
   }
 }
 
-function notifyConflict(item: PendingSync, conflictData: Record<string, unknown>) {
-  const actionName =
-    item.type === "checkout"
-      ? "checkout"
-      : item.type === "return"
-      ? "return"
-      : item.type === "scan"
-      ? "status update"
-      : "change";
-
-  const detail = conflictData.conflictInfo
-    ? ` (${conflictData.conflictInfo})`
-    : "";
-
-  toast.warning(`Sync conflict on ${actionName}${detail}`, {
-    description:
-      "Another user's action was recorded first. Your action could not be applied — please review the current state.",
-    duration: 8000,
-  });
-}
-
 export function initSyncEngine(queryClient?: QueryClient) {
   queryClientRef = queryClient;
 
