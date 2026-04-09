@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db, equipment, scanLogs } from "../db.js";
 import { gte, desc, eq, isNull } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
-import { subDays, format } from "date-fns";
+import { subDays } from "date-fns";
 import { analyticsCache } from "../lib/analytics-cache.js";
+import { computeUsageTrends } from "../lib/analytics-engine.js";
+import { INACTIVE_THRESHOLD_DAYS } from "../../shared/constants.js";
 
 /*
  * PERMISSIONS MATRIX — /api/analytics
@@ -37,7 +39,7 @@ router.get("/", requireAuth, async (req, res) => {
     };
 
     const now = new Date();
-    const fourteenDaysAgo = subDays(now, 14);
+    const inactiveCutoff = subDays(now, INACTIVE_THRESHOLD_DAYS);
     const sevenDaysAgo = subDays(now, 7);
 
     for (const item of allEquipment) {
@@ -52,7 +54,7 @@ router.get("/", requireAuth, async (req, res) => {
         if (now > dueDate) statusBreakdown.overdue++;
       }
 
-      if (!item.lastSeen || new Date(item.lastSeen) < fourteenDaysAgo) {
+      if (!item.lastSeen || new Date(item.lastSeen) < inactiveCutoff) {
         statusBreakdown.inactive++;
       }
     }
@@ -87,21 +89,7 @@ router.get("/", requireAuth, async (req, res) => {
       .where(gte(scanLogs.timestamp, thirtyDaysAgo))
       .orderBy(desc(scanLogs.timestamp));
 
-    const scanMap = new Map<string, number>();
-    for (let i = 0; i < 30; i++) {
-      const date = format(subDays(now, 29 - i), "yyyy-MM-dd");
-      scanMap.set(date, 0);
-    }
-    for (const scan of recentScans) {
-      const date = format(new Date(scan.timestamp), "yyyy-MM-dd");
-      if (scanMap.has(date)) {
-        scanMap.set(date, scanMap.get(date)! + 1);
-      }
-    }
-    const scanActivity = Array.from(scanMap.entries()).map(([date, count]) => ({
-      date,
-      count,
-    }));
+    const scanActivity = computeUsageTrends(recentScans);
 
     const issueScans = recentScans.filter((s) => s.status === "issue");
     const issueCountMap = new Map<string, number>();

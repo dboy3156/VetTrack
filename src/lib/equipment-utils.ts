@@ -1,13 +1,15 @@
 import type { Equipment, ScanLog } from "@/types";
+import { INACTIVE_THRESHOLD_DAYS } from "../../shared/constants";
 
-const MISSING_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+export { INACTIVE_THRESHOLD_DAYS };
+const INACTIVE_THRESHOLD_MS = INACTIVE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 
 export function detectAnomalies(equipment: Equipment[]): Equipment[] {
   return equipment.filter((eq) => {
     const lastSeen = eq.lastSeen ? Date.parse(eq.lastSeen) : 0;
     return (
       !eq.checkedOutById &&
-      Date.now() - lastSeen > MISSING_THRESHOLD_MS
+      Date.now() - lastSeen > INACTIVE_THRESHOLD_MS
     );
   });
 }

@@ -63,6 +63,11 @@ import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QrScanner } from "@/components/qr-scanner";
+import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList";
+import { usePaginatedEquipment } from "@/hooks/use-paginated-equipment";
+
+const VIRTUALIZATION_THRESHOLD = 100;
+const LARGE_DATASET_PAGE_SIZE = 1000;
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -156,15 +161,20 @@ export default function EquipmentListPage() {
   function setFolderFilter(val: string) { updateParams({ folder: val }); }
   function setLocationFilter(val: string) { updateParams({ location: val }); }
 
+  // Load all equipment in a single large-page request.
+  // LARGE_DATASET_PAGE_SIZE (1000) matches the server-side EQUIPMENT_MAX_PAGE_SIZE cap,
+  // ensuring the full dataset is always present for client-side filtering and virtualization.
   const {
-    data: equipment,
+    data: equipmentPage,
     isLoading: isQueryLoading,
     isError,
     refetch,
-  } = useQuery({
-    queryKey: ["/api/equipment"],
-    queryFn: api.equipment.list,
-  });
+  } = usePaginatedEquipment({ page: 1, pageSize: LARGE_DATASET_PAGE_SIZE });
+
+  const equipment = equipmentPage?.items ?? [];
+  const totalCount = equipmentPage?.total ?? 0;
+
+  const refetchAll = () => { refetch(); };
 
   // Enforce minimum skeleton visibility: keep showSkeleton=true for at least SKELETON_MIN_MS
   // after the query starts, so the shimmer phase is always visible on every refresh.
@@ -243,6 +253,9 @@ export default function EquipmentListPage() {
       return matchesSearch && matchesStatus && matchesFolder && matchesLocation;
     });
   }, [equipment, search, statusFilter, folderFilter, locationFilter]);
+
+  // Virtualization is active when filtered results exceed threshold and select mode is off.
+  const isVirtualized = filtered.length > VIRTUALIZATION_THRESHOLD && !selectMode;
 
   // Stable pagination guards — out-of-bound pages are impossible.
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -581,8 +594,8 @@ export default function EquipmentListPage() {
 
         {/* Count + page info */}
         <p className="text-xs text-muted-foreground -mt-2">
-          {filtered.length} of {equipment?.length ?? 0} items
-          {!isLoading && totalPages > 1 && (
+          {filtered.length} of {totalCount || equipment.length} items
+          {!isLoading && !isVirtualized && totalPages > 1 && (
             <span className="ml-1">· page {safePage} of {totalPages}</span>
           )}
           {locationFilter !== "all" && (
@@ -594,11 +607,11 @@ export default function EquipmentListPage() {
         {isError && (
           <ErrorCard
             message="Failed to load equipment. Please try again."
-            onRetry={() => refetch()}
+            onRetry={() => refetchAll()}
           />
         )}
 
-        {/* Equipment list — bounded to PAGE_SIZE nodes in the DOM */}
+        {/* Equipment list — uses virtualization for large datasets (>100 items) */}
         <PageErrorBoundary fallbackLabel="Equipment list failed to render">
           {isLoading ? (
             <div className="flex flex-col gap-2">
@@ -635,6 +648,32 @@ export default function EquipmentListPage() {
                 )
               }
             />
+          ) : filtered.length > VIRTUALIZATION_THRESHOLD && !selectMode ? (
+            <div data-testid="equipment-list">
+              {/*
+                Row height 112px: card has p-4 (32px vertical padding) + ~80px content
+                (icon 40px + text baseline). Using minHeight: 72 in the card (no aspectRatio)
+                means content never overflows the fixed row. Gap of 12px (pb-3 on outer div)
+                is baked into the row height.
+              */}
+              <VirtualizedEquipmentList
+                items={filtered}
+                height={600}
+                itemHeight={112}
+                renderItem={(eq) => (
+                  <div className="pb-3">
+                    <EquipmentItem
+                      key={eq.id}
+                      equipment={eq}
+                      selectMode={false}
+                      selected={false}
+                      onToggleSelect={() => {}}
+                      virtualized
+                    />
+                  </div>
+                )}
+              />
+            </div>
           ) : (
             <div className="flex flex-col gap-3" data-testid="equipment-list">
               {pageItems.map((eq) => (
@@ -650,8 +689,8 @@ export default function EquipmentListPage() {
           )}
         </PageErrorBoundary>
 
-        {/* Pagination controls — only shown when there are multiple pages */}
-        {!isLoading && !isError && totalPages > 1 && (
+        {/* Pagination controls — only shown when not virtualized and there are multiple pages */}
+        {!isLoading && !isError && !isVirtualized && totalPages > 1 && (
           <div className="flex items-center justify-between pt-1">
             <Button
               variant="outline"
@@ -696,11 +735,13 @@ function EquipmentItem({
   selectMode,
   selected,
   onToggleSelect,
+  virtualized = false,
 }: {
   equipment: Equipment;
   selectMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
+  virtualized?: boolean;
 }) {
   const { userId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -768,7 +809,7 @@ function EquipmentItem({
             */}
             <CardContent
               className="p-4 flex items-center gap-3"
-              style={{ aspectRatio: "5/4", minHeight: 72 }}
+              style={virtualized ? { minHeight: 72 } : { aspectRatio: "5/4", minHeight: 72 }}
             >
               {/* Icon / Image — explicit w/h + loading=lazy prevents CLS */}
               {eq.imageUrl ? (

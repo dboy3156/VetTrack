@@ -281,7 +281,11 @@ export interface SystemMetrics {
   memoryMb: number;
   memoryTotalMb: number;
   activeSessions: number;
-  pendingSyncCount: number;
+  pendingSyncCount?: number;
+  syncMetrics?: {
+    syncSuccessCount: number;
+    syncFailCount: number;
+  };
 }
 
 export const EQUIPMENT_CATEGORIES = [

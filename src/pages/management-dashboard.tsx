@@ -416,13 +416,22 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Server className="w-3.5 h-3.5" />
-                    Sync Queue
+                    Sync Success
+                  </div>
+                  <p className="text-lg font-bold text-emerald-700">
+                    {metrics.syncMetrics?.syncSuccessCount ?? 0}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Server className="w-3.5 h-3.5" />
+                    Sync Errors
                   </div>
                   <p className={cn(
                     "text-lg font-bold",
-                    metrics.pendingSyncCount > 0 ? "text-amber-700" : ""
+                    (metrics.syncMetrics?.syncFailCount ?? 0) > 0 ? "text-amber-700" : ""
                   )}>
-                    {metrics.pendingSyncCount}
+                    {metrics.syncMetrics?.syncFailCount ?? 0}
                   </p>
                 </div>
               </div>

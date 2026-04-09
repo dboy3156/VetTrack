@@ -10,6 +10,7 @@ import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToAll, checkDedupe } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
 import { logAudit } from "../lib/audit.js";
+import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
 
 const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
@@ -250,7 +251,7 @@ router.get("/my", requireAuth, async (req, res) => {
 });
 
 const EQUIPMENT_DEFAULT_PAGE_SIZE = 100;
-const EQUIPMENT_MAX_PAGE_SIZE = 200;
+const EQUIPMENT_MAX_PAGE_SIZE = 1000;
 
 router.get("/", requireAuth, async (req, res) => {
   try {
@@ -664,6 +665,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
     });
 
     invalidateAnalyticsCache();
+    trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
     if (!checkDedupe(u.id, "checkout")) {
@@ -683,6 +685,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
       });
     }
     console.error(err);
+    trackSyncFail();
     res.status(500).json({ error: "Checkout failed" });
   }
 });
@@ -765,6 +768,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
     });
 
     invalidateAnalyticsCache();
+    trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
     if (!checkDedupe(u.id, "return")) {
@@ -777,6 +781,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
     }
   } catch (err) {
     console.error(err);
+    trackSyncFail();
     res.status(500).json({ error: "Return failed" });
   }
 });
@@ -865,6 +870,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
     });
 
     invalidateAnalyticsCache();
+    trackSyncSuccess();
     res.json({ equipment: updatedEquipment, scanLog, undoToken });
     if (status === "issue" && !checkDedupe(eq2.id, "issue")) {
       sendPushToAll({
@@ -907,6 +913,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
     }
   } catch (err) {
     console.error(err);
+    trackSyncFail();
     res.status(500).json({ error: "Scan failed" });
   }
 });
