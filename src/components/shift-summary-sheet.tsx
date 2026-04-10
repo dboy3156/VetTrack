@@ -107,7 +107,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
   function buildSummaryText(): string {
     const dateStr = format(new Date(), "MMMM d, yyyy");
-    const lines: string[] = [`VetTrack Shift Summary — ${dateStr}`, ""];
+    const lines: string[] = [`VetTrack {t.shiftSummary.actions.copy} — ${dateStr}`, ""];
 
     lines.push(t.shiftSummary.sections.checkedOut);
     if (myItems && myItems.length > 0) {
@@ -228,7 +228,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <PackageOpen className="w-4 h-4 text-blue-500" />
-                  <h3 className="text-sm font-semibold">Currently Checked Out</h3>
+                  <h3 className="text-sm font-semibold">בשימוש כרגע</h3>
                   <Badge variant="secondary" className="ml-auto">
                     {myItems?.length ?? 0}
                   </Badge>
@@ -258,7 +258,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">Nothing currently checked out</p>
+                    <p className="text-sm text-muted-foreground">אין ציוד בשימוש כרגע</p>
                   </div>
                 )}
               </div>
@@ -268,7 +268,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <ArrowUpRight className="w-4 h-4 text-blue-500" />
-                    <h3 className="text-sm font-semibold">Today's Checkouts</h3>
+                    <h3 className="text-sm font-semibold">שימושים היום</h3>
                     <Badge variant="secondary" className="ml-auto">
                       {todayCheckouts.length}
                     </Badge>
@@ -293,7 +293,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <Wrench className="w-4 h-4 text-amber-500" />
-                  <h3 className="text-sm font-semibold">Issues Flagged Today</h3>
+                  <h3 className="text-sm font-semibold">תקלות שדווחו היום</h3>
                   <Badge variant={todayIssues.length > 0 ? "maintenance" : "secondary"} className="ml-auto">
                     {todayIssues.length}
                   </Badge>
@@ -315,7 +315,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">No issues flagged today</p>
+                    <p className="text-sm text-muted-foreground">לא דווחו תקלות היום</p>
                   </div>
                 )}
               </div>
@@ -324,7 +324,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <AlertTriangle className="w-4 h-4 text-red-500" />
-                  <h3 className="text-sm font-semibold">Unacknowledged Alerts</h3>
+                  <h3 className="text-sm font-semibold">התראות שלא טופלו</h3>
                   <Badge variant={urgentAlerts.length > 0 ? "issue" : "secondary"} className="ml-auto">
                     {urgentAlerts.length}
                   </Badge>
@@ -353,7 +353,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">No critical or high alerts</p>
+                    <p className="text-sm text-muted-foreground">אין התראות קריטיות</p>
                   </div>
                 )}
               </div>
@@ -371,7 +371,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
             data-testid="btn-copy-shift-summary"
           >
             <ClipboardCopy className="w-4 h-4" />
-            Copy Summary to Clipboard
+            {t.shiftSummary.actions.copy}
           </Button>
         </div>
       </div>

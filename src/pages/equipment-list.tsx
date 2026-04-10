@@ -304,7 +304,7 @@ export default function EquipmentListPage() {
       <div className="flex flex-col gap-4 pb-24 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold leading-tight">Equipment</h1>
+          <h1 className="text-2xl font-bold leading-tight">{t.equipment.title}</h1>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
