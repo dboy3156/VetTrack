@@ -248,7 +248,6 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-function tryFreePort(port: number): void {
   try {
     execSync(`fuser -k ${port}/tcp 2>/dev/null || true`);
   } catch {
@@ -310,20 +309,16 @@ async function main() {
 
   if (isDev) {
     // Best-effort: try to free the preferred port before starting.
-    tryFreePort(PORT);
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
   // Find an available port, starting from the preferred one.
-  if (boundPort !== PORT) {
     console.warn(
-      `⚠️  Port ${PORT} was still in use — API server bound to port ${boundPort} instead.` +
       (isDev ? " Update your Vite proxy if needed." : "")
     );
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 VetTrack API running on port ${boundPort}`);
     if (!process.env.CLERK_SECRET_KEY) {
       console.log("⚠️  Running in DEV mode — Clerk auth disabled");
     }
