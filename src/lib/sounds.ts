@@ -41,7 +41,7 @@ export async function playFeedbackTone(): Promise<void> {
   oscillator.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.1);
 
   gainNode.gain.setValueAtTime(0, ctx.currentTime);
-  gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+  gainNode.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.01);
   gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
 
   oscillator.start(ctx.currentTime);
@@ -64,7 +64,7 @@ export async function playMuteTone(): Promise<void> {
   oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
 
   gainNode.gain.setValueAtTime(0, ctx.currentTime);
-  gainNode.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.01);
+  gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.01);
   gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
 
   oscillator.start(ctx.currentTime);
@@ -93,8 +93,8 @@ export async function playCriticalAlertTone(): Promise<void> {
     oscillator.frequency.setValueAtTime(1047, startTime);
 
     gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(0.2, startTime + 0.01);
-    gainNode.gain.setValueAtTime(0.2, startTime + beepDuration - 0.02);
+    gainNode.gain.linearRampToValueAtTime(0.7, startTime + 0.01);
+    gainNode.gain.setValueAtTime(0.7, startTime + beepDuration - 0.02);
     gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + beepDuration);
 
     oscillator.start(startTime);
