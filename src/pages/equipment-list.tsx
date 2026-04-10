@@ -67,7 +67,7 @@ import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList"
 import { usePaginatedEquipment } from "@/hooks/use-paginated-equipment";
 
 const VIRTUALIZATION_THRESHOLD = 100;
-const LARGE_DATASET_PAGE_SIZE = 1000;
+const SERVER_PAGE_SIZE = 100;
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All statuses" },
