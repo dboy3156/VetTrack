@@ -595,7 +595,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
               <div className="qr-scan-line absolute left-0 right-0 h-0.5 bg-primary/80" />
               {/* Helper text below the frame */}
               <p className="text-white/70 text-xs text-center absolute -bottom-8 left-0 right-0 whitespace-nowrap">
-                Point at a VetTrack QR code
+                כוון אל קוד ה-QR של VetTrack
               </p>
             </div>
           </div>

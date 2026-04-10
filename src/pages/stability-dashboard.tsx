@@ -174,7 +174,7 @@ function SystemStatusBadge({ status, running }: { status: TestReport | null; run
   return (
     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-semibold text-sm">
       <ShieldCheck className="w-4 h-4" />
-      All Tests Stable
+      כל הבדיקות תקינות
     </div>
   );
 }
@@ -338,7 +338,7 @@ export default function StabilityDashboardPage() {
   return (
     <Layout>
       <Helmet>
-        <title>Stability Dashboard — VetTrack</title>
+        <title>לוח יציבות מערכת — VetTrack</title>
       </Helmet>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
@@ -347,10 +347,10 @@ export default function StabilityDashboardPage() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <FlaskConical className="w-6 h-6 text-primary" />
-              Stability Dashboard
+              לוח יציבות מערכת
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Detect bugs, crashes, and performance issues before real-world use
+              איתור באגים, קריסות ובעיות ביצועים
             </p>
           </div>
           <SystemStatusBadge status={report ?? null} running={isRunning} />
@@ -370,7 +370,7 @@ export default function StabilityDashboardPage() {
                 {isRunning ? (
                   <><RefreshCw className="w-4 h-4 animate-spin" />Running...</>
                 ) : (
-                  <><Play className="w-4 h-4" />Run All Tests</>
+                  <><Play className="w-4 h-4" />הרץ את כל הבדיקות</>
                 )}
               </Button>
               {report?.finishedAt && (
@@ -450,12 +450,12 @@ export default function StabilityDashboardPage() {
           </div>
         )}
 
-        {/* Test Results */}
+        {/* תוצאות בדיקה */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Server className="w-4 h-4" />
-              Test Results
+              תוצאות בדיקה
               {isRunning && <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto" />}
               {report?.status === "done" && (
                 <Badge variant="outline" className="ml-auto text-xs">
@@ -472,7 +472,7 @@ export default function StabilityDashboardPage() {
             ) : !report || report.results.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
                 <FlaskConical className="w-10 h-10 opacity-30" />
-                <p className="text-sm">No test results yet. Click <strong>Run All Tests</strong> to start.</p>
+                <p className="text-sm">No test results yet. Click <strong>הרץ את כל הבדיקות</strong> to start.</p>
               </div>
             ) : (
               <>
@@ -490,12 +490,12 @@ export default function StabilityDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Internal Action Log */}
+        {/* לוג פעולות פנימי */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="w-4 h-4" />
-              Internal Action Log
+              לוג פעולות פנימי
               <span className="ml-auto text-xs font-normal text-muted-foreground">{logs.length} entries</span>
             </CardTitle>
           </CardHeader>

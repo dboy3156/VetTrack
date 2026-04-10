@@ -230,7 +230,7 @@ export default function RoomsListPage() {
               <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Radar className="w-4 h-4 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold leading-tight">Asset Radar</h1>
+              <h1 className="text-2xl font-bold leading-tight">רדאר ציוד</h1>
               <HelpTooltip
                 side="bottom"
                 content="Each room card shows a Health Ring: a coloured circle showing what % of items were verified in the last 24 hours. Green ≥ 80%, Amber ≥ 40%, Red < 40%. Stale = not audited in 24+ hours."
@@ -308,15 +308,15 @@ export default function RoomsListPage() {
         )}
       </div>
 
-      {/* Create Room dialog */}
+      {/* יצירת חדר dialog */}
       <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setRoomName(""); setRoomFloor(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Room</DialogTitle>
+            <DialogTitle>יצירת חדר</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="room-name">Room Name *</Label>
+              <Label htmlFor="room-name">שם החדר *</Label>
               <Input
                 id="room-name"
                 value={roomName}
@@ -327,7 +327,7 @@ export default function RoomsListPage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="room-floor">Floor / Area (optional)</Label>
+              <Label htmlFor="room-floor">קומה / אזור (אופציונלי)</Label>
               <Input
                 id="room-floor"
                 value={roomFloor}
@@ -347,7 +347,7 @@ export default function RoomsListPage() {
               className="gap-2"
             >
               {createMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Create Room
+              יצירת חדר
             </Button>
           </DialogFooter>
         </DialogContent>

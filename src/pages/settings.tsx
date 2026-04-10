@@ -73,8 +73,8 @@ export default function SettingsPage() {
     <Layout title="הגדרות">
       <div className="space-y-6 pb-8 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Customize your VetTrack experience</p>
+          <h1 className="text-2xl font-bold text-foreground">הגדרות</h1>
+          <p className="text-sm text-muted-foreground mt-1">התאם אישית את חווית השימוש ב-VetTrack</p>
         </div>
 
         {/* Display */}
@@ -114,7 +114,7 @@ export default function SettingsPage() {
                   {push.subscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-tight">Device Notifications</p>
+                  <p className="text-sm font-medium text-foreground leading-tight">התראות במכשיר</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {push.permission === "denied"
                       ? "הרשאה נדחתה — אפשר בהגדרות הדפדפן"
@@ -154,8 +154,8 @@ export default function SettingsPage() {
                     <Send className="w-5 h-5" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground leading-tight">Test Notification</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Send a test push to verify it's working</p>
+                    <p className="text-sm font-medium text-foreground leading-tight">בדיקת התראות</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">שלח התראת ניסיון כדי לוודא תקינות</p>
                   </div>
                   <Button
                     size="sm"
@@ -236,15 +236,15 @@ export default function SettingsPage() {
         <section className="space-y-2">
           <SettingsSectionHeader label="איפוס" />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4">
-            <p className="text-sm text-foreground font-medium mb-1">Reset to Defaults</p>
+            <p className="text-sm text-foreground font-medium mb-1">שחזר לברירת מחדל</p>
             <p className="text-xs text-muted-foreground mb-3">
-              Restore all settings to their original values. This cannot be undone.
+              שחזור כל ההגדרות לערכי ברירת המחדל. לא ניתן לבטל פעולה זו.
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 border-border/60 h-11 text-xs" data-testid="settings-reset-btn">
                   <RotateCcw className="w-4 h-4" />
-                  Reset to Defaults
+                  שחזר לברירת מחדל
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -286,7 +286,7 @@ export default function SettingsPage() {
               data-testid="settings-logout"
             >
               <LogOut className="w-4 h-4" />
-              Log Out
+              התנתק
             </Button>
           </div>
         </section>

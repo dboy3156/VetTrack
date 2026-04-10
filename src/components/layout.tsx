@@ -139,7 +139,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const myCount = myEquipment?.length ?? 0;
 
   const navItems: NavItem[] = [
-    { href: "/", label: "Home", icon: <Home className="w-5 h-5" /> },
+    { href: "/", label: "ראשי", icon: <Home className="w-5 h-5" /> },
     { href: "/equipment", label: t.equipment.title, icon: <Package className="w-5 h-5" /> },
     {
       href: "/alerts",
@@ -153,14 +153,14 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       icon: <PackageOpen className="w-5 h-5" />,
       badgeCount: myCount,
     },
-    { href: "/rooms", label: "Radar", icon: <Radar className="w-5 h-5" /> },
-    { href: "/analytics", label: "Analytics", icon: <BarChart3 className="w-5 h-5" /> },
-    { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
-    { href: "/print", label: "QR Print", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
-    { href: "/admin", label: "Admin", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
-    { href: "/stability", label: "Stability", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
-    { href: "/help", label: "Quick Guide", icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
-    { href: "/settings", label: "Settings", icon: <Settings className="w-5 h-5" />, menuOnly: true },
+    { href: "/rooms", label: "רדאר", icon: <Radar className="w-5 h-5" /> },
+    { href: "/analytics", label: "ניתוח נתונים", icon: <BarChart3 className="w-5 h-5" /> },
+    { href: "/dashboard", label: "לוח בקרה", icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
+    { href: "/print", label: "הדפסת QR", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
+    { href: "/admin", label: "ניהול", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/stability", label: "יציבות", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/help", label: "מדריך מהיר", icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
+    { href: "/settings", label: "הגדרות", icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: "About VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ];
 

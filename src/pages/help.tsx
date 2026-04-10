@@ -236,7 +236,7 @@ export default function HelpPage() {
         <div className="text-center pt-2 pb-4">
           <Link href="/">
             <Button variant="outline" className="gap-2 h-11">
-              Back to Dashboard
+              חזרה ללוח הבקרה
             </Button>
           </Link>
         </div>

@@ -56,7 +56,7 @@ export default function AnalyticsPage() {
     ? [
         { name: "OK", value: analytics.statusBreakdown.ok, color: STATUS_COLORS_HEX.ok },
         { name: "Issue", value: analytics.statusBreakdown.issue, color: STATUS_COLORS_HEX.issue },
-        { name: "Maintenance", value: analytics.statusBreakdown.maintenance, color: STATUS_COLORS_HEX.maintenance },
+        { name: "תחזוקה", value: analytics.statusBreakdown.maintenance, color: STATUS_COLORS_HEX.maintenance },
         { name: "Sterilized", value: analytics.statusBreakdown.sterilized, color: STATUS_COLORS_HEX.sterilized },
       ].filter((d) => d.value > 0)
     : [];
@@ -81,7 +81,7 @@ export default function AnalyticsPage() {
         <link rel="canonical" href="https://vettrack.replit.app/analytics" />
       </Helmet>
       <div className="flex flex-col gap-5 pb-24 animate-fade-in">
-        <h1 className="text-2xl font-bold leading-tight">Analytics</h1>
+        <h1 className="text-2xl font-bold leading-tight">ניתוח נתונים</h1>
 
         {isError && (
           <ErrorCard
@@ -105,12 +105,12 @@ export default function AnalyticsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs text-muted-foreground font-medium">Maintenance</span>
+                    <span className="text-xs text-muted-foreground font-medium">תחזוקה</span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">
                     {analytics?.maintenanceComplianceRate ?? 0}%
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Compliance rate</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">אחוז תקינות</p>
                 </CardContent>
               </Card>
 
@@ -118,12 +118,12 @@ export default function AnalyticsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Droplets className="w-4 h-4 text-teal-500" />
-                    <span className="text-xs text-muted-foreground font-medium">Sterilization</span>
+                    <span className="text-xs text-muted-foreground font-medium">חיטוי</span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">
                     {analytics?.sterilizationComplianceRate ?? 0}%
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Compliance rate</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">אחוז תקינות</p>
                 </CardContent>
               </Card>
 
@@ -131,12 +131,12 @@ export default function AnalyticsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle className="w-4 h-4 text-red-400" />
-                    <span className="text-xs text-muted-foreground font-medium">Overdue</span>
+                    <span className="text-xs text-muted-foreground font-medium">באיחור</span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">
                     {analytics?.statusBreakdown.overdue ?? 0}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Items overdue</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">פריטים באיחור</p>
                 </CardContent>
               </Card>
 
@@ -144,12 +144,12 @@ export default function AnalyticsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Wrench className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs text-muted-foreground font-medium">Issues</span>
+                    <span className="text-xs text-muted-foreground font-medium">תקלות</span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">
                     {analytics?.statusBreakdown.issue ?? 0}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Active issues</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">תקלות פתוחות</p>
                 </CardContent>
               </Card>
             </>
@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
         {/* Status distribution */}
         <Card className="bg-card border-border/60 shadow-sm">
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold text-foreground">Equipment Status Distribution</CardTitle>
+            <CardTitle className="text-sm font-semibold text-foreground">התפלגות סטטוס ציוד</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             {isLoading ? (
@@ -193,7 +193,7 @@ export default function AnalyticsPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-muted-foreground py-10 text-sm">No data yet</p>
+              <p className="text-center text-muted-foreground py-10 text-sm">אין נתונים עדיין</p>
             )}
           </CardContent>
         </Card>
@@ -203,7 +203,7 @@ export default function AnalyticsPage() {
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Activity className="w-4 h-4 text-muted-foreground" />
-              Scan Activity — last 14 days
+              פעילות סריקה — 14 ימים אחרונים
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -235,15 +235,15 @@ export default function AnalyticsPage() {
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-muted-foreground" />
-                Top Problem Equipment
+                הציוד הבעייתי ביותר
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
               {!analytics?.topProblemEquipment || analytics.topProblemEquipment.length === 0 ? (
                 <EmptyState
                   icon={Trophy}
-                  message="No issues reported"
-                  subMessage="Equipment with recurring issues will appear here"
+                  message="לא דווחו תקלות"
+                  subMessage="ציוד עם תקלות חוזרות יופיע כאן"
                   iconBg="bg-muted"
                   iconColor="text-muted-foreground"
                 />

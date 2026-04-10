@@ -185,7 +185,7 @@ export default function AlertsPage() {
             action={
               <Link href="/equipment">
                 <Button variant="outline" size="sm">
-                  Browse Equipment
+                  דפדף בציוד
                 </Button>
               </Link>
             }

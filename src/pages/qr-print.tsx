@@ -121,7 +121,7 @@ export default function QrPrintPage() {
   return (
     <Layout>
       <Helmet>
-        <title>QR Print — VetTrack</title>
+        <title>הדפסת QR — VetTrack</title>
         <meta name="description" content="Generate and print QR code labels for veterinary equipment. Select items, preview QR codes, and print sheets for physical labeling." />
         <link rel="canonical" href="https://vettrack.replit.app/print" />
       </Helmet>
@@ -130,7 +130,7 @@ export default function QrPrintPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <QrCode className="w-6 h-6 text-primary" />
-            QR Print
+            הדפסת QR
           </h1>
           {selected.size > 0 && (
             <Button
@@ -145,7 +145,7 @@ export default function QrPrintPage() {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Select equipment to print QR codes. You can batch-print all selected items.
+          בחר ציוד להדפסה. ניתן להדפיס מספר קודי QR יחד.
         </p>
 
         {/* Search */}

@@ -31,9 +31,9 @@ interface ReportIssueDialogProps {
 
 export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps) {
   const { email } = useAuth();
-  const [title, setTitle] = useState("");
+  const [title, setכותרת] = useState("");
   const [description, setDescription] = useState("");
-  const [severity, setSeverity] = useState<SupportTicketSeverity>("medium");
+  const [severity, setחומרה] = useState<SupportTicketSeverity>("medium");
 
   const submitMut = useMutation({
     mutationFn: () =>
@@ -47,9 +47,9 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
       }),
     onSuccess: () => {
       toast.success("התקלה דווחה. תודה!");
-      setTitle("");
+      setכותרת("");
       setDescription("");
-      setSeverity("medium");
+      setחומרה("medium");
       onOpenChange(false);
     },
     onError: () => {
@@ -69,26 +69,26 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bug className="w-4 h-4 text-primary" />
-            Report an Issue
+            דיווח על תקלה
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="issue-title">Title</Label>
+            <Label htmlFor="issue-title">כותרת</Label>
             <Input
               id="issue-title"
-              placeholder="Brief summary of the issue"
+              placeholder="תיאור קצר של התקלה"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setכותרת(e.target.value)}
               data-testid="input-issue-title"
               required
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="issue-description">Description</Label>
+            <Label htmlFor="issue-description">פירוט התקלה</Label>
             <Textarea
               id="issue-description"
-              placeholder="Describe what happened and what you expected..."
+              placeholder="תאר מה קרה ומה ציפית שיקרה..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               data-testid="input-issue-description"
@@ -97,21 +97,21 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="issue-severity">Severity</Label>
-            <Select value={severity} onValueChange={(v) => setSeverity(v as SupportTicketSeverity)}>
+            <Label htmlFor="issue-severity">חומרה</Label>
+            <Select value={severity} onValueChange={(v) => setחומרה(v as SupportTicketSeverity)}>
               <SelectTrigger id="issue-severity" data-testid="select-issue-severity">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Low — Minor inconvenience</SelectItem>
-                <SelectItem value="medium">Medium — Affects workflow</SelectItem>
-                <SelectItem value="high">High — Blocking issue</SelectItem>
+                <SelectItem value="low">נמוכה — חוסר נוחות קל</SelectItem>
+                <SelectItem value="medium">בינונית — משפיע על העבודה</SelectItem>
+                <SelectItem value="high">גבוהה — תקלה חוסמת עבודה</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {email && (
             <p className="text-xs text-muted-foreground">
-              Submitting as <span className="font-medium">{email}</span>
+              שלח דיווחting as <span className="font-medium">{email}</span>
             </p>
           )}
           <DialogFooter className="pt-1">
@@ -121,7 +121,7 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
               onClick={() => onOpenChange(false)}
               disabled={submitMut.isPending}
             >
-              Cancel
+              ביטול
             </Button>
             <Button
               type="submit"
@@ -129,7 +129,7 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
               data-testid="btn-submit-issue"
             >
               {submitMut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Submit
+              שלח דיווח
             </Button>
           </DialogFooter>
         </form>

@@ -22,18 +22,18 @@ import {
   FileDown,
   ChevronDown,
   ChevronUp,
-  RefreshCw,
+  רענןCw,
   Activity,
   Server,
   Clock,
-  MemoryStick,
+  זיכרוןStick,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 
-function formatUptime(seconds: number): string {
+function formatזמן פעולה(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -96,7 +96,7 @@ export default function ManagementDashboardPage() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold leading-tight">Dashboard</h1>
+            <h1 className="text-2xl font-bold leading-tight">לוח בקרה</h1>
             {lastUpdated && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 Updated {lastUpdated}
@@ -111,8 +111,8 @@ export default function ManagementDashboardPage() {
               onClick={() => refetch()}
               disabled={isLoading}
             >
-              <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
-              Refresh
+              <רענןCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+              רענן
             </Button>
             <Button
               size="sm"
@@ -153,7 +153,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground font-medium">Available</span>
+                      <span className="text-xs text-muted-foreground font-medium">זמין</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.available}</p>
                   </CardContent>
@@ -163,7 +163,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Users className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground font-medium">In Use</span>
+                      <span className="text-xs text-muted-foreground font-medium">בשימוש</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.inUse}</p>
                   </CardContent>
@@ -173,7 +173,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Wrench className="w-4 h-4 text-red-400" />
-                      <span className="text-xs text-muted-foreground font-medium">Issues</span>
+                      <span className="text-xs text-muted-foreground font-medium">תקלות</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.issues}</p>
                   </CardContent>
@@ -183,7 +183,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <PackageX className="w-4 h-4 text-amber-500" />
-                      <span className="text-xs text-muted-foreground font-medium">Missing</span>
+                      <span className="text-xs text-muted-foreground font-medium">חסר</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.missing}</p>
                   </CardContent>
@@ -193,12 +193,12 @@ export default function ManagementDashboardPage() {
           </div>
         </div>
 
-        {/* Critical Alerts */}
+        {/* התראות קריטיות */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-critical-alerts">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-muted-foreground" />
-              Critical Alerts
+              התראות קריטיות
               {criticalItems.length > 0 && (
                 <span className="ml-auto text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
                   {criticalItems.length}
@@ -215,8 +215,8 @@ export default function ManagementDashboardPage() {
             ) : criticalItems.length === 0 ? (
               <div className="flex flex-col items-center py-5 gap-2 text-center">
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-                <p className="text-sm font-medium text-foreground">All clear</p>
-                <p className="text-xs text-muted-foreground">All equipment accounted for</p>
+                <p className="text-sm font-medium text-foreground">הכל תקין</p>
+                <p className="text-xs text-muted-foreground">כל הציוד נמצא במקומו</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -243,12 +243,12 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Who Has What */}
+        {/* מי מחזיק במה */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-who-has-what">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Users className="w-4 h-4 text-muted-foreground" />
-              Who Has What
+              מי מחזיק במה
               {userGroups.length > 0 && (
                 <span className="ml-auto text-xs text-muted-foreground">
                   {userGroups.length} user{userGroups.length !== 1 ? "s" : ""}
@@ -265,8 +265,8 @@ export default function ManagementDashboardPage() {
             ) : userGroups.length === 0 ? (
               <div className="flex flex-col items-center py-5 gap-2 text-center">
                 <Users className="w-7 h-7 text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">All equipment returned</p>
-                <p className="text-xs text-muted-foreground">No equipment currently checked out</p>
+                <p className="text-sm font-medium text-muted-foreground">כל הציוד הוחזר</p>
+                <p className="text-xs text-muted-foreground">אין כרגע ציוד בשימוש</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -318,12 +318,12 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Location Overview */}
+        {/* סקירת מיקומים */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-location-overview">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              Location Overview
+              סקירת מיקומים
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -366,13 +366,13 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* System Health */}
+        {/* בריאות המערכת */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-system-health">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Activity className="w-4 h-4 text-muted-foreground" />
-              System Health
-              <span className="ml-auto text-xs text-muted-foreground font-normal">Updates every 60s</span>
+              בריאות המערכת
+              <span className="ml-auto text-xs text-muted-foreground font-normal">מתעדכן כל 60 שניות</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -393,14 +393,14 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="w-3.5 h-3.5" />
-                    Uptime
+                    זמן פעולה
                   </div>
-                  <p className="text-lg font-bold">{formatUptime(metrics.uptime)}</p>
+                  <p className="text-lg font-bold">{formatזמן פעולה(metrics.uptime)}</p>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MemoryStick className="w-3.5 h-3.5" />
-                    Memory
+                    <זיכרוןStick className="w-3.5 h-3.5" />
+                    זיכרון
                   </div>
                   <p className="text-lg font-bold">{metrics.memoryMb}
                     <span className="text-sm font-normal text-muted-foreground">/{metrics.memoryTotalMb} MB</span>
@@ -409,14 +409,14 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Users className="w-3.5 h-3.5" />
-                    Sessions
+                    הפעלות
                   </div>
-                  <p className="text-lg font-bold">{metrics.activeSessions}</p>
+                  <p className="text-lg font-bold">{metrics.activeהפעלות}</p>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Server className="w-3.5 h-3.5" />
-                    Sync Success
+                    הצלחות סנכרון
                   </div>
                   <p className="text-lg font-bold text-emerald-700">
                     {metrics.syncMetrics?.syncSuccessCount ?? 0}
@@ -425,7 +425,7 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Server className="w-3.5 h-3.5" />
-                    Sync Errors
+                    שגיאות סנכרון
                   </div>
                   <p className={cn(
                     "text-lg font-bold",
