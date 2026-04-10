@@ -401,7 +401,7 @@ export default function EquipmentListPage() {
           <Sheet open={folderSheetOpen} onOpenChange={(o) => { setFolderSheetOpen(o); if (!o) setFolderSearch(""); }}>
             <SheetContent side="bottom" className="max-h-[75vh] flex flex-col p-0">
               <SheetHeader className="px-4 pt-5 pb-3 border-b">
-                <SheetTitle>Filter by Folder</SheetTitle>
+                <SheetTitle>סינון לפי תיקייה</SheetTitle>
               </SheetHeader>
               <div className="px-4 py-3 border-b">
                 <div className="relative">
@@ -557,7 +557,7 @@ export default function EquipmentListPage() {
                     {bulkMoveMut.isPending ? t.equipmentList.actions.working : t.equipmentList.actions.move}
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Unfiled</SelectItem>
+                    <SelectItem value="none">{t.equipmentList.folders.unfiled}</SelectItem>
                     {manualFolders.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name}
@@ -591,7 +591,7 @@ export default function EquipmentListPage() {
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t.equipmentList.actions.cancel}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => bulkDeleteMut.mutate(Array.from(selected))}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
