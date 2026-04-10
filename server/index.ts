@@ -253,7 +253,6 @@ if (process.env.NODE_ENV === "production") {
   } catch {
     // fuser may not exist on all platforms; ignore errors
   }
-}
 
 function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number> {
   return new Promise((resolve, reject) => {
