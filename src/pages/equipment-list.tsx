@@ -47,6 +47,7 @@ import {
   ChevronLeft,
   MapPin,
   Upload,
+  Download,
   Loader2,
   LogIn,
   LogOut,
@@ -65,6 +66,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { QrScanner } from "@/components/qr-scanner";
 import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList";
 import { usePaginatedEquipment } from "@/hooks/use-paginated-equipment";
+import { exportEquipmentToExcel } from "@/lib/export-excel";
 
 const VIRTUALIZATION_THRESHOLD = 100;
 const SERVER_PAGE_SIZE = 100;
@@ -323,6 +325,18 @@ export default function EquipmentListPage() {
               >
                 <Upload className="w-4 h-4 mr-1" />
                 Import CSV
+              </Button>
+            )}
+            {isAdmin && filtered.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="hidden md:inline-flex h-11 text-xs"
+                onClick={() => exportEquipmentToExcel(filtered, `equipment-2026-04-10.xlsx`)}
+                data-testid="btn-export-excel"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                Export Excel
               </Button>
             )}
             <Link href="/equipment/new">
