@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": bash deploy.sh --start
+    "startCommand": "bash deploy.sh --start"
   }
 }
