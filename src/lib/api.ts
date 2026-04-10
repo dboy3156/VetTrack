@@ -253,11 +253,14 @@ export const api = {
         throw err;
       }
     },
-    listPaginated: async (page = 1, pageSize = 100): Promise<EquipmentPage> => {
+    listPaginated: async (page = 1, pageSize = 100, filters?: { q?: string; status?: string; folder?: string; location?: string }): Promise<EquipmentPage> => {
       try {
-        const result = await request<EquipmentPage>(
-          `/api/equipment?limit=${pageSize}&page=${page}`
-        );
+        const params = new URLSearchParams({ limit: String(pageSize), page: String(page) });
+        if (filters?.q) params.set("q", filters.q);
+        if (filters?.status && filters.status !== "all") params.set("status", filters.status);
+        if (filters?.folder && filters.folder !== "all") params.set("folder", filters.folder);
+        if (filters?.location && filters.location !== "all") params.set("location", filters.location);
+        const result = await request<EquipmentPage>(`/api/equipment?${params}`);
         cacheEquipment(result.items).catch(() => {});
         return result;
       } catch (err) {
