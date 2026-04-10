@@ -296,7 +296,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               </Link>
             )}
 
-            {/* Quick Settings button */}
+            {/* הגדרות מהירות button */}
             <div className="relative" ref={quickSettingsRef}>
               <Button
                 variant="ghost"
@@ -357,7 +357,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                     <Link href="/settings" onClick={() => setQuickSettingsOpen(false)}>
                       <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs text-muted-foreground">
                         <Settings className="w-3.5 h-3.5" />
-                        All Settings
+                        כל ההגדרות
                       </Button>
                     </Link>
                   </div>
