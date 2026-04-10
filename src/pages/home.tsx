@@ -88,7 +88,7 @@ export default function HomePage() {
         <div className="flex items-start justify-between pt-1 gap-3">
           <div>
             <h1 className="text-2xl font-bold leading-tight text-foreground">
-              Hello, {name?.split(" ")[0] || "there"}
+              שלום, {name?.split(" ")[0] || "שם"}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">{ t.home.equipmentOverview }</p>
           </div>
@@ -100,7 +100,7 @@ export default function HomePage() {
             data-testid="btn-shift-summary"
           >
             <ClipboardCheck className="w-3.5 h-3.5" />
-            Shift Summary
+            {t.home.shiftSummary}
           </Button>
         </div>
 
@@ -132,7 +132,7 @@ export default function HomePage() {
               ) : (
                 <p className="text-lg font-bold text-foreground leading-none">{totalCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">Total</p>
+              <p className="text-[10px] text-muted-foreground mt-1">סה״כ</p>
             </div>
           </Link>
 
@@ -156,7 +156,7 @@ export default function HomePage() {
               ) : (
                 <p className={`text-lg font-bold leading-none ${issueCount > 0 ? "text-red-500" : "text-foreground"}`}>{issueCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">Issues</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{t.status.issue}</p>
             </div>
           </Link>
 
@@ -168,7 +168,7 @@ export default function HomePage() {
               ) : (
                 <p className={`text-lg font-bold leading-none ${maintenanceCount > 0 ? "text-amber-600" : "text-foreground"}`}>{maintenanceCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">Maint.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{t.status.maintenance}</p>
             </div>
           </Link>
         </div>
@@ -179,11 +179,11 @@ export default function HomePage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-red-400" />
-                Active Alerts
+                התראות פעילות
               </h2>
               <Link href="/alerts">
                 <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-7 px-2 hover:text-foreground">
-                  View all
+                  הצג הכל
                 </Button>
               </Link>
             </div>
@@ -230,7 +230,7 @@ export default function HomePage() {
           <div>
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
               <Activity className="w-4 h-4 text-muted-foreground" />
-              Recent Activity
+              פעילות אחרונה
             </h2>
             <div className="flex flex-col gap-1.5">
               {activityData.items.slice(0, 4).map((item) => {
@@ -280,9 +280,9 @@ export default function HomePage() {
               <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
                 <Zap className="w-7 h-7 text-muted-foreground" />
               </div>
-              <h3 className="font-bold text-lg mb-1">Get Started</h3>
+              <h3 className="font-bold text-lg mb-1">התחל</h3>
               <p className="text-sm text-muted-foreground mb-5">
-                Add your first piece of equipment to start tracking.
+                הוסף את פריט הציוד הראשון כדי להתחיל במעקב
               </p>
               <Link href="/equipment/new">
                 <Button data-testid="btn-get-started">
