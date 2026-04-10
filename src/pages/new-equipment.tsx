@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useRef, useMemo, useEffect } from "react";
 import { useLocation, useSearch, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -118,12 +119,12 @@ export default function NewEquipmentPage() {
       navigator.vibrate?.(50);
       clearSubmitTimeout();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("Equipment added!");
+      toast.success(t.newEquipment.toast.addSuccess);
       navigate(`/equipment/${data.id}`);
     },
     onError: (err: Error) => {
       clearSubmitTimeout();
-      toast.error(err.message || "Failed to save equipment. Please try again.");
+      toast.error(t.newEquipment.toast.addError(err.message));
     },
     onSettled: () => {
       clearSubmitTimeout();
@@ -148,12 +149,12 @@ export default function NewEquipmentPage() {
       clearSubmitTimeout();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${editId}`] });
-      toast.success("Equipment updated!");
+      toast.success(t.newEquipment.toast.updateSuccess);
       navigate(`/equipment/${editId}`);
     },
     onError: (err: Error) => {
       clearSubmitTimeout();
-      toast.error(err.message || "Failed to update equipment. Please try again.");
+      toast.error(t.newEquipment.toast.updateError(err.message));
     },
     onSettled: () => {
       clearSubmitTimeout();
@@ -185,7 +186,7 @@ export default function NewEquipmentPage() {
     timeoutRef.current = setTimeout(() => {
       controller.abort();
       createMut.reset();
-      toast.error("Request timed out. Please check your connection and try again.");
+      toast.error(t.newEquipment.toast.timeout);
       abortRef.current = null;
       timeoutRef.current = null;
     }, SUBMIT_TIMEOUT_MS);
@@ -237,7 +238,7 @@ export default function NewEquipmentPage() {
           </Button>
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">
-              {isEditing ? "Edit Equipment" : isCopy ? "Duplicate Equipment" : "Add Equipment"}
+              {isEditing ? t.newEquipment.heading.edit : isCopy ? t.newEquipment.heading.duplicate : t.newEquipment.heading.add}
             </h1>
             {isCopy && (
               <p className="text-xs text-muted-foreground mt-0.5">Copied from {prefill.copiedFrom}</p>
@@ -256,7 +257,7 @@ export default function NewEquipmentPage() {
                 <Label htmlFor="name" className="text-sm font-medium">Name *</Label>
                 <Input
                   id="name"
-                  placeholder="e.g. Autoclave Unit A"
+                  placeholder={t.newEquipment.fields.name.placeholder}
                   className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("name")}
                   data-testid="input-name"
@@ -270,7 +271,7 @@ export default function NewEquipmentPage() {
                 <Label htmlFor="serialNumber" className="text-sm font-medium">Serial Number</Label>
                 <Input
                   id="serialNumber"
-                  placeholder="SN-12345"
+                  placeholder={t.newEquipment.fields.serialNumber.placeholder}
                   className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("serialNumber")}
                   data-testid="input-serial"
@@ -282,7 +283,7 @@ export default function NewEquipmentPage() {
                   <Label htmlFor="model" className="text-sm font-medium">Model</Label>
                   <Input
                     id="model"
-                    placeholder="Model name"
+                    placeholder={t.newEquipment.fields.model.placeholder}
                     className="h-12 rounded-xl border-border/60 bg-background"
                     {...register("model")}
                   />
@@ -291,7 +292,7 @@ export default function NewEquipmentPage() {
                   <Label htmlFor="manufacturer" className="text-sm font-medium">Manufacturer</Label>
                   <Input
                     id="manufacturer"
-                    placeholder="Brand"
+                    placeholder={t.newEquipment.fields.manufacturer.placeholder}
                     className="h-12 rounded-xl border-border/60 bg-background"
                     {...register("manufacturer")}
                   />
@@ -314,10 +315,10 @@ export default function NewEquipmentPage() {
                   onValueChange={(v) => setValue("folderId", v)}
                 >
                   <SelectTrigger className="h-12 rounded-xl border-border/60 bg-background" data-testid="select-folder">
-                    <SelectValue placeholder="No folder" />
+                    <SelectValue placeholder={t.newEquipment.fields.folder.placeholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No folder</SelectItem>
+                    <SelectItem value="none">{t.newEquipment.fields.folder.none}</SelectItem>
                     {manualFolders.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name}
@@ -331,7 +332,7 @@ export default function NewEquipmentPage() {
                 <Label htmlFor="location" className="text-sm font-medium">Location</Label>
                 <Input
                   id="location"
-                  placeholder="e.g. Surgery Room 1"
+                  placeholder={t.newEquipment.fields.location.placeholder}
                   className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("location")}
                   data-testid="input-location"

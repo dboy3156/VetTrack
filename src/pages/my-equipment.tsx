@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -55,9 +56,9 @@ export default function MyEquipmentPage() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("Returned — equipment is now available");
+      toast.success(t.myEquipment.toast.returnSuccess);
     },
-    onError: () => toast.error("Return failed"),
+    onError: () => toast.error(t.myEquipment.toast.returnError),
   });
 
   async function handleReturnAll() {
@@ -69,7 +70,7 @@ export default function MyEquipmentPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Returned ${items.length} item${items.length !== 1 ? "s" : ""} — all equipment now available`);
     } catch {
-      toast.error("Some items failed to return. Please try again.");
+      toast.error(t.myEquipment.toast.returnAllPartialError);
     } finally {
       setReturningAll(false);
     }
@@ -78,14 +79,14 @@ export default function MyEquipmentPage() {
   return (
     <Layout>
       <Helmet>
-        <title>My Equipment — VetTrack</title>
+        <title>{t.equipment.myEquipment} — VetTrack</title>
         <meta name="description" content="View all equipment currently checked out to you. Return individual items or use Return All for quick end-of-shift handoffs." />
         <link rel="canonical" href="https://vettrack.replit.app/my-equipment" />
       </Helmet>
       <div className="flex flex-col gap-5 pb-24 animate-fade-in">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold leading-tight">My Equipment</h1>
+            <h1 className="text-2xl font-bold leading-tight">{ t.equipment.myEquipment }</h1>
             {items && items.length > 0 && (
               <p className="text-sm text-muted-foreground mt-0.5">{items.length} checked out</p>
             )}
@@ -116,7 +117,7 @@ export default function MyEquipmentPage() {
 
         {isError && (
           <ErrorCard
-            message="Failed to load your checked-out equipment. Please try again."
+            message={t.myEquipment.errors.loadFailed}
             onRetry={() => refetch()}
           />
         )}
@@ -164,8 +165,8 @@ export default function MyEquipmentPage() {
         ) : isError ? null : !items || items.length === 0 ? (
           <EmptyState
             icon={CheckCircle2}
-            message="Nothing checked out"
-            subMessage="Equipment you check out will appear here."
+            message={t.myEquipment.empty.message}
+            subMessage={t.myEquipment.empty.subMessage}
             iconBg="bg-muted"
             iconColor="text-muted-foreground"
             borderColor="border-border/60"

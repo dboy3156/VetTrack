@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { Link, useLocation } from "wouter";
 import { useQRScanner } from "@/hooks/use-qr-scanner";
 import { cn } from "@/lib/utils";
@@ -96,7 +97,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       await api.equipment.get(assetId);
       navigate(`/equipment/${assetId}`);
     } catch {
-      toast.error("Equipment not found — please try again");
+      toast.error(t.layout.toast.equipmentNotFound);
     }
   }, 1500);
 
@@ -139,16 +140,16 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
   const navItems: NavItem[] = [
     { href: "/", label: "Home", icon: <Home className="w-5 h-5" /> },
-    { href: "/equipment", label: "Equipment", icon: <Package className="w-5 h-5" /> },
+    { href: "/equipment", label: t.equipment.title, icon: <Package className="w-5 h-5" /> },
     {
       href: "/alerts",
-      label: "Alerts",
+      label: t.layout.nav.alerts,
       icon: <AlertTriangle className="w-5 h-5" />,
       badgeCount: alertCount,
     },
     {
       href: "/my-equipment",
-      label: "Mine",
+      label: t.layout.nav.mine,
       icon: <PackageOpen className="w-5 h-5" />,
       badgeCount: myCount,
     },
@@ -322,32 +323,32 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   </p>
                   <SettingsToggle
                     icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                    label="Dark Mode"
+                    label={t.layout.settings.darkMode}
                     checked={settings.darkMode}
                     onCheckedChange={(v) => update({ darkMode: v })}
                     data-testid="quick-dark-mode"
                   />
                   <SettingsSelect
                     icon={<AlignJustify className="w-5 h-5" />}
-                    label="Display Size"
+                    label={t.layout.settings.displaySize}
                     value={settings.density}
                     options={[
-                      { value: "comfortable", label: "Comfortable" },
-                      { value: "compact", label: "Compact" },
+                      { value: "comfortable", label: t.layout.settings.comfortable },
+                      { value: "compact", label: t.layout.settings.compact },
                     ]}
                     onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
                     data-testid="quick-density"
                   />
                   <SettingsToggle
                     icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-                    label="Master Sound"
+                    label={t.layout.settings.masterSound}
                     checked={settings.soundEnabled}
                     onCheckedChange={handleSoundToggle}
                     data-testid="quick-sound"
                   />
                   <SettingsToggle
                     icon={<BellRing className="w-5 h-5" />}
-                    label="Critical Alerts"
+                    label={t.layout.settings.criticalAlerts}
                     checked={settings.criticalAlertsSound}
                     onCheckedChange={handleCriticalAlertsToggle}
                     data-testid="quick-critical-sound"

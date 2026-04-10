@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
@@ -89,7 +90,7 @@ export default function HomePage() {
             <h1 className="text-2xl font-bold leading-tight text-foreground">
               Hello, {name?.split(" ")[0] || "there"}
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Equipment Overview</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{ t.home.equipmentOverview }</p>
           </div>
           <Button
             variant="outline"

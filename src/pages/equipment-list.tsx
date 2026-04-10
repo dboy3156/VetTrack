@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
@@ -72,11 +73,11 @@ const VIRTUALIZATION_THRESHOLD = 100;
 const SERVER_PAGE_SIZE = 100;
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "ok", label: "OK" },
-  { value: "issue", label: "Issue" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "sterilized", label: "Sterilized" },
+  { value: "all", label: t.status.all },
+  { value: "ok", label: t.status.ok },
+  { value: "issue", label: t.status.issue },
+  { value: "maintenance", label: t.status.maintenance },
+  { value: "sterilized", label: t.status.sterilized },
 ];
 
 // 9 cards per page — DOM never holds more than 9 <div>s regardless of dataset size.
@@ -208,7 +209,7 @@ export default function EquipmentListPage() {
       setPage(1);
       toast.success(`Deleted ${ids.length} item${ids.length !== 1 ? "s" : ""}`);
     },
-    onError: () => toast.error("Delete failed"),
+    onError: () => toast.error(t.equipmentList.toast.deleteError),
   });
 
   const bulkMoveMut = useMutation({
@@ -218,9 +219,9 @@ export default function EquipmentListPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       setSelected(new Set());
       setSelectMode(false);
-      toast.success("Moved successfully");
+      toast.success(t.equipmentList.toast.moveSuccess);
     },
-    onError: () => toast.error("Move failed"),
+    onError: () => toast.error(t.equipmentList.toast.moveError),
   });
 
   const locations = useMemo(() => {
@@ -353,7 +354,7 @@ export default function EquipmentListPage() {
           <div className="relative">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, serial, model..."
+              placeholder={t.equipmentList.search.placeholder}
               className="pl-10"
               value={searchInput}
               onChange={(e) => handleSearchInputChange(e.target.value)}
@@ -390,7 +391,7 @@ export default function EquipmentListPage() {
             <FolderOpen className="w-4 h-4 shrink-0" />
             <span className="flex-1 truncate">
               {folderFilter === "all"
-                ? "All Folders"
+                ? t.equipmentList.folders.all
                 : folderFilter === "unfiled"
                 ? "Unfiled"
                 : (folders?.find((f) => f.id === folderFilter)?.name ?? "Folder")}
@@ -406,7 +407,7 @@ export default function EquipmentListPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search folders…"
+                    placeholder={t.equipmentList.folders.searchPlaceholder}
                     value={folderSearch}
                     onChange={(e) => setFolderSearch(e.target.value)}
                     className="pl-9"
@@ -416,7 +417,7 @@ export default function EquipmentListPage() {
               </div>
               <div className="flex-1 overflow-y-auto">
                 {[
-                  { id: "all", name: "All Folders" },
+                  { id: "all", name: t.equipmentList.folders.all },
                   { id: "unfiled", name: "Unfiled" },
                   ...(folders ?? []),
                 ]
@@ -620,19 +621,19 @@ export default function EquipmentListPage() {
         {/* Error state */}
         {isError && (
           <ErrorCard
-            message="Failed to load equipment. Please try again."
+            message={t.equipmentList.errors.loadFailed}
             onRetry={() => refetchAll()}
           />
         )}
 
         {/* Equipment list — uses virtualization for large datasets (>100 items) */}
-        <PageErrorBoundary fallbackLabel="Equipment list failed to render">
+        <PageErrorBoundary fallbackLabel={t.equipmentList.errors.renderFailed}>
           {isLoading ? (
             <EquipmentListSkeleton count={PAGE_SIZE} />
           ) : !isError && filtered.length === 0 ? (
             <EmptyState
               icon={Package}
-              message="No equipment found"
+              message={t.equipmentList.empty.message}
               subMessage={
                 search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all"
                   ? "Try adjusting your filters or search query."
@@ -766,7 +767,7 @@ function EquipmentItem({
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Checked out — ${eq.name}`);
     },
-    onError: () => toast.error("Checkout failed"),
+    onError: () => toast.error(t.equipmentList.toast.checkoutError),
   });
 
   const returnMut = useMutation({
@@ -777,7 +778,7 @@ function EquipmentItem({
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       toast.success(`Returned — ${eq.name} is now available`);
     },
-    onError: () => toast.error("Return failed"),
+    onError: () => toast.error(t.equipmentList.toast.returnError),
   });
 
   const quickAction = !isCheckedOut && eq.status === "ok"

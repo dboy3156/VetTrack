@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
@@ -28,7 +29,7 @@ import { toast } from "sonner";
 function formatRelativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "just now";
+  if (diffMin < 1) return t.alerts.timeAgo.justNow;
   if (diffMin === 1) return "1 minute ago";
   if (diffMin < 60) return `${diffMin} minutes ago`;
   const diffHr = Math.floor(diffMin / 60);
@@ -45,32 +46,32 @@ const ALERT_CONFIG: Record<
   issue: {
     icon: AlertTriangle,
     dotColor: "bg-red-400",
-    label: "Active Issue",
-    badgeLabel: "Critical",
+    label: t.alerts.types.issue.label,
+    badgeLabel: t.alerts.types.issue.badgeLabel,
     badgeClass: "bg-red-50 text-red-600 border-red-200",
     iconBg: "bg-red-50",
   },
   overdue: {
     icon: Clock,
     dotColor: "bg-amber-400",
-    label: "Overdue",
-    badgeLabel: "High",
+    label: t.alerts.types.overdue.label,
+    badgeLabel: t.alerts.types.overdue.badgeLabel,
     badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
     iconBg: "bg-amber-50",
   },
   sterilization_due: {
     icon: Droplets,
     dotColor: "bg-teal-400",
-    label: "Sterilization Due",
-    badgeLabel: "Medium",
+    label: t.alerts.types.sterilization_due.label,
+    badgeLabel: t.alerts.types.sterilization_due.badgeLabel,
     badgeClass: "bg-teal-50 text-teal-700 border-teal-200",
     iconBg: "bg-teal-50",
   },
   inactive: {
     icon: Activity,
     dotColor: "bg-slate-300",
-    label: "Inactive",
-    badgeLabel: "Low",
+    label: t.alerts.types.inactive.label,
+    badgeLabel: t.alerts.types.inactive.badgeLabel,
     badgeClass: "bg-slate-50 text-slate-600 border-slate-200",
     iconBg: "bg-muted",
   },
@@ -96,9 +97,9 @@ export default function AlertsPage() {
     onSuccess: () => {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/alert-acks"] });
-      toast.success("Marked as handling");
+      toast.success(t.alerts.toast.acknowledged);
     },
-    onError: () => toast.error("Failed to acknowledge"),
+    onError: () => toast.error(t.alerts.toast.acknowledgeError),
   });
 
   const unAckMut = useMutation({
@@ -107,7 +108,7 @@ export default function AlertsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/alert-acks"] });
     },
-    onError: () => toast.error("Failed to remove"),
+    onError: () => toast.error(t.alerts.toast.removeError),
   });
 
   const isLoading = eqLoading || acksLoading;
@@ -159,7 +160,7 @@ export default function AlertsPage() {
 
         {isError && (
           <ErrorCard
-            message="Failed to load alerts. Please try again."
+            message={t.alerts.errors.loadFailed}
             onRetry={() => {
               refetchEq();
               refetchAcks();
@@ -176,8 +177,8 @@ export default function AlertsPage() {
         ) : isError ? null : alerts.length === 0 ? (
           <EmptyState
             icon={CheckCircle}
-            message="All Clear!"
-            subMessage="No alerts at this time. All equipment is in good standing."
+            message={t.alerts.empty.message}
+            subMessage={t.alerts.empty.subMessage}
             iconBg="bg-emerald-50"
             iconColor="text-emerald-500"
             borderColor="border-border/60"

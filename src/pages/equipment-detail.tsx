@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState, useRef, useEffect } from "react";
 import { useParams, useLocation, useSearch } from "wouter";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -165,7 +166,7 @@ export default function EquipmentDetailPage() {
       queryClient.setQueryData([`/api/equipment/${id}`], prev);
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
-      toast.success("Action undone");
+      toast.success(t.equipmentDetail.toast.undone);
       return;
     }
 
@@ -173,7 +174,7 @@ export default function EquipmentDetailPage() {
       // Offline action with no sync ID — restore optimistic state locally
       queryClient.setQueryData([`/api/equipment/${id}`], prev);
       invalidateAll();
-      toast.success("Action undone");
+      toast.success(t.equipmentDetail.toast.undone);
       return;
     }
 
@@ -182,9 +183,9 @@ export default function EquipmentDetailPage() {
       queryClient.setQueryData([`/api/equipment/${id}`], reverted);
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
-      toast.success("Action undone");
+      toast.success(t.equipmentDetail.toast.undone);
     } catch {
-      toast.error("Undo failed — window may have expired");
+      toast.error(t.equipmentDetail.toast.undoFailed);
     }
   }
 
@@ -323,7 +324,7 @@ export default function EquipmentDetailPage() {
             pendingSyncId: result.pendingSyncId,
           });
         }
-        toast.info("Saved offline — will sync when connected");
+        toast.info(t.equipmentDetail.toast.savedOffline);
         return;
       }
 
@@ -344,7 +345,7 @@ export default function EquipmentDetailPage() {
         }
         setTimeout(() => {
           if (isOffline) {
-            toast.warning("Issue reported — alert will fire locally. WhatsApp will be sent when back online.");
+            toast.warning(t.equipmentDetail.toast.issueReportedOffline);
           } else {
             const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
             window.open(waUrl, "_blank");
@@ -360,7 +361,7 @@ export default function EquipmentDetailPage() {
       }
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Scan failed");
+      toast.error(t.equipmentDetail.toast.scanFailed(err.message));
     },
   });
 
@@ -381,10 +382,10 @@ export default function EquipmentDetailPage() {
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
 
       if (wasOffline) {
-        toast.info("Saved offline — will sync when connected");
+        toast.info(t.equipmentDetail.toast.savedOffline);
         if (prev) {
           startUndoTimer({
-            actionLabel: "Checked out successfully",
+            actionLabel: t.equipmentDetail.toast.checkedOut,
             previousEquipment: prev,
             pendingSyncId: result.pendingSyncId,
           });
@@ -395,7 +396,7 @@ export default function EquipmentDetailPage() {
 
       if (prev) {
         startUndoTimer({
-          actionLabel: "Checked out successfully",
+          actionLabel: t.equipmentDetail.toast.checkedOut,
           previousEquipment: prev,
           undoToken,
         });
@@ -403,7 +404,7 @@ export default function EquipmentDetailPage() {
       setScanActionDone(true);
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Checkout failed");
+      toast.error(t.equipmentDetail.toast.checkoutFailed(err.message));
     },
   });
 
@@ -421,10 +422,10 @@ export default function EquipmentDetailPage() {
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
 
       if (wasOffline) {
-        toast.info("Saved offline — will sync when connected");
+        toast.info(t.equipmentDetail.toast.savedOffline);
         if (prev) {
           startUndoTimer({
-            actionLabel: "Returned — equipment is now available",
+            actionLabel: t.equipmentDetail.toast.returned,
             previousEquipment: prev,
             pendingSyncId: result.pendingSyncId,
           });
@@ -437,7 +438,7 @@ export default function EquipmentDetailPage() {
 
       if (prev) {
         startUndoTimer({
-          actionLabel: "Returned — equipment is now available",
+          actionLabel: t.equipmentDetail.toast.returned,
           previousEquipment: prev,
           undoToken,
         });
@@ -445,7 +446,7 @@ export default function EquipmentDetailPage() {
       setScanActionDone(true);
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Return failed");
+      toast.error(t.equipmentDetail.toast.returnFailed(err.message));
     },
   });
 
@@ -453,10 +454,10 @@ export default function EquipmentDetailPage() {
     mutationFn: () => api.equipment.delete(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("Equipment deleted");
+      toast.success(t.equipmentDetail.toast.deleted);
       navigate("/equipment");
     },
-    onError: () => toast.error("Delete failed"),
+    onError: () => toast.error(t.equipmentDetail.toast.deleteFailed),
   });
 
   const reportIssueMut = useMutation({
@@ -491,10 +492,10 @@ export default function EquipmentDetailPage() {
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
 
       if (wasOffline) {
-        toast.info("Saved offline — will sync when connected");
+        toast.info(t.equipmentDetail.toast.savedOffline);
         if (prev) {
           startUndoTimer({
-            actionLabel: "Issue reported",
+            actionLabel: t.equipmentDetail.toast.issueReported,
             previousEquipment: prev,
             pendingSyncId: result.pendingSyncId,
           });
@@ -504,7 +505,7 @@ export default function EquipmentDetailPage() {
 
       if (prev) {
         startUndoTimer({
-          actionLabel: "Issue reported",
+          actionLabel: t.equipmentDetail.toast.issueReported,
           previousEquipment: prev,
           undoToken,
         });
@@ -512,7 +513,7 @@ export default function EquipmentDetailPage() {
 
       setTimeout(() => {
         if (!navigator.onLine) {
-          toast.warning("Issue reported — WhatsApp will be sent when back online.");
+          toast.warning(t.equipmentDetail.toast.issueWhatsAppOffline);
         } else {
           const waUrl = buildWhatsAppUrl(undefined, updated.name, "issue", scanLog?.note || capturedNote || "");
           window.open(waUrl, "_blank");
@@ -527,7 +528,7 @@ export default function EquipmentDetailPage() {
       }, 300);
     },
     onError: (err: Error) => {
-      toast.error(err.message || "Report failed");
+      toast.error(t.equipmentDetail.toast.reportFailed(err.message));
     },
   });
 

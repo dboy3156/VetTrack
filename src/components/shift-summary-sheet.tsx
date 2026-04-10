@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -108,7 +109,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     const dateStr = format(new Date(), "MMMM d, yyyy");
     const lines: string[] = [`VetTrack Shift Summary — ${dateStr}`, ""];
 
-    lines.push("CURRENTLY CHECKED OUT:");
+    lines.push(t.shiftSummary.sections.checkedOut);
     if (myItems && myItems.length > 0) {
       for (const item of myItems) {
         const loc = item.checkedOutLocation || item.location;
@@ -131,7 +132,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
       lines.push("");
     }
 
-    lines.push("ISSUES FLAGGED TODAY:");
+    lines.push(t.shiftSummary.sections.issuesReported);
     if (todayIssues.length > 0) {
       for (const item of todayIssues) {
         lines.push(`• ${item.equipmentName}`);
@@ -142,10 +143,10 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
     lines.push("");
 
-    lines.push("UNACKNOWLEDGED ALERTS:");
+    lines.push(t.shiftSummary.sections.unacknowledgedAlerts);
     if (urgentAlerts.length > 0) {
       for (const alert of urgentAlerts) {
-        const tag = alert.severity === "critical" ? "[CRITICAL]" : "[HIGH]";
+        const tag = alert.severity === "critical" ? t.shiftSummary.severity.critical : t.shiftSummary.severity.high;
         lines.push(`• ${tag} ${alert.equipmentName} — ${alert.detail}`);
       }
     } else {
@@ -159,9 +160,9 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     const text = buildSummaryText();
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Summary copied to clipboard");
+      toast.success(t.shiftSummary.toast.copySuccess);
     } catch {
-      toast.error("Could not copy — please copy manually");
+      toast.error(t.shiftSummary.toast.copyError);
     }
   }
 
@@ -344,7 +345,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                             alert.severity === "critical" ? "bg-red-600" : "bg-amber-500"
                           }`}
                         >
-                          {alert.severity === "critical" ? "CRITICAL" : "HIGH"}
+                          {alert.severity === "critical" ? t.shiftSummary.badge.critical : t.shiftSummary.badge.high}
                         </span>
                       </div>
                     ))}
