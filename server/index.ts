@@ -71,19 +71,22 @@ const isDev = process.env.NODE_ENV !== "production";
 
 function buildAllowedOrigins(): string[] {
   const origins: string[] = [];
-  // Dev: whitelist REPLIT_DEV_DOMAIN and localhost
   if (isDev) {
     origins.push("http://localhost:5000", "http://localhost:3000");
     if (process.env.REPLIT_DEV_DOMAIN) {
       origins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
     }
   }
-  // Any env: explicit ALLOWED_ORIGIN override
   if (process.env.ALLOWED_ORIGIN) {
     origins.push(process.env.ALLOWED_ORIGIN);
   }
+  // Always allow Railway and common production domains
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    origins.push(`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+  }
   return origins;
 }
+
 
 const allowedOrigins = buildAllowedOrigins();
 
