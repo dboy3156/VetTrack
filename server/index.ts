@@ -310,13 +310,7 @@ async function main() {
     // Best-effort: try to free the preferred port before starting.
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
-
-  // Find an available port, starting from the preferred one.
-    console.warn(
-      (isDev ? " Update your Vite proxy if needed." : "")
-    );
-  }
-
+  
   app.listen(PORT, "0.0.0.0", () => {
     if (!process.env.CLERK_SECRET_KEY) {
       console.log("⚠️  Running in DEV mode — Clerk auth disabled");
