@@ -1,3 +1,4 @@
+const PORT = process.env.PORT || 8080;
 import "./instrument.js";
 
 import { validateEnv } from "./lib/envValidation.js";
@@ -46,7 +47,6 @@ import roomsRoutes from "./routes/rooms.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = Number(process.env.PORT) || 3001;
 
 app.get("/health", async (req, res) => {
   try {
@@ -315,7 +315,6 @@ async function main() {
   }
 
   // Find an available port, starting from the preferred one.
-  const boundPort = await findAvailablePort(PORT);
   if (boundPort !== PORT) {
     console.warn(
       `⚠️  Port ${PORT} was still in use — API server bound to port ${boundPort} instead.` +
@@ -323,7 +322,7 @@ async function main() {
     );
   }
 
-  app.listen(boundPort, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 VetTrack API running on port ${boundPort}`);
     if (!process.env.CLERK_SECRET_KEY) {
       console.log("⚠️  Running in DEV mode — Clerk auth disabled");
