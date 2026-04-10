@@ -26,7 +26,7 @@ import { toast } from "sonner";
 const SUBMIT_TIMEOUT_MS = 30_000;
 
 const schema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, t.newEquipment.fields.name.error),
   serialNumber: z.string().optional(),
   model: z.string().optional(),
   manufacturer: z.string().optional(),
@@ -390,7 +390,7 @@ export default function NewEquipmentPage() {
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
-            {isEditing ? "Save Changes" : "Save Equipment"}
+            {isEditing ? t.newEquipment.saveChanges : t.newEquipment.saveEquipment}
           </Button>
         </form>
       </div>

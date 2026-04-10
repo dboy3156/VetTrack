@@ -82,7 +82,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     (item) =>
       item.type === "scan" &&
       item.note != null &&
-      item.note.includes("Checked out") &&
+      (item.note?.includes("Checked out") || item.note?.includes("הוצא לשימוש")) &&
       item.userEmail === userEmail &&
       new Date(item.timestamp) >= todayStart
   ) ?? [];
@@ -178,7 +178,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
       <div
         ref={sheetRef}
         role="dialog"
-        aria-label="Shift Summary"
+        aria-label={t.shiftSummary.sections.checkedOut}
         className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl max-h-[88vh]"
       >
         {/* Drag handle */}
@@ -198,7 +198,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
-            aria-label="Close"
+            aria-label={t.common.close}
           >
             <X className="w-4 h-4 text-muted-foreground" />
           </button>

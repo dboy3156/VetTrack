@@ -349,10 +349,10 @@ export default function EquipmentDetailPage() {
           } else {
             const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
             window.open(waUrl, "_blank");
-            toast("Issue reported — WhatsApp alert sent.", {
+            toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
               duration: 10000,
               action: {
-                label: "Dismiss",
+                label: t.equipmentDetail.toast.dismiss ?? "סגור",
                 onClick: () => {},
               },
             });
@@ -517,10 +517,10 @@ export default function EquipmentDetailPage() {
         } else {
           const waUrl = buildWhatsAppUrl(undefined, updated.name, "issue", scanLog?.note || capturedNote || "");
           window.open(waUrl, "_blank");
-          toast("Issue reported — WhatsApp alert sent.", {
+          toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
             duration: 10000,
             action: {
-              label: "Dismiss",
+              label: t.equipmentDetail.toast.dismiss ?? "סגור",
               onClick: () => {},
             },
           });
@@ -553,7 +553,7 @@ export default function EquipmentDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error("Photo must be under 2 MB");
+      toast.error(t.equipmentDetail.toast.photoSizeLimit ?? "גודל התמונה עד 2MB");
       e.target.value = "";
       return;
     }
@@ -566,7 +566,7 @@ export default function EquipmentDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error("Photo must be under 2 MB");
+      toast.error(t.equipmentDetail.toast.photoSizeLimit ?? "גודל התמונה עד 2MB");
       e.target.value = "";
       return;
     }
@@ -622,7 +622,7 @@ export default function EquipmentDetailPage() {
               className="gap-1.5"
             >
               <Loader2 className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
-              {isRefetching ? "Trying…" : "Try Again"}
+              {isRefetching ? t.equipmentDetail.toast.trying ?? "מנסה..." : t.equipmentDetail.toast.tryAgain ?? "נסה שוב"}
             </Button>
             <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
           </div>
@@ -688,7 +688,7 @@ export default function EquipmentDetailPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleDuplicate}
-                title="Duplicate equipment"
+                title={t.equipmentDetail.toast.duplicateEquipment ?? "שכפל ציוד"}
                 data-testid="btn-duplicate"
               >
                 <Copy className="w-4 h-4" />
@@ -724,7 +724,7 @@ export default function EquipmentDetailPage() {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => deleteMut.mutate()}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -815,7 +815,7 @@ export default function EquipmentDetailPage() {
               <User className="w-4 h-4 shrink-0" />
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-tight">
-                  {checkedOutByMe ? "Checked out by you" : `In use by ${equipment.checkedOutByEmail}`}
+                  {checkedOutByMe ? t.equipmentDetail.toast.checkedOutByYou ?? "הוצא לשימוש על ידך" : `בשימוש על ידי ${equipment.checkedOutByEmail}`}
                 </p>
                 {equipment.checkedOutLocation && (
                   <p className="text-xs mt-0.5 opacity-80 truncate">{equipment.checkedOutLocation}</p>
@@ -916,26 +916,26 @@ export default function EquipmentDetailPage() {
             <Card className="bg-card border-border/60 shadow-sm">
               <CardContent className="p-4 flex flex-col gap-3">
                 {[
-                  { icon: Hash, label: "Serial Number", value: equipment.serialNumber },
-                  { icon: Package, label: "Model", value: equipment.model },
-                  { icon: Package, label: "Manufacturer", value: equipment.manufacturer },
-                  { icon: Calendar, label: "Purchase Date", value: formatDate(equipment.purchaseDate) },
-                  { icon: MapPin, label: "Location", value: equipment.location },
+                  { icon: Hash, label: t.equipmentDetail.serialNumber ?? "מספר סידורי", value: equipment.serialNumber },
+                  { icon: Package, label: t.equipmentDetail.model ?? "דגם", value: equipment.model },
+                  { icon: Package, label: t.equipmentDetail.manufacturer ?? "יצרן", value: equipment.manufacturer },
+                  { icon: Calendar, label: t.equipmentDetail.purchaseDate ?? "תאריך רכישה", value: formatDate(equipment.purchaseDate) },
+                  { icon: MapPin, label: t.equipmentDetail.location ?? "מיקום", value: equipment.location },
                   {
                     icon: Clock,
-                    label: "Maintenance Interval",
+                    label: t.equipmentDetail.maintenanceInterval ?? "מרווח תחזוקה",
                     value: equipment.maintenanceIntervalDays
                       ? `${equipment.maintenanceIntervalDays} days`
                       : undefined,
                   },
                   {
                     icon: Wrench,
-                    label: "Last Maintenance",
+                    label: t.equipmentDetail.lastMaintenance ?? "תחזוקה אחרונה",
                     value: formatDateTime(equipment.lastMaintenanceDate?.toString()),
                   },
                   {
                     icon: Droplets,
-                    label: "Last Sterilization",
+                    label: t.equipmentDetail.lastSterilization ?? "חיטוי אחרון",
                     value: formatDateTime(equipment.lastSterilizationDate?.toString()),
                   },
                 ]
@@ -988,7 +988,7 @@ export default function EquipmentDetailPage() {
                             {log.photoUrl && (
                               <img
                                 src={log.photoUrl}
-                                alt="Issue photo"
+                                alt={t.equipmentDetail.issuePhoto ?? "תמונת תקלה"}
                                 width={96}
                                 height={96}
                                 loading="lazy"
@@ -1018,7 +1018,7 @@ export default function EquipmentDetailPage() {
                         {isFetchingOlderLogs ? (
                           <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
                         ) : (
-                          "Load older"
+                          t.equipmentDetail.loadOlder ?? "טען ישנים יותר"
                         )}
                       </Button>
                     </div>
@@ -1072,12 +1072,12 @@ export default function EquipmentDetailPage() {
       <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update Status</DialogTitle>
+            <DialogTitle>עדכון סטטוס</DialogTitle>
             <DialogDescription>Log status for: {equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label>Status</Label>
+              <Label>סטטוס</Label>
               <div className="grid grid-cols-2 gap-2">
                 {(["ok", "issue", "maintenance", "sterilized"] as EquipmentStatus[]).map((s) => (
                   <button
@@ -1118,8 +1118,8 @@ export default function EquipmentDetailPage() {
                 id="note"
                 placeholder={
                   scanStatus === "issue"
-                    ? "Describe the issue clearly..."
-                    : "Add any observations..."
+                    ? t.equipmentDetail.describeIssue ?? "תאר את התקלה בבירור..."
+                    : t.equipmentDetail.addObservations ?? "הוסף הערות..."
                 }
                 value={scanNote}
                 onChange={(e) => {
@@ -1204,7 +1204,7 @@ export default function EquipmentDetailPage() {
       <Dialog open={reportIssueOpen} onOpenChange={setReportIssueOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Report Issue</DialogTitle>
+            <DialogTitle>דיווח על תקלה</DialogTitle>
             <DialogDescription>{equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -1352,7 +1352,7 @@ export default function EquipmentDetailPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
                     <p className="font-medium text-blue-800">
                       {checkedOutByMe
-                        ? "Checked out by you"
+                        ? t.equipmentDetail.toast.checkedOutByYou ?? "הוצא לשימוש על ידך"
                         : `In use by ${equipment.checkedOutByEmail || "another user"}`}
                     </p>
                     {equipment.checkedOutLocation && (

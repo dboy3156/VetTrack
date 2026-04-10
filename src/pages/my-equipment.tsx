@@ -147,7 +147,7 @@ export default function MyEquipmentPage() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleReturnAll}>
                   Confirm
                 </AlertDialogAction>
