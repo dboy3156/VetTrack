@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "pnpm db:migrate && pnpm start"
+    "startCommand": bash deploy.sh --start
   }
 }
