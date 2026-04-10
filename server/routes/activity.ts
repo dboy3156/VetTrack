@@ -98,7 +98,7 @@ router.get("/", requireAuth, async (req, res) => {
     res.json({ items, nextCursor });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to get activity" });
+    res.status(500).json({ error: "הבאת הפעילות נכשלה" });
   }
 });
 
@@ -112,7 +112,7 @@ router.get("/my-scan-count", requireAuth, async (req, res) => {
     res.json({ count: row?.scanCount ?? 0 });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to get scan count" });
+    res.status(500).json({ error: "הבאת כמות הסריקות נכשלה" });
   }
 });
 

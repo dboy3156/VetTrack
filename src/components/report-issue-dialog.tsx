@@ -46,14 +46,14 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
         appVersion: typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : undefined,
       }),
     onSuccess: () => {
-      toast.success("Issue reported. Thank you!");
+      toast.success("התקלה דווחה. תודה!");
       setTitle("");
       setDescription("");
       setSeverity("medium");
       onOpenChange(false);
     },
     onError: () => {
-      toast.error("Failed to submit issue. Please try again.");
+      toast.error("שליחת הדיווח נכשלה. נא לנסות שוב.");
     },
   });
 

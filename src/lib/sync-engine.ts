@@ -78,7 +78,7 @@ function openCircuit() {
   circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
   notifyListeners();
 
-  toast.warning("Sync paused — too many errors", {
+  toast.warning("הסנכרון הושהה — יותר מדי שגיאות", {
     description: `Will automatically retry in ${CIRCUIT_COOLDOWN_MS / 1000}s.`,
     duration: 8000,
   });
@@ -87,7 +87,7 @@ function openCircuit() {
   circuitResetTimerId = setTimeout(() => {
     circuitResetTimerId = null;
     notifyListeners();
-    toast.success("Sync resumed — retrying pending changes", { duration: 3000 });
+    toast.success("הסנכרון חודש — מנסה שוב שינויים ממתינים", { duration: 3000 });
     if (navigator.onLine && !haltQueue) processQueue().catch(() => {});
   }, CIRCUIT_COOLDOWN_MS);
 }
@@ -307,7 +307,7 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
         status: "failed",
         errorMessage: "Auth error — please sign in again",
       });
-      toast.error("Session expired — please sign in again", {
+      toast.error("הפעלתך פגה — נא להתחבר מחדש", {
         description: "Your pending changes were saved and will sync after you sign in.",
         duration: 10_000,
       });

@@ -114,13 +114,13 @@ export async function request<T>(
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (res.status === 401) {
       // Token expired or invalid — force a full page reload to re-authenticate
-      toast.error("Session expired. Please sign in again.");
+      toast.error("הפעלתך פגה. נא להתחבר מחדש.");
       setTimeout(() => window.location.reload(), 1500);
       throw new Error("Session expired");
     }
     if (!res.ok) {
       if (!silent && res.status >= 500) {
-        toast.error("The server encountered an error. Please try again or reload the page.");
+        toast.error("השרת נתקל בשגיאה. נא לנסות שוב או לרענן את העמוד.");
       }
       const error = await res.json().catch(() => ({ error: "Request failed" }));
       throw new Error(error.error || `HTTP ${res.status}`);
@@ -129,7 +129,7 @@ export async function request<T>(
     return res.json();
   } catch (err) {
     if (!silent && isNetworkError(err)) {
-      toast.error("Server is unreachable. You may be offline or the server is down.");
+      toast.error("לא ניתן לגשת לשרת. ייתכן שאתה לא מחובר או שהשרת נפל.");
     }
     if (isNetworkError(err) && offline) {
       const clientTimestamp = Date.now();

@@ -8,7 +8,7 @@ export default function NotFoundPage() {
   return (
     <Layout>
       <Helmet>
-        <title>Page Not Found — VetTrack</title>
+        <title>העמוד לא נמצא — VetTrack</title>
         <meta name="description" content="The page you are looking for does not exist. Return to the VetTrack dashboard." />
       </Helmet>
       <div className="flex flex-col items-center justify-center py-20 text-center gap-4">

@@ -155,7 +155,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
       const equipmentId = extractEquipmentId(rawValue);
       if (!equipmentId) {
-        toast.error("Unrecognized QR code format");
+        toast.error("פורמט קוד QR לא מוכר");
         return;
       }
 
@@ -330,7 +330,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       await track.applyConstraints({ advanced: [{ torch: !torchOn } as TorchConstraint] });
       setTorchOn((prev) => !prev);
     } catch {
-      toast.error("Torch not available on this device");
+      toast.error("פנס לא זמין במכשיר זה");
     }
   };
 
@@ -339,7 +339,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     if (!raw) return;
     const equipmentId = extractEquipmentId(raw);
     if (!equipmentId) {
-      toast.error("Invalid code format");
+      toast.error("פורמט קוד לא תקין");
       return;
     }
     const eq = await resolveEquipmentId(equipmentId);

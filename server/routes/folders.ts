@@ -41,14 +41,14 @@ router.get("/", requireAuth, async (req, res) => {
     res.json([...smartFolders, ...allFolders]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list folders" });
+    res.status(500).json({ error: "טעינת התיקיות נכשלה" });
   }
 });
 
 router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    if (!name?.trim()) return res.status(400).json({ error: "שם הוא שדה חובה" });
 
     const [folder] = await db
       .insert(folders)
@@ -67,14 +67,14 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
     res.status(201).json(folder);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to create folder" });
+    res.status(500).json({ error: "יצירת התיקייה נכשלה" });
   }
 });
 
 router.patch("/:id", requireAuth, requireRole("technician"), async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    if (!name?.trim()) return res.status(400).json({ error: "שם הוא שדה חובה" });
 
     const [existing] = await db
       .select()

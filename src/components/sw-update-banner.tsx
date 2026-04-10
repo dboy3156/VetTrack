@@ -14,7 +14,7 @@ export function SwUpdateBanner() {
       if (toastShownRef.current) return;
       toastShownRef.current = true;
 
-      toast("Update available – tap to refresh", {
+      toast("עדכון זמין – לחץ לרענון", {
         duration: Infinity,
         action: {
           label: "Refresh",

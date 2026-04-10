@@ -24,7 +24,7 @@ router.get("/", requireAuth, async (_req, res) => {
     res.json(acks);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch acknowledgments" });
+    res.status(500).json({ error: "הבאת אישורי ההתראות נכשלה" });
   }
 });
 
@@ -83,7 +83,7 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to acknowledge alert" });
+    res.status(500).json({ error: "אישור ההתראה נכשל" });
   }
 });
 
@@ -113,7 +113,7 @@ router.delete("/", requireAuth, requireRole("technician"), async (req, res) => {
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to remove acknowledgment" });
+    res.status(500).json({ error: "הסרת אישור ההתראה נכשלה" });
   }
 });
 

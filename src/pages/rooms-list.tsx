@@ -202,7 +202,7 @@ export default function RoomsListPage() {
       setRoomName("");
       setRoomFloor("");
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to create room"),
+    onError: (err: Error) => toast.error(err.message || "יצירת החדר נכשלה"),
   });
 
   const handleCreate = () => {

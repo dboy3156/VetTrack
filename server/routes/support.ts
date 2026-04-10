@@ -35,12 +35,12 @@ const patchTicketSchema = z.object({
   status: z.enum(VALID_TICKET_STATUSES).optional(),
   adminNote: z.string().max(5000).optional().nullable(),
 }).refine((data) => data.status !== undefined || data.adminNote !== undefined, {
-  message: "At least one of status or adminNote must be provided",
+  message: "חובה לספק לפחות סטטוס או הערת מנהל",
 });
 
 router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res) => {
   try {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.authUser) return res.status(401).json({ error: "לא מורשה" });
 
     const { title, description, severity, pageUrl, deviceInfo, appVersion } = req.body as z.infer<typeof createTicketSchema>;
 
@@ -71,7 +71,7 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
     res.status(201).json(ticket);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to create ticket" });
+    res.status(500).json({ error: "יצירת הפניה נכשלה" });
   }
 });
 
@@ -85,7 +85,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     res.json(tickets);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list tickets" });
+    res.status(500).json({ error: "טעינת הפניות נכשלה" });
   }
 });
 
@@ -99,7 +99,7 @@ router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
     res.json({ count: tickets.length });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to count tickets" });
+    res.status(500).json({ error: "ספירת הפניות נכשלה" });
   }
 });
 
@@ -120,12 +120,12 @@ router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody
       .where(eq(supportTickets.id, req.params.id))
       .returning();
 
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (!ticket) return res.status(404).json({ error: "הפניה לא נמצאה" });
 
     res.json(ticket);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update ticket" });
+    res.status(500).json({ error: "עדכון הפניה נכשל" });
   }
 });
 
