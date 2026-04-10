@@ -218,7 +218,7 @@ export default function RoomsListPage() {
   return (
     <Layout>
       <Helmet>
-        <title>Asset Radar — VetTrack</title>
+        <title>רדאר ציוד — VetTrack</title>
         <meta name="description" content="Room-by-room equipment inventory. Verify all items in a room with one tap." />
       </Helmet>
 
@@ -284,10 +284,10 @@ export default function RoomsListPage() {
         ) : !rooms || rooms.length === 0 ? (
           <EmptyState
             icon={DoorOpen}
-            message="No rooms yet"
+            message="אין חדרים עדיין"
             subMessage={
               isAdmin
-                ? "Create your first room to start organising equipment by location."
+                ? "צור את החדר הראשון כדי לארגן ציוד לפי מיקום."
                 : "No rooms have been created yet. Ask an admin to set them up."
             }
             action={

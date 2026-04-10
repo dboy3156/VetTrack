@@ -152,7 +152,7 @@ export default function QrPrintPage() {
         <div className="relative">
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search equipment..."
+            placeholder="חיפוש ציוד..."
             className="pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -174,8 +174,8 @@ export default function QrPrintPage() {
               <Square className="w-4 h-4" />
             )}
             {selected.size === (filtered?.length ?? 0) && filtered?.length! > 0
-              ? "Deselect all"
-              : "Select all"}
+              ? "בטל בחירה"
+              : "בחר הכל"}
           </Button>
           {selected.size > 0 && (
             <span className="text-xs text-muted-foreground">
@@ -206,7 +206,7 @@ export default function QrPrintPage() {
               className="gap-1.5 h-11 text-xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
-              {isRefetching ? "Trying…" : "Try Again"}
+              {isRefetching ? "מנסה..." : "נסה שוב"}
             </Button>
           </div>
         ) : (

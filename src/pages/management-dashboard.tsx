@@ -129,7 +129,7 @@ export default function ManagementDashboardPage() {
 
         {isError && (
           <ErrorCard
-            message="Failed to load equipment data. Please try again."
+            message="טעינת נתוני הציוד נכשלה. נא לנסות שוב."
             onRetry={() => refetch()}
           />
         )}
@@ -233,7 +233,7 @@ export default function ManagementDashboardPage() {
                         variant={item.status === "issue" ? "issue" : "maintenance"}
                         className="shrink-0 text-[10px] px-2 py-0.5"
                       >
-                        {item.status === "issue" ? "Issue" : "Missing"}
+                        {item.status === "issue" ? "תקלה" : "חסר"}
                       </Badge>
                     </div>
                   </Link>
@@ -336,8 +336,8 @@ export default function ManagementDashboardPage() {
             ) : locationGroups.length === 0 ? (
               <EmptyState
                 icon={MapPin}
-                message="No location data"
-                subMessage="Equipment with assigned locations will appear here"
+                message="אין נתוני מיקום"
+                subMessage="ציוד עם מיקומים משויכים יופיע כאן"
                 iconBg="bg-muted"
                 iconColor="text-muted-foreground"
               />

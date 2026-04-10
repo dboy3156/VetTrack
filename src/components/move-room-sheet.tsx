@@ -34,13 +34,13 @@ export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRo
       const room = rooms?.find((r) => r.id === roomId);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
-      toast.success(roomId ? `Moved to ${room?.name ?? "room"}` : "Removed from room");
+      toast.success(roomId ? `הועבר אל ${room?.name ?? "חדר"}` : "הוסר מהחדר");
       setMovingToId(null);
       onOpenChange(false);
       onMoved?.(roomId);
     },
     onError: () => {
-      toast.error("Failed to move equipment");
+      toast.error("ההעברה נכשלה");
       setMovingToId(null);
     },
   });

@@ -46,7 +46,7 @@ function toInitials(name: string | null | undefined): string {
 }
 
 function activityActionLabel(entry: RoomActivityEntry): string {
-  if (entry.note?.startsWith("Room verified:")) return "verified (room reset)";
+  if (entry.note?.startsWith("Room verified:")) return "אומת (חדר אופס)";
   if (entry.status === "ok") return "scanned — OK";
   if (entry.status === "issue") return "flagged issue on";
   if (entry.status === "maintenance") return "logged maintenance for";
@@ -106,7 +106,7 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
 
   const verifierInitials = justVerified ? null : toInitials(eq.lastVerifiedByName);
   const verifiedLabel = justVerified
-    ? "Verified just now"
+    ? "אומת עכשיו"
     : eq.lastVerifiedAt
     ? `Verified ${formatRelativeTime(eq.lastVerifiedAt)}${verifierInitials ? ` · ${verifierInitials}` : ""}`
     : null;
@@ -263,7 +263,7 @@ export default function RoomRadarPage() {
     },
     onError: (err: Error) => {
       setVerifyState("idle");
-      toast.error(err.message || "Verification failed");
+      toast.error(err.message || "האימות נכשל");
     },
   });
 
@@ -303,7 +303,7 @@ export default function RoomRadarPage() {
               </div>
               <p className="text-[10px] font-bold tracking-widest uppercase text-primary/70 mb-1">NFC Room Reset</p>
               <h2 className="text-lg font-bold text-foreground leading-snug">
-                {room?.name ?? "Loading room…"}
+                {room?.name ?? "טוען חדר..."}
               </h2>
               {room?.floor && (
                 <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1">
@@ -450,7 +450,7 @@ export default function RoomRadarPage() {
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4" />
-                  Verify All in {room?.name ?? "Room"}
+                  אמת הכל ב- {room?.name ?? "Room"}
                 </>
               )}
             </button>
@@ -486,8 +486,8 @@ export default function RoomRadarPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Radar}
-            message="No available equipment"
-            subMessage="All items in this room are currently checked out."
+            message="אין ציוד זמין"
+            subMessage="כל הפריטים בחדר זה מוצאים כרגע."
             action={
               <Button variant="outline" size="sm" onClick={() => setAvailableOnly(false)}>
                 Show All Items

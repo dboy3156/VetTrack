@@ -258,9 +258,9 @@ function FoldersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       setCreateOpen(false);
       setFolderName("");
-      toast.success("Folder created");
+      toast.success("התיקייה נוצרה");
     },
-    onError: () => toast.error("Failed to create folder"),
+    onError: () => toast.error("יצירת התיקייה נכשלה"),
   });
 
   const updateMut = useMutation({
@@ -270,9 +270,9 @@ function FoldersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       setEditFolder(null);
       setFolderName("");
-      toast.success("Folder updated");
+      toast.success("התיקייה עודכנה");
     },
-    onError: () => toast.error("Failed to update folder"),
+    onError: () => toast.error("עדכון התיקייה נכשל"),
   });
 
   const deleteMut = useMutation({
@@ -280,9 +280,9 @@ function FoldersSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("Folder deleted");
+      toast.success("התיקייה נמחקה");
     },
-    onError: () => toast.error("Failed to delete folder"),
+    onError: () => toast.error("מחיקת התיקייה נכשלה"),
   });
 
   const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
@@ -359,7 +359,7 @@ function FoldersSection() {
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>ביטול</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => deleteMut.mutate(f.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -396,11 +396,11 @@ function FoldersSection() {
         <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle>
-              {editFolder ? "Edit Folder" : "Create Folder"}
+              {editFolder ? "ערוך תיקייה" : "צור תיקייה"}
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-1">
-            <Label htmlFor="folderName">Folder Name</Label>
+            <Label htmlFor="folderName">שם תיקייה</Label>
             <Input
               id="folderName"
               placeholder="e.g. Surgery Room 1"
@@ -431,7 +431,7 @@ function FoldersSection() {
               {(createMut.isPending || updateMut.isPending) && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               )}
-              {editFolder ? "Update" : "Create"}
+              {editFolder ? "עדכן" : "צור"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -460,9 +460,9 @@ function PendingUsersSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast.success(status === "active" ? "User approved" : "User rejected");
+      toast.success(status === "active" ? "המשתמש אושר" : "המשתמש נדחה");
     },
-    onError: () => toast.error("Failed to update user status"),
+    onError: () => toast.error("עדכון סטטוס המשתמש נכשל"),
   });
 
   return (
@@ -575,10 +575,10 @@ const ROLE_BADGE_STYLES: Record<UserRole, string> = {
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Admin",
-  vet: "Vet",
-  technician: "Technician",
-  viewer: "Viewer",
+  admin: "אדמין",
+  vet: "וטרינר",
+  technician: "טכנאי",
+  viewer: "צופה",
 };
 
 function RoleBadge({ role }: { role: string }) {
@@ -661,9 +661,9 @@ function UsersSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setPendingRoleChange(null);
-      toast.success("Role updated");
+      toast.success("התפקיד עודכן");
     },
-    onError: () => toast.error("Failed to update role"),
+    onError: () => toast.error("עדכון התפקיד נכשל"),
   });
 
   const updateStatusMut = useMutation({
@@ -680,20 +680,20 @@ function UsersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       toast.success(
         status === "active"
-          ? "User approved"
+          ? "המשתמש אושר"
           : status === "blocked"
-            ? "User rejected"
-            : "Status updated",
+            ? "המשתמש נדחה"
+            : "הסטטוס עודכן",
       );
     },
-    onError: () => toast.error("Failed to update status"),
+    onError: () => toast.error("עדכון הסטטוס נכשל"),
   });
 
   const filterButtons: { label: string; value: UserStatusFilter }[] = [
-    { label: "All", value: "all" },
-    { label: "Pending", value: "pending" },
-    { label: "Active", value: "active" },
-    { label: "Blocked", value: "blocked" },
+    { label: "הכל", value: "all" },
+    { label: "ממתין", value: "pending" },
+    { label: "פעיל", value: "active" },
+    { label: "חסום", value: "blocked" },
   ];
 
   return (
@@ -735,13 +735,13 @@ function UsersSection() {
             icon={Users}
             message={
               statusFilter === "all"
-                ? "No users yet"
+                ? "אין משתמשים עדיין"
                 : `No ${statusFilter} users`
             }
             subMessage={
               statusFilter === "all"
-                ? "Users appear here the first time they sign in to VetTrack."
-                : "Try switching to a different filter to see other users."
+                ? "משתמשים יופיעו כאן בפעם הראשונה שהם מתחברים."
+                : "נסה לעבור לפילטר אחר כדי לראות משתמשים אחרים."
             }
           />
         ) : (
@@ -839,10 +839,10 @@ function UsersSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="vet">Vet</SelectItem>
-                      <SelectItem value="technician">Technician</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
+                      <SelectItem value="admin">אדמין</SelectItem>
+                      <SelectItem value="vet">וטרינר</SelectItem>
+                      <SelectItem value="technician">טכנאי</SelectItem>
+                      <SelectItem value="viewer">צופה</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -869,9 +869,9 @@ function UsersSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="blocked">Blocked</SelectItem>
+                      <SelectItem value="pending">ממתין</SelectItem>
+                      <SelectItem value="active">פעיל</SelectItem>
+                      <SelectItem value="blocked">חסום</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -890,7 +890,7 @@ function UsersSection() {
                   {isFetchingMoreUsers ? (
                     <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
                   ) : (
-                    "Load more"
+                    "טען עוד"
                   )}
                 </Button>
               </div>
@@ -1025,9 +1025,9 @@ function DeletedItemsSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("Equipment restored");
+      toast.success("הציוד שוחזר");
     },
-    onError: () => toast.error("Failed to restore equipment"),
+    onError: () => toast.error("שחזור הציוד נכשל"),
   });
 
   const restoreUserMut = useMutation({
@@ -1036,9 +1036,9 @@ function DeletedItemsSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast.success("User restored");
+      toast.success("המשתמש שוחזר");
     },
-    onError: () => toast.error("Failed to restore user"),
+    onError: () => toast.error("שחזור המשתמש נכשל"),
   });
 
   return (
@@ -1176,9 +1176,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  open: "Open",
-  in_progress: "In Progress",
-  resolved: "Resolved",
+  open: "פתוח",
+  in_progress: "בטיפול",
+  resolved: "טופל",
 };
 
 function SupportSection() {
@@ -1211,9 +1211,9 @@ function SupportSection() {
         queryKey: ["/api/support/unresolved-count"],
       });
       setSelectedTicket(updated);
-      toast.success("Ticket updated");
+      toast.success("הפניה עודכנה");
     },
-    onError: () => toast.error("Failed to update ticket"),
+    onError: () => toast.error("עדכון הפניה נכשל"),
   });
 
   const openDetail = (ticket: SupportTicket) => {
@@ -1401,9 +1401,9 @@ function SupportSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="open">פתוח</SelectItem>
+                      <SelectItem value="in_progress">בטיפול</SelectItem>
+                      <SelectItem value="resolved">טופל</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1413,7 +1413,7 @@ function SupportSection() {
                   </Label>
                   <Textarea
                     id="ticket-note"
-                    placeholder="Add an internal note..."
+                    placeholder="הוסף הערה פנימית..."
                     value={detailNote}
                     onChange={(e) => setDetailNote(e.target.value)}
                     rows={3}
@@ -1456,25 +1456,25 @@ function SupportSection() {
 }
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
-  user_login: "User Login",
-  user_provisioned: "User Provisioned",
-  user_role_changed: "Role Changed",
-  user_status_changed: "Status Changed",
-  equipment_created: "Equipment Created",
-  equipment_updated: "Equipment Updated",
-  equipment_deleted: "Equipment Deleted",
-  equipment_scanned: "Equipment Scanned",
-  equipment_checked_out: "Checked Out",
-  equipment_returned: "Returned",
-  equipment_reverted: "Scan Reverted",
-  equipment_bulk_deleted: "Bulk Deleted",
-  equipment_bulk_moved: "Bulk Moved",
+  user_login: "כניסת משתמש",
+  user_provisioned: "משתמש נוסף",
+  user_role_changed: "תפקיד שונה",
+  user_status_changed: "סטטוס שונה",
+  equipment_created: "ציוד נוצר",
+  equipment_updated: "ציוד עודכן",
+  equipment_deleted: "ציוד נמחק",
+  equipment_scanned: "ציוד נסרק",
+  equipment_checked_out: "הוצא לשימוש",
+  equipment_returned: "הוחזר",
+  equipment_reverted: "סריקה בוטלה",
+  equipment_bulk_deleted: "נמחקו בכמות",
+  equipment_bulk_moved: "הועברו בכמות",
   equipment_imported: "Equipment Imported",
-  folder_created: "Folder Created",
-  folder_updated: "Folder Updated",
-  folder_deleted: "Folder Deleted",
-  alert_acknowledged: "Alert Acknowledged",
-  alert_acknowledgment_removed: "Alert Ack Removed",
+  folder_created: "תיקייה נוצרה",
+  folder_updated: "תיקייה עודכנה",
+  folder_deleted: "תיקייה נמחקה",
+  alert_acknowledged: "התראה אושרה",
+  alert_acknowledgment_removed: "אישור התראה הוסר",
 };
 
 const ALL_ACTION_TYPES = Object.keys(ACTION_TYPE_LABELS);
@@ -1574,10 +1574,10 @@ function AuditLogsSection() {
                 className="h-8 text-sm"
                 data-testid="filter-action"
               >
-                <SelectValue placeholder="All actions" />
+                <SelectValue placeholder="כל הפעולות" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All actions</SelectItem>
+                <SelectItem value="all">כל הפעולות</SelectItem>
                 {ALL_ACTION_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
                     {ACTION_TYPE_LABELS[type]}

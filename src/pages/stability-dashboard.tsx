@@ -232,12 +232,12 @@ function SuiteSection({ suite, results }: { suite: Suite; results: TestResult[] 
 }
 
 const SCHEDULE_OPTIONS = [
-  { label: "Disabled", value: 0 },
-  { label: "Every 2 hours", value: 2 },
-  { label: "Every 4 hours", value: 4 },
-  { label: "Every 8 hours", value: 8 },
-  { label: "Every 12 hours", value: 12 },
-  { label: "Every 24 hours", value: 24 },
+  { label: "מושבת", value: 0 },
+  { label: "כל 2 שעות", value: 2 },
+  { label: "כל 4 שעות", value: 4 },
+  { label: "כל 8 שעות", value: 8 },
+  { label: "כל 12 שעות", value: 12 },
+  { label: "כל 24 שעות", value: 24 },
 ];
 
 export default function StabilityDashboardPage() {
@@ -268,13 +268,13 @@ export default function StabilityDashboardPage() {
   const runMutation = useMutation({
     mutationFn: () => fetch(`${API}/run`, { method: "POST", credentials: "include" }).then((r) => r.json()),
     onSuccess: () => {
-      toast.success("Test run started");
+      toast.success("ריצת בדיקה החלה");
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["/api/stability/status"] });
         qc.invalidateQueries({ queryKey: ["/api/stability/results"] });
       }, 1000);
     },
-    onError: () => toast.error("Failed to start test run"),
+    onError: () => toast.error("הפעלת ריצת הבדיקה נכשלה"),
   });
 
   const testModeMutation = useMutation({
@@ -286,7 +286,7 @@ export default function StabilityDashboardPage() {
         body: JSON.stringify({ enabled }),
       }).then((r) => r.json()),
     onSuccess: (_, enabled) => {
-      toast.success(enabled ? "Testing mode enabled" : "Testing mode disabled");
+      toast.success(enabled ? "מצב בדיקה הופעל" : "מצב בדיקה כובה");
       qc.invalidateQueries({ queryKey: ["/api/stability/status"] });
     },
   });
@@ -309,7 +309,7 @@ export default function StabilityDashboardPage() {
     mutationFn: () =>
       fetch(`${API}/logs`, { method: "DELETE", credentials: "include" }).then((r) => r.json()),
     onSuccess: () => {
-      toast.success("Logs cleared");
+      toast.success("הלוגים נוקו");
       qc.invalidateQueries({ queryKey: ["/api/stability/logs"] });
     },
   });
@@ -396,7 +396,7 @@ export default function StabilityDashboardPage() {
                   <ToggleLeft className="w-5 h-5 text-muted-foreground" />
                 )}
                 <span className={cn("text-sm font-medium", status?.testModeEnabled ? "text-primary" : "text-muted-foreground")}>
-                  {status?.testModeEnabled ? "Enabled" : "Disabled"}
+                  {status?.testModeEnabled ? "מופעל" : "מושבת"}
                 </span>
               </button>
               <p className="text-xs text-muted-foreground">Enable to run CRUD tests safely with isolated test data</p>

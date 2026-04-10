@@ -418,7 +418,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 bg-black flex flex-col" data-testid="qr-scanner-overlay">
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-black/80" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
-        <span className="text-white font-semibold text-lg">Scan QR Code</span>
+        <span className="text-white font-semibold text-lg">סרוק קוד QR</span>
         <div className="flex items-center gap-2">
           {torchSupported && phase === "scanning" && (
             <Button
@@ -467,9 +467,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
           <div className="absolute inset-0 flex items-center justify-center bg-black/90 p-6">
             <div className="flex flex-col items-center gap-4 text-center text-white max-w-xs">
               <Camera className="w-14 h-14 text-white/60" />
-              <p className="font-bold text-lg">Camera Access Denied</p>
+              <p className="font-bold text-lg">הגישה למצלמה נדחתה</p>
               <p className="text-sm text-white/70">
-                Enable camera in Settings → Safari → Camera
+                אפשר גישה למצלמה בהגדרות
               </p>
               <Button
                 variant="outline"
@@ -478,7 +478,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
                 data-testid="btn-manual-entry"
               >
                 <Keyboard className="w-4 h-4" />
-                Enter Code Manually
+                הזן קוד ידנית
               </Button>
             </div>
           </div>
@@ -629,9 +629,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
       {/* Manual entry mode */}
       {phase === "manual" && (
         <div className="flex-1 bg-black/95 flex flex-col items-center justify-center p-6 gap-5">
-          <p className="text-white font-bold text-xl">Enter Equipment Code</p>
+          <p className="text-white font-bold text-xl">הזן קוד ציוד</p>
           <p className="text-white/60 text-sm text-center">
-            Type the equipment ID from the QR label, or paste the full URL.
+            הזן את מזהה הציוד מתווית ה-QR, או הדבק את הכתובת המלאה.
           </p>
           <Input
             className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
@@ -649,7 +649,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
               disabled={!manualCode.trim()}
               data-testid="btn-manual-submit"
             >
-              Look Up
+              חפש
             </Button>
             <Button
               variant="outline"
@@ -660,7 +660,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
               }}
               data-testid="btn-back-to-scan"
             >
-              Back to Camera
+              חזור למצלמה
             </Button>
           </div>
         </div>

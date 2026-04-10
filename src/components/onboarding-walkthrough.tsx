@@ -9,31 +9,31 @@ const STEPS = [
     icon: QrCode,
     iconBg: "bg-blue-50 dark:bg-blue-950/50",
     iconColor: "text-blue-600 dark:text-blue-400",
-    tag: "Step 1 of 3",
-    title: "Scan your first item",
+    tag: "שלב 1 מתוך 3",
+    title: "סרוק את הפריט הראשון",
     description:
-      "Tap the blue Scan button at the bottom of the screen to read any equipment QR code. The app instantly loads that item's status and history.",
-    tip: "The Scan button is always visible in the centre of the bottom bar — you can scan from any screen.",
+      "לחץ על כפתור הסריקה הכחול בתחתית המסך כדי לקרוא קוד QR של ציוד. האפליקציה טוענת מיד את הסטטוס וההיסטוריה.",
+    tip: "כפתור הסריקה תמיד נראה במרכז הסרגל התחתון — ניתן לסרוק מכל מסך.",
   },
   {
     icon: LogIn,
     iconBg: "bg-indigo-50 dark:bg-indigo-950/50",
     iconColor: "text-indigo-600 dark:text-indigo-400",
-    tag: "Step 2 of 3",
-    title: "Track your equipment",
+    tag: "שלב 2 מתוך 3",
+    title: "עקוב אחר הציוד",
     description:
-      "Open any item and tap 'Check Out' to claim it while you're using it. Tap 'Return' when you're done so the team always knows where things are.",
-    tip: "Your checked-out items appear in the 'Mine' tab on the bottom navigation.",
+      "פתח פריט ולחץ 'הוצא לשימוש' כדי לסמן אותו בשימושך. לחץ 'החזר' כשסיימת כדי שהצוות ידע היכן הציוד.",
+    tip: "הפריטים שלקחת מופיעים בלשונית 'שלי' בניווט התחתון.",
   },
   {
     icon: AlertTriangle,
     iconBg: "bg-red-50 dark:bg-red-950/50",
     iconColor: "text-red-600 dark:text-red-400",
-    tag: "Step 3 of 3",
-    title: "Report issues instantly",
+    tag: "שלב 3 מתוך 3",
+    title: "דווח על תקלות מיידית",
     description:
-      "Spotted faulty or broken equipment? Tap 'Report Issue' on the item detail page. Your team gets notified immediately so nothing is missed.",
-    tip: "You can also report issues from the menu icon at the top right of any screen.",
+      "זיהית ציוד פגום? לחץ 'דווח על תקלה' בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
+    tip: "ניתן גם לדווח על תקלות מאייקון התפריט בפינה הימנית העליונה.",
   },
 ];
 
@@ -144,7 +144,7 @@ export function OnboardingWalkthrough() {
             onClick={next}
             data-testid="btn-onboarding-next"
           >
-            {isLast ? "Got it!" : "Next"}
+            {isLast ? "הבנתי!" : "הבא"}
             {!isLast && <ChevronRight className="w-3.5 h-3.5" />}
           </Button>
         </div>

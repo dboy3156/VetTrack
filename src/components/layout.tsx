@@ -207,14 +207,14 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             {!isOnline && (
               <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800 rounded-full px-2.5 py-1">
                 <WifiOff className="w-3 h-3" />
-                <span>Offline</span>
+                <span>לא מחובר</span>
               </div>
             )}
 
             {isOnline && isSyncing && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1">
                 <RefreshCw className="w-3 h-3 animate-spin" />
-                <span>Syncing</span>
+                <span>מסנכרן...</span>
               </div>
             )}
 
@@ -224,7 +224,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 data-testid="sync-synced-indicator"
               >
                 <CheckCircle className="w-3 h-3" />
-                <span>Synced</span>
+                <span>מסונכרן</span>
               </div>
             )}
 
@@ -486,7 +486,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left min-h-[44px]"
               >
                 <Bug className="w-5 h-5 opacity-60" />
-                <span className="text-sm font-medium">Report Issue</span>
+                <span className="text-sm font-medium">דווח על בעיה</span>
               </button>
             </nav>
           </div>
@@ -569,7 +569,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         onClick={openScanner}
         className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
         style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
-        aria-label="Scan QR Code"
+        aria-label="סרוק קוד QR"
         data-testid="bottom-nav-scan"
       >
         <Scan className="w-5 h-5" aria-hidden="true" />

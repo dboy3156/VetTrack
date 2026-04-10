@@ -74,162 +74,162 @@ export default function HelpPage() {
         </div>
 
         {/* Daily tasks */}
-        <Section title="Daily Tasks">
+        <Section title="משימות יומיות">
           <CheatItem
             icon={QrCode}
             iconBg="bg-blue-50 dark:bg-blue-950/50"
             iconColor="text-blue-600 dark:text-blue-400"
-            title="Scan a QR code"
-            description="Tap the blue Scan button (bottom centre) to scan any piece of equipment. Instantly loads its status and history."
+            title="סרוק קוד QR"
+            description="לחץ על כפתור הסריקה הכחול בתחתית המסך לסריקת ציוד. טוען מיד את הסטטוס וההיסטוריה."
           />
           <CheatItem
             icon={LogIn}
             iconBg="bg-indigo-50 dark:bg-indigo-950/50"
             iconColor="text-indigo-600 dark:text-indigo-400"
-            title="Check out equipment"
-            description="Open an item → tap 'Check Out'. Your name appears on the item so the team knows who has it."
+            title="הוצאת ציוד לשימוש"
+            description="פתח פריט ← לחץ 'הוצא לשימוש'. שמך יופיע על הפריט כדי שהצוות ידע מי מחזיק בו."
           />
           <CheatItem
             icon={LogOut}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
-            title="Return equipment"
-            description="Open the item you checked out → tap 'Return'. Clears your name and marks it available."
+            title="החזרת ציוד"
+            description="פתח את הפריט שלקחת ← לחץ 'החזר'. מסיר את שמך ומסמן כזמין."
           />
           <CheatItem
             icon={AlertTriangle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="Report an issue"
-            description="Found broken gear? Open the item → tap 'Issue'. The team gets notified immediately. You can also use the menu → Report Issue."
+            title="דיווח על תקלה"
+            description="מצאת ציוד פגום? פתח פריט ← לחץ 'תקלה'. הצוות מקבל התראה מיידית."
           />
         </Section>
 
         {/* Status badges */}
-        <Section title="Equipment Status">
+        <Section title="סטטוס ציוד">
           <CheatItem
             icon={CheckCircle2}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
             title="OK — operational"
-            description="Equipment has been scanned and is ready for use."
+            description="הציוד נסרק ומוכן לשימוש."
           />
           <CheatItem
             icon={Droplets}
             iconBg="bg-teal-50 dark:bg-teal-950/50"
             iconColor="text-teal-600 dark:text-teal-400"
-            title="Sterilized — cleaned and ready"
-            description="Item has been sterilized. Will alert when the sterilization window expires."
+            title="עבר חיטוי — נקי ומוכן"
+            description="הפריט עבר חיטוי. יתריע כשחלון החיטוי יפוג."
           />
           <CheatItem
             icon={Wrench}
             iconBg="bg-amber-50 dark:bg-amber-950/50"
             iconColor="text-amber-600 dark:text-amber-400"
-            title="Maintenance — needs attention"
-            description="Logged for maintenance. Check with your admin before using."
+            title="תחזוקה — נדרש טיפול"
+            description="מסומן לתחזוקה. בדוק עם האדמין לפני שימוש."
           />
           <CheatItem
             icon={AlertTriangle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="Issue — do not use"
+            title="תקלה — אין להשתמש"
             description="A fault has been reported. Item should not be used until cleared."
           />
           <CheatItem
             icon={Package}
             iconBg="bg-muted"
             iconColor="text-muted-foreground"
-            title="Inactive — out of service"
-            description="Item is decommissioned or temporarily removed from service."
+            title="לא פעיל — מחוץ לשירות"
+            description="הפריט הוצא משירות זמנית או לצמיתות."
           />
         </Section>
 
         {/* Asset Radar */}
-        <Section title="Asset Radar">
+        <Section title="רדאר ציוד">
           <CheatItem
             icon={Radar}
             iconBg="bg-blue-50 dark:bg-blue-950/50"
             iconColor="text-blue-600 dark:text-blue-400"
-            title="Health Ring"
-            description="The coloured ring on each room card shows the percentage of items verified in the last 24 hours. Green ≥ 80%, Amber ≥ 40%, Red < 40%."
+            title="טבעת בריאות"
+            description="הטבעת הצבעונית על כל כרטיס חדר מציגה את אחוז הפריטים שאומתו ב-24 שעות האחרונות. ירוק ≥ 80%, כתום ≥ 40%, אדום < 40%."
           />
           <CheatItem
             icon={CheckCircle2}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
-            title="Synced"
-            description="All items in this room have been verified within the last 24 hours."
+            title="מסונכרן"
+            description="כל הפריטים בחדר זה אומתו ב-24 שעות האחרונות."
           />
           <CheatItem
             icon={Clock}
             iconBg="bg-amber-50 dark:bg-amber-950/50"
             iconColor="text-amber-600 dark:text-amber-400"
-            title="Stale"
-            description="The room has not been audited in over 24 hours. Tap the room to verify items."
+            title="לא עדכני"
+            description="החדר לא נבדק ביותר מ-24 שעות. לחץ על החדר לאימות פריטים."
           />
           <CheatItem
             icon={AlertTriangle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="Needs Audit"
-            description="An item in this room has been flagged. A full audit is required before the room can be cleared."
+            title="נדרש ביקורת"
+            description="פריט בחדר זה סומן. נדרשת ביקורת מלאה לפני שהחדר יוכל להיות נקי."
           />
           <CheatItem
             icon={Nfc}
             iconBg="bg-primary/10"
             iconColor="text-primary"
             title="NFC door sticker"
-            description="Tap the NFC sticker on the room door to instantly open the verification overlay. Confirm to mark all items as verified in one tap."
+            description="לחץ על מדבקת NFC בדלת החדר לפתיחת מסך האימות. אשר לסמן את כל הפריטים כמאומתים בלחיצה אחת."
           />
         </Section>
 
         {/* Sync indicator */}
-        <Section title="Sync Indicator (top header)">
+        <Section title="מחוון סנכרון (כותרת עליונה)">
           <CheatItem
             icon={Clock}
             iconBg="bg-muted"
             iconColor="text-muted-foreground"
-            title="Pending"
-            description="Your action was saved locally and is waiting to be sent to the server. This happens when offline. It will sync automatically when you reconnect."
+            title="ממתין"
+            description="הפעולה נשמרה מקומית וממתינה לשליחה לשרת. קורה כשאתה לא מחובר. יסתנכרן אוטומטית כשתתחבר."
           />
           <CheatItem
             icon={CheckCircle2}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
             title="Synced"
-            description="All changes have been successfully saved to the server. Everything is up to date."
+            description="כל השינויים נשמרו בשרת בהצלחה. הכל עדכני."
           />
           <CheatItem
             icon={XCircle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="Failed"
-            description="An action could not be synced after several attempts. Tap the cloud icon to view failed items and retry."
+            title="נכשל"
+            description="פעולה לא הצליחה להסתנכרן לאחר מספר ניסיונות. לחץ על אייקון הענן לצפייה ולניסיון חוזר."
           />
           <CheatItem
             icon={WifiOff}
             iconBg="bg-amber-50 dark:bg-amber-950/50"
             iconColor="text-amber-600 dark:text-amber-400"
-            title="Offline"
-            description="No internet connection. The app keeps working — all changes are queued and synced automatically when you reconnect."
+            title="לא מחובר"
+            description="אין חיבור לאינטרנט. האפליקציה ממשיכה לעבוד — כל השינויים בתור ויסונכרנו אוטומטית."
           />
         </Section>
 
         {/* Alerts */}
-        <Section title="Alerts">
+        <Section title="התראות">
           <CheatItem
             icon={BellRing}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="Active alerts"
-            description="The red badge on the bell icon shows how many items need attention. Tap to view and acknowledge alerts."
+            title="התראות פעילות"
+            description="התג האדום על אייקון הפעמון מציג כמה פריטים דורשים תשומת לב. לחץ לצפייה ואישור."
           />
           <CheatItem
             icon={Wifi}
             iconBg="bg-blue-50 dark:bg-blue-950/50"
             iconColor="text-blue-600 dark:text-blue-400"
-            title="Push notifications"
-            description="Enable push notifications in Settings → Push Notifications to receive real-time alerts even when the app is in the background."
+            title="התראות Push"
+            description="אפשר התראות Push בהגדרות → התראות Push לקבלת התראות בזמן אמת גם כשהאפליקציה ברקע."
           />
         </Section>
 

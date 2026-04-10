@@ -21,12 +21,12 @@ interface SyncQueueSheetProps {
 }
 
 const TYPE_LABELS: Record<PendingSyncType, string> = {
-  scan: "Scan",
-  create: "Create",
-  update: "Update",
-  delete: "Delete",
-  checkout: "Checkout",
-  return: "Return",
+  scan: "סריקה",
+  create: "יצירה",
+  update: "עדכון",
+  delete: "מחיקה",
+  checkout: "הוצאה לשימוש",
+  return: "החזרה",
 };
 
 function extractEquipmentIdFromEndpoint(endpoint: string): string | null {
@@ -38,7 +38,7 @@ function getItemLabel(item: PendingSync): string {
   if (item.equipmentName) return item.equipmentName;
   const id = extractEquipmentIdFromEndpoint(item.endpoint);
   if (id) return `ID: ${id.slice(0, 8)}…`;
-  return "Unknown equipment";
+  return "ציוד לא ידוע";
 }
 
 function DiscardConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
@@ -123,7 +123,7 @@ function SyncQueueItem({
                     : "bg-red-100 text-red-700"
                 }`}
               >
-                {isPending ? "Pending" : "Failed"}
+                {isPending ? "ממתין" : "נכשל"}
               </span>
             </div>
             <p className="text-sm font-medium text-foreground truncate mt-0.5">
@@ -201,7 +201,7 @@ function CircuitBreakerBanner({ resetsAt }: { resetsAt: number }) {
         <p className="text-xs text-orange-700">
           {secsLeft > 0
             ? `Auto-resumes in ${secsLeft}s`
-            : "Resuming now…"}
+            : "ממשיך עכשיו..."}
         </p>
       </div>
     </div>
@@ -253,7 +253,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
                 {isSyncing && batchTotal > 50
                   ? `Processing ${batchCurrent} of ${batchTotal}…`
                   : totalCount === 0
-                  ? "All actions synced"
+                  ? "כל הפעולות סונכרנו"
                   : `${totalCount} action${totalCount !== 1 ? "s" : ""} pending`}
               </p>
             </div>
@@ -269,7 +269,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
                 data-testid="btn-sync-now"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-                {isSyncing ? "Syncing…" : "Sync Now"}
+                {isSyncing ? "מסנכרן..." : "סנכרן עכשיו"}
               </Button>
             )}
             <button
