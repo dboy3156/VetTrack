@@ -70,7 +70,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <Layout title="Settings">
+    <Layout title="הגדרות">
       <div className="space-y-6 pb-8 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Settings</h1>
@@ -79,24 +79,24 @@ export default function SettingsPage() {
 
         {/* Display */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="Display" />
+          <SettingsSectionHeader label="תצוגה" />
           <div className="space-y-2">
             <SettingsToggle
               icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-              label="Dark Mode"
-              description="Reduce eye strain in low light"
+              label="מצב לילה"
+              description="מפחית עומס על העיניים בתאורה חלשה"
               checked={settings.darkMode}
               onCheckedChange={(v) => update({ darkMode: v })}
               data-testid="settings-dark-mode"
             />
             <SettingsSelect
               icon={<AlignJustify className="w-5 h-5" />}
-              label="Display Size"
-              description="Adjust spacing and layout density"
+              label="גודל תצוגה"
+              description="כוונון הרווחים וצפיפות הפריסה"
               value={settings.density}
               options={[
-                { value: "comfortable", label: "Comfortable" },
-                { value: "compact", label: "Compact" },
+                { value: "comfortable", label: "רגיל" },
+                { value: "compact", label: "קומפקטי" },
               ]}
               onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
               data-testid="settings-density"
@@ -107,7 +107,7 @@ export default function SettingsPage() {
         {/* Push Notifications */}
         {push.supported && (
           <section className="space-y-2">
-            <SettingsSectionHeader label="Push Notifications" />
+            <SettingsSectionHeader label="התראות Push" />
             <div className="space-y-2">
               <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card border border-border/60">
                 <span className="flex-shrink-0 text-muted-foreground">
@@ -117,10 +117,10 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-foreground leading-tight">Device Notifications</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {push.permission === "denied"
-                      ? "Permission denied — enable in browser settings"
+                      ? "הרשאה נדחתה — אפשר בהגדרות הדפדפן"
                       : push.subscribed
-                      ? "This device will receive alerts even when the app is closed"
-                      : "Receive alerts on this device, even when the app is closed"}
+                      ? "מכשיר זה יקבל התראות גם כשהאפליקציה סגורה"
+                      : "קבל התראות במכשיר זה, גם כשהאפליקציה סגורה"}
                   </p>
                 </div>
                 <Button
@@ -132,20 +132,20 @@ export default function SettingsPage() {
                   onClick={async () => {
                     if (push.subscribed) {
                       const ok = await push.unsubscribe();
-                      if (ok) toast.success("Push notifications disabled");
-                      else toast.error(push.error || "Failed to disable");
+                      if (ok) toast.success("התראות Push כובו");
+                      else toast.error(push.error || "הכיבוי נכשל");
                     } else {
                       const ok = await push.subscribe({
                         soundEnabled: settings.soundEnabled,
                         alertsEnabled: settings.criticalAlertsSound,
                       });
-                      if (ok) toast.success("Push notifications enabled");
-                      else if (push.permission === "denied") toast.error("Permission denied");
-                      else toast.error(push.error || "Failed to enable");
+                      if (ok) toast.success("התראות Push הופעלו");
+                      else if (push.permission === "denied") toast.error("הרשאה נדחתה");
+                      else toast.error(push.error || "ההפעלה נכשלה");
                     }
                   }}
                 >
-                  {push.subscribed ? "Disable" : "Enable"}
+                  {push.subscribed ? "כבה" : "הפעל"}
                 </Button>
               </div>
               {push.subscribed && (
@@ -165,8 +165,8 @@ export default function SettingsPage() {
                     data-testid="push-test-btn"
                     onClick={async () => {
                       const ok = await push.sendTestNotification();
-                      if (ok) toast.success("Test notification sent");
-                      else toast.error(push.error || "Failed to send test");
+                      if (ok) toast.success("התראת בדיקה נשלחה");
+                      else toast.error(push.error || "שליחת הבדיקה נכשלה");
                     }}
                   >
                     Send Test
@@ -179,20 +179,20 @@ export default function SettingsPage() {
 
         {/* Sound */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="Sound" />
+          <SettingsSectionHeader label="שמע" />
           <div className="space-y-2">
             <SettingsToggle
               icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-              label="Master Sound"
-              description="Enable or disable all sounds"
+              label="שמע ראשי"
+              description="הפעל או כבה את כל הצלילים"
               checked={settings.soundEnabled}
               onCheckedChange={handleSoundToggle}
               data-testid="settings-sound"
             />
             <SettingsToggle
               icon={<BellRing className="w-5 h-5" />}
-              label="Critical Alerts"
-              description="Play audio for urgent equipment alerts"
+              label="התראות קריטיות"
+              description="הפעל שמע להתראות ציוד דחופות"
               checked={settings.criticalAlertsSound}
               onCheckedChange={handleCriticalAlertsToggle}
               data-testid="settings-critical-sound"
@@ -202,12 +202,12 @@ export default function SettingsPage() {
 
         {/* Date & Time */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="Date & Time" />
+          <SettingsSectionHeader label="תאריך ושעה" />
           <div className="space-y-2">
             <SettingsSelect
               icon={<Clock className="w-5 h-5" />}
-              label="Time Format"
-              description="How times are displayed"
+              label="פורמט שעה"
+              description="איך השעות מוצגות"
               value={settings.timeFormat}
               options={[
                 { value: "12h", label: "12-hour (AM/PM)" },
@@ -218,8 +218,8 @@ export default function SettingsPage() {
             />
             <SettingsSelect
               icon={<Calendar className="w-5 h-5" />}
-              label="Date Format"
-              description="How dates are displayed"
+              label="פורמט תאריך"
+              description="איך התאריכים מוצגים"
               value={settings.dateFormat}
               options={[
                 { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
@@ -234,7 +234,7 @@ export default function SettingsPage() {
 
         {/* Reset */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="Reset" />
+          <SettingsSectionHeader label="איפוס" />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4">
             <p className="text-sm text-foreground font-medium mb-1">Reset to Defaults</p>
             <p className="text-xs text-muted-foreground mb-3">
@@ -249,13 +249,13 @@ export default function SettingsPage() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset all settings?</AlertDialogTitle>
+                  <AlertDialogTitle>לאפס את כל ההגדרות?</AlertDialogTitle>
                   <AlertDialogDescription>
                     This will restore all settings to their default values, including dark mode, sound, and display preferences. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>ביטול</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={reset}
                     className="bg-destructive hover:bg-destructive/90"
@@ -271,7 +271,7 @@ export default function SettingsPage() {
 
         {/* Account */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="Account" />
+          <SettingsSectionHeader label="חשבון" />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4 space-y-3">
             {(name || email) && (
               <div>
@@ -293,7 +293,7 @@ export default function SettingsPage() {
 
         {/* About */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="About" />
+          <SettingsSectionHeader label="אודות" />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4 space-y-1">
             <p className="text-sm font-medium text-foreground">VetTrack</p>
             <p className="text-xs text-muted-foreground">
