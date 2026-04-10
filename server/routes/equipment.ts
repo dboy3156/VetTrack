@@ -6,8 +6,8 @@ import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens, user
 import { eq, inArray, desc, and, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
-import { scanLimiter, checkoutLimiter } from "../middleware/rate-limiters.js";
-import { sendPushToAll, checkDedupe } from "../lib/push.js";
+import { scanLimiter, checkoutLimiter, writeLimiter } from "../middleware/rate-limiters.js";
+import { checkDedupe, sendPushToAll } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
 import { logAudit } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
@@ -107,7 +107,6 @@ const router = Router();
 
 const _parsedUndoTtl = parseInt(process.env.UNDO_TTL_MS ?? "", 10);
 const UNDO_TTL_MS = Number.isFinite(_parsedUndoTtl) && _parsedUndoTtl > 0 ? _parsedUndoTtl : 90_000;
-const BULK_MAX = 100;
 const FIELD_MAX_LENGTH = 500;
 
 type EquipmentRow = typeof equipment.$inferSelect;
@@ -383,7 +382,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, requireRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
+router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
   try {
     const {
       name,
@@ -435,8 +434,8 @@ router.post("/", requireAuth, requireRole("technician"), validateBody(createEqui
   }
 });
 
-router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
-  try {
+router.patch("/:id", requireAuth, writeLimiter, requireRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
+try {
     const {
       name,
       serialNumber,
@@ -533,8 +532,8 @@ router.patch("/:id", requireAuth, requireRole("technician"), validateUuid("id"),
   }
 });
 
-router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
-  try {
+router.delete("/:id", requireAuth, writeLimiter, requireAdmin, validateUuid("id"), async (req, res) => {
+try {
     const [existing] = await db
       .select()
       .from(equipment)
@@ -1083,8 +1082,8 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
 
 // POST /api/equipment/import — accepts multipart/form-data with a "file" field
 // or JSON body with a "csv" string field (backwards-compatible)
-router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (req, res) => {
-  try {
+router.post("/import", requireAuth, writeLimiter, requireAdmin, upload.single("file"), async (req, res) => {
+try {
     let csv: string;
     if (req.file) {
       // Multipart upload
@@ -1243,8 +1242,8 @@ router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (
   }
 });
 
-router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchema), async (req, res) => {
-  try {
+router.post("/bulk-delete", requireAuth, writeLimiter, requireAdmin, validateBody(bulkIdsSchema), async (req, res) => {
+try {
     const { ids: typedIds } = req.body as z.infer<typeof bulkIdsSchema>;
     const actorName = req.authUser!.name || req.authUser!.email;
 
@@ -1292,7 +1291,7 @@ router.post("/bulk-delete", requireAuth, requireAdmin, validateBody(bulkIdsSchem
   }
 });
 
-router.post("/bulk-move", requireAuth, requireRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
+router.post("/bulk-move", requireAuth, writeLimiter, requireRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
   try {
     const { ids: typedIds, folderId } = req.body as z.infer<typeof bulkMoveSchema>;
     const targetFolderId = folderId ?? null;

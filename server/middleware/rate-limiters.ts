@@ -35,3 +35,11 @@ export const pushTestLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many test notifications. Please wait a minute." },
 });
+// Write operations: 30/min — POST/PATCH/DELETE on equipment
+export const writeLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many write operations. Please wait a moment." },
+});
