@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { db, pushSubscriptions, serverConfig } from "../db.js";
+import { db, pushSubscriptions, serverConfig, users } from "../db.js";
 import { eq } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
 
@@ -169,6 +169,44 @@ export async function sendPushToAll(payload: PushPayload): Promise<void> {
 
       const result = await dispatchToSub(sub, notificationPayload);
       if (result === "expired") expired.push(sub.endpoint);
+    })
+  );
+
+  if (expired.length > 0) await cleanupExpiredEndpoints(expired);
+}
+
+export async function sendPushToRole(role: string, payload: PushPayload): Promise<void> {
+
+  const allSubs = await db.select({
+    endpoint: pushSubscriptions.endpoint,
+    p256dh: pushSubscriptions.p256dh,
+    auth: pushSubscriptions.auth,
+    alertsEnabled: pushSubscriptions.alertsEnabled,
+    soundEnabled: pushSubscriptions.soundEnabled,
+    userId: pushSubscriptions.userId,
+  }).from(pushSubscriptions);
+
+  if (allSubs.length === 0) return;
+
+  const userRows = await db.select({ id: users.id, role: users.role }).from(users);
+  const roleMap = new Map(userRows.map((u) => [u.id, u.role]));
+
+  const subs = allSubs.filter((s) => roleMap.get(s.userId) === role);
+  if (subs.length === 0) return;
+
+  const expired: string[] = [];
+
+  await Promise.all(
+    subs.map(async (sub) => {
+      const notificationPayload = JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        tag: payload.tag,
+        url: payload.url,
+        silent: effectiveSilent,
+      });
+      const result = await dispatchToSub(sub, notificationPayload);
+      if (result === 'expired') expired.push(sub.endpoint);
     })
   );
 
