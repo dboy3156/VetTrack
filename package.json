@@ -7,10 +7,10 @@
     "dev": "concurrently -k -p \"[{name}]\" -n \"api,web\" -c \"cyan,teal\" \"tsx watch server/index.ts\" \"vite --port 5000 --host\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
-    "db:push": "drizzle-kit push",
     "validate:prod": "tsx scripts/validate-prod.ts",
     "test": "node tests/basic.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js && node tests/pwa.system.test.js",
-    "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list"
+    "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.0.0",
