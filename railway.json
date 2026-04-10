@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "pnpm db:migrate && pnpm --filter server start"
+    "startCommand": "pnpm db:migrate && pnpm start"
   }
 }
