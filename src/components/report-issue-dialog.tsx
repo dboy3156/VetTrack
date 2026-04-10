@@ -31,9 +31,9 @@ interface ReportIssueDialogProps {
 
 export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps) {
   const { email } = useAuth();
-  const [title, setכותרת] = useState("");
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [severity, setחומרה] = useState<SupportTicketSeverity>("medium");
+  const [severity, setSeverity] = useState<SupportTicketSeverity>("medium");
 
   const submitMut = useMutation({
     mutationFn: () =>
@@ -47,9 +47,9 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
       }),
     onSuccess: () => {
       toast.success("התקלה דווחה. תודה!");
-      setכותרת("");
+      setTitle("");
       setDescription("");
-      setחומרה("medium");
+      setSeverity("medium");
       onOpenChange(false);
     },
     onError: () => {
@@ -79,7 +79,7 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
               id="issue-title"
               placeholder="תיאור קצר של התקלה"
               value={title}
-              onChange={(e) => setכותרת(e.target.value)}
+              onChange={(e) => setTitle(e.target.value)}
               data-testid="input-issue-title"
               required
             />
@@ -98,7 +98,7 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="issue-severity">חומרה</Label>
-            <Select value={severity} onValueChange={(v) => setחומרה(v as SupportTicketSeverity)}>
+            <Select value={severity} onValueChange={(v) => setSeverity(v as SupportTicketSeverity)}>
               <SelectTrigger id="issue-severity" data-testid="select-issue-severity">
                 <SelectValue />
               </SelectTrigger>
@@ -111,7 +111,7 @@ export function ReportIssueDialog({ open, onOpenChange }: ReportIssueDialogProps
           </div>
           {email && (
             <p className="text-xs text-muted-foreground">
-              שלח דיווחting as <span className="font-medium">{email}</span>
+              מדווח בתור <span className="font-medium">{email}</span>
             </p>
           )}
           <DialogFooter className="pt-1">

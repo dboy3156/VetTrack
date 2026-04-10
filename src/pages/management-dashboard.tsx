@@ -22,18 +22,18 @@ import {
   FileDown,
   ChevronDown,
   ChevronUp,
-  רענןCw,
+  RefreshCw,
   Activity,
   Server,
   Clock,
-  זיכרוןStick,
+  MemoryStick,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 
-function formatזמן פעולה(seconds: number): string {
+function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -111,7 +111,7 @@ export default function ManagementDashboardPage() {
               onClick={() => refetch()}
               disabled={isLoading}
             >
-              <רענןCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+              <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
               רענן
             </Button>
             <Button
@@ -395,11 +395,11 @@ export default function ManagementDashboardPage() {
                     <Clock className="w-3.5 h-3.5" />
                     זמן פעולה
                   </div>
-                  <p className="text-lg font-bold">{formatזמן פעולה(metrics.uptime)}</p>
+                  <p className="text-lg font-bold">{formatUptime(metrics.uptime)}</p>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <זיכרוןStick className="w-3.5 h-3.5" />
+                    <MemoryStick className="w-3.5 h-3.5" />
                     זיכרון
                   </div>
                   <p className="text-lg font-bold">{metrics.memoryMb}
@@ -411,7 +411,7 @@ export default function ManagementDashboardPage() {
                     <Users className="w-3.5 h-3.5" />
                     הפעלות
                   </div>
-                  <p className="text-lg font-bold">{metrics.activeהפעלות}</p>
+                  <p className="text-lg font-bold">{metrics.activeSessions}</p>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

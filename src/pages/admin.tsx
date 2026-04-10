@@ -36,7 +36,7 @@ import {
 import { Label } from "@/components/ui/label";
 import {
   Shield,
-  משתמשים,
+  Users,
   FolderOpen,
   Plus,
   Pencil,
@@ -64,8 +64,8 @@ import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type {
-  תמיכהTicket,
-  תמיכהTicketStatus,
+  SupportTicket,
+  SupportTicketStatus,
   User,
   AuditLog,
   DeletedEquipment,
@@ -85,9 +85,9 @@ export default function AdminPage() {
     refetchInterval: 60_000,
   });
 
-  const { data: pendingמשתמשים } = useQuery({
+  const { data: pendingUsers } = useQuery({
     queryKey: ["/api/users/pending"],
-    queryFn: api.users.listממתינים,
+    queryFn: api.users.listPending,
     enabled: isAdmin,
     refetchInterval: 30_000,
   });
@@ -117,7 +117,7 @@ export default function AdminPage() {
   }
 
   const unresolvedCount = supportUnresolved?.count ?? 0;
-  const pendingCount = pendingמשתמשים?.length ?? 0;
+  const pendingCount = pendingUsers?.length ?? 0;
 
   return (
     <Layout>
@@ -178,7 +178,7 @@ export default function AdminPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            <משתמשים className="w-4 h-4" />
+            <Users className="w-4 h-4" />
             משתמשים
           </button>
           <button
@@ -227,10 +227,10 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {activeTab === "folders" && <תיקיותSection />}
-        {activeTab === "pending" && <ממתיניםמשתמשיםSection />}
-        {activeTab === "users" && <משתמשיםSection />}
-        {activeTab === "support" && <תמיכהSection />}
+        {activeTab === "folders" && <FoldersSection />}
+        {activeTab === "pending" && <PendingUsersSection />}
+        {activeTab === "users" && <UsersSection />}
+        {activeTab === "support" && <SupportSection />}
         {activeTab === "audit-logs" && <AuditLogsSection />}
         {activeTab === "deleted" && <DeletedItemsSection />}
       </div>
@@ -238,7 +238,7 @@ export default function AdminPage() {
   );
 }
 
-function תיקיותSection() {
+function FoldersSection() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editFolder, setEditFolder] = useState<{
@@ -285,7 +285,7 @@ function תיקיותSection() {
     onError: () => toast.error("מחיקת התיקייה נכשלה"),
   });
 
-  const manualתיקיות = folders?.filter((f) => f.type !== "smart") || [];
+  const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
 
   return (
     <Card className="bg-card border-border/60 shadow-sm">
@@ -318,7 +318,7 @@ function תיקיותSection() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {manualתיקיות.map((f) => (
+            {manualFolders.map((f) => (
               <div
                 key={f.id}
                 className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border"
@@ -373,7 +373,7 @@ function תיקיותSection() {
               </div>
             ))}
 
-            {manualתיקיות.length === 0 && (
+            {manualFolders.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 אין תיקיות עדיין. צור אחת כדי לארגן את הציוד.
               </p>
@@ -424,11 +424,11 @@ function תיקיותSection() {
                   : createMut.mutate(folderName);
               }}
               disabled={
-                !folderName.trim() || createMut.isממתינים || updateMut.isממתינים
+                !folderName.trim() || createMut.isPending || updateMut.isPending
               }
               data-testid="btn-save-folder"
             >
-              {(createMut.isממתינים || updateMut.isממתינים) && (
+              {(createMut.isPending || updateMut.isPending) && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               )}
               {editFolder ? "עדכן" : "צור"}
@@ -440,12 +440,12 @@ function תיקיותSection() {
   );
 }
 
-function ממתיניםמשתמשיםSection() {
+function PendingUsersSection() {
   const queryClient = useQueryClient();
 
-  const { data: pendingמשתמשים, isLoading } = useQuery({
+  const { data: pendingUsers, isLoading } = useQuery({
     queryKey: ["/api/users/pending"],
-    queryFn: api.users.listממתינים,
+    queryFn: api.users.listPending,
   });
 
   const updateStatusMut = useMutation({
@@ -480,13 +480,13 @@ function ממתיניםמשתמשיםSection() {
               <Skeleton key={i} className="h-16 rounded-xl" />
             ))}
           </div>
-        ) : !pendingמשתמשים || pendingמשתמשים.length === 0 ? (
+        ) : !pendingUsers || pendingUsers.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
             No pending users. All sign-ups have been reviewed.
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {pendingמשתמשים.map((user) => (
+            {pendingUsers.map((user) => (
               <div
                 key={user.id}
                 data-testid={`pending-user-row-${user.id}`}
@@ -510,7 +510,7 @@ function ממתיניםמשתמשיםSection() {
                         size="sm"
                         variant="outline"
                         className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-11 px-2.5"
-                        disabled={updateStatusMut.isממתינים}
+                        disabled={updateStatusMut.isPending}
                         data-testid={`btn-reject-user-${user.id}`}
                       >
                         <XCircle className="w-3.5 h-3.5 mr-1" />
@@ -549,7 +549,7 @@ function ממתיניםמשתמשיםSection() {
                     onClick={() =>
                       updateStatusMut.mutate({ id: user.id, status: "active" })
                     }
-                    disabled={updateStatusMut.isממתינים}
+                    disabled={updateStatusMut.isPending}
                     data-testid={`btn-approve-user-${user.id}`}
                   >
                     <CheckCircle className="w-3.5 h-3.5 mr-1" />
@@ -619,14 +619,14 @@ function StatusBadge({ status }: { status: string }) {
 
 type UserStatusFilter = "all" | "pending" | "active" | "blocked";
 
-function משתמשיםSection() {
+function UsersSection() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
-  const [pendingRoleChange, setממתיניםRoleChange] = useState<{
+  const [pendingRoleChange, setPendingRoleChange] = useState<{
     user: User;
     newRole: UserRole;
   } | null>(null);
-  const [pendingStatusChange, setממתיניםStatusChange] = useState<{
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
     user: User;
     newStatus: "pending" | "active" | "blocked";
   } | null>(null);
@@ -634,9 +634,9 @@ function משתמשיםSection() {
   const {
     data: usersPages,
     isLoading,
-    fetchNextPage: fetchMoreמשתמשים,
-    hasNextPage: hasMoreמשתמשים,
-    isFetchingNextPage: isFetchingMoreמשתמשים,
+    fetchNextPage: fetchMoreUsers,
+    hasNextPage: hasMoreUsers,
+    isFetchingNextPage: isFetchingMoreUsers,
   } = useInfiniteQuery({
     queryKey: ["/api/users", statusFilter],
     queryFn: ({ pageParam = 1 }) =>
@@ -660,7 +660,7 @@ function משתמשיםSection() {
     onSuccess: () => {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      setממתיניםRoleChange(null);
+      setPendingRoleChange(null);
       toast.success("התפקיד עודכן");
     },
     onError: () => toast.error("עדכון התפקיד נכשל"),
@@ -700,7 +700,7 @@ function משתמשיםSection() {
     <Card className="bg-card border-border/60 shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <משתמשים className="w-4 h-4 text-muted-foreground" />
+          <Users className="w-4 h-4 text-muted-foreground" />
           משתמשים
         </CardTitle>
       </CardHeader>
@@ -732,7 +732,7 @@ function משתמשיםSection() {
           </div>
         ) : !users || users.length === 0 ? (
           <EmptyState
-            icon={משתמשים}
+            icon={Users}
             message={
               statusFilter === "all"
                 ? "אין משתמשים עדיין"
@@ -774,7 +774,7 @@ function משתמשיםSection() {
                             size="sm"
                             variant="outline"
                             className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive h-11 px-2 text-xs"
-                            disabled={updateStatusMut.isממתינים}
+                            disabled={updateStatusMut.isPending}
                             data-testid={`btn-reject-user-${user.id}`}
                           >
                             <XCircle className="w-3 h-3 mr-1" />
@@ -816,7 +816,7 @@ function משתמשיםSection() {
                             status: "active",
                           })
                         }
-                        disabled={updateStatusMut.isממתינים}
+                        disabled={updateStatusMut.isPending}
                         data-testid={`btn-approve-user-${user.id}`}
                       >
                         <CheckCircle className="w-3 h-3 mr-1" />
@@ -829,7 +829,7 @@ function משתמשיםSection() {
                   <Select
                     value={user.role}
                     onValueChange={(role) => {
-                      setממתיניםRoleChange({ user, newRole: role as UserRole });
+                      setPendingRoleChange({ user, newRole: role as UserRole });
                     }}
                   >
                     <SelectTrigger
@@ -853,7 +853,7 @@ function משתמשיםSection() {
                         | "active"
                         | "blocked";
                       if (newStatus === "blocked") {
-                        setממתיניםStatusChange({ user, newStatus });
+                        setPendingStatusChange({ user, newStatus });
                       } else {
                         updateStatusMut.mutate({
                           id: user.id,
@@ -877,17 +877,17 @@ function משתמשיםSection() {
                 </div>
               </div>
             ))}
-            {hasMoreמשתמשים && (
+            {hasMoreUsers && (
               <div className="flex justify-center pt-1">
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-11 text-xs"
-                  onClick={() => fetchMoreמשתמשים()}
-                  disabled={isFetchingMoreמשתמשים}
+                  onClick={() => fetchMoreUsers()}
+                  disabled={isFetchingMoreUsers}
                   data-testid="btn-load-more-users"
                 >
-                  {isFetchingMoreמשתמשים ? (
+                  {isFetchingMoreUsers ? (
                     <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
                   ) : (
                     "טען עוד"
@@ -903,7 +903,7 @@ function משתמשיםSection() {
       <AlertDialog
         open={!!pendingRoleChange}
         onOpenChange={(open) => {
-          if (!open) setממתיניםRoleChange(null);
+          if (!open) setPendingRoleChange(null);
         }}
       >
         <AlertDialogContent>
@@ -943,9 +943,9 @@ function משתמשיםSection() {
                   });
                 }
               }}
-              disabled={updateRoleMut.isממתינים}
+              disabled={updateRoleMut.isPending}
             >
-              {updateRoleMut.isממתינים ? (
+              {updateRoleMut.isPending ? (
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
               ) : null}
               Yes, change role
@@ -958,7 +958,7 @@ function משתמשיםSection() {
       <AlertDialog
         open={!!pendingStatusChange}
         onOpenChange={(open) => {
-          if (!open) setממתיניםStatusChange(null);
+          if (!open) setPendingStatusChange(null);
         }}
       >
         <AlertDialogContent>
@@ -988,13 +988,13 @@ function משתמשיםSection() {
                     id: pendingStatusChange.user.id,
                     status: pendingStatusChange.newStatus,
                   });
-                  setממתיניםStatusChange(null);
+                  setPendingStatusChange(null);
                 }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={updateStatusMut.isממתינים}
+              disabled={updateStatusMut.isPending}
             >
-              {updateStatusMut.isממתינים ? (
+              {updateStatusMut.isPending ? (
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
               ) : null}
               Yes, block user
@@ -1014,7 +1014,7 @@ function DeletedItemsSection() {
     queryFn: api.equipment.listDeleted,
   });
 
-  const { data: deletedמשתמשים, isLoading: usersLoading } = useQuery({
+  const { data: deletedUsers, isLoading: usersLoading } = useQuery({
     queryKey: ["/api/users/deleted"],
     queryFn: api.users.listDeleted,
   });
@@ -1087,7 +1087,7 @@ function DeletedItemsSection() {
                     size="sm"
                     variant="outline"
                     className="shrink-0 gap-1 h-11 text-xs"
-                    disabled={restoreEquipMut.isממתינים}
+                    disabled={restoreEquipMut.isPending}
                     data-testid={`btn-restore-equipment-${item.id}`}
                     onClick={() => restoreEquipMut.mutate(item.id)}
                   >
@@ -1105,7 +1105,7 @@ function DeletedItemsSection() {
       <Card className="bg-card border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <משתמשים className="w-4 h-4 text-muted-foreground" />
+            <Users className="w-4 h-4 text-muted-foreground" />
             Deleted משתמשים
           </CardTitle>
         </CardHeader>
@@ -1116,13 +1116,13 @@ function DeletedItemsSection() {
                 <Skeleton key={i} className="h-14 rounded-xl" />
               ))}
             </div>
-          ) : !deletedמשתמשים || deletedמשתמשים.length === 0 ? (
+          ) : !deletedUsers || deletedUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No deleted users.
             </p>
           ) : (
             <div className="flex flex-col gap-2">
-              {deletedמשתמשים.map((user: User) => (
+              {deletedUsers.map((user: User) => (
                 <div
                   key={user.id}
                   data-testid={`deleted-user-row-${user.id}`}
@@ -1146,7 +1146,7 @@ function DeletedItemsSection() {
                     size="sm"
                     variant="outline"
                     className="shrink-0 gap-1 h-11 text-xs"
-                    disabled={restoreUserMut.isממתינים}
+                    disabled={restoreUserMut.isPending}
                     data-testid={`btn-restore-user-${user.id}`}
                     onClick={() => restoreUserMut.mutate(user.id)}
                   >
@@ -1181,12 +1181,12 @@ const STATUS_LABELS: Record<string, string> = {
   resolved: "טופל",
 };
 
-function תמיכהSection() {
+function SupportSection() {
   const queryClient = useQueryClient();
-  const [selectedTicket, setSelectedTicket] = useState<תמיכהTicket | null>(
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(
     null,
   );
-  const [detailStatus, setDetailStatus] = useState<תמיכהTicketStatus>("open");
+  const [detailStatus, setDetailStatus] = useState<SupportTicketStatus>("open");
   const [detailNote, setDetailNote] = useState("");
   const [expandedDevice, setExpandedDevice] = useState(false);
 
@@ -1202,7 +1202,7 @@ function תמיכהSection() {
       adminNote,
     }: {
       id: string;
-      status: תמיכהTicketStatus;
+      status: SupportTicketStatus;
       adminNote: string;
     }) => api.support.update(id, { status, adminNote }),
     onSuccess: (updated) => {
@@ -1216,7 +1216,7 @@ function תמיכהSection() {
     onError: () => toast.error("עדכון הפניה נכשל"),
   });
 
-  const openDetail = (ticket: תמיכהTicket) => {
+  const openDetail = (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
     setDetailStatus(ticket.status);
     setDetailNote(ticket.adminNote || "");
@@ -1391,7 +1391,7 @@ function תמיכהSection() {
                   <Select
                     value={detailStatus}
                     onValueChange={(v) =>
-                      setDetailStatus(v as תמיכהTicketStatus)
+                      setDetailStatus(v as SupportTicketStatus)
                     }
                   >
                     <SelectTrigger
@@ -1427,7 +1427,7 @@ function תמיכהSection() {
               <Button
                 variant="ghost"
                 onClick={() => setSelectedTicket(null)}
-                disabled={updateMut.isממתינים}
+                disabled={updateMut.isPending}
               >
                 Close
               </Button>
@@ -1439,10 +1439,10 @@ function תמיכהSection() {
                     adminNote: detailNote,
                   });
                 }}
-                disabled={updateMut.isממתינים}
+                disabled={updateMut.isPending}
                 data-testid="btn-update-ticket"
               >
-                {updateMut.isממתינים && (
+                {updateMut.isPending && (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 )}
                 Save
