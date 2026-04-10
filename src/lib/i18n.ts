@@ -21,6 +21,10 @@ export const t = {
     select: "בחירה",
     unfiled: "ללא תיקייה",
     justNow: "עכשיו",
+    sterilization: "חיטוי",
+    closeNavigationMenu: "סגור תפריט ניווט",
+    openNavigationMenu: "פתח תפריט ניווט",
+    quickSettings: "הגדרות מהירות",
   },
 
   status: {

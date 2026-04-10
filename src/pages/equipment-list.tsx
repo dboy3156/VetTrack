@@ -393,8 +393,8 @@ export default function EquipmentListPage() {
               {folderFilter === "all"
                 ? t.equipmentList.folders.all
                 : folderFilter === "unfiled"
-                ? "Unfiled"
-                : (folders?.find((f) => f.id === folderFilter)?.name ?? "Folder")}
+                ? t.equipmentList.folders.unfiled
+                : (folders?.find((f) => f.id === folderFilter)?.name ?? t.equipmentList.folders.unfiled)}
             </span>
             <ChevronRight className="w-3.5 h-3.5 shrink-0 rotate-90" />
           </button>
@@ -418,7 +418,7 @@ export default function EquipmentListPage() {
               <div className="flex-1 overflow-y-auto">
                 {[
                   { id: "all", name: t.equipmentList.folders.all },
-                  { id: "unfiled", name: "Unfiled" },
+                  { id: "unfiled", name: t.equipmentList.folders.unfiled },
                   ...(folders ?? []),
                 ]
                   .filter(
@@ -521,7 +521,7 @@ export default function EquipmentListPage() {
             ) : (
               <CheckSquare className="w-4 h-4 mr-1" />
             )}
-            {selectMode ? "Cancel" : "Select"}
+            {selectMode ? t.equipmentList.actions.cancel : t.equipmentList.actions.select}
           </Button>
 
           {selectMode && selected.size > 0 && (
@@ -554,7 +554,7 @@ export default function EquipmentListPage() {
                     ) : (
                       <FolderInput className="w-3.5 h-3.5 mr-1" />
                     )}
-                    {bulkMoveMut.isPending ? "Working…" : "Move"}
+                    {bulkMoveMut.isPending ? t.equipmentList.actions.working : t.equipmentList.actions.move}
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Unfiled</SelectItem>
@@ -580,7 +580,7 @@ export default function EquipmentListPage() {
                         ) : (
                           <Trash2 className="w-3.5 h-3.5 mr-1" />
                         )}
-                        {bulkDeleteMut.isPending ? "Working…" : "Delete"}
+                        {bulkDeleteMut.isPending ? t.equipmentList.actions.working : t.equipmentList.actions.delete}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -636,8 +636,8 @@ export default function EquipmentListPage() {
               message={t.equipmentList.empty.message}
               subMessage={
                 search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all"
-                  ? "Try adjusting your filters or search query."
-                  : "Add your first piece of equipment to start tracking."
+                  ? t.equipmentList.empty.filteredHint
+                  : t.equipmentList.empty.emptyHint
               }
               action={
                 search || statusFilter !== "all" || folderFilter !== "all" || locationFilter !== "all" ? (

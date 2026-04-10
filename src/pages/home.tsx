@@ -106,7 +106,7 @@ export default function HomePage() {
 
         {equipmentError && (
           <ErrorCard
-            message="Failed to load equipment data. Please try again."
+            message={t.equipmentList.errors.loadFailed}
             onRetry={() => refetch()}
           />
         )}
@@ -207,7 +207,7 @@ export default function HomePage() {
                         className="shrink-0 text-[10px] px-2 py-0.5"
                       >
                         {alert.type === "sterilization_due"
-                          ? "Sterilization"
+                          ? t.common.sterilization
                           : alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
                       </Badge>
                     </CardContent>

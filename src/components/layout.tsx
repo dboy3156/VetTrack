@@ -257,8 +257,8 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 size="icon-sm"
                 className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
                 onClick={() => setSyncQueueOpen(true)}
-                title="View sync queue"
-                aria-label="View sync queue"
+                title={t.layout.sync.viewQueue}
+                aria-label={t.layout.sync.viewQueue}
                 data-testid="sync-queue-badge"
               >
                 <CloudOff className="w-4 h-4" aria-hidden="true" />
@@ -273,7 +273,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 side="bottom"
                 content={
                   hasFailed
-                    ? "Some actions failed to sync after several attempts. Tap the cloud icon to view and retry them."
+                    ? t.layout.sync.failedMessage
                     : `${pendingCount} action${pendingCount !== 1 ? "s" : ""} saved locally and waiting to send to the server. Tap the clock pill to sync now, or it will sync automatically when connected.`
                 }
               />
@@ -305,7 +305,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   setQuickSettingsOpen((o) => !o);
                   setMenuOpen(false);
                 }}
-                aria-label="Quick Settings"
+                aria-label={t.common.quickSettings}
                 data-testid="quick-settings-toggle"
                 className="text-muted-foreground hover:text-foreground hover:bg-muted"
               >
@@ -373,7 +373,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 setQuickSettingsOpen(false);
               }}
               data-testid="menu-toggle"
-              aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-label={menuOpen ? t.common.closeNavigationMenu : t.common.openNavigationMenu}
               aria-expanded={menuOpen}
               className="text-muted-foreground hover:text-foreground hover:bg-muted"
             >
