@@ -17,9 +17,15 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 
-// Absolute Safety: No Clerk during CI/Validation
+// HEAL CHECK BYPASS: Force return 200 before any middleware
+app.get("/api/health", (_req, res) => {
+  res.status(200).send("ok");
+  return;
+});
+
+// SAFE CLERK LOAD
 app.use(async (req, res, next) => {
-  if (process.env.NODE_ENV === "production" && process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.startsWith("sk_test_bm90")) {
+  if (process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.includes("test_bm90")) {
     try {
       const { clerkMiddleware } = await import("@clerk/express");
       return clerkMiddleware()(req, res, next);
@@ -29,8 +35,6 @@ app.use(async (req, res, next) => {
   }
   next();
 });
-
-app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);
