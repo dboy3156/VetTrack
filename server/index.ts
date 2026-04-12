@@ -13,6 +13,11 @@ import activityRoutes from "./routes/activity.js";
 import userRoutes from "./routes/users.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Global error boundaries to prevent Railway crashes
+process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));
+process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
+
 const app = express();
 
 app.use(helmet({
@@ -55,7 +60,9 @@ app.use(async (req, res, next) => {
   if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
     try {
       const { clerkMiddleware } = await import("@clerk/express");
-      return clerkMiddleware()(req, res, next);
+      const result = clerkMiddleware()(req, res, next);
+      if (result && typeof result.catch === 'function') { result.catch(e => { console.warn('Clerk async error:', e.message || e); next(); }); }
+      return result;
     } catch (e) {
       return next();
     }
