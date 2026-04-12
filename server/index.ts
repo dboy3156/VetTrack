@@ -1,3 +1,6 @@
+import { validateEnv } from "./lib/envValidation.js";
+validateEnv();
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -40,7 +43,7 @@ app.get("/api/health", (_req, res) => {
 
 // SAFE CLERK LOAD
 app.use(async (req, res, next) => {
-  if (process.env.CLERK_ENABLED !== "false" && process.env.CLERK_SECRET_KEY?.startsWith("sk_live_")) {
+  if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
     try {
       const { clerkMiddleware } = await import("@clerk/express");
       return clerkMiddleware()(req, res, next);
@@ -57,9 +60,9 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/activity", activityRoutes);
 
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../dist/public")));
+  app.use(express.static(path.join(__dirname, "../dist")));
   app.get("*", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../dist/public/index.html"));
+    res.sendFile(path.join(__dirname, "../dist/index.html"));
   });
 }
 

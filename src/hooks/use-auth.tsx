@@ -84,7 +84,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
           });
         } else if (res.status === 403) {
           // טיפול במשתמשים חסומים/ממתינים
-          setState(s => ({ ...s, isLoaded: true, isSignedIn: true, status: data.error?.includes("pending") ? "pending" : "blocked" }));
+          setState(s => ({ ...s, isLoaded: true, isSignedIn: true, status: data.error === "Account pending approval" ? "pending" : "blocked" }));
         }
       } catch (err) {
         console.error("Auth Sync Error:", err);
