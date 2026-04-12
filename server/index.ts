@@ -129,6 +129,13 @@ app.use(
           "https://*.clerk.accounts.dev",
           "https://challenges.cloudflare.com"
         ],
+        scriptSrcElem: [
+          "'self'", 
+          "'unsafe-inline'", 
+          "https://clerk.vettrack.uk", 
+          "https://*.clerk.accounts.dev",
+          "https://challenges.cloudflare.com"
+        ],
         connectSrc: [
           "'self'", 
           "https://clerk.vettrack.uk", 
