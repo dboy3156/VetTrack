@@ -25,7 +25,7 @@ app.get("/api/health", (_req, res) => {
 
 // SAFE CLERK LOAD
 app.use(async (req, res, next) => {
-  if (process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.includes("test_bm90")) {
+  if (process.env.CLERK_ENABLED !== "false" && process.env.CLERK_SECRET_KEY?.startsWith("sk_live_")) {
     try {
       const { clerkMiddleware } = await import("@clerk/express");
       return clerkMiddleware()(req, res, next);
