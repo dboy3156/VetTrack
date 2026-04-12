@@ -32,11 +32,11 @@ app.use(helmet({
   },
 }));
 app.use(cors({
-  origin: (req, callback) => {
-    const origin = req.headers.origin ?? '';
+  origin: (origin, callback) => {
+    const o = origin ?? '';
     const allowed = (process.env.ALLOWED_ORIGIN ?? '').trim();
-    const ok = (allowed.length === 0) || (origin === allowed) || (origin === allowed.replace("https://", "https://www."));
-    callback(null, ok ? origin : false);
+    const ok = (allowed.length === 0) || (o === allowed) || (o === allowed.replace('https://', 'https://www.'));
+    callback(null, ok ? o : false);
   },
   credentials: true,
 }));
