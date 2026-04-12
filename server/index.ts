@@ -32,10 +32,11 @@ app.use(helmet({
   },
 }));
 app.use(cors({
-  origin: [
-    process.env.ALLOWED_ORIGIN,
-    process.env.ALLOWED_ORIGIN?.replace('https://', 'https://www.'),
-  ].filter(Boolean),
+  origin: (req, callback) => {
+    const origin = req.headers.origin ?? '';
+    const allowed = (process.env.ALLOWED_ORIGIN ?? '').trim();
+    callback(null, ok ? origin : false);
+  },
   credentials: true,
 }));
 app.use(compression());
