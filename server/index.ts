@@ -121,17 +121,36 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        connectSrc: ["'self'", "https:"],
-        fontSrc: ["'self'", "data:", "https:"],
-        objectSrc: ["'none'"],
-        upgradeInsecureRequests: [],
+        scriptSrc: [
+          "'self'", 
+          "'unsafe-inline'", 
+          "'unsafe-eval'", 
+          "https://clerk.vettrack.uk", 
+          "https://*.clerk.accounts.dev"
+        ],
+        connectSrc: [
+          "'self'", 
+          "https://clerk.vettrack.uk", 
+          "https://*.clerk.accounts.dev"
+        ],
+        styleSrc: [
+          "'self'", 
+          "'unsafe-inline'", 
+          "https://fonts.googleapis.com"
+        ],
+        fontSrc: [
+          "'self'", 
+          "https://fonts.gstatic.com", 
+          "data:"
+        ],
+        imgSrc: [
+          "'self'", 
+          "data:", 
+          "https://images.clerk.dev"
+        ],
+        workerSrc: ["'self'", "blob:"],
       },
     },
-    crossOriginEmbedderPolicy: false,
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   })
 );
 
