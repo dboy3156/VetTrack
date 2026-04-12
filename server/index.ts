@@ -12,7 +12,19 @@ import userRoutes from "./routes/users.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.vettrack.uk", "https://static.cloudflareinsights.com"],
+      connectSrc: ["'self'", "https://clerk.vettrack.uk", "https://api.clerk.dev"],
+      imgSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://clerk.vettrack.uk"],
+      workerSrc: ["'self'", "blob:"],
+    },
+  },
+}));
 app.use(cors());
 app.use(compression());
 app.use(express.json());
