@@ -35,6 +35,7 @@ app.use(cors({
   origin: (req, callback) => {
     const origin = req.headers.origin ?? '';
     const allowed = (process.env.ALLOWED_ORIGIN ?? '').trim();
+    const ok = (allowed.length === 0) || (origin === allowed) || (origin === allowed.replace("https://", "https://www."));
     callback(null, ok ? origin : false);
   },
   credentials: true,
