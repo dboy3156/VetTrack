@@ -126,7 +126,8 @@ app.use(
           "'unsafe-inline'", 
           "'unsafe-eval'", 
           "https://clerk.vettrack.uk", 
-          "https://*.clerk.accounts.dev"
+          "https://*.clerk.accounts.dev",
+          "https://challenges.cloudflare.com"
         ],
         connectSrc: [
           "'self'", 
@@ -150,6 +151,11 @@ app.use(
           "https://*.clerk.dev",
           "https://www.gstatic.com",
           "https://*.googleusercontent.com"
+        ],
+        frameSrc: [
+          "'self'",
+          "https://challenges.cloudflare.com",
+          "https://*.clerk.accounts.dev"
         ],
         workerSrc: ["'self'", "blob:"],
       },
