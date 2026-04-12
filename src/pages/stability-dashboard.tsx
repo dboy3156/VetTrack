@@ -482,6 +482,7 @@ export default function StabilityDashboardPage() {
               תוצאות בדיקה
               {isRunning && <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto" />}
               {report?.status === "done" && (
+              <>
                 <Button
                   variant="outline"
                   size="sm"
@@ -494,6 +495,7 @@ export default function StabilityDashboardPage() {
                 <Badge variant="outline" className="ml-auto text-xs">
                   {format(new Date(report.finishedAt!), "dd MMM HH:mm:ss")}
                 </Badge>
+              </>
               )}
             </CardTitle>
           </CardHeader>
