@@ -19,16 +19,16 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.vettrack.uk", "https://*.clerk.accounts.dev", "https://static.cloudflareinsights.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://clerk.vettrack.uk", "https://static.cloudflareinsights.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://clerk.vettrack.uk", "https://*.clerk.accounts.dev", "https://static.cloudflareinsights.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://clerk.vettrack.uk", "https://static.cloudflareinsights.com"],
       connectSrc: ["'self'", "https://clerk.vettrack.uk", "https://api.clerk.dev", "https://clerk.dev"],
       imgSrc: ["'self'", "data:", "https:"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
-      styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
+      styleSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
+      styleSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       frameSrc: ["'self'", "https://clerk.vettrack.uk"],
       workerSrc: ["'self'", "blob:", "https://clerk.vettrack.uk"],
-      scriptSrcAttr: ["'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'", "'unsafe-eval'"],
     },
   },
 }));
