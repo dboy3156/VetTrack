@@ -2,7 +2,7 @@ import { logAction } from "./stability-log.js";
 import { STABILITY_TOKEN } from "./stability-token.js";
 
 const PORT = Number(process.env.PORT) || 3001;
-const BASE = `http://localhost:${PORT}`;
+const BASE = process.env.NODE_ENV === "production" ? "https://vettrack.uk" : `http://127.0.0.1:${PORT}`;
 
 export type TestStatus = "pass" | "fail" | "warn" | "skip";
 

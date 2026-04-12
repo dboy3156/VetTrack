@@ -26,13 +26,14 @@ import {
   RefreshCw,
   CalendarClock,
   ToggleLeft,
-  ToggleRight,
+  ToggleRight, FileText,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
 
 const API = "/api/stability";
 
@@ -240,6 +241,29 @@ const SCHEDULE_OPTIONS = [
   { label: "כל 24 שעות", value: 24 },
 ];
 
+const exportStabilityPDF = (report: TestReport) => { 
+  const doc = new jsPDF(); 
+  doc.setFont("helvetica", "bold"); doc.setFontSize(20); 
+  doc.text("VetTrack Stability Report", 14, 22); 
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10); 
+  doc.text(`Run ID: ${report.runId}`, 14, 30); 
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 35); 
+  let y = 45; 
+  doc.setLineWidth(0.5); doc.line(14, y, 196, y); y += 10; 
+  doc.setFontSize(12); doc.text("Summary:", 14, y); y += 7; 
+  doc.setFontSize(10); 
+  doc.text(`Passed: ${report.summary.passed} | Failed: ${report.summary.failed} | Latency: ${report.summary.avgLatencyMs}ms`, 14, y); 
+  y += 15; 
+  report.results.forEach((res, i) => { 
+    if (y > 270) { doc.addPage(); y = 20; } 
+    doc.setTextColor(0, 0, 0); doc.text(`${i + 1}. ${res.name}`, 14, y); 
+    const color = res.status === "pass" ? [0, 128, 0] : res.status === "fail" ? [200, 0, 0] : [214, 158, 0]; 
+    doc.setTextColor(color[0], color[1], color[2]); 
+    doc.text(res.status.toUpperCase(), 170, y); 
+    y += 7; 
+  }); 
+  doc.save(`VetTrack-Stability-${report.runId}.pdf`); 
+};
 export default function StabilityDashboardPage() {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
@@ -458,6 +482,15 @@ export default function StabilityDashboardPage() {
               תוצאות בדיקה
               {isRunning && <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto" />}
               {report?.status === "done" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-7 gap-1.5 text-[10px] font-bold border-primary/20 hover:bg-primary/5"
+                  onClick={() => exportStabilityPDF(report)}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  PDF REPORT
+                </Button>
                 <Badge variant="outline" className="ml-auto text-xs">
                   {format(new Date(report.finishedAt!), "dd MMM HH:mm:ss")}
                 </Badge>

@@ -15,7 +15,7 @@ import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
 const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
 const createEquipmentSchema = z.object({
-  name: z.string().min(1, "Name is required").max(500),
+  name: z.string().trim().min(1, "Name is required").max(500),
   serialNumber: z.string().max(500).optional(),
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
@@ -53,7 +53,7 @@ const checkoutSchema = z.object({
 
 const scanSchema = z.object({
   status: z.enum(EQUIPMENT_STATUS_VALUES),
-  note: z.string().max(500).optional(),
+  note: z.string().trim().max(500).optional(),
   photoUrl: z.string().max(500).optional(),
 });
 
