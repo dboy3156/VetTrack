@@ -88,10 +88,11 @@ app.use(compression());
 app.use(express.json());
 
 // HEAL CHECK BYPASS: Force return 200 before any middleware
-app.get("/api/health", (_req, res) => {
+function sendHealthOk(_req: express.Request, res: express.Response) {
   res.status(200).send("ok");
-  return;
-});
+}
+app.get("/api/health", sendHealthOk);
+app.get("/api/healthz", sendHealthOk);
 
 // SAFE CLERK LOAD
 app.use(async (req, res, next) => {

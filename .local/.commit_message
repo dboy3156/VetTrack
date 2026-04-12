@@ -1,0 +1,19 @@
+fix: remove spinner flicker on route navigation with DelayedFallback
+
+One file changed: src/App.tsx
+
+The global <Suspense> wrapping all lazy routes had fallback={<PageLoader />}.
+On every client-side navigation React unmounted the incoming lazy chunk,
+suspended, and immediately rendered the full-page spinner — even for chunks
+that were already cached and resolved in < 1 frame. This caused the visible
+flash: spinner → skeleton → content.
+
+Fix: replace <PageLoader /> in the fallback with <DelayedFallback />.
+DelayedFallback renders nothing for the first 150 ms. If the lazy chunk
+resolves within that window (true for any already-cached chunk and most
+fast-network loads) the user sees nothing at all — the skeleton the page
+renders on its own appears directly. Only if the chunk genuinely takes
+longer than 150 ms does the spinner appear, which is the correct behavior
+for slow connections or first-load of an uncached chunk.
+
+useState and useEffect were added to the React import; no other changes.

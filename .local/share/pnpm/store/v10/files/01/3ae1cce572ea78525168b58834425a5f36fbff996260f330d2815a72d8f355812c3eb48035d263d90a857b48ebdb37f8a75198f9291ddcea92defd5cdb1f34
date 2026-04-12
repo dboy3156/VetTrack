@@ -1,0 +1,52 @@
+import type { EnhancedPage } from './app';
+export declare const createAPIKeysComponentPageObject: (testArgs: {
+    page: EnhancedPage;
+}) => {
+    waitForMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    clickAddButton: () => Promise<void>;
+    waitForFormOpened: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    waitForFormClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+    waitForRevokeModalOpened: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    waitForRevokeModalClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+    waitForCopyModalOpened: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    waitForCopyModalClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+    clickCopyAndCloseButton: () => Promise<void>;
+    typeName: (value: string) => Promise<void>;
+    typeDescription: (value: string) => Promise<void>;
+    selectExpiration: (value?: "never" | "1d" | "7d" | "30d" | "60d" | "90d" | "180d" | "1y") => Promise<void>;
+    clickSaveButton: () => Promise<void>;
+    typeRevokeConfirmation: (value: string) => Promise<void>;
+    clickConfirmRevokeButton: () => Promise<void>;
+    continue: () => Promise<void>;
+    setEmailAddress: (val: string) => Promise<void>;
+    setPassword: (val: string) => Promise<void>;
+    setPasswordConfirmation: (val: string) => Promise<void>;
+    enterOtpCode: (code: string, opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    enterTestOtpCode: (opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    fillTestOtpCode: (name: string, opts?: Omit<{
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }, "name">) => Promise<void>;
+    getIdentifierInput: () => import("@playwright/test").Locator;
+    getEmailAddressInput: () => import("@playwright/test").Locator;
+    getPhoneNumberInput: () => import("@playwright/test").Locator;
+    getUsernameInput: () => import("@playwright/test").Locator;
+    getPasswordInput: () => import("@playwright/test").Locator;
+    getLegalAccepted: () => import("@playwright/test").Locator;
+    getFirstNameInput: () => import("@playwright/test").Locator;
+    getLastNameInput: () => import("@playwright/test").Locator;
+    waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+};
+//# sourceMappingURL=apiKeys.d.ts.map

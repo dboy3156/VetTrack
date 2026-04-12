@@ -1,0 +1,8 @@
+import type { EnhancedPage } from './app';
+export declare const createImpersonationPageObject: (testArgs: {
+    page: EnhancedPage;
+}) => {
+    waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    getSignOutLink: () => import("@playwright/test").Locator;
+};
+//# sourceMappingURL=impersonation.d.ts.map

@@ -95,8 +95,10 @@ export async function getCachedRoomById(id: string): Promise<Room | undefined> {
   return offlineDb.rooms.get(id);
 }
 
-export async function addPendingSync(op: Omit<PendingSync, "id">) {
-  return offlineDb.pendingSync.add(op);
+export async function addPendingSync(op: Omit<PendingSync, "id">): Promise<number | undefined> {
+  const table = offlineDb.pendingSync;
+  if (!table) return undefined;
+  return table.add(op);
 }
 
 export async function getPendingSync(): Promise<PendingSync[]> {

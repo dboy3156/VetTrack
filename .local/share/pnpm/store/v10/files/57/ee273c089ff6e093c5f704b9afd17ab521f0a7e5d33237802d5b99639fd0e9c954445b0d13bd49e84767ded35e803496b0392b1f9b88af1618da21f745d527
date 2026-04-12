@@ -1,0 +1,28 @@
+import type { Page } from '@playwright/test';
+export type EnhancedPage = ReturnType<typeof createAppPageObject>;
+export declare const createAppPageObject: (testArgs: {
+    page: Page;
+    useTestingToken?: boolean;
+}, app: {
+    baseURL?: string;
+}) => Page & {
+    goToAppHome: () => Promise<void>;
+    goToRelative: (path: string, opts?: {
+        waitUntil?: any;
+        searchParams?: URLSearchParams;
+        timeout?: number;
+    }) => Promise<import("@playwright/test").Response | null>;
+    waitForClerkJsLoaded: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    signOut: () => Promise<import("@playwright/test").JSHandle<void>>;
+    waitForClerkComponentMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    waitForAppUrl: (relativePath: string) => Promise<void>;
+    /**
+     * Get the cookies for the URL the page is currently at.
+     * Suffixed cookies can be accessed by using the wildcard character `*` at the end of the cookie name,
+     * eg `get('__session')` and `get('__session_*')`.
+     */
+    cookies: () => Promise<Map<string, import("@playwright/test").Cookie> & {
+        raw: () => import("@playwright/test").Cookie[];
+    }>;
+};
+//# sourceMappingURL=app.d.ts.map

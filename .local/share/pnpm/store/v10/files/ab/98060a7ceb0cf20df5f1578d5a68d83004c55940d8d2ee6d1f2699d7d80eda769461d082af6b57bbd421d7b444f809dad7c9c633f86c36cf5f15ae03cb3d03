@@ -1,0 +1,56 @@
+import type { EnhancedPage } from './app';
+export declare const createCheckoutPageObject: (testArgs: {
+    page: EnhancedPage;
+}) => {
+    waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    closeDrawer: () => Promise<void>;
+    fillTestCard: () => Promise<void>;
+    fillCard: (card: {
+        number: string;
+        expiration: string;
+        cvc: string;
+        country: string;
+        zip: string;
+    }) => Promise<void>;
+    waitForStripeElements: ({ state }?: {
+        state?: "visible" | "hidden";
+    }) => Promise<void>;
+    clickPayOrSubscribe: () => Promise<void>;
+    waitForSubscribeButton: () => Promise<void>;
+    confirmAndContinue: () => Promise<void>;
+    clickAddPaymentMethod: () => Promise<void>;
+    clickPaymentMethods: () => Promise<void>;
+    root: import("@playwright/test").Locator;
+    continue: () => Promise<void>;
+    setEmailAddress: (val: string) => Promise<void>;
+    setPassword: (val: string) => Promise<void>;
+    setPasswordConfirmation: (val: string) => Promise<void>;
+    enterOtpCode: (code: string, opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    enterTestOtpCode: (opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    fillTestOtpCode: (name: string, opts?: Omit<{
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }, "name">) => Promise<void>;
+    getIdentifierInput: () => import("@playwright/test").Locator;
+    getEmailAddressInput: () => import("@playwright/test").Locator;
+    getPhoneNumberInput: () => import("@playwright/test").Locator;
+    getUsernameInput: () => import("@playwright/test").Locator;
+    getPasswordInput: () => import("@playwright/test").Locator;
+    getLegalAccepted: () => import("@playwright/test").Locator;
+    getFirstNameInput: () => import("@playwright/test").Locator;
+    getLastNameInput: () => import("@playwright/test").Locator;
+    waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+};
+//# sourceMappingURL=checkout.d.ts.map

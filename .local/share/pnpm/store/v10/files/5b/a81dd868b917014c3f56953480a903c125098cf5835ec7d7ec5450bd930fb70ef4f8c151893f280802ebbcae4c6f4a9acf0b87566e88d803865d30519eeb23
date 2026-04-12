@@ -1,0 +1,13 @@
+import type { EnhancedPage } from './app';
+export declare const createKeylessPopoverPageObject: (testArgs: {
+    page: EnhancedPage;
+}) => {
+    waitForMounted: () => Promise<void>;
+    waitForUnmounted: () => Promise<void>;
+    isExpanded: () => Promise<boolean>;
+    toggle: () => Promise<void>;
+    promptsToClaim: () => import("@playwright/test").Locator;
+    promptToUseClaimedKeys: () => import("@playwright/test").Locator;
+    promptToDismiss: () => import("@playwright/test").Locator;
+};
+//# sourceMappingURL=keylessPopover.d.ts.map

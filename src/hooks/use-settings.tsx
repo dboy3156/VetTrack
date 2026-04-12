@@ -49,17 +49,21 @@ function saveSettings(settings: Settings) {
 
 function applySettings(settings: Settings) {
   const html = document.documentElement;
+  const list = html?.classList;
+  if (!list) return;
   if (settings.darkMode) {
-    html.classList.add("dark");
+    list.add("dark");
   } else {
-    html.classList.remove("dark");
+    list.remove("dark");
   }
   html.setAttribute("data-density", settings.density);
   const brightness = Math.min(100, Math.max(30, settings.brightness ?? 100));
+  const body = document.body;
+  if (!body) return;
   if (brightness < 100) {
-    document.body.style.filter = `brightness(${brightness}%)`;
+    body.style.filter = `brightness(${brightness}%)`;
   } else {
-    document.body.style.filter = "";
+    body.style.filter = "";
   }
 }
 

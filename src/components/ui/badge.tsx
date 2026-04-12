@@ -21,9 +21,15 @@ const badgeVariants = cva(
   }
 );
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
+
+export type BadgeProps = Omit<
+  React.ComponentPropsWithoutRef<"div">,
+  "children"
+> & {
+  variant?: BadgeVariant | null;
+  children?: React.ReactNode;
+};
 
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (

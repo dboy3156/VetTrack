@@ -1,0 +1,12 @@
+import type { EnhancedPage } from './app';
+export declare const createClerkPageObject: ({ page }: {
+    page: EnhancedPage;
+}) => {
+    toBeLoaded: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    getClientSideActor: () => Promise<import("@clerk/shared/types").ActClaim | null | undefined>;
+    toBeLoading: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    toBeReady: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    toBeDegraded: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    getClientSideUser: () => Promise<import("@clerk/shared/types").UserResource | null | undefined>;
+};
+//# sourceMappingURL=clerk.d.ts.map

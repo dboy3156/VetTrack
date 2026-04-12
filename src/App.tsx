@@ -1,6 +1,6 @@
 import { Switch, Route, Redirect } from "wouter";
-import { Suspense, lazy, type ReactNode } from "react";
-import { Loader2, ShieldAlert, Lock, Clock } from "lucide-react";
+import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
+import { Loader2, ShieldAlert, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -9,9 +9,20 @@ const SignInPage = lazy(() => import("@/pages/signin"));
 const EquipmentPage = lazy(() => import("@/pages/equipment-list"));
 
 function AuthGuard({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
   const { isLoaded, isSignedIn, status, signOut } = useAuth();
 
-  if (!isLoaded) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
   if (!isSignedIn) return <Redirect to="/signin" />;
 
   if (status === "pending") return (

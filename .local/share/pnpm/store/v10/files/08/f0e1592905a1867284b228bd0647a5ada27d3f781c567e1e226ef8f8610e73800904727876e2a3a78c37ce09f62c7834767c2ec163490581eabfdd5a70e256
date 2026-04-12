@@ -1,0 +1,105 @@
+{
+  "name": "@clerk/testing",
+  "version": "2.0.12",
+  "description": "Utilities to help you create E2E test suites for apps using Clerk",
+  "keywords": [
+    "auth",
+    "authentication",
+    "passwordless",
+    "session",
+    "jwt",
+    "playwright",
+    "cypress",
+    "testing",
+    "e2e"
+  ],
+  "homepage": "https://clerk.com",
+  "bugs": {
+    "url": "https://github.com/clerk/javascript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clerk/javascript.git",
+    "directory": "packages/testing"
+  },
+  "license": "MIT",
+  "author": "Clerk",
+  "sideEffects": false,
+  "exports": {
+    "./playwright": {
+      "import": {
+        "types": "./dist/types/playwright/index.d.ts",
+        "default": "./dist/playwright/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/playwright/index.d.ts",
+        "default": "./dist/playwright/index.js"
+      }
+    },
+    "./playwright/unstable": {
+      "import": {
+        "types": "./dist/types/playwright/unstable/index.d.ts",
+        "default": "./dist/playwright/unstable/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/playwright/unstable/index.d.ts",
+        "default": "./dist/playwright/unstable/index.js"
+      }
+    },
+    "./cypress": {
+      "import": {
+        "types": "./dist/types/cypress/index.d.ts",
+        "default": "./dist/cypress/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/cypress/index.d.ts",
+        "default": "./dist/cypress/index.js"
+      }
+    }
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/types/index.d.ts",
+  "files": [
+    "dist",
+    "playwright",
+    "cypress"
+  ],
+  "dependencies": {
+    "dotenv": "17.2.2",
+    "@clerk/backend": "^3.2.8",
+    "@clerk/shared": "^4.6.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "cypress": "^14.5.4"
+  },
+  "peerDependencies": {
+    "@playwright/test": "^1",
+    "cypress": "^13 || ^14"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    },
+    "cypress": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup --env.NODE_ENV production",
+    "clean": "rimraf ./dist",
+    "dev": "tsup --watch",
+    "dev:pub": "pnpm dev -- --env.publish",
+    "format": "node ../../scripts/format-package.mjs",
+    "format:check": "node ../../scripts/format-package.mjs --check",
+    "lint": "eslint src",
+    "test": "vitest"
+  }
+}

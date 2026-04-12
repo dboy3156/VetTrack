@@ -1,0 +1,55 @@
+
+> vettrack@1.1.0 predev
+> fuser -k 3001/tcp 5000/tcp 2>/dev/null; true
+
+[1G[0K[1G[0K⠙[1G[0K
+> vettrack@1.1.0 dev
+> concurrently -k -p "[{name}]" -n "api,web" -c "cyan,teal" "tsx watch server/index.ts" "vite --port 5000 --host"
+
+[1G[0K⠙[1G[0K[0m[web][0m [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+[0m[web][0m 
+[0m[web][0m   [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m318[22m[2m[0m ms[22m
+[0m[web][0m 
+[0m[web][0m   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5000[22m/[39m
+[0m[web][0m   [32m➜[39m  [1mNetwork[22m: [36mhttp://172.31.122.2:[1m5000[22m/[39m
+[36m[api][39m 
+[36m[api][39m node:internal/modules/run_main:123
+[36m[api][39m     triggerUncaughtException(
+[36m[api][39m     ^
+[36m[api][39m Error: Transform failed with 1 error:
+[36m[api][39m /home/runner/workspace/server/index.ts:325:0: ERROR: Unexpected "}"
+[36m[api][39m     at failureErrorWithLog [90m(/home/runner/workspace/[39mnode_modules/[4m.pnpm[24m/esbuild@0.27.7/node_modules/[4mesbuild[24m/lib/main.js:1748:15[90m)[39m
+[36m[api][39m     at [90m/home/runner/workspace/[39mnode_modules/[4m.pnpm[24m/esbuild@0.27.7/node_modules/[4mesbuild[24m/lib/main.js:1017:50
+[36m[api][39m     at responseCallbacks.<computed> [90m(/home/runner/workspace/[39mnode_modules/[4m.pnpm[24m/esbuild@0.27.7/node_modules/[4mesbuild[24m/lib/main.js:884:9[90m)[39m
+[36m[api][39m     at handleIncomingPacket [90m(/home/runner/workspace/[39mnode_modules/[4m.pnpm[24m/esbuild@0.27.7/node_modules/[4mesbuild[24m/lib/main.js:939:12[90m)[39m
+[36m[api][39m     at Socket.readFromStdout [90m(/home/runner/workspace/[39mnode_modules/[4m.pnpm[24m/esbuild@0.27.7/node_modules/[4mesbuild[24m/lib/main.js:862:7[90m)[39m
+[36m[api][39m [90m    at Socket.emit (node:events:524:28)[39m
+[36m[api][39m [90m    at addChunk (node:internal/streams/readable:561:12)[39m
+[36m[api][39m [90m    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)[39m
+[36m[api][39m [90m    at Readable.push (node:internal/streams/readable:392:5)[39m
+[36m[api][39m [90m    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)[39m {
+[36m[api][39m   name: [32m'TransformError'[39m
+[36m[api][39m }
+[36m[api][39m 
+[36m[api][39m Node.js v20.20.0
+[0m[web][0m [2m8:10:06 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/users/me[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[0m[web][0m [2m8:10:08 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/version[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[0m[web][0m [2m8:10:08 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/equipment[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[0m[web][0m [2m8:10:08 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/equipment/my[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[0m[web][0m [2m8:10:08 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/activity[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[0m[web][0m [2m8:10:08 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/version[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[0m[web][0m [2m8:10:14 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/equipment[39m
+[0m[web][0m Error: connect ECONNREFUSED 127.0.0.1:3001
+[0m[web][0m     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)

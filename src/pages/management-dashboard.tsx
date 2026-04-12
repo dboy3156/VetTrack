@@ -69,7 +69,7 @@ export default function ManagementDashboardPage() {
     : null;
 
   function toggleUser(userId: string) {
-    setExpandedUsers((prev) => {
+    setExpandedUsers((prev: Set<string>) => {
       const next = new Set(prev);
       if (next.has(userId)) {
         next.delete(userId);

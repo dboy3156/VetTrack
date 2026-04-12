@@ -1,0 +1,48 @@
+import type { EnhancedPage } from './app';
+type WaitlistFormInputs = {
+    email: string;
+};
+export declare const createWaitlistComponentPageObject: (testArgs: {
+    page: EnhancedPage;
+}) => {
+    goTo: (opts?: {
+        searchParams?: URLSearchParams;
+        headlessSelector?: string;
+    }) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    joinWaitlist: (opts: WaitlistFormInputs) => Promise<void>;
+    joinWaitlistContinue: () => Promise<void>;
+    continue: () => Promise<void>;
+    setEmailAddress: (val: string) => Promise<void>;
+    setPassword: (val: string) => Promise<void>;
+    setPasswordConfirmation: (val: string) => Promise<void>;
+    enterOtpCode: (code: string, opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    enterTestOtpCode: (opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    fillTestOtpCode: (name: string, opts?: Omit<{
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }, "name">) => Promise<void>;
+    getIdentifierInput: () => import("@playwright/test").Locator;
+    getEmailAddressInput: () => import("@playwright/test").Locator;
+    getPhoneNumberInput: () => import("@playwright/test").Locator;
+    getUsernameInput: () => import("@playwright/test").Locator;
+    getPasswordInput: () => import("@playwright/test").Locator;
+    getLegalAccepted: () => import("@playwright/test").Locator;
+    getFirstNameInput: () => import("@playwright/test").Locator;
+    getLastNameInput: () => import("@playwright/test").Locator;
+    waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+};
+export {};
+//# sourceMappingURL=waitlist.d.ts.map

@@ -1,0 +1,14 @@
+import type { Response } from '@playwright/test';
+import type { EnhancedPage } from './app';
+export declare const createExpectPageObject: ({ page }: {
+    page: EnhancedPage;
+}) => {
+    toBeHandshake: (res: Response) => Promise<void>;
+    toBeSignedOut: (args?: {
+        timeOut: number;
+    }) => Promise<import("@playwright/test").JSHandle<boolean>>;
+    toBeSignedIn: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    toBeSignedInAsActor: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    toHaveResolvedTask: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+};
+//# sourceMappingURL=expect.d.ts.map

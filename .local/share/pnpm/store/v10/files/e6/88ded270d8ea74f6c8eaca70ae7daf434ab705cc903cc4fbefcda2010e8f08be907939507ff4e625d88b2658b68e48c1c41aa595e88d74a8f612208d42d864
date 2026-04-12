@@ -1,0 +1,43 @@
+import type { EnhancedPage } from './app';
+export declare const createUserVerificationComponentPageObject: (testArgs: {
+    page: EnhancedPage;
+}) => {
+    waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+    waitForClosed: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+    closeReverificationModal: () => Promise<void>;
+    getUseAnotherMethodLink: () => import("@playwright/test").Locator;
+    getAltMethodsEmailCodeButton: () => import("@playwright/test").Locator;
+    getAltMethodsEmailLinkButton: () => import("@playwright/test").Locator;
+    continue: () => Promise<void>;
+    setEmailAddress: (val: string) => Promise<void>;
+    setPassword: (val: string) => Promise<void>;
+    setPasswordConfirmation: (val: string) => Promise<void>;
+    enterOtpCode: (code: string, opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    enterTestOtpCode: (opts?: {
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }) => Promise<void>;
+    fillTestOtpCode: (name: string, opts?: Omit<{
+        name?: string;
+        awaitRequests?: boolean;
+        awaitPrepare?: boolean;
+        awaitAttempt?: boolean;
+    }, "name">) => Promise<void>;
+    getIdentifierInput: () => import("@playwright/test").Locator;
+    getEmailAddressInput: () => import("@playwright/test").Locator;
+    getPhoneNumberInput: () => import("@playwright/test").Locator;
+    getUsernameInput: () => import("@playwright/test").Locator;
+    getPasswordInput: () => import("@playwright/test").Locator;
+    getLegalAccepted: () => import("@playwright/test").Locator;
+    getFirstNameInput: () => import("@playwright/test").Locator;
+    getLastNameInput: () => import("@playwright/test").Locator;
+    waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+};
+//# sourceMappingURL=userVerification.d.ts.map

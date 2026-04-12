@@ -1,0 +1,626 @@
+import type { Page } from '@playwright/test';
+export declare const createPageObjects: ({ page, useTestingToken, baseURL, }: {
+    page: Page;
+    useTestingToken?: boolean;
+    baseURL?: string;
+}) => {
+    page: Page & {
+        goToAppHome: () => Promise<void>;
+        goToRelative: (path: string, opts?: {
+            waitUntil?: any;
+            searchParams?: URLSearchParams;
+            timeout?: number;
+        }) => Promise<import("@playwright/test").Response | null>;
+        waitForClerkJsLoaded: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        signOut: () => Promise<import("@playwright/test").JSHandle<void>>;
+        waitForClerkComponentMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForAppUrl: (relativePath: string) => Promise<void>;
+        cookies: () => Promise<Map<string, import("@playwright/test").Cookie> & {
+            raw: () => import("@playwright/test").Cookie[];
+        }>;
+    };
+    clerk: {
+        toBeLoaded: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        getClientSideActor: () => Promise<import("@clerk/shared/types").ActClaim | null | undefined>;
+        toBeLoading: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        toBeReady: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        toBeDegraded: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        getClientSideUser: () => Promise<import("@clerk/shared/types").UserResource | null | undefined>;
+    };
+    checkout: {
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        closeDrawer: () => Promise<void>;
+        fillTestCard: () => Promise<void>;
+        fillCard: (card: {
+            number: string;
+            expiration: string;
+            cvc: string;
+            country: string;
+            zip: string;
+        }) => Promise<void>;
+        waitForStripeElements: ({ state }?: {
+            state?: "visible" | "hidden";
+        }) => Promise<void>;
+        clickPayOrSubscribe: () => Promise<void>;
+        waitForSubscribeButton: () => Promise<void>;
+        confirmAndContinue: () => Promise<void>;
+        clickAddPaymentMethod: () => Promise<void>;
+        clickPaymentMethods: () => Promise<void>;
+        root: import("@playwright/test").Locator;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    expect: {
+        toBeHandshake: (res: import("@playwright/test").Response) => Promise<void>;
+        toBeSignedOut: (args?: {
+            timeOut: number;
+        }) => Promise<import("@playwright/test").JSHandle<boolean>>;
+        toBeSignedIn: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        toBeSignedInAsActor: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+        toHaveResolvedTask: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    impersonation: {
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        getSignOutLink: () => import("@playwright/test").Locator;
+    };
+    keylessPopover: {
+        waitForMounted: () => Promise<void>;
+        waitForUnmounted: () => Promise<void>;
+        isExpanded: () => Promise<boolean>;
+        toggle: () => Promise<void>;
+        promptsToClaim: () => import("@playwright/test").Locator;
+        promptToUseClaimedKeys: () => import("@playwright/test").Locator;
+        promptToDismiss: () => import("@playwright/test").Locator;
+    };
+    organizationSwitcher: {
+        goTo: (relativePath?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        expectNoOrganizationSelected: () => Promise<void>;
+        expectPersonalAccount: () => Promise<void>;
+        toggleTrigger: () => Promise<void>;
+        waitForAnOrganizationToSelected: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    pricingTable: {
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        clickResubscribe: () => Promise<void>;
+        waitToBeActive: ({ planSlug }: {
+            planSlug: string;
+        }) => Promise<void>;
+        waitToBeFreeTrial: ({ planSlug }: {
+            planSlug: string;
+        }) => Promise<void>;
+        getPlanCardCTA: ({ planSlug }: {
+            planSlug: string;
+        }) => import("@playwright/test").Locator;
+        startCheckout: ({ planSlug, shouldSwitch, period, }: {
+            planSlug: string;
+            shouldSwitch?: boolean;
+            period?: "monthly" | "annually";
+        }) => Promise<void>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    sessionTask: {
+        resolveForceOrganizationSelectionTask: (fakeOrganization: {
+            name: string;
+            slug?: string;
+        }) => Promise<void>;
+        resolveResetPasswordTask: ({ newPassword, confirmPassword, }: {
+            newPassword: string;
+            confirmPassword: string;
+        }) => Promise<void>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    signIn: {
+        goTo: (opts?: {
+            searchParams?: URLSearchParams;
+            headlessSelector?: string;
+            timeout?: number;
+        }) => Promise<import("@playwright/test").Response | null>;
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForModal: (state?: "open" | "closed") => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        setIdentifier: (val: string) => Promise<void>;
+        setInstantPassword: (val: string) => Promise<void>;
+        usePhoneNumberIdentifier: () => import("@playwright/test").Locator;
+        useEmailIdentifier: () => import("@playwright/test").Locator;
+        useUsernameIdentifier: () => import("@playwright/test").Locator;
+        getForgotPassword: () => import("@playwright/test").Locator;
+        getGoToSignUp: () => import("@playwright/test").Locator;
+        getResetPassword: () => import("@playwright/test").Locator;
+        getUseAnotherMethodLink: () => import("@playwright/test").Locator;
+        getAltMethodsEmailCodeButton: () => import("@playwright/test").Locator;
+        getAltMethodsEmailLinkButton: () => import("@playwright/test").Locator;
+        signInWithOauth: (provider: string) => import("@playwright/test").Locator;
+        signInWithEmailAndInstantPassword: ({ email, password, waitForSession, }: {
+            email: string;
+            password: string;
+            waitForSession?: boolean;
+        }) => Promise<void>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    signUp: {
+        goTo: (opts?: {
+            searchParams?: URLSearchParams;
+            headlessSelector?: string;
+        }) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForModal: (state?: "open" | "closed") => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        signUpWithOauth: (provider: string) => import("@playwright/test").Locator;
+        signUp: (opts: {
+            email?: string;
+            password?: string;
+            firstName?: string;
+            lastName?: string;
+            username?: string;
+            phoneNumber?: string;
+            legalAccepted?: boolean;
+        }) => Promise<void>;
+        signUpWithEmailAndPassword: (opts: Pick<{
+            email?: string;
+            password?: string;
+            firstName?: string;
+            lastName?: string;
+            username?: string;
+            phoneNumber?: string;
+            legalAccepted?: boolean;
+        }, "email" | "password">) => Promise<void>;
+        waitForEmailVerificationScreen: () => Promise<void>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    testingToken: {
+        setup: () => Promise<void>;
+    };
+    userAvatar: {
+        goTo: (opts?: {
+            searchParams: URLSearchParams;
+        }) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        toBeVisible: (selector?: string) => Promise<void>;
+    };
+    userButton: {
+        waitForMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        toggleTrigger: () => Promise<void>;
+        waitForPopover: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForPopoverClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        toHaveVisibleMenuItems: (menuItems: string | RegExp | Array<string | RegExp>) => Promise<void>;
+        triggerSignOut: () => Promise<void>;
+        triggerManageAccount: () => Promise<void>;
+        switchAccount: (emailAddress: string) => Promise<void>;
+    };
+    userProfile: {
+        goTo: (opts?: {
+            searchParams: URLSearchParams;
+        }) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        switchToSecurityTab: () => Promise<void>;
+        switchToBillingTab: () => Promise<void>;
+        switchToAPIKeysTab: () => Promise<void>;
+        waitForMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        clickSetUsername: () => Promise<void>;
+        clickToUpdateProfile: () => Promise<void>;
+        clickUpdateUsername: () => Promise<void>;
+        clickSetPassword: () => Promise<void>;
+        waitForSectionCard: (section: import("./userProfile").Sections, opened: boolean) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        waitForSectionCardOpened: (section: import("./userProfile").Sections) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        waitForSectionCardClosed: (section: import("./userProfile").Sections) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        typeUsername: (value: string) => Promise<void>;
+        typeFirstName: (value: string) => Promise<void>;
+        typeLastName: (value: string) => Promise<void>;
+        typePhoneNumber: (value: string) => Promise<void>;
+        clickAddEmailAddress: () => Promise<void>;
+        clickAddPhoneNumber: () => Promise<void>;
+        typeEmailAddress: (value: string) => Promise<void>;
+        waitForUserProfileModal: (state?: "open" | "closed") => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    userVerification: {
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForClosed: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        closeReverificationModal: () => Promise<void>;
+        getUseAnotherMethodLink: () => import("@playwright/test").Locator;
+        getAltMethodsEmailCodeButton: () => import("@playwright/test").Locator;
+        getAltMethodsEmailLinkButton: () => import("@playwright/test").Locator;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    waitlist: {
+        goTo: (opts?: {
+            searchParams?: URLSearchParams;
+            headlessSelector?: string;
+        }) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        joinWaitlist: (opts: {
+            email: string;
+        }) => Promise<void>;
+        joinWaitlistContinue: () => Promise<void>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    apiKeys: {
+        waitForMounted: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        clickAddButton: () => Promise<void>;
+        waitForFormOpened: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForFormClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        waitForRevokeModalOpened: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForRevokeModalClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        waitForCopyModalOpened: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForCopyModalClosed: () => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement> | null>;
+        clickCopyAndCloseButton: () => Promise<void>;
+        typeName: (value: string) => Promise<void>;
+        typeDescription: (value: string) => Promise<void>;
+        selectExpiration: (value?: "never" | "1d" | "7d" | "30d" | "60d" | "90d" | "180d" | "1y") => Promise<void>;
+        clickSaveButton: () => Promise<void>;
+        typeRevokeConfirmation: (value: string) => Promise<void>;
+        clickConfirmRevokeButton: () => Promise<void>;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    subscriptionDetails: {
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        waitForUnmounted: () => Promise<void>;
+        closeDrawer: () => Promise<void>;
+        root: import("@playwright/test").Locator;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+    planDetails: {
+        waitForMounted: (selector?: string) => Promise<import("@playwright/test").ElementHandle<SVGElement | HTMLElement>>;
+        root: import("@playwright/test").Locator;
+        continue: () => Promise<void>;
+        setEmailAddress: (val: string) => Promise<void>;
+        setPassword: (val: string) => Promise<void>;
+        setPasswordConfirmation: (val: string) => Promise<void>;
+        enterOtpCode: (code: string, opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        enterTestOtpCode: (opts?: {
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }) => Promise<void>;
+        fillTestOtpCode: (name: string, opts?: Omit<{
+            name?: string;
+            awaitRequests?: boolean;
+            awaitPrepare?: boolean;
+            awaitAttempt?: boolean;
+        }, "name">) => Promise<void>;
+        getIdentifierInput: () => import("@playwright/test").Locator;
+        getEmailAddressInput: () => import("@playwright/test").Locator;
+        getPhoneNumberInput: () => import("@playwright/test").Locator;
+        getUsernameInput: () => import("@playwright/test").Locator;
+        getPasswordInput: () => import("@playwright/test").Locator;
+        getLegalAccepted: () => import("@playwright/test").Locator;
+        getFirstNameInput: () => import("@playwright/test").Locator;
+        getLastNameInput: () => import("@playwright/test").Locator;
+        waitForSession: () => Promise<import("@playwright/test").JSHandle<boolean>>;
+    };
+};
+//# sourceMappingURL=index.d.ts.map

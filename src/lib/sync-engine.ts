@@ -23,12 +23,14 @@ type SyncListener = () => void;
 const listeners: Set<SyncListener> = new Set();
 
 export function onSyncStateChange(fn: SyncListener) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
+  listeners?.add(fn);
+  return () => {
+    listeners?.delete(fn);
+  };
 }
 
 function notifyListeners() {
-  listeners.forEach((fn) => fn());
+  listeners?.forEach((fn) => fn());
 }
 
 let syncing = false;

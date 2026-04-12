@@ -22,17 +22,22 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-createRoot(document.getElementById("root")!).render(
-  <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <ClerkAuthProviderInner>
-          <SyncProvider>
-            <App />
-            <Toaster position="top-center" />
-          </SyncProvider>
-        </ClerkAuthProviderInner>
-      </SettingsProvider>
-    </QueryClientProvider>
-  </ClerkProvider>
-);
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  console.error("VetTrack: #root element not found — cannot mount app.");
+} else {
+  createRoot(rootEl).render(
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
+          <ClerkAuthProviderInner>
+            <SyncProvider>
+              <App />
+              <Toaster position="top-center" />
+            </SyncProvider>
+          </ClerkAuthProviderInner>
+        </SettingsProvider>
+      </QueryClientProvider>
+    </ClerkProvider>
+  );
+}

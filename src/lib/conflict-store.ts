@@ -9,10 +9,10 @@ export type ConflictItem = {
 };
 
 let conflicts: ConflictItem[] = [];
-const listeners = new Set<() => void>();
+const listeners: Set<() => void> = new Set();
 
 function notify() {
-  listeners.forEach((fn) => fn());
+  listeners?.forEach((fn) => fn());
 }
 
 export function addConflict(item: ConflictItem) {
@@ -29,8 +29,10 @@ export function useConflicts(): ConflictItem[] {
   const [state, setState] = useState<ConflictItem[]>(conflicts);
   useEffect(() => {
     const handler = () => setState([...conflicts]);
-    listeners.add(handler);
-    return () => { listeners.delete(handler); };
+    listeners?.add(handler);
+    return () => {
+      listeners?.delete(handler);
+    };
   }, []);
   return state;
 }

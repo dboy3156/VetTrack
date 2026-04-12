@@ -226,7 +226,7 @@ export default function EquipmentListPage() {
 
   const locations = useMemo(() => {
     if (!equipment) return [];
-    const locs = new Set<string>();
+    const locs: Set<string> = new Set();
     for (const eq of equipment) {
       if (eq.location) locs.add(eq.location);
       if (eq.checkedOutLocation) locs.add(eq.checkedOutLocation);
@@ -277,7 +277,7 @@ export default function EquipmentListPage() {
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev ?? []);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;

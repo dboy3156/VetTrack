@@ -1,0 +1,18 @@
+
+> vettrack@1.1.0 predev
+> fuser -k 3001/tcp 5000/tcp 2>/dev/null; true
+
+[1G[0K[1G[0K⠙[1G[0K
+> vettrack@1.1.0 dev
+> concurrently -k -p "[{name}]" -n "api,web" -c "cyan,teal" "tsx watch server/index.ts" "vite --port 5000 --host"
+
+[1G[0K⠙[1G[0K[0m[web][0m [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+[0m[web][0m 
+[0m[web][0m   [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m1585[22m[2m[0m ms[22m
+[0m[web][0m 
+[0m[web][0m   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5000[22m/[39m
+[0m[web][0m   [32m➜[39m  [1mNetwork[22m: [36mhttp://172.31.86.98:[1m5000[22m/[39m
+[36m[api][39m ✅ All migrations up to date
+[36m[api][39m ✅ Database ready
+[36m[api][39m ✅ Session table ready
+[36m[api][39m ✅ VAPID initialized
