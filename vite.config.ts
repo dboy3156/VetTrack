@@ -1,4 +1,4 @@
-import viteCompression from 'vite-plugin-compression';
+import Compression from 'vite-plugin-compression';
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
