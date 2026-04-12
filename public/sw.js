@@ -111,9 +111,10 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           if (response.ok) {
             // Keep the cached shell up-to-date after every successful nav.
+            const cloned = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put("/", response.clone());
-              cache.put("/index.html", response.clone());
+              cache.put("/", cloned.clone());
+              cache.put("/index.html", cloned.clone());
             });
           }
           return response;
