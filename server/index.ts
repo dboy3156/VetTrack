@@ -78,7 +78,7 @@ function buildAllowedOrigins(): string[] {
     }
   }
   if (process.env.ALLOWED_ORIGIN) {
-    origins.push(process.env.ALLOWED_ORIGIN);
+    origins.push(process.env.ALLOWED_ORIGIN); if (process.env.ALLOWED_ORIGIN && !process.env.ALLOWED_ORIGIN.includes("www")) { origins.push(process.env.ALLOWED_ORIGIN.replace("https://", "https://www.")); }
   }
   // Always allow Railway and common production domains
   if (process.env.RAILWAY_PUBLIC_DOMAIN) {
