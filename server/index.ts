@@ -146,7 +146,10 @@ app.use(
         imgSrc: [
           "'self'", 
           "data:", 
-          "https://images.clerk.dev"
+          "https://*.clerk.com",
+          "https://*.clerk.dev",
+          "https://www.gstatic.com",
+          "https://*.googleusercontent.com"
         ],
         workerSrc: ["'self'", "blob:"],
       },
