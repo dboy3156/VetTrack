@@ -199,7 +199,7 @@ app.get("/api/version", (_req, res) => {
 
 if (process.env.CLERK_SECRET_KEY) {
   // Bypass Clerk for internal stability test runner requests
-  app.use((req, _res, next) => {
+  app.use("/api", (req, _res, next) => {
     const received = req.headers["x-stability-token"]; console.log(`[AUTH_DEBUG] Path: ${req.path} | Received: ${received ? received.substring(0,3) + "..." : "NONE"} | Expected: ${STABILITY_TOKEN ? STABILITY_TOKEN.substring(0,3) + "..." : "UNDEFINED"} | Match: ${received === STABILITY_TOKEN}`); if (received === STABILITY_TOKEN) return next();
     clerkMiddleware({
       secretKey: process.env.CLERK_SECRET_KEY,
@@ -221,7 +221,7 @@ function sanitizeStrings(obj: unknown): void {
   }
 }
 
-app.use((req, _res, next) => {
+app.use("/api", (req, _res, next) => {
   if (req.body && typeof req.body === "object") {
     sanitizeStrings(req.body);
   }
