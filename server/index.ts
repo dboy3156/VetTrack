@@ -1,3 +1,8 @@
+process.on("uncaughtException", (e) => console.error("💥 FATAL ERROR:", e));
+process.on("unhandledRejection", (r) =>
+  console.error("💥 UNHANDLED PROMISE:", r),
+);
+
 import { validateEnv } from "./lib/envValidation.js";
 validateEnv();
 
@@ -14,38 +19,71 @@ import userRoutes from "./routes/users.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Global error boundaries to prevent Railway crashes
-process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));
-process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
-
 const app = express();
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://clerk.vettrack.uk", "https://*.clerk.accounts.dev", "https://static.cloudflareinsights.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://clerk.vettrack.uk", "https://static.cloudflareinsights.com"],
-      connectSrc: ["'self'", "https://clerk.vettrack.uk", "https://api.clerk.dev", "https://clerk.dev"],
-      imgSrc: ["'self'", "data:", "https:"],
-      styleSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
-      styleSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      frameSrc: ["'self'", "https://clerk.vettrack.uk"],
-      workerSrc: ["'self'", "blob:", "https://clerk.vettrack.uk"],
-      scriptSrcAttr: ["'unsafe-inline'", "'unsafe-eval'"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https://clerk.vettrack.uk",
+          "https://*.clerk.accounts.dev",
+          "https://static.cloudflareinsights.com",
+        ],
+        scriptSrcElem: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https://clerk.vettrack.uk",
+          "https://static.cloudflareinsights.com",
+        ],
+        connectSrc: [
+          "'self'",
+          "https://clerk.vettrack.uk",
+          "https://api.clerk.dev",
+          "https://clerk.dev",
+        ],
+        imgSrc: ["'self'", "data:", "https:"],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https://fonts.googleapis.com",
+          "https://clerk.vettrack.uk",
+        ],
+        styleSrcElem: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https://fonts.googleapis.com",
+          "https://clerk.vettrack.uk",
+        ],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        frameSrc: ["'self'", "https://clerk.vettrack.uk"],
+        workerSrc: ["'self'", "blob:", "https://clerk.vettrack.uk"],
+        scriptSrcAttr: ["'unsafe-inline'", "'unsafe-eval'"],
+      },
     },
-  },
-}));
-app.use(cors({
-  origin: (origin, callback) => {
-    const o = origin ?? '';
-    const allowed = (process.env.ALLOWED_ORIGIN ?? '').trim();
-    const ok = (allowed.length === 0) || (o === allowed) || (o === allowed.replace('https://', 'https://www.'));
-    callback(null, ok ? o : false);
-  },
-  credentials: true,
-}));
+  }),
+);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const o = origin ?? "";
+      const allowed = (process.env.ALLOWED_ORIGIN ?? "").trim();
+      const ok =
+        allowed.length === 0 ||
+        o === allowed ||
+        o === allowed.replace("https://", "https://www.");
+      callback(null, ok ? o : false);
+    },
+    credentials: true,
+  }),
+);
 app.use(compression());
 app.use(express.json());
 
@@ -60,14 +98,16 @@ app.use(async (req, res, next) => {
   if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
     try {
       const { clerkMiddleware } = await import("@clerk/express");
-      const result = clerkMiddleware()(req, res, next);
-      if (result && typeof result.catch === 'function') { result.catch(e => { console.warn('Clerk async error:', e.message || e); next(); }); }
-      return result;
+      return clerkMiddleware()(req, res, next);
     } catch (e) {
+      console.warn(
+        "Clerk initialization failed, skipping auth for this request",
+        e,
+      );
       return next();
     }
   }
-  next();
+  return next();
 });
 
 app.use("/api/users", userRoutes);
