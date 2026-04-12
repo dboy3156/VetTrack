@@ -27,7 +27,8 @@ app.use(helmet({
       styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://clerk.vettrack.uk"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       frameSrc: ["'self'", "https://clerk.vettrack.uk"],
-      workerSrc: ["'self'", "blob:"],
+      workerSrc: ["'self'", "blob:", "https://clerk.vettrack.uk"],
+      scriptSrcAttr: ["'unsafe-inline'"],
     },
   },
 }));
