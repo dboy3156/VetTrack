@@ -20,7 +20,6 @@ export const db = drizzle(pool);
 export const users = pgTable("vt_users", {
   id: text("id").primaryKey(),
   clerkId: text("clerk_id").unique().notNull(),
-  emailIndex: text("email"),
   email: text("email").notNull(),
   name: text("name").notNull().default(""),
   role: varchar("role", { length: 20 }).notNull().default("technician"),
