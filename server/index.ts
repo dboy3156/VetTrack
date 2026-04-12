@@ -31,7 +31,10 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN,
+  credentials: true,
+}));
 app.use(compression());
 app.use(express.json());
 
@@ -60,9 +63,9 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/activity", activityRoutes);
 
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../dist")));
+  app.use(express.static(path.join(__dirname, "../dist/public")));
   app.get("*", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../dist/index.html"));
+    res.sendFile(path.join(__dirname, "../dist/public/index.html"));
   });
 }
 

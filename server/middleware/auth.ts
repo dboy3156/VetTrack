@@ -149,6 +149,10 @@ export async function requireAuth(
       }
     }
 
+    if (user.deletedAt) {
+      return res.status(403).json({ error: "deleted", message: "Your account has been removed." });
+    }
+
     req.authUser = {
       id: user.id,
       clerkId: user.clerkId,
@@ -159,10 +163,6 @@ export async function requireAuth(
     };
 
     Sentry.setUser({ id: user.id, email: user.email });
-
-    if (user.deletedAt) {
-      return res.status(403).json({ error: "deleted", message: "Your account has been removed." });
-    }
 
     if (user.status === "pending") {
       return res.status(403).json({ error: "Account pending approval" });
@@ -184,6 +184,7 @@ export async function requireAuthAny(
   res: Response,
   next: NextFunction
 ) {
+  // Internal stability test runner token — grants admin access
   if (req.headers["x-stability-token"] === STABILITY_TOKEN) {
     req.authUser = { ...DEV_USER, role: "admin" };
     return next();
@@ -212,6 +213,7 @@ export async function requireAuthAny(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // Session claims may not include email — fall back to Clerk API
     let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
     let clerkName = (sessionClaims?.name as string | undefined) ?? "";
     if (!clerkEmail) {
@@ -220,7 +222,7 @@ export async function requireAuthAny(
         clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
         clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
       } catch {
-        // Non-fatal
+        // Non-fatal — proceed with empty email; auto-promote won't trigger
       }
     }
 
@@ -228,7 +230,8 @@ export async function requireAuthAny(
     const defaultStatus = isAdminEmail ? "active" : "pending";
     const defaultRole: UserRole = isAdminEmail ? "admin" : "technician";
 
-    const [user] = await db
+    // SECURITY: Role is ALWAYS resolved from the database record.
+    let [user] = await db
       .insert(users)
       .values({
         id: randomUUID(),
@@ -243,9 +246,32 @@ export async function requireAuthAny(
         set: {
           email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
           name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+          // NOTE: `role` is intentionally NOT updated here.
         },
       })
       .returning();
+
+    // Auto-promote users whose email is in ADMIN_EMAILS (synced with requireAuth)
+    if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+      if (user.role !== "admin") {
+        [user] = await db
+          .update(users)
+          .set({ role: "admin", status: "active" })
+          .where(eq(users.id, user.id))
+          .returning();
+      } else if (user.status !== "active") {
+        [user] = await db
+          .update(users)
+          .set({ status: "active" })
+          .where(eq(users.id, user.id))
+          .returning();
+      }
+    }
+
+    // Block deleted accounts before granting access
+    if (user.deletedAt) {
+      return res.status(403).json({ error: "deleted", message: "Your account has been removed." });
+    }
 
     req.authUser = {
       id: user.id,
@@ -263,6 +289,7 @@ export async function requireAuthAny(
     res.status(500).json({ error: "Auth failed" });
   }
 }
+
 
 export function requireAdmin(
   req: Request,
