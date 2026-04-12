@@ -10,8 +10,6 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
 import path from "path";
 import net from "net";
 import { execSync } from "child_process";
@@ -77,7 +75,7 @@ function buildAllowedOrigins(): string[] {
       origins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
     }
   }
-  if (process.env.ALLOWED_ORIGIN) {
+  if (true) { origins.push("https://vettrack.uk"); if (process.env.ALLOWED_ORIGIN) {
     origins.push(process.env.ALLOWED_ORIGIN); if (process.env.ALLOWED_ORIGIN && !process.env.ALLOWED_ORIGIN.includes("www")) { origins.push(process.env.ALLOWED_ORIGIN.replace("https://", "https://www.")); }
   }
   // Always allow Railway and common production domains
@@ -200,7 +198,6 @@ app.get("/api/version", (_req, res) => {
 if (process.env.CLERK_SECRET_KEY) {
   // Bypass Clerk for internal stability test runner requests
   app.use("/api", (req, _res, next) => {
-    const received = req.headers["x-stability-token"]; console.log(`[AUTH_DEBUG] Path: ${req.path} | Received: ${received ? received.substring(0,3) + "..." : "NONE"} | Expected: ${STABILITY_TOKEN ? STABILITY_TOKEN.substring(0,3) + "..." : "UNDEFINED"} | Match: ${received === STABILITY_TOKEN}`); if (received === STABILITY_TOKEN) return next();
     clerkMiddleware({
       secretKey: process.env.CLERK_SECRET_KEY,
       publishableKey: process.env.VITE_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY,
@@ -214,7 +211,13 @@ function sanitizeStrings(obj: unknown): void {
   for (const key of Object.keys(record)) {
     const val = record[key];
     if (typeof val === "string") {
-      record[key] = xss(val, { whiteList: {}, stripIgnoreTag: true, stripIgnoreTagBody: ["script"] });
+      /* ניקוי רק אם יש חשד להזרקת סקריפט, מבלי למחוק תווים מתמטיים */
+      record[key] = val.replace(/<scriptb[^>]*>([sS]*?)</script>/gmi, "");
+    } else if (typeof val === "object" && val !== null) {
+      sanitizeStrings(val);
+    }
+  }
+}
     } else if (typeof val === "object" && val !== null) {
       sanitizeStrings(val);
     }
@@ -228,7 +231,6 @@ app.use("/api", (req, _res, next) => {
   next();
 });
 
-const PgSession = connectPgSimple(session);
 
 app.use(
   session({
@@ -318,24 +320,10 @@ function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number>
   });
 }
 
-async function ensureSessionTable(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS vt_sessions (
-      sid VARCHAR NOT NULL COLLATE "default" PRIMARY KEY,
-      sess JSON NOT NULL,
-      expire TIMESTAMP(6) NOT NULL
-    )
-  `);
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS IDX_session_expire ON vt_sessions (expire)
-  `);
-  console.log("✅ Session table ready");
-}
 
 async function main() {
   await runMigrations();
   await initDb();
-  await ensureSessionTable();
   await initVapid();
   startAlertReminderScheduler();
 
