@@ -66,8 +66,24 @@ class TimeoutError extends Error {
   }
 }
 
+class OfflineResponseError extends Error {
+  constructor() {
+    super("Offline response received");
+    this.name = "OfflineResponseError";
+  }
+}
+
+function isOfflineResponse(status: number, payload: unknown): boolean {
+  if (status !== 503) return false;
+  if (!payload || typeof payload !== "object") return false;
+  const candidate = payload as { offline?: unknown; error?: unknown };
+  if (candidate.offline === true) return true;
+  return typeof candidate.error === "string" && candidate.error.toLowerCase().includes("network unavailable");
+}
+
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TimeoutError) return true;
+  if (err instanceof OfflineResponseError) return true;
   if (err instanceof DOMException && err.name === "AbortError") return false;
   if (!navigator.onLine) return true;
   if (err instanceof TypeError) return true;
@@ -123,6 +139,9 @@ export async function request<T>(
         toast.error("השרת נתקל בשגיאה. נא לנסות שוב או לרענן את העמוד.");
       }
       const error = await res.json().catch(() => ({ error: "Request failed" }));
+      if (isOfflineResponse(res.status, error)) {
+        throw new OfflineResponseError();
+      }
       throw new Error(error.error || `HTTP ${res.status}`);
     }
     if (res.status === 204) return undefined as T;
@@ -172,11 +191,14 @@ async function requestWithOfflineFallback<T>(
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: "Request failed" }));
+      if (isOfflineResponse(res.status, error)) {
+        throw new OfflineResponseError();
+      }
       throw new Error(error.error || `HTTP ${res.status}`);
     }
     return res.json();
   } catch (err) {
-    if (!navigator.onLine) {
+    if (isNetworkError(err)) {
       return fallback();
     }
     throw err;
@@ -247,7 +269,7 @@ export const api = {
         cacheEquipment(result.items).catch(() => {});
         return result.items;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           return getCachedEquipment();
         }
         throw err;
@@ -264,7 +286,7 @@ export const api = {
         cacheEquipment(result.items).catch(() => {});
         return result;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           const cached = await getCachedEquipment();
           const start = (page - 1) * pageSize;
           const slice = cached.slice(start, start + pageSize);
@@ -284,7 +306,7 @@ export const api = {
         const items = await request<Equipment[]>("/api/equipment/my");
         return items;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           const all = await getCachedEquipment();
           const userId = getCurrentUserId();
           if (userId) return all.filter((e) => e.checkedOutById === userId);
@@ -299,7 +321,7 @@ export const api = {
         updateCachedEquipment(id, item).catch(() => {});
         return item;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           const cached = await getCachedEquipmentById(id);
           if (cached) return cached;
         }
@@ -464,7 +486,7 @@ export const api = {
         cacheScanLogs(id, result.items).catch(() => {});
         return result.items;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           return getCachedScanLogs(id);
         }
         throw err;
@@ -482,7 +504,7 @@ export const api = {
         cacheScanLogs(id, result.items).catch(() => {});
         return result;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           const cached = await getCachedScanLogs(id);
           const start = (page - 1) * pageSize;
           const slice = cached.slice(start, start + pageSize);
@@ -506,7 +528,7 @@ export const api = {
         cacheFolders(items).catch(() => {});
         return items;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           return getCachedFolders();
         }
         throw err;
@@ -659,7 +681,7 @@ export const api = {
         cacheRooms(items).catch(() => {});
         return items;
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           return getCachedRooms();
         }
         throw err;
@@ -669,7 +691,7 @@ export const api = {
       try {
         return await request<Room>(`/api/rooms/${id}`);
       } catch (err) {
-        if (!navigator.onLine) {
+        if (isNetworkError(err)) {
           const { getCachedRoomById } = await import("./offline-db");
           const cached = await getCachedRoomById(id);
           if (cached) return cached;

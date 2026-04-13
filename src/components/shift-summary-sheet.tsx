@@ -118,7 +118,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
   function buildSummaryText(): string {
     const dateStr = format(new Date(), "MMMM d, yyyy");
-    const lines: string[] = [`VetTrack {t.shiftSummary.actions.copy} — ${dateStr}`, ""];
+    const lines: string[] = [`VetTrack סיכום משמרת — ${dateStr}`, ""];
 
     lines.push(t.shiftSummary.sections.checkedOut);
     if (myItems && myItems.length > 0) {
@@ -126,17 +126,17 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         const loc = item.checkedOutLocation || item.location;
         const since = item.checkedOutAt
           ? formatRelativeTime(item.checkedOutAt)
-          : "unknown";
-        lines.push(`• ${item.name}${loc ? ` — ${loc}` : ""} since ${since}`);
+          : "לא ידוע";
+        lines.push(`• ${item.name}${loc ? ` — ${loc}` : ""} מאז ${since}`);
       }
     } else {
-      lines.push("  none");
+      lines.push("  אין");
     }
 
     lines.push("");
 
     if (todayCheckouts.length > 0) {
-      lines.push(`TODAY'S CHECKOUTS (${todayCheckouts.length}):`);
+      lines.push(`שימושים היום (${todayCheckouts.length}):`);
       for (const item of todayCheckouts) {
         lines.push(`• ${item.equipmentName} — ${formatRelativeTime(item.timestamp)}`);
       }
@@ -149,7 +149,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         lines.push(`• ${item.equipmentName}`);
       }
     } else {
-      lines.push("  none");
+      lines.push("  אין");
     }
 
     lines.push("");
@@ -161,7 +161,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         lines.push(`• ${tag} ${alert.equipmentName} — ${alert.detail}`);
       }
     } else {
-      lines.push("  none");
+      lines.push("  אין");
     }
 
     return lines.join("\n");
@@ -218,7 +218,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
     const filename = `vettrack-shift-summary-${format(new Date(), "yyyy-MM-dd")}.pdf`;
     doc.save(filename);
-    toast.success("Shift summary PDF downloaded");
+    toast.success("קובץ סיכום המשמרת ירד בהצלחה");
   }
 
   if (!open) return null;
@@ -246,7 +246,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
           <div className="flex items-center gap-2">
             <ClipboardCheck className="w-5 h-5 text-primary" />
             <div>
-              <h2 className="font-bold text-base leading-tight">Shift Summary</h2>
+              <h2 className="font-bold text-base leading-tight">סיכום משמרת</h2>
               <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, MMMM d")}</p>
             </div>
           </div>
@@ -272,9 +272,9 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
           ) : isError ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
               <AlertTriangle className="w-8 h-8 text-destructive" />
-              <p className="text-sm text-destructive font-medium text-center">Failed to load shift data.</p>
+              <p className="text-sm text-destructive font-medium text-center">טעינת נתוני המשמרת נכשלה.</p>
               <Button variant="outline" size="sm" onClick={retryAll}>
-                Retry
+                נסה שוב
               </Button>
             </div>
           ) : (
@@ -298,7 +298,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{item.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            Since {formatRelativeTime(item.checkedOutAt)}
+                            מאז {formatRelativeTime(item.checkedOutAt)}
                           </p>
                         </div>
                         {(item.checkedOutLocation || item.location) && (
@@ -436,7 +436,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
             data-testid="btn-download-shift-summary-pdf"
           >
             <FileText className="w-4 h-4" />
-            Download PDF
+            הורד PDF
           </Button>
         </div>
       </div>

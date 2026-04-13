@@ -12,7 +12,7 @@ interface ErrorCardProps {
 }
 
 export function ErrorCard({
-  message = "Failed to load data. Please try again.",
+  message = "טעינת הנתונים נכשלה. נסה שוב.",
   onRetry,
 }: ErrorCardProps) {
   const [isRetrying, setIsRetrying] = useState(false);
@@ -48,7 +48,7 @@ export function ErrorCard({
 
   const exhausted = retryCount >= MAX_RETRIES;
   const displayMessage = exhausted
-    ? "Still having trouble. Please check your connection or refresh the page."
+    ? "עדיין יש תקלה. בדוק את החיבור או רענן את העמוד."
     : message;
 
   return (
@@ -63,7 +63,7 @@ export function ErrorCard({
             className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
             onClick={() => window.location.reload()}
           >
-            Refresh Page
+            רענן עמוד
           </Button>
         ) : (
           onRetry && (
@@ -75,7 +75,7 @@ export function ErrorCard({
               disabled={isRetrying}
             >
               <RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />
-              {isRetrying ? "Trying…" : "Try again"}
+              {isRetrying ? "מנסה..." : "נסה שוב"}
             </Button>
           )
         )}

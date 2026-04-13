@@ -30,13 +30,13 @@ function formatRelativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return t.alerts.timeAgo.justNow;
-  if (diffMin === 1) return "1 minute ago";
-  if (diffMin < 60) return `${diffMin} minutes ago`;
+  if (diffMin === 1) return "לפני דקה";
+  if (diffMin < 60) return `לפני ${diffMin} דקות`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr === 1) return "1 hour ago";
-  if (diffHr < 24) return `${diffHr} hours ago`;
+  if (diffHr === 1) return "לפני שעה";
+  if (diffHr < 24) return `לפני ${diffHr} שעות`;
   const diffDay = Math.floor(diffHr / 24);
-  return diffDay === 1 ? "1 day ago" : `${diffDay} days ago`;
+  return diffDay === 1 ? "לפני יום" : `לפני ${diffDay} ימים`;
 }
 
 const ALERT_CONFIG: Record<
@@ -112,11 +112,12 @@ export default function AlertsPage() {
   });
 
   const isLoading = eqLoading || acksLoading;
-  const isError = eqError || acksError;
+  const hasFatalError = eqError;
+  const hasAckError = acksError;
   const alerts = equipment ? computeAlerts(equipment) : [];
 
   const acksMap = new Map<string, AlertAcknowledgment>();
-  if (acks) {
+  if (acks && !hasAckError) {
     for (const ack of acks) {
       acksMap.set(`${ack.equipmentId}:${ack.alertType}`, ack);
     }
@@ -141,28 +142,36 @@ export default function AlertsPage() {
   return (
     <Layout>
       <Helmet>
-        <title>Alerts — VetTrack</title>
-        <meta name="description" content="Active equipment alerts sorted by severity — CRITICAL issues, overdue maintenance, sterilization reminders, and inactive equipment. Acknowledge and assign handlers." />
+        <title>התראות — VetTrack</title>
+        <meta name="description" content="התראות ציוד פעילות לפי חומרה: תקלות קריטיות, תחזוקה באיחור, תזכורות חיטוי וציוד לא פעיל." />
         <link rel="canonical" href="https://vettrack.replit.app/alerts" />
       </Helmet>
       <div className="flex flex-col gap-5 pb-24 animate-fade-in">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
-            Alerts
+            התראות
           </h1>
           {alerts.length > 0 && (
             <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
-              {alerts.length} active
+              {alerts.length} פעילות
             </span>
           )}
         </div>
 
-        {isError && (
+        {hasFatalError && (
           <ErrorCard
             message={t.alerts.errors.loadFailed}
             onRetry={() => {
               refetchEq();
+              refetchAcks();
+            }}
+          />
+        )}
+        {hasAckError && !hasFatalError && (
+          <ErrorCard
+            message="טעינת סטטוסי טיפול נכשלה. אפשר לצפות בהתראות, אך פעולות טיפול מושבתות זמנית."
+            onRetry={() => {
               refetchAcks();
             }}
           />
@@ -174,7 +183,7 @@ export default function AlertsPage() {
               <SkeletonAlertCard key={i} />
             ))}
           </div>
-        ) : isError ? null : alerts.length === 0 ? (
+        ) : hasFatalError ? null : alerts.length === 0 ? (
           <EmptyState
             icon={CheckCircle}
             message={t.alerts.empty.message}
@@ -207,7 +216,7 @@ export default function AlertsPage() {
                       {config.badgeLabel}
                     </span>
                     <span className="text-xs text-muted-foreground ml-auto">
-                      {items.length} item{items.length !== 1 ? "s" : ""}
+                      {t.alerts.itemCount(items.length)}
                     </span>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -258,7 +267,7 @@ export default function AlertsPage() {
                                       {ack.acknowledgedByEmail.split("@")[0]}
                                     </span>
                                     <span className="text-xs text-muted-foreground truncate block">
-                                      Handling since {formatRelativeTime(new Date(ack.acknowledgedAt))}
+                                      בטיפול מאז {formatRelativeTime(new Date(ack.acknowledgedAt))}
                                     </span>
                                   </div>
                                 </div>
@@ -266,6 +275,7 @@ export default function AlertsPage() {
                                   variant="ghost"
                                   size="icon-sm"
                                   className="w-6 h-6 text-muted-foreground hover:text-red-500 shrink-0"
+                                  disabled={hasAckError}
                                   onClick={() =>
                                     unAckMut.mutate({
                                       equipmentId: alert.equipmentId,
@@ -273,6 +283,7 @@ export default function AlertsPage() {
                                     })
                                   }
                                   data-testid={`btn-unack-${alert.equipmentId}`}
+                                  aria-label="הסר סטטוס טיפול"
                                 >
                                   <X className="w-3 h-3" />
                                 </Button>
@@ -282,6 +293,7 @@ export default function AlertsPage() {
                                 variant="outline"
                                 size="sm"
                                 className="h-11 text-xs w-full border-border/60 text-muted-foreground hover:text-foreground"
+                                disabled={hasAckError}
                                 onClick={() =>
                                   ackMut.mutate({
                                     equipmentId: alert.equipmentId,
@@ -291,7 +303,7 @@ export default function AlertsPage() {
                                 data-testid={`btn-ack-${alert.equipmentId}`}
                               >
                                 <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                                I'm handling this
+                                אני מטפל/ת בזה
                               </Button>
                             )}
                           </div>

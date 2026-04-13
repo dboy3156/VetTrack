@@ -19,6 +19,13 @@ import userRoutes from "./routes/users.js";
 import stabilityRoutes from "./routes/stability.js";
 import metricsRoutes from "./routes/metrics.js";
 import foldersRoutes from "./routes/folders.js";
+import alertAcksRoutes from "./routes/alert-acks.js";
+import roomsRoutes from "./routes/rooms.js";
+import supportRoutes from "./routes/support.js";
+import pushRoutes from "./routes/push.js";
+import whatsappRoutes from "./routes/whatsapp.js";
+import auditLogsRoutes from "./routes/audit-logs.js";
+import storageRoutes from "./routes/storage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -160,6 +167,13 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/folders", foldersRoutes);
 app.use("/api/stability", stabilityRoutes);
+app.use("/api/alert-acks", alertAcksRoutes);
+app.use("/api/rooms", roomsRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/push", pushRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/audit-logs", auditLogsRoutes);
+app.use("/api/storage", storageRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));

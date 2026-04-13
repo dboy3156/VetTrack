@@ -161,7 +161,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     { href: "/stability", label: "יציבות", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/help", label: "מדריך מהיר", icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: "הגדרות", icon: <Settings className="w-5 h-5" />, menuOnly: true },
-    { href: "/landing", label: "About VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
+    { href: "/landing", label: "אודות VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ];
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
@@ -232,22 +232,22 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               <button
                 onClick={triggerSync}
                 className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1 hover:bg-accent transition-colors"
-                title={`${pendingCount} pending action${pendingCount !== 1 ? "s" : ""} — tap to sync`}
+                title={`${pendingCount} פעולות ממתינות — לחץ לסנכרון`}
                 data-testid="sync-pending-indicator"
               >
                 <Clock className="w-3 h-3" />
-                <span>{pendingCount} pending</span>
+                <span>{pendingCount} ממתינות</span>
               </button>
             )}
 
             {hasFailed && (
               <div
                 className="flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200/80 dark:border-red-800 rounded-full px-2.5 py-1"
-                title={`${failedCount} action${failedCount !== 1 ? "s" : ""} failed to sync`}
+                title={`${failedCount} פעולות נכשלו בסנכרון`}
                 data-testid="sync-failed-indicator"
               >
                 <XCircle className="w-3 h-3" />
-                <span>{failedCount} failed</span>
+                <span>{failedCount} נכשלו</span>
               </div>
             )}
 
@@ -274,7 +274,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 content={
                   hasFailed
                     ? t.layout.sync.failedMessage
-                    : `${pendingCount} action${pendingCount !== 1 ? "s" : ""} saved locally and waiting to send to the server. Tap the clock pill to sync now, or it will sync automatically when connected.`
+                    : `${pendingCount} פעולות נשמרו מקומית וממתינות לשרת. לחץ לסנכרון עכשיו, או שהן יסונכרנו אוטומטית כשיש חיבור.`
                 }
               />
             )}
@@ -285,7 +285,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   variant="ghost"
                   size="icon-sm"
                   className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
-                  aria-label={`View ${alertCount} alert${alertCount !== 1 ? "s" : ""}`}
+                  aria-label={`פתח ${alertCount} התראות`}
                   data-testid="alert-bell"
                 >
                   <AlertTriangle className="w-4 h-4" aria-hidden="true" />
@@ -319,7 +319,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   data-testid="quick-settings-panel"
                 >
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 pb-1">
-                    Quick Settings
+                    הגדרות מהירות
                   </p>
                   <SettingsToggle
                     icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
