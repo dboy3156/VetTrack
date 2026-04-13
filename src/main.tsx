@@ -11,6 +11,7 @@ import { SettingsProvider } from "@/hooks/use-settings";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Toaster } from "sonner";
+import { HelmetProvider } from "react-helmet-async";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -27,17 +28,19 @@ if (!rootEl) {
   console.error("VetTrack: #root element not found — cannot mount app.");
 } else {
   createRoot(rootEl).render(
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <QueryClientProvider client={queryClient}>
-        <SettingsProvider>
-          <ClerkAuthProviderInner>
-            <SyncProvider>
-              <App />
-              <Toaster position="top-center" />
-            </SyncProvider>
-          </ClerkAuthProviderInner>
-        </SettingsProvider>
-      </QueryClientProvider>
-    </ClerkProvider>
+    <HelmetProvider>
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+        <QueryClientProvider client={queryClient}>
+          <SettingsProvider>
+            <ClerkAuthProviderInner>
+              <SyncProvider>
+                <App />
+                <Toaster position="top-center" />
+              </SyncProvider>
+            </ClerkAuthProviderInner>
+          </SettingsProvider>
+        </QueryClientProvider>
+      </ClerkProvider>
+    </HelmetProvider>
   );
 }
