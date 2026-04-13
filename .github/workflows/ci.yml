@@ -33,7 +33,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://vettrack:vettrack@localhost:5432/vettrack_test
       SESSION_SECRET: ci-test-secret-that-is-long-enough-32chars
-      PORT: 8080
+      PORT: 3000
 
     steps:
       - name: ⬇️ Checkout
@@ -87,7 +87,7 @@ jobs:
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
       VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
       ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
-      PORT: 8080
+      PORT: 3000
 
     steps:
       - name: ⬇️ Checkout

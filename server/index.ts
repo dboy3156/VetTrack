@@ -158,13 +158,8 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: "Internal Server Error" });
 });
 
-function getSafePort(rawPort: string | undefined): number {
-  const parsed = Number(rawPort);
-  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return 3000;
-  return parsed;
-}
-
-const PORT = getSafePort(process.env.PORT);
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 app.listen(PORT, "0.0.0.0", () => {
+  console.log("ENV PORT =", process.env.PORT);
   console.log(`Server listening on ${PORT}`);
 });
