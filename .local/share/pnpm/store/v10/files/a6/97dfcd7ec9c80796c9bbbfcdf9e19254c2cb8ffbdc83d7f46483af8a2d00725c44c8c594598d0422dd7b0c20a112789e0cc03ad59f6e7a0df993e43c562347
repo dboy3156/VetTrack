@@ -1,2 +1,0 @@
-var e="__clerk_testing_token";var o="The Clerk Frontend API URL is required to bypass bot protection. Make sure the clerkSetup function is called during your global setup before setupClerkTestingToken is called.";export{e as a,o as b};
-//# sourceMappingURL=chunk-M5YIJ3SE.mjs.map

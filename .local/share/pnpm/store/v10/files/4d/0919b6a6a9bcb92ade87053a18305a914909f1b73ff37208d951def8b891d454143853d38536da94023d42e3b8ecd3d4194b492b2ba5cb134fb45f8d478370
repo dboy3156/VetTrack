@@ -1,5 +1,0 @@
-{
-  "main": "../dist/cypress/index.js",
-  "module": "../dist/cypress/index.mjs",
-  "types": "../dist/types/cypress/index.d.ts"
-}

@@ -21,6 +21,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
+function hasInvalidHeaderChars(value: string): boolean {
+  return /[\r\n\0]/.test(value);
+}
+
+function normalizeOrigin(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim().replace(/^['"]|['"]$/g, "");
+  if (!trimmed || hasInvalidHeaderChars(trimmed)) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
+}
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -73,13 +88,27 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      const o = origin ?? "";
-      const allowed = (process.env.ALLOWED_ORIGIN ?? "").trim();
-      const ok =
-        allowed.length === 0 ||
-        o === allowed ||
-        o === allowed.replace("https://", "https://www.");
-      callback(null, ok ? o : false);
+      try {
+        const requestOrigin = normalizeOrigin(origin);
+        if (!requestOrigin) {
+          callback(null, false);
+          return;
+        }
+
+        const allowedOrigin = normalizeOrigin(process.env.ALLOWED_ORIGIN);
+        if (!allowedOrigin) {
+          callback(null, requestOrigin);
+          return;
+        }
+
+        const allowedWithWww = allowedOrigin.replace("://", "://www.");
+        const isAllowed =
+          requestOrigin === allowedOrigin || requestOrigin === allowedWithWww;
+        callback(null, isAllowed ? requestOrigin : false);
+      } catch (error) {
+        console.warn("CORS origin validation failed, denying request origin", error);
+        callback(null, false);
+      }
     },
     credentials: true,
   }),
@@ -123,7 +152,25 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+<<<<<<< HEAD
 const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Hospital System Online on port ${PORT}`);
+=======
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled application error", err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: "Internal Server Error" });
+});
+
+function getSafePort(rawPort: string | undefined): number {
+  const parsed = Number(rawPort);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return 3000;
+  return parsed;
+}
+
+const PORT = getSafePort(process.env.PORT);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on ${PORT}`);
+>>>>>>> 546bfb72 (final: production hardening + cors fix)
 });

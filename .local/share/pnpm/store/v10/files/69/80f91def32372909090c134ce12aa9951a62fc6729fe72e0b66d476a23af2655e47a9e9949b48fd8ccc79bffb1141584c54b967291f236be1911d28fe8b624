@@ -1,7 +1,0 @@
-import type { EnhancedPage } from './app';
-export declare const createTestingTokenPageObject: ({ page }: {
-    page: EnhancedPage;
-}) => {
-    setup: () => Promise<void>;
-};
-//# sourceMappingURL=testingToken.d.ts.map
