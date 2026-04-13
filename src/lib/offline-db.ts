@@ -47,6 +47,14 @@ class VetTrackDB extends Dexie {
 
 export const offlineDb = new VetTrackDB();
 
+function getPendingSyncTable(): Table<PendingSync, number> | null {
+  // Resolve the table from Dexie's runtime registry instead of relying on
+  // class field typing. This prevents undefined table access in edge startup
+  // or migration states.
+  const table = offlineDb.tables.find((t) => t.name === "pendingSync");
+  return (table as Table<PendingSync, number> | undefined) ?? null;
+}
+
 export async function cacheEquipment(items: Equipment[]) {
   await offlineDb.equipment.bulkPut(items);
 }
@@ -96,7 +104,7 @@ export async function getCachedRoomById(id: string): Promise<Room | undefined> {
 }
 
 export async function addPendingSync(op: Omit<PendingSync, "id">): Promise<number | undefined> {
-  const table = offlineDb.pendingSync;
+  const table = getPendingSyncTable();
   if (!table) return undefined;
   return table.add(op) as Promise<number>;
 }
