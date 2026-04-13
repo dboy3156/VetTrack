@@ -30,6 +30,9 @@ import storageRoutes from "./routes/storage.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
+// Deployment runs behind a reverse proxy that sets X-Forwarded-For.
+// Trust first proxy so rate limiting derives client IPs correctly.
+app.set("trust proxy", 1);
 
 function hasInvalidHeaderChars(value: string): boolean {
   return /[\r\n\0]/.test(value);
