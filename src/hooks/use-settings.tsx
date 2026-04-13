@@ -52,9 +52,9 @@ function applySettings(settings: Settings) {
   const list = html?.classList;
   if (!list) return;
   if (settings.darkMode) {
-    list.add("dark");
+    list?.add("dark");
   } else {
-    list.remove("dark");
+    list?.remove("dark");
   }
   html.setAttribute("data-density", settings.density);
   const brightness = Math.min(100, Math.max(30, settings.brightness ?? 100));
