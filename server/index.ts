@@ -17,6 +17,8 @@ import analyticsRoutes from "./routes/analytics.js";
 import activityRoutes from "./routes/activity.js";
 import userRoutes from "./routes/users.js";
 import stabilityRoutes from "./routes/stability.js";
+import metricsRoutes from "./routes/metrics.js";
+import foldersRoutes from "./routes/folders.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -155,6 +157,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/metrics", metricsRoutes);
+app.use("/api/folders", foldersRoutes);
 app.use("/api/stability", stabilityRoutes);
 
 if (process.env.NODE_ENV === "production") {
