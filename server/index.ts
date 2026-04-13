@@ -152,11 +152,6 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-<<<<<<< HEAD
-const PORT = Number(process.env.PORT) || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Hospital System Online on port ${PORT}`);
-=======
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("Unhandled application error", err);
   if (res.headersSent) return;
@@ -172,5 +167,4 @@ function getSafePort(rawPort: string | undefined): number {
 const PORT = getSafePort(process.env.PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on ${PORT}`);
->>>>>>> 546bfb72 (final: production hardening + cors fix)
 });
