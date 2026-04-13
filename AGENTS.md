@@ -45,7 +45,15 @@ DATABASE_URL=postgres://vettrack:vettrack@localhost:5432/vettrack PORT=3001 pnpm
 This starts both the Express API (port 3001) and Vite dev server (port 5000) via `concurrently`.
 
 ### Frontend Auth Caveat
-The frontend always wraps the app in `<ClerkProvider>`. Without `VITE_CLERK_PUBLISHABLE_KEY`, the Clerk SDK may error in the browser. The **backend** has a dev-mode bypass (hardcoded admin user when no `CLERK_SECRET_KEY` is set), so API routes work without Clerk keys. To test the full UI end-to-end, Clerk **development/test** keys (`pk_test_*` / `sk_test_*`) are needed — **production keys (`pk_live_*` / `sk_live_*`) are domain-locked to `vettrack.us` and will not work on localhost**. Only 4 route modules are mounted in `server/index.ts`: equipment, analytics, activity, users (rooms and other routes referenced in the codebase are not yet registered).
+The frontend always wraps the app in `<ClerkProvider>`. Without `VITE_CLERK_PUBLISHABLE_KEY`, the Clerk SDK may error in the browser. The **backend** has a dev-mode bypass (hardcoded admin user when no `CLERK_SECRET_KEY` is set), so API routes work without Clerk keys.
+
+The repo's Clerk keys are **production keys** (`pk_live_*` / `sk_live_*`) bound to `clerk.vettrack.uk`. These reject requests from `http://localhost` origins. To use them locally, set up an HTTPS proxy:
+1. Add `127.0.0.1 vettrack.uk` to `/etc/hosts`
+2. Generate a self-signed cert: `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /tmp/certs/vettrack.key -out /tmp/certs/vettrack.crt -subj "/CN=vettrack.uk" -addext "subjectAltName=DNS:vettrack.uk"`
+3. Run a Node HTTPS proxy on port 443 forwarding to Vite on port 5000
+4. Open Chrome with `--ignore-certificate-errors` flag, navigate to `https://vettrack.uk`
+
+Only 4 route modules are mounted in `server/index.ts`: equipment, analytics, activity, users (rooms and other routes referenced in the codebase are not yet registered).
 
 ### Commands
 | Action | Command |
