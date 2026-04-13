@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 const HomePage = lazy(() => import("@/pages/home"));
 const SignInPage = lazy(() => import("@/pages/signin"));
 const EquipmentPage = lazy(() => import("@/pages/equipment-list"));
+const StabilityDashboardPage = lazy(() => import("@/pages/stability-dashboard"));
 
 function AuthGuard({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/signin" component={SignInPage} />
         <Route path="/"><AuthGuard><HomePage /></AuthGuard></Route>
         <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
+        <Route path="/stability"><AuthGuard><StabilityDashboardPage /></AuthGuard></Route>
       </Switch>
     </Suspense>
   );

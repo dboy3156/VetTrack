@@ -16,6 +16,7 @@ import equipmentRoutes from "./routes/equipment.js";
 import analyticsRoutes from "./routes/analytics.js";
 import activityRoutes from "./routes/activity.js";
 import userRoutes from "./routes/users.js";
+import stabilityRoutes from "./routes/stability.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,12 +26,18 @@ function hasInvalidHeaderChars(value: string): boolean {
   return /[\r\n\0]/.test(value);
 }
 
+function hasNonAsciiHeaderChars(value: string): boolean {
+  return /[^\x20-\x7E]/.test(value);
+}
+
 function normalizeOrigin(value: string | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim().replace(/^['"]|['"]$/g, "");
-  if (!trimmed || hasInvalidHeaderChars(trimmed)) return null;
+  if (!trimmed || hasInvalidHeaderChars(trimmed) || hasNonAsciiHeaderChars(trimmed)) return null;
   try {
-    return new URL(trimmed).origin;
+    const normalized = new URL(trimmed).origin;
+    if (hasInvalidHeaderChars(normalized) || hasNonAsciiHeaderChars(normalized)) return null;
+    return normalized;
   } catch {
     return null;
   }
@@ -97,14 +104,18 @@ app.use(
 
         const allowedOrigin = normalizeOrigin(process.env.ALLOWED_ORIGIN);
         if (!allowedOrigin) {
-          callback(null, requestOrigin);
+          callback(null, false);
           return;
         }
 
         const allowedWithWww = allowedOrigin.replace("://", "://www.");
         const isAllowed =
           requestOrigin === allowedOrigin || requestOrigin === allowedWithWww;
-        callback(null, isAllowed ? requestOrigin : false);
+        if (!isAllowed) {
+          callback(null, false);
+          return;
+        }
+        callback(null, requestOrigin === allowedWithWww ? allowedWithWww : allowedOrigin);
       } catch (error) {
         console.warn("CORS origin validation failed, denying request origin", error);
         callback(null, false);
@@ -144,6 +155,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/stability", stabilityRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));
