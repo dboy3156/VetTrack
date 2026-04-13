@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
 import * as Sentry from "@sentry/react";
+import { useEffect } from "react";
 import App from "./App";
 import "./index.css";
 
@@ -24,6 +25,18 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const rootEl = document.getElementById("root");
+
+function AppBootstrap() {
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.error("VetTrack: service worker registration failed", err);
+    });
+  }, []);
+
+  return <App />;
+}
+
 if (!rootEl) {
   console.error("VetTrack: #root element not found — cannot mount app.");
 } else {
@@ -34,7 +47,7 @@ if (!rootEl) {
           <SettingsProvider>
             <ClerkAuthProviderInner>
               <SyncProvider>
-                <App />
+                <AppBootstrap />
                 <Toaster position="top-center" />
               </SyncProvider>
             </ClerkAuthProviderInner>

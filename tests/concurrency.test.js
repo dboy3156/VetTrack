@@ -54,8 +54,10 @@ class EquipmentStore {
   }
 }
 
-// Retry loop: read → mutate → write, back off on conflict
-async function optimisticUpdate(store, id, mutateFn, maxRetries = 10) {
+// Retry loop: read → mutate → write, back off on conflict.
+// Under heavy contention (20+ concurrent writers), a low retry cap can
+// reject writers nondeterministically even when optimistic locking works.
+async function optimisticUpdate(store, id, mutateFn, maxRetries = 50) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const current = await store.read(id);
     const patch = mutateFn(current);

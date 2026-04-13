@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   X,
   ClipboardCopy,
+  FileText,
   PackageOpen,
   AlertTriangle,
   Wrench,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
 import type { AlertAcknowledgment } from "@/types";
 
 interface ShiftSummarySheetProps {
@@ -40,6 +42,15 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [open]);
 
   const { data: myItems, isLoading: myLoading, isError: myError, refetch: refetchMy } = useQuery({
     queryKey: ["/api/equipment/my"],
@@ -166,6 +177,50 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     }
   }
 
+  function handleDownloadPdf() {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const margin = 14;
+    const pageHeight = 297;
+    let y = 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("VetTrack Shift Summary", margin, y);
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    y += 8;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, 196, y);
+    y += 8;
+
+    const lines = buildSummaryText().split("\n");
+    doc.setFontSize(10);
+
+    for (const line of lines) {
+      if (y > pageHeight - 14) {
+        doc.addPage();
+        y = 20;
+      }
+
+      const safeLine = line.replace(/^•\s?/, "- ");
+      const wrapped = doc.splitTextToSize(safeLine || " ", 182);
+      for (const wrappedLine of wrapped) {
+        if (y > pageHeight - 14) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(wrappedLine, margin, y);
+        y += 6;
+      }
+    }
+
+    const filename = `vettrack-shift-summary-${format(new Date(), "yyyy-MM-dd")}.pdf`;
+    doc.save(filename);
+    toast.success("Shift summary PDF downloaded");
+  }
+
   if (!open) return null;
 
   return (
@@ -205,7 +260,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-5">
           {isLoading ? (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-6 w-40" />
@@ -362,9 +417,9 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t bg-white">
+        <div className="px-5 py-4 border-t bg-white flex gap-2">
           <Button
-            className="w-full gap-2"
+            className="flex-1 gap-2"
             variant="outline"
             onClick={handleCopy}
             disabled={isLoading}
@@ -372,6 +427,16 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
           >
             <ClipboardCopy className="w-4 h-4" />
             {t.shiftSummary.actions.copy}
+          </Button>
+          <Button
+            className="flex-1 gap-2"
+            variant="outline"
+            onClick={handleDownloadPdf}
+            disabled={isLoading}
+            data-testid="btn-download-shift-summary-pdf"
+          >
+            <FileText className="w-4 h-4" />
+            Download PDF
           </Button>
         </div>
       </div>

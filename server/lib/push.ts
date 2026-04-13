@@ -198,6 +198,7 @@ export async function sendPushToRole(role: string, payload: PushPayload): Promis
 
   await Promise.all(
     subs.map(async (sub) => {
+      const effectiveSilent = !sub.soundEnabled ? true : (payload.silent ?? false);
       const notificationPayload = JSON.stringify({
         title: payload.title,
         body: payload.body,
