@@ -26,18 +26,35 @@ import { toast } from "sonner";
 const SUBMIT_TIMEOUT_MS = 30_000;
 
 const schema = z.object({
-  name: z.string().min(1, t.newEquipment.fields.name.error),
+  name: z.string().trim().min(1, t.newEquipment.fields.name.error),
   serialNumber: z.string().optional(),
   model: z.string().optional(),
   manufacturer: z.string().optional(),
   purchaseDate: z.string().optional(),
   location: z.string().optional(),
   folderId: z.string().optional(),
-  maintenanceIntervalDays: z.coerce.number().optional(),
+  maintenanceIntervalDays: z.preprocess(
+    (value) => {
+      if (value === "" || value === null || value === undefined) return undefined;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? value : parsed;
+      }
+      return value;
+    },
+    z.number().int().positive().optional()
+  ),
   imageUrl: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
+type CreateEquipmentPayload = Parameters<(typeof api.equipment)["create"]>[0];
+type UpdateEquipmentPayload = Parameters<(typeof api.equipment)["update"]>[1];
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 export default function NewEquipmentPage() {
   const [, navigate] = useLocation();
@@ -133,17 +150,7 @@ export default function NewEquipmentPage() {
 
   const updateMut = useMutation({
     mutationFn: (data: FormValues) =>
-      api.equipment.update(editId!, {
-        name: data.name,
-        serialNumber: data.serialNumber,
-        model: data.model,
-        manufacturer: data.manufacturer,
-        purchaseDate: data.purchaseDate,
-        location: data.location,
-        folderId: data.folderId === "none" ? null : data.folderId,
-        maintenanceIntervalDays: data.maintenanceIntervalDays,
-        imageUrl: data.imageUrl,
-      }),
+      api.equipment.update(editId!, buildUpdatePayload(data)),
     onSuccess: () => {
       navigator.vibrate?.(50);
       clearSubmitTimeout();
@@ -160,6 +167,34 @@ export default function NewEquipmentPage() {
       clearSubmitTimeout();
     },
   });
+
+  function buildCreatePayload(data: FormValues): CreateEquipmentPayload {
+    return {
+      name: data.name,
+      serialNumber: normalizeOptionalString(data.serialNumber),
+      model: normalizeOptionalString(data.model),
+      manufacturer: normalizeOptionalString(data.manufacturer),
+      purchaseDate: normalizeOptionalString(data.purchaseDate),
+      location: normalizeOptionalString(data.location),
+      folderId: data.folderId === "none" ? undefined : data.folderId,
+      maintenanceIntervalDays: data.maintenanceIntervalDays,
+      imageUrl: normalizeOptionalString(data.imageUrl),
+    };
+  }
+
+  function buildUpdatePayload(data: FormValues): UpdateEquipmentPayload {
+    return {
+      name: data.name,
+      serialNumber: normalizeOptionalString(data.serialNumber) ?? null,
+      model: normalizeOptionalString(data.model) ?? null,
+      manufacturer: normalizeOptionalString(data.manufacturer) ?? null,
+      purchaseDate: normalizeOptionalString(data.purchaseDate) ?? null,
+      location: normalizeOptionalString(data.location) ?? null,
+      folderId: data.folderId === "none" ? null : data.folderId,
+      maintenanceIntervalDays: data.maintenanceIntervalDays ?? null,
+      imageUrl: normalizeOptionalString(data.imageUrl) ?? null,
+    };
+  }
 
   function clearSubmitTimeout() {
     if (timeoutRef.current !== null) {
@@ -192,7 +227,7 @@ export default function NewEquipmentPage() {
     }, SUBMIT_TIMEOUT_MS);
 
     createMut.mutate({
-      data: { ...data, folderId: data.folderId === "none" ? undefined : data.folderId },
+      data: buildCreatePayload(data),
       signal: controller.signal,
     });
   };
@@ -284,7 +319,7 @@ export default function NewEquipmentPage() {
                   <Input
                     id="model"
                     placeholder={t.newEquipment.fields.model.placeholder}
-                    className="h-12 rounded-xl border-border/60 bg-background"
+                    className="h-12 rounded-xl border-border/60 bg-background text-base"
                     {...register("model")}
                   />
                 </div>
@@ -293,7 +328,7 @@ export default function NewEquipmentPage() {
                   <Input
                     id="manufacturer"
                     placeholder={t.newEquipment.fields.manufacturer.placeholder}
-                    className="h-12 rounded-xl border-border/60 bg-background"
+                    className="h-12 rounded-xl border-border/60 bg-background text-base"
                     {...register("manufacturer")}
                   />
                 </div>
@@ -314,7 +349,7 @@ export default function NewEquipmentPage() {
                   key={isEditing ? (existingEquipment?.folderId ?? "none") : undefined}
                   onValueChange={(v) => setValue("folderId", v)}
                 >
-                  <SelectTrigger className="h-12 rounded-xl border-border/60 bg-background" data-testid="select-folder">
+                  <SelectTrigger className="h-12 rounded-xl border-border/60 bg-background text-base" data-testid="select-folder">
                     <SelectValue placeholder={t.newEquipment.fields.folder.placeholder} />
                   </SelectTrigger>
                   <SelectContent>
@@ -344,7 +379,7 @@ export default function NewEquipmentPage() {
                 <Input
                   id="purchaseDate"
                   type="date"
-                  className="h-12 rounded-xl border-border/60 bg-background"
+                  className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("purchaseDate")}
                   data-testid="input-purchase-date"
                 />
