@@ -5,6 +5,8 @@
     "buildCommand": "pnpm install --no-frozen-lockfile && VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY pnpm build"
   },
   "deploy": {
-    "startCommand": "pnpm start"
+    "startCommand": "pnpm start",
+    "healthcheckPath": "/api/healthz",
+    "healthcheckTimeout": 30
   }
 }
