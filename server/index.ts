@@ -124,6 +124,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const PORT = Number(process.env.PORT) || 8080;
+console.log("DEBUG PORT =", process.env.port);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Hospital System Online on port ${PORT}`);
 });
