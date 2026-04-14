@@ -2,12 +2,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
   pgTable,
+  pgEnum,
   text,
   timestamp,
   integer,
   boolean,
   varchar,
   jsonb,
+  date,
+  time,
 } from "drizzle-orm/pg-core";
 
 export const pool = new Pool({
@@ -75,10 +78,30 @@ export const equipment = pgTable("vt_equipment", {
   checkedOutByEmail: text("checked_out_by_email"),
   checkedOutAt: timestamp("checked_out_at"),
   checkedOutLocation: text("checked_out_location"),
+  expectedReturnMinutes: integer("expected_return_minutes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   version: integer("version").notNull().default(1),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
+});
+
+export const shiftRole = pgEnum("vt_shift_role", ["technician", "senior_technician", "admin"]);
+
+export const shifts = pgTable("vt_shifts", {
+  id: text("id").primaryKey(),
+  date: date("date", { mode: "string" }).notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time").notNull(),
+  employeeName: text("employee_name").notNull(),
+  role: shiftRole("role").notNull(),
+});
+
+export const shiftImports = pgTable("vt_shift_imports", {
+  id: text("id").primaryKey(),
+  importedAt: timestamp("imported_at").defaultNow().notNull(),
+  importedBy: text("imported_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  filename: text("filename").notNull(),
+  rowCount: integer("row_count").notNull(),
 });
 
 export const scanLogs = pgTable("vt_scan_logs", {
@@ -151,6 +174,10 @@ export const pushSubscriptions = pgTable("vt_push_subscriptions", {
   auth: text("auth").notNull(),
   soundEnabled: boolean("sound_enabled").notNull().default(true),
   alertsEnabled: boolean("alerts_enabled").notNull().default(true),
+  technicianReturnRemindersEnabled: boolean("technician_return_reminders_enabled").notNull().default(true),
+  seniorOwnReturnRemindersEnabled: boolean("senior_own_return_reminders_enabled").notNull().default(true),
+  seniorTeamOverdueAlertsEnabled: boolean("senior_team_overdue_alerts_enabled").notNull().default(true),
+  adminHourlySummaryEnabled: boolean("admin_hourly_summary_enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

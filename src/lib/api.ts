@@ -23,6 +23,12 @@ import type {
   SystemMetrics,
   SupportTicket,
   CreateSupportTicketRequest,
+  Shift,
+  UserRole,
+  ShiftRole,
+  ShiftImport,
+  ShiftImportPreview,
+  ShiftImportResult,
 } from "@/types";
 import { t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -595,7 +601,12 @@ export const api = {
       request<void>(`/api/users/${id}`, { method: "DELETE" }),
     restore: (id: string) =>
       request<User>(`/api/users/${id}/restore`, { method: "POST" }),
-    me: () => request<User>("/api/users/me"),
+    me: () => request<User & {
+      effectiveRole?: UserRole | ShiftRole;
+      roleSource?: "shift" | "permanent";
+      activeShift?: Shift | null;
+      resolvedAt?: string;
+    }>("/api/users/me"),
   },
   storage: {
     requestUploadUrl: (data: UploadUrlRequest) =>
@@ -632,10 +643,32 @@ export const api = {
   push: {
     getVapidPublicKey: () =>
       request<{ publicKey: string }>("/api/push/vapid-public-key"),
-    subscribe: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    subscribe: (subscription: {
+      endpoint: string;
+      keys: { p256dh: string; auth: string };
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }) =>
       request<{ success: boolean; id: string }>(
         "/api/push/subscribe",
         { method: "POST", body: JSON.stringify(subscription) }
+      ),
+    update: (payload: {
+      endpoint: string;
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }) =>
+      request<void>(
+        "/api/push/subscribe",
+        { method: "PATCH", body: JSON.stringify(payload) }
       ),
     unsubscribe: (endpoint: string) =>
       request<void>(
@@ -647,6 +680,41 @@ export const api = {
         "/api/push/test",
         { method: "POST" }
       ),
+  },
+  shifts: {
+    list: (date?: string) =>
+      request<Shift[]>(date ? `/api/shifts?date=${encodeURIComponent(date)}` : "/api/shifts"),
+    imports: () => request<ShiftImport[]>("/api/shifts/imports"),
+    previewImport: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const res = await fetchWithTimeout(
+        "/api/shifts/import/preview",
+        { method: "POST", body: form, headers },
+        FETCH_TIMEOUT_MS
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Preview failed" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<ShiftImportPreview>;
+    },
+    confirmImport: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const res = await fetchWithTimeout(
+        "/api/shifts/import/confirm",
+        { method: "POST", body: form, headers },
+        FETCH_TIMEOUT_MS
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Import failed" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<ShiftImportResult>;
+    },
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),
