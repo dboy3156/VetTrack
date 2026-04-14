@@ -4,7 +4,7 @@ import multer from "multer";
 import { z } from "zod";
 import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens, users } from "../db.js";
 import { eq, inArray, desc, and, or, ilike, lt, sql, isNull, isNotNull } from "drizzle-orm";
-import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter, writeLimiter } from "../middleware/rate-limiters.js";
 import { checkDedupe, sendPushToAll } from "../lib/push.js";
@@ -430,7 +430,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
+router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
   try {
     const {
       name,
@@ -489,7 +489,7 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
   }
 });
 
-router.patch("/:id", requireAuth, writeLimiter, requireRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
+router.patch("/:id", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
 try {
     const {
       name,
@@ -650,7 +650,7 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
 });
 
 // POST /api/equipment/:id/checkout
-router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technician"), validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
+router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
   try {
     const { location } = req.body as z.infer<typeof checkoutSchema>;
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
@@ -759,7 +759,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
 });
 
 // POST /api/equipment/:id/return
-router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician"), validateUuid("id"), async (req, res) => {
+router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), async (req, res) => {
   try {
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
@@ -857,7 +857,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
 });
 
 // POST /api/equipment/:id/scan
-router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
+router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
   try {
     const { status, note, photoUrl } = req.body as z.infer<typeof scanSchema>;
     if (status === "issue" && !note?.trim()) {
@@ -989,7 +989,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireRole("vet"), validateU
 });
 
 // POST /api/equipment/:id/revert
-router.post("/:id/revert", requireAuth, requireRole("vet"), validateUuid("id"), validateBody(revertSchema), async (req, res) => {
+router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), validateBody(revertSchema), async (req, res) => {
   try {
     const { undoToken: tokenId } = req.body as z.infer<typeof revertSchema>;
 
@@ -1362,7 +1362,7 @@ try {
   }
 });
 
-router.post("/bulk-move", requireAuth, writeLimiter, requireRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
+router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
   try {
     const { ids: typedIds, folderId } = req.body as z.infer<typeof bulkMoveSchema>;
     const targetFolderId = folderId ?? null;
@@ -1436,7 +1436,7 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireRole("technician"), 
 router.post(
   "/bulk-verify-room",
   requireAuth,
-  requireRole("technician"),
+  requireEffectiveRole("technician"),
   validateBody(bulkVerifyRoomSchema),
   async (req, res) => {
     try {

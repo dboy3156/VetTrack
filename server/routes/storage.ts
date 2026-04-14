@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 
 /*
@@ -18,7 +18,7 @@ const uploadUrlSchema = z.object({
   contentType: z.string().min(1, "contentType is required").max(100),
 });
 
-router.post("/upload-url", requireAuth, requireRole("technician"), validateBody(uploadUrlSchema), async (req, res) => {
+router.post("/upload-url", requireAuth, requireEffectiveRole("technician"), validateBody(uploadUrlSchema), async (req, res) => {
   if (!process.env.REPLIT_OBJECT_STORAGE_BUCKET) {
     return res.status(501).json({
       error: "Image uploads are not available in this environment. To enable uploads, configure the REPLIT_OBJECT_STORAGE_BUCKET environment variable and implement the signed URL generation in server/routes/storage.ts.",
