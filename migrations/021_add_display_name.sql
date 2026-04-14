@@ -1,0 +1,1 @@
+ALTER TABLE vt_users ADD COLUMN IF NOT EXISTS display_name TEXT;
