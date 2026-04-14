@@ -42,6 +42,27 @@ const router = Router();
 
 const VALID_STATUSES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
+const RTL = "\u202B";
+
+function translateStatusToHebrew(status: string): string {
+  switch (status) {
+    case "ok":
+      return "תקין";
+    case "issue":
+      return "תקלה";
+    case "maintenance":
+      return "תחזוקה";
+    case "sterilized":
+      return "מחוטא";
+    case "overdue":
+      return "באיחור";
+    case "inactive":
+      return "לא פעיל";
+    default:
+      return status;
+  }
+}
+
 const whatsappAlertSchema = z.object({
   equipmentId: z.string().min(1, "equipmentId is required"),
   status: z.enum(VALID_STATUSES, {
@@ -67,11 +88,15 @@ router.post("/alert", requireAuth, requireRole("technician"), validateBody(whats
     }
 
     const equipmentName = item.name;
-    const timestamp = format(new Date(), "MMM d, yyyy 'at' h:mm a");
+    const timestamp = format(new Date(), "dd/MM/yyyy HH:mm");
 
-    let message = `🚨 VetTrack Alert\n\nEquipment: *${equipmentName}*\nStatus: *${status.toUpperCase()}*\nTime: ${timestamp}`;
-    if (note) message += `\nNote: ${note}`;
-    message += `\n\nPlease address this issue immediately.`;
+    let message = `${RTL}🚨 התראת VetTrack
+
+ציוד: ${equipmentName}
+סטטוס: ${translateStatusToHebrew(status)}
+זמן: ${timestamp}`;
+    if (note) message += `\nהערה: ${note}`;
+    message += `\n\nיש לטפל בנושא בהקדם.`;
 
     const encoded = encodeURIComponent(message);
     const waUrl = phone

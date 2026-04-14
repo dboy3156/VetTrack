@@ -23,6 +23,16 @@ import { resolveCurrentRole } from "../lib/role-resolution.js";
 
 const router = Router();
 
+const userFields = {
+  id: users.id,
+  email: users.email,
+  name: users.name,
+  displayName: users.displayName,
+  role: users.role,
+  status: users.status,
+  createdAt: users.createdAt,
+};
+
 const VALID_ROLES = ["admin", "vet", "technician", "viewer"] as const;
 const VALID_STATUSES = ["pending", "active", "blocked"] as const;
 
@@ -72,7 +82,7 @@ router.get("/me", requireAuth, async (req, res) => {
 router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
   try {
     const deletedUsers = await db
-      .select()
+      .select({ ...userFields, deletedAt: users.deletedAt })
       .from(users)
       .where(isNotNull(users.deletedAt))
       .orderBy(desc(users.deletedAt));
@@ -97,41 +107,12 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const resolvedOffset = (page - 1) * resolvedLimit;
 
-    const userFields = {
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      displayName: users.displayName,
-      role: users.role,
-      status: users.status,
-      createdAt: users.createdAt,
-      deletedAt: users.deletedAt,
-    };
-
     const baseQuery = status
-      ? db.select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      displayName: users.displayName,
-      role: users.role,
-      status: users.status,
-      createdAt: users.createdAt,
-    })
-    .from(users)
-    .where(and(eq(users.status, status as string), isNull(users.deletedAt)))
-      : db.select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      displayName: users.displayName,
-      role: users.role,
-      status: users.status,
-      createdAt: users.createdAt,
-    })
-    .from(users)
-    .where(isNull(users.deletedAt))
-    .orderBy(users.createdAt);
+      ? db
+          .select(userFields)
+          .from(users)
+          .where(and(eq(users.status, status as string), isNull(users.deletedAt)))
+      : db.select(userFields).from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
 
     const whereClause = status
       ? and(eq(users.status, status as string), isNull(users.deletedAt))
@@ -155,7 +136,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
   try {
     const pendingUsers = await db
-      .select()
+      .select(userFields)
       .from(users)
       .where(and(eq(users.status, "pending"), isNull(users.deletedAt)))
       .orderBy(users.createdAt);
