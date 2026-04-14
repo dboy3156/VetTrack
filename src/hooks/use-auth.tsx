@@ -124,10 +124,10 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       };
 
       try {
-        // 1. נסיון לקבל את המשתמש הקיים
+        // 1. Try fetching the existing user
         let res = await fetch("/api/users/me", { headers });
         
-        // 2. אם המשתמש לא קיים (404/401), נבצע סנכרון (Provisioning)
+        // 2. If the user does not exist (404/401), sync/provision user
         if (!res.ok && res.status !== 403) {
           res = await fetch("/api/users/sync", {
             method: "POST",

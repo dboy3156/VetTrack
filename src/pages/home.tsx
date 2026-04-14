@@ -88,7 +88,7 @@ export default function HomePage() {
         <div className="flex items-start justify-between pt-1 gap-3">
           <div>
             <h1 className="text-2xl font-bold leading-tight text-foreground">
-              שלום, {name?.split(" ")[0] || "שם"}
+              {t.homePage.greeting(name?.split(" ")[0] || t.homePage.fallbackName)}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">{ t.home.equipmentOverview }</p>
           </div>
@@ -132,7 +132,7 @@ export default function HomePage() {
               ) : (
                 <p className="text-lg font-bold text-foreground leading-none">{totalCount}</p>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">סה״כ</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{t.homePage.total}</p>
             </div>
           </Link>
 
@@ -179,11 +179,11 @@ export default function HomePage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-red-400" />
-                התראות פעילות
+                {t.homePage.activeAlerts}
               </h2>
               <Link href="/alerts">
                 <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-7 px-2 hover:text-foreground">
-                  הצג הכל
+                  {t.homePage.showAll}
                 </Button>
               </Link>
             </div>
@@ -230,7 +230,7 @@ export default function HomePage() {
           <div>
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
               <Activity className="w-4 h-4 text-muted-foreground" />
-              פעילות אחרונה
+              {t.homePage.recentActivity}
             </h2>
             <div className="flex flex-col gap-1.5">
               {activityData.items.slice(0, 4).map((item) => {
@@ -280,9 +280,9 @@ export default function HomePage() {
               <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
                 <Zap className="w-7 h-7 text-muted-foreground" />
               </div>
-              <h3 className="font-bold text-lg mb-1">התחל</h3>
+              <h3 className="font-bold text-lg mb-1">{t.homePage.getStarted}</h3>
               <p className="text-sm text-muted-foreground mb-5">
-                הוסף את פריט הציוד הראשון כדי להתחיל במעקב
+                {t.homePage.getStartedDescription}
               </p>
               <Link href="/equipment/new">
                 <Button data-testid="btn-get-started">

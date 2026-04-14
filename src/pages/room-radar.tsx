@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -46,7 +47,7 @@ function toInitials(name: string | null | undefined): string {
 }
 
 function activityActionLabel(entry: RoomActivityEntry): string {
-  if (entry.note?.startsWith("Room verified:")) return "אומת (חדר אופס)";
+  if (entry.note?.startsWith("Room verified:")) return t.roomRadarPage.verifiedReset;
   if (entry.status === "ok") return "scanned — OK";
   if (entry.status === "issue") return "flagged issue on";
   if (entry.status === "maintenance") return "logged maintenance for";
@@ -106,7 +107,7 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
 
   const verifierInitials = justVerified ? null : toInitials(eq.lastVerifiedByName);
   const verifiedLabel = justVerified
-    ? "אומת עכשיו"
+    ? t.roomRadarPage.verifiedNow
     : eq.lastVerifiedAt
     ? `Verified ${formatRelativeTime(eq.lastVerifiedAt)}${verifierInitials ? ` · ${verifierInitials}` : ""}`
     : null;
@@ -263,7 +264,7 @@ export default function RoomRadarPage() {
     },
     onError: (err: Error) => {
       setVerifyState("idle");
-      toast.error(err.message || "האימות נכשל");
+      toast.error(err.message || t.roomRadarPage.verifyFailed);
     },
   });
 
@@ -303,7 +304,7 @@ export default function RoomRadarPage() {
               </div>
               <p className="text-[10px] font-bold tracking-widest uppercase text-primary/70 mb-1">NFC Room Reset</p>
               <h2 className="text-lg font-bold text-foreground leading-snug">
-                {room?.name ?? "טוען חדר..."}
+                {room?.name ?? t.roomRadarPage.loadingRoom}
               </h2>
               {room?.floor && (
                 <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1">
@@ -450,7 +451,7 @@ export default function RoomRadarPage() {
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4" />
-                  אמת הכל ב- {room?.name ?? "Room"}
+                  {t.roomRadarPage.verifyAllInRoom(room?.name ?? "Room")}
                 </>
               )}
             </button>
@@ -486,8 +487,8 @@ export default function RoomRadarPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Radar}
-            message="אין ציוד זמין"
-            subMessage="כל הפריטים בחדר זה מוצאים כרגע."
+            message={t.roomRadarPage.noAvailableEquipment}
+            subMessage={t.roomRadarPage.allCheckedOutSubMessage}
             action={
               <Button variant="outline" size="sm" onClick={() => setAvailableOnly(false)}>
                 Show All Items

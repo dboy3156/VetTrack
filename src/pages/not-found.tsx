@@ -3,12 +3,13 @@ import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout";
 import { Home, Frown } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export default function NotFoundPage() {
   return (
     <Layout>
       <Helmet>
-        <title>העמוד לא נמצא — VetTrack</title>
+        <title>{t.notFoundPage.title}</title>
         <meta name="description" content="The page you are looking for does not exist. Return to the VetTrack dashboard." />
       </Helmet>
       <div className="flex flex-col items-center justify-center py-20 text-center gap-4">

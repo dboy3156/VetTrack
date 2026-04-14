@@ -349,7 +349,7 @@ export default function EquipmentDetailPage() {
             toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
               duration: 10000,
               action: {
-                label: t.equipmentDetail.toast.dismiss ?? "סגור",
+                label: t.equipmentDetail.toast.dismiss,
                 onClick: () => {},
               },
             });
@@ -517,7 +517,7 @@ export default function EquipmentDetailPage() {
           toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
             duration: 10000,
             action: {
-              label: t.equipmentDetail.toast.dismiss ?? "סגור",
+              label: t.equipmentDetail.toast.dismiss,
               onClick: () => {},
             },
           });
@@ -550,7 +550,7 @@ export default function EquipmentDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error(t.equipmentDetail.toast.photoSizeLimit ?? "גודל התמונה עד 2MB");
+      toast.error(t.equipmentDetail.toast.photoSizeLimit);
       e.target.value = "";
       return;
     }
@@ -563,7 +563,7 @@ export default function EquipmentDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error(t.equipmentDetail.toast.photoSizeLimit ?? "גודל התמונה עד 2MB");
+      toast.error(t.equipmentDetail.toast.photoSizeLimit);
       e.target.value = "";
       return;
     }
@@ -624,7 +624,7 @@ export default function EquipmentDetailPage() {
               className="gap-1.5"
             >
               <Loader2 className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
-              {isRefetching ? t.equipmentDetail.toast.trying ?? "מנסה..." : t.equipmentDetail.toast.tryAgain ?? "נסה שוב"}
+              {isRefetching ? t.equipmentDetail.toast.trying : t.equipmentDetail.toast.tryAgain}
             </Button>
             <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
           </div>
@@ -688,7 +688,7 @@ export default function EquipmentDetailPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleDuplicate}
-                title={t.equipmentDetail.toast.duplicateEquipment ?? "שכפל ציוד"}
+                title={t.equipmentDetail.toast.duplicateEquipment}
                 data-testid="btn-duplicate"
               >
                 <Copy className="w-4 h-4" />
@@ -815,7 +815,7 @@ export default function EquipmentDetailPage() {
               <User className="w-4 h-4 shrink-0" />
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-tight">
-                  {checkedOutByMe ? t.equipmentDetail.toast.checkedOutByYou ?? "הוצא לשימוש על ידך" : `בשימוש על ידי ${equipment.checkedOutByEmail}`}
+                  {checkedOutByMe ? t.equipmentDetail.toast.checkedOutByYou : t.equipmentDetail.checkedOutBy(equipment.checkedOutByEmail || t.common.unknown)}
                 </p>
                 {equipment.checkedOutLocation && (
                   <p className="text-xs mt-0.5 opacity-80 truncate">{equipment.checkedOutLocation}</p>
@@ -916,26 +916,26 @@ export default function EquipmentDetailPage() {
             <Card className="bg-card border-border/60 shadow-sm">
               <CardContent className="p-4 flex flex-col gap-3">
                 {[
-                  { icon: Hash, label: t.equipmentDetail.serialNumber ?? "מספר סידורי", value: equipment.serialNumber },
-                  { icon: Package, label: t.equipmentDetail.model ?? "דגם", value: equipment.model },
-                  { icon: Package, label: t.equipmentDetail.manufacturer ?? "יצרן", value: equipment.manufacturer },
-                  { icon: Calendar, label: t.equipmentDetail.purchaseDate ?? "תאריך רכישה", value: formatDate(equipment.purchaseDate) },
-                  { icon: MapPin, label: t.equipmentDetail.location ?? "מיקום", value: equipment.location },
+                  { icon: Hash, label: t.equipmentDetail.serialNumber, value: equipment.serialNumber },
+                  { icon: Package, label: t.equipmentDetail.model, value: equipment.model },
+                  { icon: Package, label: t.equipmentDetail.manufacturer, value: equipment.manufacturer },
+                  { icon: Calendar, label: t.equipmentDetail.purchaseDate, value: formatDate(equipment.purchaseDate) },
+                  { icon: MapPin, label: t.equipmentDetail.location, value: equipment.location },
                   {
                     icon: Clock,
-                    label: t.equipmentDetail.maintenanceInterval ?? "מרווח תחזוקה",
+                    label: t.equipmentDetail.maintenanceInterval,
                     value: equipment.maintenanceIntervalDays
                       ? `${equipment.maintenanceIntervalDays} days`
                       : undefined,
                   },
                   {
                     icon: Wrench,
-                    label: t.equipmentDetail.lastMaintenance ?? "תחזוקה אחרונה",
+                    label: t.equipmentDetail.lastMaintenance,
                     value: formatDateTime(equipment.lastMaintenanceDate?.toString()),
                   },
                   {
                     icon: Droplets,
-                    label: t.equipmentDetail.lastSterilization ?? "חיטוי אחרון",
+                    label: t.equipmentDetail.lastSterilization,
                     value: formatDateTime(equipment.lastSterilizationDate?.toString()),
                   },
                 ]
@@ -988,7 +988,7 @@ export default function EquipmentDetailPage() {
                             {log.photoUrl && (
                               <img
                                 src={log.photoUrl}
-                                alt={t.equipmentDetail.issuePhoto ?? "תמונת תקלה"}
+                                alt={t.equipmentDetail.issuePhoto}
                                 width={96}
                                 height={96}
                                 loading="lazy"
@@ -1018,7 +1018,7 @@ export default function EquipmentDetailPage() {
                         {isFetchingOlderLogs ? (
                           <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
                         ) : (
-                          t.equipmentDetail.loadOlder ?? "טען ישנים יותר"
+                          t.equipmentDetail.loadOlder
                         )}
                       </Button>
                     </div>
@@ -1072,12 +1072,12 @@ export default function EquipmentDetailPage() {
       <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>עדכון סטטוס</DialogTitle>
+            <DialogTitle>{t.equipmentDetail.updateStatusTitle}</DialogTitle>
             <DialogDescription>Log status for: {equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label>סטטוס</Label>
+              <Label>{t.equipmentDetail.statusLabel}</Label>
               <div className="grid grid-cols-2 gap-2">
                 {(["ok", "issue", "maintenance", "sterilized"] as EquipmentStatus[]).map((s) => (
                   <button
@@ -1118,8 +1118,8 @@ export default function EquipmentDetailPage() {
                 id="note"
                 placeholder={
                   scanStatus === "issue"
-                    ? t.equipmentDetail.describeIssue ?? "תאר את התקלה בבירור..."
-                    : t.equipmentDetail.addObservations ?? "הוסף הערות..."
+                    ? t.equipmentDetail.describeIssue
+                    : t.equipmentDetail.addObservations
                 }
                 value={scanNote}
                 onChange={(e) => {
@@ -1204,7 +1204,7 @@ export default function EquipmentDetailPage() {
       <Dialog open={reportIssueOpen} onOpenChange={setReportIssueOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>דיווח על תקלה</DialogTitle>
+            <DialogTitle>{t.equipmentDetail.reportIssueTitle}</DialogTitle>
             <DialogDescription>{equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -1336,7 +1336,7 @@ export default function EquipmentDetailPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
                     <p className="font-medium text-blue-800">
                       {checkedOutByMe
-                        ? t.equipmentDetail.toast.checkedOutByYou ?? "הוצא לשימוש על ידך"
+                        ? t.equipmentDetail.toast.checkedOutByYou
                         : `In use by ${equipment.checkedOutByEmail || "another user"}`}
                     </p>
                     {equipment.checkedOutLocation && (

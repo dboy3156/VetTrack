@@ -10,6 +10,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
+import xss from "xss";
 import path from "path";
 import { fileURLToPath } from "url";
 import equipmentRoutes from "./routes/equipment.js";
@@ -27,6 +28,7 @@ import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import { initVapid } from "./lib/push.js";
+import { apiGlobalLimiter } from "./middleware/rate-limiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -147,6 +149,29 @@ app.use(
 app.use(compression());
 app.use(express.json());
 
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return xss(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value)) {
+      sanitized[key] = sanitizeValue(nestedValue);
+    }
+    return sanitized;
+  }
+  return value;
+}
+
+// Global request body sanitization (keeps route-level Zod validation intact).
+app.use((req, _res, next) => {
+  req.body = sanitizeValue(req.body) as Record<string, unknown>;
+  next();
+});
+
 // SAFE CLERK LOAD
 app.use(async (req, res, next) => {
   if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
@@ -163,6 +188,9 @@ app.use(async (req, res, next) => {
   }
   return next();
 });
+
+// Global API limiter runs before route-specific limiters.
+app.use("/api", apiGlobalLimiter);
 
 app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);

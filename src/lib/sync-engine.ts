@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import * as Sentry from "@sentry/react";
+import { t } from "./i18n";
 import {
   getPendingSync,
   updatePendingSync,
@@ -80,7 +81,7 @@ function openCircuit() {
   circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
   notifyListeners();
 
-  toast.warning("הסנכרון הושהה — יותר מדי שגיאות", {
+  toast.warning(t.syncEngine.pausedTooManyErrors, {
     description: `Will automatically retry in ${CIRCUIT_COOLDOWN_MS / 1000}s.`,
     duration: 8000,
   });
@@ -89,7 +90,7 @@ function openCircuit() {
   circuitResetTimerId = setTimeout(() => {
     circuitResetTimerId = null;
     notifyListeners();
-    toast.success("הסנכרון חודש — מנסה שוב שינויים ממתינים", { duration: 3000 });
+    toast.success(t.syncEngine.resumedTryingPending, { duration: 3000 });
     if (navigator.onLine && !haltQueue) processQueue().catch(() => {});
   }, CIRCUIT_COOLDOWN_MS);
 }
@@ -311,7 +312,7 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
         status: "failed",
         errorMessage: "Auth error — please sign in again",
       });
-      toast.error("הפעלתך פגה — נא להתחבר מחדש", {
+      toast.error(t.syncEngine.sessionExpiredSignInAgain, {
         description: "Your pending changes were saved and will sync after you sign in.",
         duration: 10_000,
       });

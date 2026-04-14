@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -96,7 +97,7 @@ export default function ManagementDashboardPage() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold leading-tight">לוח בקרה</h1>
+            <h1 className="text-2xl font-bold leading-tight">{t.managementDashboardPage.title}</h1>
             {lastUpdated && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 Updated {lastUpdated}
@@ -112,7 +113,7 @@ export default function ManagementDashboardPage() {
               disabled={isLoading}
             >
               <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
-              רענן
+              {t.managementDashboardPage.refresh}
             </Button>
             <Button
               size="sm"
@@ -129,7 +130,7 @@ export default function ManagementDashboardPage() {
 
         {isError && (
           <ErrorCard
-            message="טעינת נתוני הציוד נכשלה. נא לנסות שוב."
+            message={t.managementDashboardPage.loadEquipmentFailed}
             onRetry={() => refetch()}
           />
         )}
@@ -153,7 +154,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground font-medium">זמין</span>
+                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.available}</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.available}</p>
                   </CardContent>
@@ -163,7 +164,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Users className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground font-medium">בשימוש</span>
+                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.inUse}</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.inUse}</p>
                   </CardContent>
@@ -173,7 +174,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Wrench className="w-4 h-4 text-red-400" />
-                      <span className="text-xs text-muted-foreground font-medium">תקלות</span>
+                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.issues}</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.issues}</p>
                   </CardContent>
@@ -183,7 +184,7 @@ export default function ManagementDashboardPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <PackageX className="w-4 h-4 text-amber-500" />
-                      <span className="text-xs text-muted-foreground font-medium">חסר</span>
+                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.missing}</span>
                     </div>
                     <p className="text-2xl font-bold text-foreground">{counts.missing}</p>
                   </CardContent>
@@ -193,12 +194,12 @@ export default function ManagementDashboardPage() {
           </div>
         </div>
 
-        {/* התראות קריטיות */}
+        {/* Critical alerts */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-critical-alerts">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-muted-foreground" />
-              התראות קריטיות
+              {t.managementDashboardPage.criticalAlerts}
               {criticalItems.length > 0 && (
                 <span className="ml-auto text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
                   {criticalItems.length}
@@ -215,8 +216,8 @@ export default function ManagementDashboardPage() {
             ) : criticalItems.length === 0 ? (
               <div className="flex flex-col items-center py-5 gap-2 text-center">
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-                <p className="text-sm font-medium text-foreground">הכל תקין</p>
-                <p className="text-xs text-muted-foreground">כל הציוד נמצא במקומו</p>
+                <p className="text-sm font-medium text-foreground">{t.managementDashboardPage.allGood}</p>
+                <p className="text-xs text-muted-foreground">{t.managementDashboardPage.allInPlace}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -233,7 +234,7 @@ export default function ManagementDashboardPage() {
                         variant={item.status === "issue" ? "issue" : "maintenance"}
                         className="shrink-0 text-[10px] px-2 py-0.5"
                       >
-                        {item.status === "issue" ? "תקלה" : "חסר"}
+                        {item.status === "issue" ? t.managementDashboardPage.issue : t.managementDashboardPage.missing}
                       </Badge>
                     </div>
                   </Link>
@@ -243,12 +244,12 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* מי מחזיק במה */}
+        {/* Who has what */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-who-has-what">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Users className="w-4 h-4 text-muted-foreground" />
-              מי מחזיק במה
+              {t.managementDashboardPage.whoHasWhat}
               {userGroups.length > 0 && (
                 <span className="ml-auto text-xs text-muted-foreground">
                   {userGroups.length} user{userGroups.length !== 1 ? "s" : ""}
@@ -265,8 +266,8 @@ export default function ManagementDashboardPage() {
             ) : userGroups.length === 0 ? (
               <div className="flex flex-col items-center py-5 gap-2 text-center">
                 <Users className="w-7 h-7 text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">כל הציוד הוחזר</p>
-                <p className="text-xs text-muted-foreground">אין כרגע ציוד בשימוש</p>
+                <p className="text-sm font-medium text-muted-foreground">{t.managementDashboardPage.allReturned}</p>
+                <p className="text-xs text-muted-foreground">{t.managementDashboardPage.noneInUse}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -318,12 +319,12 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* סקירת מיקומים */}
+        {/* Location overview */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-location-overview">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              סקירת מיקומים
+              {t.managementDashboardPage.locationOverview}
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -336,8 +337,8 @@ export default function ManagementDashboardPage() {
             ) : locationGroups.length === 0 ? (
               <EmptyState
                 icon={MapPin}
-                message="אין נתוני מיקום"
-                subMessage="ציוד עם מיקומים משויכים יופיע כאן"
+                message={t.managementDashboardPage.noLocationData}
+                subMessage={t.managementDashboardPage.noLocationDataSubMessage}
                 iconBg="bg-muted"
                 iconColor="text-muted-foreground"
               />
@@ -366,13 +367,13 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* בריאות המערכת */}
+        {/* System health */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-system-health">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Activity className="w-4 h-4 text-muted-foreground" />
-              בריאות המערכת
-              <span className="ml-auto text-xs text-muted-foreground font-normal">מתעדכן כל 60 שניות</span>
+              {t.managementDashboardPage.systemHealth}
+              <span className="ml-auto text-xs text-muted-foreground font-normal">{t.managementDashboardPage.refreshEveryMinute}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -393,14 +394,14 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="w-3.5 h-3.5" />
-                    זמן פעולה
+                    {t.managementDashboardPage.uptime}
                   </div>
                   <p className="text-lg font-bold">{formatUptime(metrics.uptime)}</p>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MemoryStick className="w-3.5 h-3.5" />
-                    זיכרון
+                    {t.managementDashboardPage.memory}
                   </div>
                   <p className="text-lg font-bold">{metrics.memoryMb}
                     <span className="text-sm font-normal text-muted-foreground">/{metrics.memoryTotalMb} MB</span>
@@ -409,14 +410,14 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/40 border border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Users className="w-3.5 h-3.5" />
-                    הפעלות
+                    {t.managementDashboardPage.sessions}
                   </div>
                   <p className="text-lg font-bold">{metrics.activeSessions}</p>
                 </div>
                 <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Server className="w-3.5 h-3.5" />
-                    הצלחות סנכרון
+                    {t.managementDashboardPage.syncSuccess}
                   </div>
                   <p className="text-lg font-bold text-emerald-700">
                     {metrics.syncMetrics?.syncSuccessCount ?? 0}
@@ -425,7 +426,7 @@ export default function ManagementDashboardPage() {
                 <div className="flex flex-col gap-1 p-3 rounded-xl border bg-muted/40 border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Server className="w-3.5 h-3.5" />
-                    שגיאות סנכרון
+                    {t.managementDashboardPage.syncFailures}
                   </div>
                   <p className={cn(
                     "text-lg font-bold",

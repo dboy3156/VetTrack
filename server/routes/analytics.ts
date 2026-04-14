@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, equipment, scanLogs } from "../db.js";
-import { gte, desc, eq, isNull } from "drizzle-orm";
+import { gte, desc, eq, and, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { subDays } from "date-fns";
 import { analyticsCache } from "../lib/analytics-cache.js";
@@ -91,34 +91,20 @@ router.get("/", requireAuth, async (req, res) => {
 
     const scanActivity = computeUsageTrends(recentScans);
 
-    const issueScans = recentScans.filter((s) => s.status === "issue");
-    const issueCountMap = new Map<string, number>();
-    for (const scan of issueScans) {
-      issueCountMap.set(
-        scan.equipmentId,
-        (issueCountMap.get(scan.equipmentId) || 0) + 1
-      );
-    }
-
-    const topProblemEquipment = await Promise.all(
-      Array.from(issueCountMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(async ([equipmentId, issueCount]) => {
-          const [item] = await db
-            .select({ name: equipment.name })
-            .from(equipment)
-            .where(eq(equipment.id, equipmentId))
-            .limit(1);
-          // Note: we intentionally don't filter deleted_at here so that
-          // problem equipment history remains visible even if deleted.
-          return {
-            equipmentId,
-            name: item?.name || "Unknown",
-            issueCount,
-          };
-        })
-    );
+    // Single grouped query (JOIN + GROUP BY + LIMIT) avoids N+1 lookups.
+    const topProblemEquipment = await db
+      .select({
+        equipmentId: scanLogs.equipmentId,
+        name: sql<string>`COALESCE(${equipment.name}, 'Unknown')`,
+        issueCount: sql<number>`count(*)::int`,
+      })
+      .from(scanLogs)
+      .leftJoin(equipment, eq(scanLogs.equipmentId, equipment.id))
+      .where(and(gte(scanLogs.timestamp, thirtyDaysAgo), eq(scanLogs.status, "issue")))
+      // Keep deleted equipment in history; no deletedAt filter by design.
+      .groupBy(scanLogs.equipmentId, equipment.name)
+      .orderBy(desc(sql`count(*)`))
+      .limit(5);
 
     const payload = {
       totalEquipment: total,

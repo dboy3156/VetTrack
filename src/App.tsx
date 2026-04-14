@@ -3,6 +3,7 @@ import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import { Loader2, ShieldAlert, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { t } from "@/lib/i18n";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -48,17 +49,17 @@ function AuthGuard({ children }: { children: ReactNode }) {
   if (status === "pending") return (
     <div className="flex h-screen flex-col items-center justify-center text-center p-6">
       <Clock className="h-16 w-16 text-amber-500 mb-4" />
-      <h1 className="text-2xl font-bold">החשבון ממתין לאישור הנהלת ביה"ח</h1>
-      <Button className="mt-4" onClick={signOut}>התנתק</Button>
+      <h1 className="text-2xl font-bold">{t.auth.guard.pendingTitle}</h1>
+      <Button className="mt-4" onClick={signOut}>{t.auth.guard.signOut}</Button>
     </div>
   );
 
   if (status === "blocked") return (
     <div className="flex h-screen flex-col items-center justify-center text-center p-6 bg-destructive/5">
       <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-      <h1 className="text-2xl font-bold text-destructive">גישה חסומה</h1>
-      <p>פנה למחלקת מערכות מידע לבירור.</p>
-      <Button className="mt-4" onClick={signOut}>התנתק</Button>
+      <h1 className="text-2xl font-bold text-destructive">{t.auth.guard.blockedTitle}</h1>
+      <p>{t.auth.guard.blockedDescription}</p>
+      <Button className="mt-4" onClick={signOut}>{t.auth.guard.signOut}</Button>
     </div>
   );
 
@@ -67,7 +68,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="p-10 text-center">טוען מערכת...</div>}>
+    <Suspense fallback={<div className="p-10 text-center">{t.auth.guard.loadingApp}</div>}>
       <Switch>
         <Route path="/landing" component={LandingPage} />
         <Route path="/signin" component={SignInPage} />

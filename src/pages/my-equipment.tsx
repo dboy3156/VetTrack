@@ -100,7 +100,7 @@ export default function MyEquipmentPage() {
               data-testid="btn-scan-qr-my-eq"
             >
               <QrCode className="w-3.5 h-3.5" />
-              סרוק QR
+              {t.myEquipmentPage.scanQr}
             </Button>
             <Button
               variant="outline"
@@ -110,7 +110,7 @@ export default function MyEquipmentPage() {
               data-testid="btn-shift-summary-my-eq"
             >
               <ClipboardCheck className="w-3.5 h-3.5" />
-              סיכום משמרת
+              {t.myEquipmentPage.shiftSummary}
             </Button>
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function MyEquipmentPage() {
             action={
               <Link href="/equipment">
                 <Button variant="outline" size="sm" className="h-11 text-xs">
-                  דפדף בציוד
+                  {t.myEquipmentPage.browseEquipment}
                 </Button>
               </Link>
             }
