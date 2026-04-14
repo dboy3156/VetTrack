@@ -66,15 +66,13 @@ import {
   formatDateTime,
   formatRelativeTime,
   buildWhatsAppUrl,
-  generateQrUrl,
   isOverdue,
   isSterilizationDue,
 } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { QRCodeSVG } from "qrcode.react";
-import { removePendingSync, updateCachedEquipment } from "@/lib/offline-db";
+import { useSyncQueue } from "@/hooks/use-sync";
 import { MoveRoomSheet } from "@/components/move-room-sheet";
 import { useSettings } from "@/hooks/use-settings";
 import { playCriticalAlertTone } from "@/lib/sounds";
@@ -105,6 +103,7 @@ export default function EquipmentDetailPage() {
   const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, technician: 20, viewer: 10 };
   const canDuplicate = (ROLE_LEVEL[role] ?? 0) >= 20;
   const { settings } = useSettings();
+  const { discard } = useSyncQueue();
   const queryClient = useQueryClient();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [scanActionSheetOpen, setScanActionSheetOpen] = useState(false);
@@ -113,7 +112,6 @@ export default function EquipmentDetailPage() {
   const [scanNote, setScanNote] = useState("");
   const [scanPhoto, setScanPhoto] = useState<string | null>(null);
   const [noteError, setNoteError] = useState("");
-  const [showQR, setShowQR] = useState(false);
   const [checkoutLocation, setCheckoutLocation] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const reportIssuePhotoRef = useRef<HTMLInputElement>(null);
@@ -162,7 +160,7 @@ export default function EquipmentDetailPage() {
     const prev = state.previousEquipment;
 
     if (state.pendingSyncId !== undefined) {
-      await removePendingSync(state.pendingSyncId);
+      await discard(state.pendingSyncId);
       queryClient.setQueryData([`/api/equipment/${id}`], prev);
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
@@ -352,7 +350,7 @@ export default function EquipmentDetailPage() {
             toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
               duration: 10000,
               action: {
-                label: t.equipmentDetail.toast.dismiss ?? "סגור",
+                label: t.equipmentDetail.toast.dismiss,
                 onClick: () => {},
               },
             });
@@ -520,7 +518,7 @@ export default function EquipmentDetailPage() {
           toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
             duration: 10000,
             action: {
-              label: t.equipmentDetail.toast.dismiss ?? "סגור",
+              label: t.equipmentDetail.toast.dismiss,
               onClick: () => {},
             },
           });
@@ -553,7 +551,7 @@ export default function EquipmentDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error(t.equipmentDetail.toast.photoSizeLimit ?? "גודל התמונה עד 2MB");
+      toast.error(t.equipmentDetail.toast.photoSizeLimit);
       e.target.value = "";
       return;
     }
@@ -566,7 +564,7 @@ export default function EquipmentDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error(t.equipmentDetail.toast.photoSizeLimit ?? "גודל התמונה עד 2MB");
+      toast.error(t.equipmentDetail.toast.photoSizeLimit);
       e.target.value = "";
       return;
     }
@@ -601,6 +599,11 @@ export default function EquipmentDetailPage() {
     setScanDialogOpen(true);
   }
 
+  function handlePrintQr() {
+    if (!equipment?.id) return;
+    window.open(`/equipment/${id}/qr`, "_blank");
+  }
+
   if (isLoading) {
     return <EquipmentDetailSkeleton />;
   }
@@ -622,7 +625,7 @@ export default function EquipmentDetailPage() {
               className="gap-1.5"
             >
               <Loader2 className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
-              {isRefetching ? t.equipmentDetail.toast.trying ?? "מנסה..." : t.equipmentDetail.toast.tryAgain ?? "נסה שוב"}
+              {isRefetching ? t.equipmentDetail.toast.trying : t.equipmentDetail.toast.tryAgain}
             </Button>
             <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
           </div>
@@ -648,8 +651,6 @@ export default function EquipmentDetailPage() {
   const StatusIcon = statusConf?.icon || Package;
   const overdue = isOverdue(equipment);
   const sterilizationDue = isSterilizationDue(equipment);
-  const qrUrl = generateQrUrl(equipment.id);
-
   const isCheckedOut = !!equipment.checkedOutById;
   const checkedOutByMe = equipment.checkedOutById === userId;
 
@@ -688,7 +689,7 @@ export default function EquipmentDetailPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleDuplicate}
-                title={t.equipmentDetail.toast.duplicateEquipment ?? "שכפל ציוד"}
+                title={t.equipmentDetail.toast.duplicateEquipment}
                 data-testid="btn-duplicate"
               >
                 <Copy className="w-4 h-4" />
@@ -720,7 +721,7 @@ export default function EquipmentDetailPage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete {equipment.name}?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This permanently deletes this equipment and all its scan history.
+                      This hides the equipment from active lists (soft-delete). Audit and scan history are preserved.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -815,7 +816,7 @@ export default function EquipmentDetailPage() {
               <User className="w-4 h-4 shrink-0" />
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-tight">
-                  {checkedOutByMe ? t.equipmentDetail.toast.checkedOutByYou ?? "הוצא לשימוש על ידך" : `בשימוש על ידי ${equipment.checkedOutByEmail}`}
+                  {checkedOutByMe ? t.equipmentDetail.toast.checkedOutByYou : t.equipmentDetail.checkedOutBy(equipment.checkedOutByEmail || t.common.unknown)}
                 </p>
                 {equipment.checkedOutLocation && (
                   <p className="text-xs mt-0.5 opacity-80 truncate">{equipment.checkedOutLocation}</p>
@@ -845,9 +846,9 @@ export default function EquipmentDetailPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5 items-end shrink-0">
-                <Button variant="outline" size="sm" onClick={() => setShowQR(true)} data-testid="btn-show-qr" className="h-11">
+                <Button variant="outline" size="sm" onClick={handlePrintQr} data-testid="btn-print-qr" className="h-11">
                   <QrCode className="w-3.5 h-3.5 mr-1" />
-                  QR Code
+                  Print QR
                 </Button>
                 <Button
                   variant="outline"
@@ -916,26 +917,26 @@ export default function EquipmentDetailPage() {
             <Card className="bg-card border-border/60 shadow-sm">
               <CardContent className="p-4 flex flex-col gap-3">
                 {[
-                  { icon: Hash, label: t.equipmentDetail.serialNumber ?? "מספר סידורי", value: equipment.serialNumber },
-                  { icon: Package, label: t.equipmentDetail.model ?? "דגם", value: equipment.model },
-                  { icon: Package, label: t.equipmentDetail.manufacturer ?? "יצרן", value: equipment.manufacturer },
-                  { icon: Calendar, label: t.equipmentDetail.purchaseDate ?? "תאריך רכישה", value: formatDate(equipment.purchaseDate) },
-                  { icon: MapPin, label: t.equipmentDetail.location ?? "מיקום", value: equipment.location },
+                  { icon: Hash, label: t.equipmentDetail.serialNumber, value: equipment.serialNumber },
+                  { icon: Package, label: t.equipmentDetail.model, value: equipment.model },
+                  { icon: Package, label: t.equipmentDetail.manufacturer, value: equipment.manufacturer },
+                  { icon: Calendar, label: t.equipmentDetail.purchaseDate, value: formatDate(equipment.purchaseDate) },
+                  { icon: MapPin, label: t.equipmentDetail.location, value: equipment.location },
                   {
                     icon: Clock,
-                    label: t.equipmentDetail.maintenanceInterval ?? "מרווח תחזוקה",
+                    label: t.equipmentDetail.maintenanceInterval,
                     value: equipment.maintenanceIntervalDays
                       ? `${equipment.maintenanceIntervalDays} days`
                       : undefined,
                   },
                   {
                     icon: Wrench,
-                    label: t.equipmentDetail.lastMaintenance ?? "תחזוקה אחרונה",
+                    label: t.equipmentDetail.lastMaintenance,
                     value: formatDateTime(equipment.lastMaintenanceDate?.toString()),
                   },
                   {
                     icon: Droplets,
-                    label: t.equipmentDetail.lastSterilization ?? "חיטוי אחרון",
+                    label: t.equipmentDetail.lastSterilization,
                     value: formatDateTime(equipment.lastSterilizationDate?.toString()),
                   },
                 ]
@@ -988,7 +989,7 @@ export default function EquipmentDetailPage() {
                             {log.photoUrl && (
                               <img
                                 src={log.photoUrl}
-                                alt={t.equipmentDetail.issuePhoto ?? "תמונת תקלה"}
+                                alt={t.equipmentDetail.issuePhoto}
                                 width={96}
                                 height={96}
                                 loading="lazy"
@@ -1018,7 +1019,7 @@ export default function EquipmentDetailPage() {
                         {isFetchingOlderLogs ? (
                           <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
                         ) : (
-                          t.equipmentDetail.loadOlder ?? "טען ישנים יותר"
+                          t.equipmentDetail.loadOlder
                         )}
                       </Button>
                     </div>
@@ -1072,12 +1073,12 @@ export default function EquipmentDetailPage() {
       <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>עדכון סטטוס</DialogTitle>
+            <DialogTitle>{t.equipmentDetail.updateStatusTitle}</DialogTitle>
             <DialogDescription>Log status for: {equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label>סטטוס</Label>
+              <Label>{t.equipmentDetail.statusLabel}</Label>
               <div className="grid grid-cols-2 gap-2">
                 {(["ok", "issue", "maintenance", "sterilized"] as EquipmentStatus[]).map((s) => (
                   <button
@@ -1118,8 +1119,8 @@ export default function EquipmentDetailPage() {
                 id="note"
                 placeholder={
                   scanStatus === "issue"
-                    ? t.equipmentDetail.describeIssue ?? "תאר את התקלה בבירור..."
-                    : t.equipmentDetail.addObservations ?? "הוסף הערות..."
+                    ? t.equipmentDetail.describeIssue
+                    : t.equipmentDetail.addObservations
                 }
                 value={scanNote}
                 onChange={(e) => {
@@ -1204,7 +1205,7 @@ export default function EquipmentDetailPage() {
       <Dialog open={reportIssueOpen} onOpenChange={setReportIssueOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>דיווח על תקלה</DialogTitle>
+            <DialogTitle>{t.equipmentDetail.reportIssueTitle}</DialogTitle>
             <DialogDescription>{equipment.name}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -1292,22 +1293,6 @@ export default function EquipmentDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* QR Code dialog */}
-      <Dialog open={showQR} onOpenChange={setShowQR}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle>QR Code</DialogTitle>
-            <DialogDescription>{equipment.name}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-2">
-            <div className="p-4 bg-white rounded-2xl border-2 border-border">
-              <QRCodeSVG value={qrUrl} size={200} level="M" includeMargin={false} />
-            </div>
-            <p className="text-xs text-muted-foreground text-center break-all">{qrUrl}</p>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Scan quick-action sheet (opened from QR scanner via ?action=scan) */}
       {scanActionSheetOpen && (
         <div
@@ -1352,7 +1337,7 @@ export default function EquipmentDetailPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
                     <p className="font-medium text-blue-800">
                       {checkedOutByMe
-                        ? t.equipmentDetail.toast.checkedOutByYou ?? "הוצא לשימוש על ידך"
+                        ? t.equipmentDetail.toast.checkedOutByYou
                         : `In use by ${equipment.checkedOutByEmail || "another user"}`}
                     </p>
                     {equipment.checkedOutLocation && (
@@ -1477,7 +1462,6 @@ export default function EquipmentDetailPage() {
               (prev: Equipment | undefined) => prev ? { ...prev, roomId: newRoomId } : prev,
             );
             queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}`] });
-            updateCachedEquipment(id!, { roomId: newRoomId });
           }}
         />
       )}

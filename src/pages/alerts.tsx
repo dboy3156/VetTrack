@@ -30,13 +30,13 @@ function formatRelativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return t.alerts.timeAgo.justNow;
-  if (diffMin === 1) return "לפני דקה";
-  if (diffMin < 60) return `לפני ${diffMin} דקות`;
+  if (diffMin === 1) return t.alertsPage.oneMinuteAgo;
+  if (diffMin < 60) return t.alertsPage.minutesAgo(diffMin);
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr === 1) return "לפני שעה";
-  if (diffHr < 24) return `לפני ${diffHr} שעות`;
+  if (diffHr === 1) return t.alertsPage.oneHourAgo;
+  if (diffHr < 24) return t.alertsPage.hoursAgo(diffHr);
   const diffDay = Math.floor(diffHr / 24);
-  return diffDay === 1 ? "לפני יום" : `לפני ${diffDay} ימים`;
+  return diffDay === 1 ? t.alertsPage.oneDayAgo : t.alertsPage.daysAgo(diffDay);
 }
 
 const ALERT_CONFIG: Record<
@@ -142,19 +142,19 @@ export default function AlertsPage() {
   return (
     <Layout>
       <Helmet>
-        <title>התראות — VetTrack</title>
-        <meta name="description" content="התראות ציוד פעילות לפי חומרה: תקלות קריטיות, תחזוקה באיחור, תזכורות חיטוי וציוד לא פעיל." />
+        <title>{t.alertsPage.title} — VetTrack</title>
+        <meta name="description" content={t.alertsPage.metaDescription} />
         <link rel="canonical" href="https://vettrack.replit.app/alerts" />
       </Helmet>
       <div className="flex flex-col gap-5 pb-24 animate-fade-in">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
-            התראות
+            {t.alertsPage.title}
           </h1>
           {alerts.length > 0 && (
             <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
-              {alerts.length} פעילות
+              {t.alertsPage.activeCount(alerts.length)}
             </span>
           )}
         </div>
@@ -170,7 +170,7 @@ export default function AlertsPage() {
         )}
         {hasAckError && !hasFatalError && (
           <ErrorCard
-            message="טעינת סטטוסי טיפול נכשלה. אפשר לצפות בהתראות, אך פעולות טיפול מושבתות זמנית."
+            message={t.alertsPage.ackLoadFailed}
             onRetry={() => {
               refetchAcks();
             }}
@@ -194,7 +194,7 @@ export default function AlertsPage() {
             action={
               <Link href="/equipment">
                 <Button variant="outline" size="sm">
-                  דפדף בציוד
+                  {t.alertsPage.browseEquipment}
                 </Button>
               </Link>
             }
@@ -267,7 +267,7 @@ export default function AlertsPage() {
                                       {ack.acknowledgedByEmail.split("@")[0]}
                                     </span>
                                     <span className="text-xs text-muted-foreground truncate block">
-                                      בטיפול מאז {formatRelativeTime(new Date(ack.acknowledgedAt))}
+                                      {t.alertsPage.inProgressSince} {formatRelativeTime(new Date(ack.acknowledgedAt))}
                                     </span>
                                   </div>
                                 </div>
@@ -283,7 +283,7 @@ export default function AlertsPage() {
                                     })
                                   }
                                   data-testid={`btn-unack-${alert.equipmentId}`}
-                                  aria-label="הסר סטטוס טיפול"
+                                  aria-label={t.alertsPage.removeAckAria}
                                 >
                                   <X className="w-3 h-3" />
                                 </Button>
@@ -303,7 +303,7 @@ export default function AlertsPage() {
                                 data-testid={`btn-ack-${alert.equipmentId}`}
                               >
                                 <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                                אני מטפל/ת בזה
+                                {t.alertsPage.takeOwnership}
                               </Button>
                             )}
                           </div>

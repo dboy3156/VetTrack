@@ -13,20 +13,24 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
-import type { PendingSync, PendingSyncType } from "@/lib/offline-db";
+import { t } from "@/lib/i18n";
 
 interface SyncQueueSheetProps {
   open: boolean;
   onClose: () => void;
 }
 
-const TYPE_LABELS: Record<PendingSyncType, string> = {
-  scan: "סריקה",
-  create: "יצירה",
-  update: "עדכון",
-  delete: "מחיקה",
-  checkout: "הוצאה לשימוש",
-  return: "החזרה",
+type SyncQueueData = ReturnType<typeof useSyncQueue>;
+type SyncQueueItemModel = SyncQueueData["items"][number];
+type SyncQueueItemType = SyncQueueItemModel["type"];
+
+const TYPE_LABELS: Record<SyncQueueItemType, string> = {
+  scan: t.syncQueueSheet.typeScan,
+  create: t.syncQueueSheet.typeCreate,
+  update: t.syncQueueSheet.typeUpdate,
+  delete: t.syncQueueSheet.typeDelete,
+  checkout: t.syncQueueSheet.typeCheckout,
+  return: t.syncQueueSheet.typeReturn,
 };
 
 function extractEquipmentIdFromEndpoint(endpoint: string): string | null {
@@ -34,11 +38,11 @@ function extractEquipmentIdFromEndpoint(endpoint: string): string | null {
   return match ? match[1] : null;
 }
 
-function getItemLabel(item: PendingSync): string {
+function getItemLabel(item: SyncQueueItemModel): string {
   if (item.equipmentName) return item.equipmentName;
   const id = extractEquipmentIdFromEndpoint(item.endpoint);
   if (id) return `ID: ${id.slice(0, 8)}…`;
-  return "ציוד לא ידוע";
+  return t.syncQueueSheet.unknownEquipment;
 }
 
 function DiscardConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
@@ -70,7 +74,7 @@ function SyncQueueItem({
   onRetry,
   onDiscard,
 }: {
-  item: PendingSync;
+  item: SyncQueueItemModel;
   onRetry: () => void;
   onDiscard: () => void;
 }) {
@@ -123,7 +127,7 @@ function SyncQueueItem({
                     : "bg-red-100 text-red-700"
                 }`}
               >
-                {isPending ? "ממתין" : "נכשל"}
+                {isPending ? t.syncQueueSheet.pending : t.syncQueueSheet.failed}
               </span>
             </div>
             <p className="text-sm font-medium text-foreground truncate mt-0.5">
@@ -201,7 +205,7 @@ function CircuitBreakerBanner({ resetsAt }: { resetsAt: number }) {
         <p className="text-xs text-orange-700">
           {secsLeft > 0
             ? `Auto-resumes in ${secsLeft}s`
-            : "ממשיך עכשיו..."}
+            : t.syncQueueSheet.resumingNow}
         </p>
       </div>
     </div>
@@ -253,7 +257,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
                 {isSyncing && batchTotal > 50
                   ? `Processing ${batchCurrent} of ${batchTotal}…`
                   : totalCount === 0
-                  ? "כל הפעולות סונכרנו"
+                  ? t.syncQueueSheet.allSynced
                   : `${totalCount} action${totalCount !== 1 ? "s" : ""} pending`}
               </p>
             </div>
@@ -269,7 +273,7 @@ export function SyncQueueSheet({ open, onClose }: SyncQueueSheetProps) {
                 data-testid="btn-sync-now"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-                {isSyncing ? "מסנכרן..." : "סנכרן עכשיו"}
+                {isSyncing ? t.syncQueueSheet.syncingNow : t.syncQueueSheet.syncNow}
               </Button>
             )}
             <button

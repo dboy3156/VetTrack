@@ -23,7 +23,14 @@ import type {
   SystemMetrics,
   SupportTicket,
   CreateSupportTicketRequest,
+  Shift,
+  UserRole,
+  ShiftRole,
+  ShiftImport,
+  ShiftImportPreview,
+  ShiftImportResult,
 } from "@/types";
+import { t } from "@/lib/i18n";
 import { toast } from "sonner";
 import type { PendingSyncType } from "./offline-db";
 import {
@@ -130,13 +137,13 @@ export async function request<T>(
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (res.status === 401) {
       // Token expired or invalid — force a full page reload to re-authenticate
-      toast.error("הפעלתך פגה. נא להתחבר מחדש.");
+      toast.error(t.api.sessionExpired);
       setTimeout(() => window.location.reload(), 1500);
       throw new Error("Session expired");
     }
     if (!res.ok) {
       if (!silent && res.status >= 500) {
-        toast.error("השרת נתקל בשגיאה. נא לנסות שוב או לרענן את העמוד.");
+        toast.error(t.api.serverError);
       }
       const error = await res.json().catch(() => ({ error: "Request failed" }));
       if (isOfflineResponse(res.status, error)) {
@@ -148,7 +155,7 @@ export async function request<T>(
     return res.json();
   } catch (err) {
     if (!silent && isNetworkError(err)) {
-      toast.error("לא ניתן לגשת לשרת. ייתכן שאתה לא מחובר או שהשרת נפל.");
+      toast.error(t.api.networkUnavailable);
     }
     if (isNetworkError(err) && offline) {
       const clientTimestamp = Date.now();
@@ -278,7 +285,8 @@ export const api = {
     listPaginated: async (page = 1, pageSize = 100, filters?: { q?: string; status?: string; folder?: string; location?: string }): Promise<EquipmentPage> => {
       try {
         const params = new URLSearchParams({ limit: String(pageSize), page: String(page) });
-        if (filters?.q) params.set("q", filters.q);
+        const q = filters?.q?.trim();
+        if (q) params.set("q", q);
         if (filters?.status && filters.status !== "all") params.set("status", filters.status);
         if (filters?.folder && filters.folder !== "all") params.set("folder", filters.folder);
         if (filters?.location && filters.location !== "all") params.set("location", filters.location);
@@ -309,8 +317,9 @@ export const api = {
         if (isNetworkError(err)) {
           const all = await getCachedEquipment();
           const userId = getCurrentUserId();
+          // checkedOutById stores DB user IDs; compare against DB user ID from auth-store.
           if (userId) return all.filter((e) => e.checkedOutById === userId);
-          return all.filter((e) => !!e.checkedOutById);
+          return [];
         }
         throw err;
       }
@@ -550,7 +559,7 @@ export const api = {
   activity: {
     feed: (cursor?: string) =>
       requestWithOfflineFallback<{ items: ActivityFeedItem[]; nextCursor: string | null }>(
-        cursor ? `/api/activity?cursor=${cursor}` : "/api/activity",
+        cursor ? `/api/activity?cursor=${encodeURIComponent(cursor)}` : "/api/activity",
         () => Promise.resolve({ items: [], nextCursor: null })
       ),
     myScanCount: () =>
@@ -592,7 +601,12 @@ export const api = {
       request<void>(`/api/users/${id}`, { method: "DELETE" }),
     restore: (id: string) =>
       request<User>(`/api/users/${id}/restore`, { method: "POST" }),
-    me: () => request<User>("/api/users/me"),
+    me: () => request<User & {
+      effectiveRole?: UserRole | ShiftRole;
+      roleSource?: "shift" | "permanent";
+      activeShift?: Shift | null;
+      resolvedAt?: string;
+    }>("/api/users/me"),
   },
   storage: {
     requestUploadUrl: (data: UploadUrlRequest) =>
@@ -629,10 +643,32 @@ export const api = {
   push: {
     getVapidPublicKey: () =>
       request<{ publicKey: string }>("/api/push/vapid-public-key"),
-    subscribe: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    subscribe: (subscription: {
+      endpoint: string;
+      keys: { p256dh: string; auth: string };
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }) =>
       request<{ success: boolean; id: string }>(
         "/api/push/subscribe",
         { method: "POST", body: JSON.stringify(subscription) }
+      ),
+    update: (payload: {
+      endpoint: string;
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }) =>
+      request<void>(
+        "/api/push/subscribe",
+        { method: "PATCH", body: JSON.stringify(payload) }
       ),
     unsubscribe: (endpoint: string) =>
       request<void>(
@@ -644,6 +680,41 @@ export const api = {
         "/api/push/test",
         { method: "POST" }
       ),
+  },
+  shifts: {
+    list: (date?: string) =>
+      request<Shift[]>(date ? `/api/shifts?date=${encodeURIComponent(date)}` : "/api/shifts"),
+    imports: () => request<ShiftImport[]>("/api/shifts/imports"),
+    previewImport: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const res = await fetchWithTimeout(
+        "/api/shifts/import/preview",
+        { method: "POST", body: form, headers },
+        FETCH_TIMEOUT_MS
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Preview failed" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<ShiftImportPreview>;
+    },
+    confirmImport: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const res = await fetchWithTimeout(
+        "/api/shifts/import/confirm",
+        { method: "POST", body: form, headers },
+        FETCH_TIMEOUT_MS
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Import failed" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<ShiftImportResult>;
+    },
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),

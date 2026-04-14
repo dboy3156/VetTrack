@@ -49,10 +49,7 @@ import {
   CheckCircle,
   XCircle,
   ClipboardList,
-  ChevronLeft,
-  ChevronRight,
   Search,
-  Filter,
   RefreshCw,
   RotateCcw,
   Wrench,
@@ -62,14 +59,14 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import type {
   SupportTicket,
   SupportTicketStatus,
   User,
-  AuditLog,
   DeletedEquipment,
 } from "@/types";
+import { SharedAuditLogsPanel } from "./audit-log";
+import { t } from "@/lib/i18n";
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
@@ -148,7 +145,7 @@ export default function AdminPage() {
             )}
           >
             <FolderOpen className="w-4 h-4" />
-            תיקיות
+            {t.adminPage.tabFolders}
           </button>
           <button
             onClick={() => setActiveTab("pending")}
@@ -161,7 +158,7 @@ export default function AdminPage() {
             )}
           >
             <Clock className="w-4 h-4" />
-            ממתינים
+            {t.adminPage.tabPending}
             {pendingCount > 0 && (
               <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
                 {pendingCount > 9 ? "9+" : pendingCount}
@@ -179,7 +176,7 @@ export default function AdminPage() {
             )}
           >
             <Users className="w-4 h-4" />
-            משתמשים
+            {t.adminPage.tabUsers}
           </button>
           <button
             onClick={() => setActiveTab("support")}
@@ -192,7 +189,7 @@ export default function AdminPage() {
             )}
           >
             <LifeBuoy className="w-4 h-4" />
-            תמיכה
+            {t.adminPage.tabSupport}
             {unresolvedCount > 0 && (
               <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
                 {unresolvedCount > 9 ? "9+" : unresolvedCount}
@@ -210,7 +207,7 @@ export default function AdminPage() {
             )}
           >
             <ClipboardList className="w-4 h-4" />
-            לוגים
+            {t.adminPage.tabLogs}
           </button>
           <button
             onClick={() => setActiveTab("deleted")}
@@ -258,9 +255,9 @@ function FoldersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       setCreateOpen(false);
       setFolderName("");
-      toast.success("התיקייה נוצרה");
+      toast.success(t.adminPage.folderCreated);
     },
-    onError: () => toast.error("יצירת התיקייה נכשלה"),
+    onError: () => toast.error(t.adminPage.folderCreateFailed),
   });
 
   const updateMut = useMutation({
@@ -270,9 +267,9 @@ function FoldersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       setEditFolder(null);
       setFolderName("");
-      toast.success("התיקייה עודכנה");
+      toast.success(t.adminPage.folderUpdated);
     },
-    onError: () => toast.error("עדכון התיקייה נכשל"),
+    onError: () => toast.error(t.adminPage.folderUpdateFailed),
   });
 
   const deleteMut = useMutation({
@@ -280,9 +277,9 @@ function FoldersSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("התיקייה נמחקה");
+      toast.success(t.adminPage.folderDeleted);
     },
-    onError: () => toast.error("מחיקת התיקייה נכשלה"),
+    onError: () => toast.error(t.adminPage.folderDeleteFailed),
   });
 
   const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
@@ -293,7 +290,7 @@ function FoldersSection() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-muted-foreground" />
-            תיקיות
+            {t.adminPage.foldersTitle}
           </CardTitle>
           <Button
             size="sm"
@@ -359,7 +356,7 @@ function FoldersSection() {
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>ביטול</AlertDialogCancel>
+                        <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => deleteMut.mutate(f.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -375,7 +372,7 @@ function FoldersSection() {
 
             {manualFolders.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                אין תיקיות עדיין. צור אחת כדי לארגן את הציוד.
+                {t.adminPage.noFoldersYet}
               </p>
             )}
           </div>
@@ -396,11 +393,11 @@ function FoldersSection() {
         <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle>
-              {editFolder ? "ערוך תיקייה" : "צור תיקייה"}
+              {editFolder ? t.adminPage.editFolder : t.adminPage.createFolder}
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-1">
-            <Label htmlFor="folderName">שם תיקייה</Label>
+            <Label htmlFor="folderName">{t.adminPage.folderName}</Label>
             <Input
               id="folderName"
               placeholder="e.g. Surgery Room 1"
@@ -431,7 +428,7 @@ function FoldersSection() {
               {(createMut.isPending || updateMut.isPending) && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               )}
-              {editFolder ? "עדכן" : "צור"}
+              {editFolder ? t.adminPage.update : t.adminPage.create}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -460,9 +457,9 @@ function PendingUsersSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast.success(status === "active" ? "המשתמש אושר" : "המשתמש נדחה");
+      toast.success(status === "active" ? t.adminPage.userApproved : t.adminPage.userRejected);
     },
-    onError: () => toast.error("עדכון סטטוס המשתמש נכשל"),
+    onError: () => toast.error(t.adminPage.userStatusUpdateFailed),
   });
 
   return (
@@ -470,7 +467,7 @@ function PendingUsersSection() {
       <CardHeader>
         <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Clock className="w-4 h-4 text-muted-foreground" />
-          ממתינים משתמשים
+          {t.adminPage.pendingUsersTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -575,10 +572,10 @@ const ROLE_BADGE_STYLES: Record<UserRole, string> = {
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "אדמין",
-  vet: "וטרינר",
-  technician: "טכנאי",
-  viewer: "צופה",
+  admin: t.adminPage.roleAdmin,
+  vet: t.adminPage.roleVet,
+  technician: t.adminPage.roleTechnician,
+  viewer: t.adminPage.roleViewer,
 };
 
 function RoleBadge({ role }: { role: string }) {
@@ -612,7 +609,7 @@ function StatusBadge({ status }: { status: string }) {
   }
   return (
     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
-      ממתינים
+      {t.adminPage.filterPending}
     </span>
   );
 }
@@ -661,9 +658,9 @@ function UsersSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setPendingRoleChange(null);
-      toast.success("התפקיד עודכן");
+      toast.success(t.adminPage.roleUpdated);
     },
-    onError: () => toast.error("עדכון התפקיד נכשל"),
+    onError: () => toast.error(t.adminPage.roleUpdateFailed),
   });
 
   const updateStatusMut = useMutation({
@@ -680,20 +677,20 @@ function UsersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       toast.success(
         status === "active"
-          ? "המשתמש אושר"
+          ? t.adminPage.userApproved
           : status === "blocked"
-            ? "המשתמש נדחה"
-            : "הסטטוס עודכן",
+            ? t.adminPage.userRejected
+            : t.adminPage.statusUpdated,
       );
     },
-    onError: () => toast.error("עדכון הסטטוס נכשל"),
+    onError: () => toast.error(t.adminPage.statusUpdateFailed),
   });
 
   const filterButtons: { label: string; value: UserStatusFilter }[] = [
-    { label: "הכל", value: "all" },
-    { label: "ממתין", value: "pending" },
-    { label: "פעיל", value: "active" },
-    { label: "חסום", value: "blocked" },
+    { label: t.adminPage.filterAll, value: "all" },
+    { label: t.adminPage.filterPending, value: "pending" },
+    { label: t.adminPage.filterActive, value: "active" },
+    { label: t.adminPage.filterBlocked, value: "blocked" },
   ];
 
   return (
@@ -701,7 +698,7 @@ function UsersSection() {
       <CardHeader>
         <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Users className="w-4 h-4 text-muted-foreground" />
-          משתמשים
+          {t.adminPage.usersTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -735,13 +732,13 @@ function UsersSection() {
             icon={Users}
             message={
               statusFilter === "all"
-                ? "אין משתמשים עדיין"
+                ? t.adminPage.noUsersYet
                 : `No ${statusFilter} users`
             }
             subMessage={
               statusFilter === "all"
-                ? "משתמשים יופיעו כאן בפעם הראשונה שהם מתחברים."
-                : "נסה לעבור לפילטר אחר כדי לראות משתמשים אחרים."
+                ? t.adminPage.firstLoginUsersHint
+                : t.adminPage.tryOtherFilterHint
             }
           />
         ) : (
@@ -839,10 +836,10 @@ function UsersSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">אדמין</SelectItem>
-                      <SelectItem value="vet">וטרינר</SelectItem>
-                      <SelectItem value="technician">טכנאי</SelectItem>
-                      <SelectItem value="viewer">צופה</SelectItem>
+                      <SelectItem value="admin">{t.adminPage.roleAdmin}</SelectItem>
+                      <SelectItem value="vet">{t.adminPage.roleVet}</SelectItem>
+                      <SelectItem value="technician">{t.adminPage.roleTechnician}</SelectItem>
+                      <SelectItem value="viewer">{t.adminPage.roleViewer}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -869,9 +866,9 @@ function UsersSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pending">ממתין</SelectItem>
-                      <SelectItem value="active">פעיל</SelectItem>
-                      <SelectItem value="blocked">חסום</SelectItem>
+                      <SelectItem value="pending">{t.adminPage.filterPending}</SelectItem>
+                      <SelectItem value="active">{t.adminPage.filterActive}</SelectItem>
+                      <SelectItem value="blocked">{t.adminPage.filterBlocked}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -890,7 +887,7 @@ function UsersSection() {
                   {isFetchingMoreUsers ? (
                     <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Loading…</>
                   ) : (
-                    "טען עוד"
+                    t.adminPage.loadMore
                   )}
                 </Button>
               </div>
@@ -1027,9 +1024,9 @@ function DeletedItemsSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-      toast.success("הציוד שוחזר");
+      toast.success(t.adminPage.equipmentRestored);
     },
-    onError: () => toast.error("שחזור הציוד נכשל"),
+    onError: () => toast.error(t.adminPage.equipmentRestoreFailed),
   });
 
   const restoreUserMut = useMutation({
@@ -1038,9 +1035,9 @@ function DeletedItemsSection() {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast.success("המשתמש שוחזר");
+      toast.success(t.adminPage.userRestored);
     },
-    onError: () => toast.error("שחזור המשתמש נכשל"),
+    onError: () => toast.error(t.adminPage.userRestoreFailed),
   });
 
   return (
@@ -1103,12 +1100,12 @@ function DeletedItemsSection() {
         </CardContent>
       </Card>
 
-      {/* Deleted משתמשים */}
+      {/* Deleted users */}
       <Card className="bg-card border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Users className="w-4 h-4 text-muted-foreground" />
-            Deleted משתמשים
+            {t.adminPage.deletedUsersTitle}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1178,9 +1175,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  open: "פתוח",
-  in_progress: "בטיפול",
-  resolved: "טופל",
+  open: t.adminPage.ticketStatusOpen,
+  in_progress: t.adminPage.ticketStatusInProgress,
+  resolved: t.adminPage.ticketStatusResolved,
 };
 
 function SupportSection() {
@@ -1213,9 +1210,9 @@ function SupportSection() {
         queryKey: ["/api/support/unresolved-count"],
       });
       setSelectedTicket(updated);
-      toast.success("הפניה עודכנה");
+      toast.success(t.adminPage.ticketUpdated);
     },
-    onError: () => toast.error("עדכון הפניה נכשל"),
+    onError: () => toast.error(t.adminPage.ticketUpdateFailed),
   });
 
   const openDetail = (ticket: SupportTicket) => {
@@ -1230,7 +1227,7 @@ function SupportSection() {
       <CardHeader>
         <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
           <LifeBuoy className="w-4 h-4 text-muted-foreground" />
-          תמיכה Tickets
+          {t.adminPage.supportTicketsTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -1241,9 +1238,14 @@ function SupportSection() {
             ))}
           </div>
         ) : !tickets || tickets.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            No support tickets yet.
-          </p>
+          <div className="text-center py-6">
+            <p className="text-sm text-muted-foreground">
+              {t.adminPage.noTicketsYet}
+            </p>
+            <p className="text-xs text-muted-foreground/80 mt-1">
+              {t.adminPage.noTicketsYetSub}
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col gap-2">
             {tickets.map((ticket) => (
@@ -1420,9 +1422,9 @@ function SupportSection() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">פתוח</SelectItem>
-                      <SelectItem value="in_progress">בטיפול</SelectItem>
-                      <SelectItem value="resolved">טופל</SelectItem>
+                      <SelectItem value="open">{t.adminPage.ticketStatusOpen}</SelectItem>
+                      <SelectItem value="in_progress">{t.adminPage.ticketStatusInProgress}</SelectItem>
+                      <SelectItem value="resolved">{t.adminPage.ticketStatusResolved}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1432,7 +1434,7 @@ function SupportSection() {
                   </Label>
                   <Textarea
                     id="ticket-note"
-                    placeholder="הוסף הערה פנימית..."
+                    placeholder={t.adminPage.internalNotePlaceholder}
                     value={detailNote}
                     onChange={(e) => setDetailNote(e.target.value)}
                     rows={3}
@@ -1474,279 +1476,6 @@ function SupportSection() {
   );
 }
 
-const ACTION_TYPE_LABELS: Record<string, string> = {
-  user_login: "כניסת משתמש",
-  user_provisioned: "משתמש נוסף",
-  user_display_name_changed: "שם תצוגה שונה",
-  user_role_changed: "תפקיד שונה",
-  user_status_changed: "סטטוס שונה",
-  equipment_created: "ציוד נוצר",
-  equipment_updated: "ציוד עודכן",
-  equipment_deleted: "ציוד נמחק",
-  equipment_scanned: "ציוד נסרק",
-  equipment_checked_out: "הוצא לשימוש",
-  equipment_returned: "הוחזר",
-  equipment_reverted: "סריקה בוטלה",
-  equipment_bulk_deleted: "נמחקו בכמות",
-  equipment_bulk_moved: "הועברו בכמות",
-  equipment_imported: "Equipment Imported",
-  folder_created: "תיקייה נוצרה",
-  folder_updated: "תיקייה עודכנה",
-  folder_deleted: "תיקייה נמחקה",
-  alert_acknowledged: "התראה אושרה",
-  alert_acknowledgment_removed: "אישור התראה הוסר",
-};
-
-const ALL_ACTION_TYPES = Object.keys(ACTION_TYPE_LABELS);
-
-function actionBadgeClass(actionType: string): string {
-  if (actionType.includes("deleted"))
-    return "bg-red-50 text-red-700 border-red-200";
-  if (actionType.includes("created") || actionType.includes("provisioned"))
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (actionType.includes("login"))
-    return "bg-muted text-muted-foreground border-border";
-  if (actionType.includes("role") || actionType.includes("status"))
-    return "bg-amber-50 text-amber-700 border-amber-200";
-  return "bg-muted text-muted-foreground border-border";
-}
-
 function AuditLogsSection() {
-  const [actionFilter, setActionFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [appliedFilters, setAppliedFilters] = useState<{
-    actionType: string;
-    from: string;
-    to: string;
-  }>({ actionType: "", from: "", to: "" });
-  const [page, setPage] = useState(1);
-
-  function applyFilters() {
-    setAppliedFilters({
-      actionType: actionFilter,
-      from: fromDate,
-      to: toDate,
-    });
-    setPage(1);
-  }
-
-  function clearFilters() {
-    setActionFilter("");
-    setFromDate("");
-    setToDate("");
-    setAppliedFilters({ actionType: "", from: "", to: "" });
-    setPage(1);
-  }
-
-  const hasFilters =
-    appliedFilters.actionType || appliedFilters.from || appliedFilters.to;
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["/api/audit-logs", appliedFilters, page],
-    queryFn: () =>
-      api.auditLogs.list({
-        actionType: appliedFilters.actionType || undefined,
-        from: appliedFilters.from || undefined,
-        to: appliedFilters.to || undefined,
-        page,
-      }),
-    staleTime: 30_000,
-  });
-
-  const items = data?.items ?? [];
-
-  return (
-    <Card className="bg-card border-border/60 shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-muted-foreground" />
-            לוגים
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => refetch()}
-            disabled={isLoading}
-            data-testid="btn-refresh-audit-logs"
-          >
-            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Filter controls */}
-        <div
-          className="space-y-3 p-3 bg-muted/30 rounded-xl border"
-          data-testid="audit-log-filters"
-        >
-          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5" />
-            Filter Logs
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Select
-              value={actionFilter || "all"}
-              onValueChange={(v) => setActionFilter(v === "all" ? "" : v)}
-            >
-              <SelectTrigger
-                className="h-8 text-sm"
-                data-testid="filter-action"
-              >
-                <SelectValue placeholder="כל הפעולות" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל הפעולות</SelectItem>
-                {ALL_ACTION_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {ACTION_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2">
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="h-8 text-sm flex-1"
-                data-testid="filter-from"
-              />
-              <Input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="h-8 text-sm flex-1"
-                data-testid="filter-to"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={applyFilters}
-              className="text-xs h-11"
-              data-testid="btn-apply-filters"
-            >
-              Apply
-            </Button>
-            {hasFilters && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="text-xs h-11"
-                data-testid="btn-clear-filters"
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Log table */}
-        {isLoading ? (
-          <div className="flex flex-col gap-2" data-testid="audit-log-loading">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-14 rounded-xl" />
-            ))}
-          </div>
-        ) : isError ? (
-          <div
-            className="flex flex-col items-center py-8 gap-2 text-center"
-            data-testid="audit-log-error"
-          >
-            <XCircle className="w-8 h-8 text-destructive/60" />
-            <p className="text-sm font-medium text-destructive">
-              Failed to load audit logs
-            </p>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
-            </Button>
-          </div>
-        ) : items.length === 0 ? (
-          <div
-            className="flex flex-col items-center py-10 gap-2 text-center"
-            data-testid="audit-log-empty"
-          >
-            <ClipboardList className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              No audit log entries
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {hasFilters
-                ? "Try adjusting your filters."
-                : "Activity will appear here once actions are performed."}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1.5" data-testid="audit-log-list">
-            {items.map((entry) => (
-              <AuditLogRow key={entry.id} entry={entry} />
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {(data?.hasMore || page > 1) && (
-          <div
-            className="flex items-center justify-between pt-2"
-            data-testid="audit-log-pagination"
-          >
-            <p className="text-xs text-muted-foreground">Page {page}</p>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                data-testid="btn-prev-page"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={!data?.hasMore || isLoading}
-                data-testid="btn-next-page"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function AuditLogRow({ entry }: { entry: AuditLog }) {
-  return (
-    <div
-      className="flex flex-col gap-1 p-3 rounded-xl border border-border/60 bg-background hover:bg-muted/30 transition-colors"
-      data-testid="audit-log-row"
-    >
-      <div className="flex items-start gap-2 flex-wrap">
-        <span
-          className={cn(
-            "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 mt-0.5",
-            actionBadgeClass(entry.actionType),
-          )}
-        >
-          {ACTION_TYPE_LABELS[entry.actionType] ?? entry.actionType}
-        </span>
-        <p className="text-sm text-foreground leading-snug flex-1 min-w-0">
-          {entry.performedByEmail}
-          {entry.targetType && entry.targetId && (
-            <span className="text-muted-foreground"> · {entry.targetType}</span>
-          )}
-        </p>
-      </div>
-      <p className="text-xs text-muted-foreground pl-0.5">
-        {format(new Date(entry.timestamp), "MMM d, yyyy 'at' h:mm a")}
-      </p>
-    </div>
-  );
+  return <SharedAuditLogsPanel compact />;
 }

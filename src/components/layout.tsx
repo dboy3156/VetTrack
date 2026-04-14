@@ -17,6 +17,7 @@ import {
   WifiOff,
   PackageOpen,
   Clock,
+  CalendarDays,
   XCircle,
   RefreshCw,
   CheckCircle,
@@ -68,10 +69,17 @@ interface LayoutProps {
   onScan?: () => void;
 }
 
+const lh = t.layoutHebrew;
+
 export function Layout({ children, title, onScan }: LayoutProps) {
+  const QUICK_SETTINGS_PANEL_WIDTH = 288;
+  const QUICK_SETTINGS_MARGIN = 8;
+
   const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
+  const [quickSettingsUseViewportRight, setQuickSettingsUseViewportRight] = useState(false);
+  const [quickSettingsViewportTop, setQuickSettingsViewportTop] = useState(0);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -80,6 +88,28 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
+  const quickSettingsToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!quickSettingsOpen) return;
+
+    const updateQuickSettingsPlacement = () => {
+      const toggle = quickSettingsToggleRef.current;
+      if (!toggle) return;
+      const rect = toggle.getBoundingClientRect();
+      const wouldClipLeft = rect.right < QUICK_SETTINGS_PANEL_WIDTH + QUICK_SETTINGS_MARGIN;
+      setQuickSettingsUseViewportRight(wouldClipLeft);
+      setQuickSettingsViewportTop(rect.bottom + QUICK_SETTINGS_MARGIN);
+    };
+
+    updateQuickSettingsPlacement();
+    window.addEventListener("resize", updateQuickSettingsPlacement);
+    window.addEventListener("scroll", updateQuickSettingsPlacement, true);
+    return () => {
+      window.removeEventListener("resize", updateQuickSettingsPlacement);
+      window.removeEventListener("scroll", updateQuickSettingsPlacement, true);
+    };
+  }, [quickSettingsOpen]);
 
   const openScanner = () => {
     if (onScan) {
@@ -139,7 +169,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const myCount = myEquipment?.length ?? 0;
 
   const navItems: NavItem[] = [
-    { href: "/", label: "ראשי", icon: <Home className="w-5 h-5" /> },
+    { href: "/", label: lh.home, icon: <Home className="w-5 h-5" /> },
     { href: "/equipment", label: t.equipment.title, icon: <Package className="w-5 h-5" /> },
     {
       href: "/alerts",
@@ -153,15 +183,16 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       icon: <PackageOpen className="w-5 h-5" />,
       badgeCount: myCount,
     },
-    { href: "/rooms", label: "רדאר", icon: <Radar className="w-5 h-5" /> },
-    { href: "/analytics", label: "ניתוח נתונים", icon: <BarChart3 className="w-5 h-5" /> },
-    { href: "/dashboard", label: "לוח בקרה", icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
-    { href: "/print", label: "הדפסת QR", icon: <QrCode className="w-5 h-5" />, menuOnly: true },
-    { href: "/admin", label: "ניהול", icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
-    { href: "/stability", label: "יציבות", icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
-    { href: "/help", label: "מדריך מהיר", icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
-    { href: "/settings", label: "הגדרות", icon: <Settings className="w-5 h-5" />, menuOnly: true },
-    { href: "/landing", label: "אודות VetTrack", icon: <Globe className="w-5 h-5" />, menuOnly: true },
+    { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
+    { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
+    { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
+    { href: "/print", label: lh.printQr, icon: <QrCode className="w-5 h-5" />, menuOnly: true },
+    { href: "/admin", label: lh.admin, icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/admin/shifts", label: lh.adminShifts, icon: <CalendarDays className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/stability", label: lh.stability, icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
+    { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
+    { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ];
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
@@ -207,14 +238,14 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             {!isOnline && (
               <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800 rounded-full px-2.5 py-1">
                 <WifiOff className="w-3 h-3" />
-                <span>לא מחובר</span>
+                <span>{lh.offline}</span>
               </div>
             )}
 
             {isOnline && isSyncing && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1">
                 <RefreshCw className="w-3 h-3 animate-spin" />
-                <span>מסנכרן...</span>
+                <span>{lh.syncing}</span>
               </div>
             )}
 
@@ -224,7 +255,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 data-testid="sync-synced-indicator"
               >
                 <CheckCircle className="w-3 h-3" />
-                <span>מסונכרן</span>
+                <span>{lh.synced}</span>
               </div>
             )}
 
@@ -232,22 +263,22 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               <button
                 onClick={triggerSync}
                 className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1 hover:bg-accent transition-colors"
-                title={`${pendingCount} פעולות ממתינות — לחץ לסנכרון`}
+                title={lh.pendingTitle(pendingCount)}
                 data-testid="sync-pending-indicator"
               >
                 <Clock className="w-3 h-3" />
-                <span>{pendingCount} ממתינות</span>
+                <span>{lh.pendingShort(pendingCount)}</span>
               </button>
             )}
 
             {hasFailed && (
               <div
                 className="flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200/80 dark:border-red-800 rounded-full px-2.5 py-1"
-                title={`${failedCount} פעולות נכשלו בסנכרון`}
+                title={lh.failedTitle(failedCount)}
                 data-testid="sync-failed-indicator"
               >
                 <XCircle className="w-3 h-3" />
-                <span>{failedCount} נכשלו</span>
+                <span>{lh.failedShort(failedCount)}</span>
               </div>
             )}
 
@@ -274,7 +305,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 content={
                   hasFailed
                     ? t.layout.sync.failedMessage
-                    : `${pendingCount} פעולות נשמרו מקומית וממתינות לשרת. לחץ לסנכרון עכשיו, או שהן יסונכרנו אוטומטית כשיש חיבור.`
+                    : lh.pendingTooltip(pendingCount)
                 }
               />
             )}
@@ -285,7 +316,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                   variant="ghost"
                   size="icon-sm"
                   className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
-                  aria-label={`פתח ${alertCount} התראות`}
+                  aria-label={lh.alertAria(alertCount)}
                   data-testid="alert-bell"
                 >
                   <AlertTriangle className="w-4 h-4" aria-hidden="true" />
@@ -296,9 +327,10 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               </Link>
             )}
 
-            {/* הגדרות מהירות button */}
+            {/* Quick settings button */}
             <div className="relative" ref={quickSettingsRef}>
               <Button
+                ref={quickSettingsToggleRef}
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => {
@@ -315,11 +347,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               {/* Quick Settings dropdown panel */}
               {quickSettingsOpen && (
                 <div
-                  className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-2xl shadow-lg z-50 p-3 space-y-2"
+                  className={cn(
+                    "w-72 bg-card border border-border rounded-2xl shadow-lg z-50 p-3 space-y-2",
+                    quickSettingsUseViewportRight ? "fixed right-2" : "absolute right-0 top-full mt-2"
+                  )}
+                  style={quickSettingsUseViewportRight ? { top: quickSettingsViewportTop } : undefined}
                   data-testid="quick-settings-panel"
                 >
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 pb-1">
-                    הגדרות מהירות
+                    {lh.quickSettings}
                   </p>
                   <SettingsToggle
                     icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
@@ -357,7 +393,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                     <Link href="/settings" onClick={() => setQuickSettingsOpen(false)}>
                       <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs text-muted-foreground">
                         <Settings className="w-3.5 h-3.5" />
-                        כל ההגדרות
+                        {lh.allSettings}
                       </Button>
                     </Link>
                   </div>
@@ -486,7 +522,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left min-h-[44px]"
               >
                 <Bug className="w-5 h-5 opacity-60" />
-                <span className="text-sm font-medium">דווח על בעיה</span>
+                <span className="text-sm font-medium">{lh.reportIssue}</span>
               </button>
             </nav>
           </div>
@@ -569,7 +605,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         onClick={openScanner}
         className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
         style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
-        aria-label="סרוק קוד QR"
+        aria-label={lh.scanQrAria}
         data-testid="bottom-nav-scan"
       >
         <Scan className="w-5 h-5" aria-hidden="true" />

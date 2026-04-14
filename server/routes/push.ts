@@ -29,12 +29,20 @@ const subscribeSchema = z.object({
   }),
   soundEnabled: z.boolean().optional(),
   alertsEnabled: z.boolean().optional(),
+  technicianReturnRemindersEnabled: z.boolean().optional(),
+  seniorOwnReturnRemindersEnabled: z.boolean().optional(),
+  seniorTeamOverdueAlertsEnabled: z.boolean().optional(),
+  adminHourlySummaryEnabled: z.boolean().optional(),
 });
 
 const patchSubscribeSchema = z.object({
   endpoint: z.string().url("endpoint must be a valid URL"),
   soundEnabled: z.boolean().optional(),
   alertsEnabled: z.boolean().optional(),
+  technicianReturnRemindersEnabled: z.boolean().optional(),
+  seniorOwnReturnRemindersEnabled: z.boolean().optional(),
+  seniorTeamOverdueAlertsEnabled: z.boolean().optional(),
+  adminHourlySummaryEnabled: z.boolean().optional(),
 });
 
 const deleteSubscribeSchema = z.object({
@@ -49,7 +57,16 @@ router.get("/vapid-public-key", async (_req, res) => {
 
 router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscribeSchema), async (req, res) => {
   try {
-    const { endpoint, keys, soundEnabled, alertsEnabled } = req.body as z.infer<typeof subscribeSchema>;
+    const {
+      endpoint,
+      keys,
+      soundEnabled,
+      alertsEnabled,
+      technicianReturnRemindersEnabled,
+      seniorOwnReturnRemindersEnabled,
+      seniorTeamOverdueAlertsEnabled,
+      adminHourlySummaryEnabled,
+    } = req.body as z.infer<typeof subscribeSchema>;
 
     await db
       .delete(pushSubscriptions)
@@ -65,6 +82,10 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
         auth: keys.auth,
         soundEnabled: soundEnabled !== false,
         alertsEnabled: alertsEnabled !== false,
+        technicianReturnRemindersEnabled: technicianReturnRemindersEnabled !== false,
+        seniorOwnReturnRemindersEnabled: seniorOwnReturnRemindersEnabled !== false,
+        seniorTeamOverdueAlertsEnabled: seniorTeamOverdueAlertsEnabled !== false,
+        adminHourlySummaryEnabled: adminHourlySummaryEnabled !== false,
       })
       .returning();
 
@@ -77,13 +98,25 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
 
 router.patch("/subscribe", requireAuth, validateBody(patchSubscribeSchema), async (req, res) => {
   try {
-    const { endpoint, soundEnabled, alertsEnabled } = req.body as z.infer<typeof patchSubscribeSchema>;
+    const {
+      endpoint,
+      soundEnabled,
+      alertsEnabled,
+      technicianReturnRemindersEnabled,
+      seniorOwnReturnRemindersEnabled,
+      seniorTeamOverdueAlertsEnabled,
+      adminHourlySummaryEnabled,
+    } = req.body as z.infer<typeof patchSubscribeSchema>;
 
     await db
       .update(pushSubscriptions)
       .set({
         ...(soundEnabled !== undefined && { soundEnabled }),
         ...(alertsEnabled !== undefined && { alertsEnabled }),
+        ...(technicianReturnRemindersEnabled !== undefined && { technicianReturnRemindersEnabled }),
+        ...(seniorOwnReturnRemindersEnabled !== undefined && { seniorOwnReturnRemindersEnabled }),
+        ...(seniorTeamOverdueAlertsEnabled !== undefined && { seniorTeamOverdueAlertsEnabled }),
+        ...(adminHourlySummaryEnabled !== undefined && { adminHourlySummaryEnabled }),
       })
       .where(
         and(

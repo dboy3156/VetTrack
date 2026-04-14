@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { QrCode, LogIn, AlertTriangle, ChevronRight, X } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 const ONBOARDING_KEY = "vettrack_onboarding_v1";
 
@@ -9,31 +10,28 @@ const STEPS = [
     icon: QrCode,
     iconBg: "bg-blue-50 dark:bg-blue-950/50",
     iconColor: "text-blue-600 dark:text-blue-400",
-    tag: "שלב 1 מתוך 3",
-    title: "סרוק את הפריט הראשון",
-    description:
-      "לחץ על כפתור הסריקה הכחול בתחתית המסך כדי לקרוא קוד QR של ציוד. האפליקציה טוענת מיד את הסטטוס וההיסטוריה.",
-    tip: "כפתור הסריקה תמיד נראה במרכז הסרגל התחתון — ניתן לסרוק מכל מסך.",
+    tag: t.onboarding.step1.tag,
+    title: t.onboarding.step1.title,
+    description: t.onboarding.step1.description,
+    tip: t.onboarding.step1.tip,
   },
   {
     icon: LogIn,
     iconBg: "bg-indigo-50 dark:bg-indigo-950/50",
     iconColor: "text-indigo-600 dark:text-indigo-400",
-    tag: "שלב 2 מתוך 3",
-    title: "עקוב אחר הציוד",
-    description:
-      "פתח פריט ולחץ 'הוצא לשימוש' כדי לסמן אותו בשימושך. לחץ 'החזר' כשסיימת כדי שהצוות ידע היכן הציוד.",
-    tip: "הפריטים שלקחת מופיעים בלשונית 'שלי' בניווט התחתון.",
+    tag: t.onboarding.step2.tag,
+    title: t.onboarding.step2.title,
+    description: t.onboarding.step2.description,
+    tip: t.onboarding.step2.tip,
   },
   {
     icon: AlertTriangle,
     iconBg: "bg-red-50 dark:bg-red-950/50",
     iconColor: "text-red-600 dark:text-red-400",
-    tag: "שלב 3 מתוך 3",
-    title: "דווח על תקלות מיידית",
-    description:
-      "זיהית ציוד פגום? לחץ 'דווח על תקלה' בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
-    tip: "ניתן גם לדווח על תקלות מאייקון התפריט בפינה הימנית העליונה.",
+    tag: t.onboarding.step3.tag,
+    title: t.onboarding.step3.title,
+    description: t.onboarding.step3.description,
+    tip: t.onboarding.step3.tip,
   },
 ];
 
@@ -144,7 +142,7 @@ export function OnboardingWalkthrough() {
             onClick={next}
             data-testid="btn-onboarding-next"
           >
-            {isLast ? "הבנתי!" : "הבא"}
+            {isLast ? t.onboarding.gotIt : t.onboarding.next}
             {!isLast && <ChevronRight className="w-3.5 h-3.5" />}
           </Button>
         </div>

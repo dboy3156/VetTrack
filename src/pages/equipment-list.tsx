@@ -172,7 +172,15 @@ export default function EquipmentListPage() {
     isLoading: isQueryLoading,
     isError,
     refetch,
-  } = usePaginatedEquipment({ page: 1, pageSize: SERVER_PAGE_SIZE, enabled: !!userId });
+  } = usePaginatedEquipment({
+    page: 1,
+    pageSize: SERVER_PAGE_SIZE,
+    enabled: !!userId,
+    q: search,
+    status: statusFilter,
+    folder: folderFilter,
+    location: locationFilter,
+  });
 
   const equipment = equipmentPage?.items ?? [];
   const totalCount = equipmentPage?.total ?? 0;
@@ -401,7 +409,7 @@ export default function EquipmentListPage() {
           <Sheet open={folderSheetOpen} onOpenChange={(o) => { setFolderSheetOpen(o); if (!o) setFolderSearch(""); }}>
             <SheetContent side="bottom" className="max-h-[75vh] flex flex-col p-0">
               <SheetHeader className="px-4 pt-5 pb-3 border-b">
-                <SheetTitle>סינון לפי תיקייה</SheetTitle>
+                <SheetTitle>{t.equipmentList.folders.filterByFolder}</SheetTitle>
               </SheetHeader>
               <div className="px-4 py-3 border-b">
                 <div className="relative">

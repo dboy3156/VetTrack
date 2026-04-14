@@ -10,6 +10,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
+import xss from "xss";
 import path from "path";
 import { fileURLToPath } from "url";
 import equipmentRoutes from "./routes/equipment.js";
@@ -26,8 +27,12 @@ import pushRoutes from "./routes/push.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
+import shiftsRoutes from "./routes/shifts.js";
+import { runMigrations } from "./migrate.js";
 import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
 import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
+import { startSmartRoleNotificationScheduler } from "./lib/role-notification-scheduler.js";
+import { globalApiLimiter } from "./middleware/rate-limiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +40,13 @@ const app = express();
 // Deployment runs behind a reverse proxy that sets X-Forwarded-For.
 // Trust first proxy so rate limiting derives client IPs correctly.
 app.set("trust proxy", 1);
+
+// Health checks must bypass all middleware (CORS, Clerk, CSP, body parsing, etc.).
+function sendHealthOk(_req: express.Request, res: express.Response) {
+  res.status(200).send("ok");
+}
+app.get("/api/health", sendHealthOk);
+app.get("/api/healthz", sendHealthOk);
 
 function hasInvalidHeaderChars(value: string): boolean {
   return /[\r\n\0]/.test(value);
@@ -141,12 +153,28 @@ app.use(
 app.use(compression());
 app.use(express.json());
 
-// HEAL CHECK BYPASS: Force return 200 before any middleware
-function sendHealthOk(_req: express.Request, res: express.Response) {
-  res.status(200).send("ok");
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return xss(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item));
+  }
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value)) {
+      sanitized[key] = sanitizeValue(nestedValue);
+    }
+    return sanitized;
+  }
+  return value;
 }
-app.get("/api/health", sendHealthOk);
-app.get("/api/healthz", sendHealthOk);
+
+// Global request body sanitization (keeps route-level Zod validation intact).
+app.use((req, _res, next) => {
+  req.body = sanitizeValue(req.body) as Record<string, unknown>;
+  next();
+});
 
 // SAFE CLERK LOAD
 app.use(async (req, res, next) => {
@@ -165,6 +193,9 @@ app.use(async (req, res, next) => {
   return next();
 });
 
+// Global API limiter runs before route-specific limiters.
+app.use("/api", globalApiLimiter);
+
 app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/analytics", analyticsRoutes);
@@ -179,6 +210,7 @@ app.use("/api/push", pushRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/storage", storageRoutes);
+app.use("/api/shifts", shiftsRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));
@@ -193,17 +225,29 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: "Internal Server Error" });
 });
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-initVapid()
-  .then(() => {
-    startPushCleanupScheduler();
-  })
-  .catch((err) => {
-    console.error("Push initialization failed:", err);
-  });
-startCleanupScheduler();
+function resolvePort(value: string | undefined): number {
+  if (!value || value.trim() === "") return 3000;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return 3000;
+  return parsed;
+}
 
+const PORT = resolvePort(process.env.PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log("ENV PORT =", process.env.PORT);
   console.log(`Server listening on ${PORT}`);
 });
+
+runMigrations()
+  .then(() => {
+    initVapid().then(() => {
+      startPushCleanupScheduler();
+    }).catch((err) => {
+      console.error("Failed to initialize push notifications", err);
+    });
+    startCleanupScheduler();
+    startSmartRoleNotificationScheduler();
+  })
+  .catch((err) => {
+    console.error("💥 Migration failed, aborting scheduler start", err);
+  });

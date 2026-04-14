@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
 import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens, users } from "../db.js";
-import { eq, inArray, desc, and, lt, sql, isNull, isNotNull } from "drizzle-orm";
+import { eq, inArray, desc, and, or, ilike, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter, writeLimiter } from "../middleware/rate-limiters.js";
@@ -11,6 +11,7 @@ import { checkDedupe, sendPushToAll } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
 import { logAudit } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
+import { scheduleSmartReturnReminder, cancelSmartReturnReminder } from "../lib/role-notification-scheduler.js";
 
 const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
@@ -19,12 +20,13 @@ const createEquipmentSchema = z.object({
   serialNumber: z.string().max(500).optional(),
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
-  purchaseDate: z.string().optional(),
+  purchaseDate: z.string().optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
   nfcTagId: z.string().max(500).optional().nullable(),
   maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
+  expectedReturnMinutes: z.number().int().positive().optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
 });
 
@@ -33,12 +35,13 @@ const patchEquipmentSchema = z.object({
   serialNumber: z.string().max(500).optional(),
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
-  purchaseDate: z.string().optional(),
+  purchaseDate: z.string().optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
   nfcTagId: z.string().max(500).optional().nullable(),
   maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
+  expectedReturnMinutes: z.number().int().positive().optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
   status: z.enum(EQUIPMENT_STATUS_VALUES).optional(),
 });
@@ -234,6 +237,7 @@ router.get("/my", requireAuth, async (req, res) => {
         checkedOutByEmail: equipment.checkedOutByEmail,
         checkedOutAt: equipment.checkedOutAt,
         checkedOutLocation: equipment.checkedOutLocation,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -256,11 +260,52 @@ router.get("/", requireAuth, async (req, res) => {
   try {
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const status = typeof req.query.status === "string" ? req.query.status.trim() : "";
+    const folder = typeof req.query.folder === "string" ? req.query.folder.trim() : "";
+    const location = typeof req.query.location === "string" ? req.query.location.trim() : "";
+
     const limit = (!isNaN(rawLimit) && rawLimit > 0)
       ? Math.min(rawLimit, EQUIPMENT_MAX_PAGE_SIZE)
       : EQUIPMENT_DEFAULT_PAGE_SIZE;
     const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const offset = (page - 1) * limit;
+
+    const whereClauses = [isNull(equipment.deletedAt)];
+
+    if (q) {
+      const pattern = `%${q}%`;
+      const searchCondition = or(
+        ilike(equipment.name, pattern),
+        ilike(equipment.serialNumber, pattern),
+        ilike(equipment.model, pattern),
+        ilike(equipment.manufacturer, pattern),
+        ilike(equipment.location, pattern)
+      );
+      if (searchCondition) whereClauses.push(searchCondition);
+    }
+
+    if (status && status !== "all" && EQUIPMENT_STATUS_VALUES.includes(status as typeof EQUIPMENT_STATUS_VALUES[number])) {
+      whereClauses.push(eq(equipment.status, status as typeof EQUIPMENT_STATUS_VALUES[number]));
+    }
+
+    if (folder && folder !== "all") {
+      if (folder === "unfiled") {
+        whereClauses.push(isNull(equipment.folderId));
+      } else {
+        whereClauses.push(eq(equipment.folderId, folder));
+      }
+    }
+
+    if (location && location !== "all") {
+      const locationCondition = or(
+        eq(equipment.location, location),
+        eq(equipment.checkedOutLocation, location)
+      );
+      if (locationCondition) whereClauses.push(locationCondition);
+    }
+
+    const whereClause = and(...whereClauses);
 
     const baseQuery = db
       .select({
@@ -290,19 +335,21 @@ router.get("/", requireAuth, async (req, res) => {
         checkedOutByEmail: equipment.checkedOutByEmail,
         checkedOutAt: equipment.checkedOutAt,
         checkedOutLocation: equipment.checkedOutLocation,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
       .leftJoin(rooms, eq(equipment.roomId, rooms.id))
       .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
-      .where(isNull(equipment.deletedAt))
-      .orderBy(desc(equipment.createdAt));
+      .where(whereClause)
+      // Stable sort key for pagination so pages do not duplicate/drop rows on equal createdAt.
+      .orderBy(desc(equipment.createdAt), desc(equipment.id));
 
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(equipment)
-      .where(isNull(equipment.deletedAt));
+      .where(whereClause);
     const items = await baseQuery.limit(limit).offset(offset);
     res.json({ items, total, page, pageSize: limit, hasMore: offset + items.length < total });
   } catch (err) {
@@ -366,6 +413,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         checkedOutByEmail: equipment.checkedOutByEmail,
         checkedOutAt: equipment.checkedOutAt,
         checkedOutLocation: equipment.checkedOutLocation,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -395,8 +443,13 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
       roomId,
       nfcTagId,
       maintenanceIntervalDays,
+      expectedReturnMinutes,
       imageUrl,
     } = req.body as z.infer<typeof createEquipmentSchema>;
+
+    if (expectedReturnMinutes !== undefined && req.authUser?.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can set expected return minutes" });
+    }
 
     const [item] = await db
       .insert(equipment)
@@ -412,6 +465,7 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
         roomId: roomId ?? null,
         nfcTagId: nfcTagId ?? null,
         maintenanceIntervalDays: maintenanceIntervalDays ?? null,
+        expectedReturnMinutes: expectedReturnMinutes ?? null,
         imageUrl: imageUrl ?? null,
         status: "ok",
       })
@@ -429,6 +483,7 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
     invalidateAnalyticsCache();
     res.status(201).json(item);
   } catch (err) {
+    console.error("Validation error:", err);
     console.error(err);
     res.status(500).json({ error: "Failed to create equipment" });
   }
@@ -447,9 +502,14 @@ try {
       roomId,
       nfcTagId,
       maintenanceIntervalDays,
+      expectedReturnMinutes,
       imageUrl,
       status,
     } = req.body as z.infer<typeof patchEquipmentSchema>;
+
+    if (expectedReturnMinutes !== undefined && req.authUser?.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can set expected return minutes" });
+    }
 
     let result: EquipmentRow | null = null;
 
@@ -473,6 +533,7 @@ try {
           ...(roomId !== undefined && { roomId: roomId ?? null }),
           ...(nfcTagId !== undefined && { nfcTagId: nfcTagId ?? null }),
           ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays }),
+          ...(expectedReturnMinutes !== undefined && { expectedReturnMinutes }),
           ...(imageUrl !== undefined && { imageUrl }),
           ...(status !== undefined && { status }),
         })
@@ -667,6 +728,14 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
+    void scheduleSmartReturnReminder({
+      equipmentId: u.id,
+      equipmentName: u.name,
+      expectedReturnMinutes: u.expectedReturnMinutes,
+      userId: req.authUser!.id,
+      checkedOutAt: u.checkedOutAt,
+    });
+
     if (!checkDedupe(u.id, "checkout")) {
       sendPushToAll({
         title: "Equipment Checked Out",
@@ -769,6 +838,8 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
     invalidateAnalyticsCache();
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
+
+    cancelSmartReturnReminder(u.id, req.authUser!.id);
 
     if (!checkDedupe(u.id, "return")) {
       sendPushToAll({

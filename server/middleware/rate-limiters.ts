@@ -1,5 +1,14 @@
 import rateLimit from "express-rate-limit";
 
+// Global API limiter: baseline protection for all /api/* requests.
+export const globalApiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many API requests. Please wait a moment." },
+});
+
 // Scan actions: 10/min — POST /api/equipment/:id/scan
 export const scanLimiter = rateLimit({
   windowMs: 60_000,

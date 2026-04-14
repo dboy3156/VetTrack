@@ -17,6 +17,10 @@ function buildHeaders(): Record<string, string> {
 }
 
 async function getVapidPublicKey(): Promise<string> {
+  const envVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  if (envVapidKey && envVapidKey.trim()) {
+    return envVapidKey.trim();
+  }
   const res = await fetch("/api/push/vapid-public-key", { headers: buildHeaders() });
   if (!res.ok) throw new Error("Failed to fetch VAPID key");
   const { publicKey } = await res.json();
@@ -75,7 +79,14 @@ export function usePushNotifications() {
   }, []);
 
   const subscribe = useCallback(async (
-    opts?: { soundEnabled?: boolean; alertsEnabled?: boolean }
+    opts?: {
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }
   ): Promise<boolean> => {
     setState((s) => ({ ...s, loading: true, error: null }));
 
@@ -92,7 +103,7 @@ export function usePushNotifications() {
         return false;
       }
 
-      const vapidKey = await getVapidPublicKey();
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || await getVapidPublicKey();
       const registration = await navigator.serviceWorker.ready;
 
       const subscription = await registration.pushManager.subscribe({
@@ -112,6 +123,10 @@ export function usePushNotifications() {
           },
           soundEnabled: opts?.soundEnabled !== false,
           alertsEnabled: opts?.alertsEnabled !== false,
+          technicianReturnRemindersEnabled: opts?.technicianReturnRemindersEnabled !== false,
+          seniorOwnReturnRemindersEnabled: opts?.seniorOwnReturnRemindersEnabled !== false,
+          seniorTeamOverdueAlertsEnabled: opts?.seniorTeamOverdueAlertsEnabled !== false,
+          adminHourlySummaryEnabled: opts?.adminHourlySummaryEnabled !== false,
         }),
       });
 
@@ -154,7 +169,14 @@ export function usePushNotifications() {
   }, []);
 
   const updateSettings = useCallback(async (
-    opts: { soundEnabled?: boolean; alertsEnabled?: boolean }
+    opts: {
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }
   ): Promise<boolean> => {
     try {
       const registration = await navigator.serviceWorker.ready;

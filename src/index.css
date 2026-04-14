@@ -60,6 +60,11 @@
   * {
     @apply border-border;
   }
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     -webkit-tap-highlight-color: transparent;
@@ -255,4 +260,10 @@ nav,
 /* Momentum scrolling for scroll containers */
 .scroll-container {
   -webkit-overflow-scrolling: touch;
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
 }

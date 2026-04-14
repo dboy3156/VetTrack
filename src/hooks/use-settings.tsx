@@ -9,6 +9,10 @@ export interface Settings {
   density: Density;
   soundEnabled: boolean;
   criticalAlertsSound: boolean;
+  technicianReturnRemindersEnabled: boolean;
+  seniorOwnReturnRemindersEnabled: boolean;
+  seniorTeamOverdueAlertsEnabled: boolean;
+  adminHourlySummaryEnabled: boolean;
   timeFormat: TimeFormat;
   dateFormat: DateFormat;
   brightness: number;
@@ -21,6 +25,10 @@ const DEFAULT_SETTINGS: Settings = {
   density: "comfortable",
   soundEnabled: true,
   criticalAlertsSound: true,
+  technicianReturnRemindersEnabled: true,
+  seniorOwnReturnRemindersEnabled: true,
+  seniorTeamOverdueAlertsEnabled: true,
+  adminHourlySummaryEnabled: true,
   timeFormat: "12h",
   dateFormat: "MM/DD/YYYY",
   brightness: 100,

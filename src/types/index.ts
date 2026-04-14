@@ -1,6 +1,7 @@
 export type EquipmentStatus = "ok" | "issue" | "maintenance" | "sterilized";
 
 export type UserRole = "admin" | "vet" | "technician" | "viewer";
+export type ShiftRole = "technician" | "senior_technician" | "admin";
 
 export type AlertType = "overdue" | "issue" | "inactive" | "sterilization_due";
 
@@ -22,6 +23,10 @@ export interface User {
   name: string;
   displayName: string;
   role: UserRole;
+  effectiveRole?: UserRole | ShiftRole;
+  roleSource?: "shift" | "permanent";
+  activeShift?: Shift | null;
+  resolvedAt?: string;
   status: UserStatus;
   createdAt: string;
   deletedAt?: string | null;
@@ -126,6 +131,7 @@ export interface Equipment {
   checkedOutByEmail?: string | null;
   checkedOutAt?: string | null;
   checkedOutLocation?: string | null;
+  expectedReturnMinutes?: number | null;
   createdAt: string;
 }
 
@@ -134,12 +140,13 @@ export interface CreateEquipmentRequest {
   serialNumber?: string;
   model?: string;
   manufacturer?: string;
-  purchaseDate?: string;
+  purchaseDate?: string | null;
   location?: string;
   folderId?: string;
   roomId?: string;
   nfcTagId?: string;
   maintenanceIntervalDays?: number;
+  expectedReturnMinutes?: number | null;
   imageUrl?: string;
 }
 
@@ -154,8 +161,63 @@ export interface UpdateEquipmentRequest {
   roomId?: string | null;
   nfcTagId?: string | null;
   maintenanceIntervalDays?: number | null;
+  expectedReturnMinutes?: number | null;
   imageUrl?: string | null;
   status?: EquipmentStatus;
+}
+
+export interface Shift {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  employeeName: string;
+  role: ShiftRole;
+}
+
+export interface ShiftImport {
+  id: string;
+  importedAt: string;
+  importedBy: string;
+  importedByName?: string | null;
+  importedByEmail?: string | null;
+  filename: string;
+  rowCount: number;
+}
+
+export interface ShiftCsvRow {
+  rowNumber: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  employeeName: string;
+  shiftName: string;
+  role: ShiftRole;
+}
+
+export interface ShiftCsvIssue {
+  rowNumber: number;
+  reason: string;
+  data: Record<string, string>;
+}
+
+export interface ShiftImportPreview {
+  filename: string;
+  summary: {
+    totalRows: number;
+    validRows: number;
+    skippedRows: number;
+  };
+  rows: ShiftCsvRow[];
+  issues: ShiftCsvIssue[];
+}
+
+export interface ShiftImportResult {
+  importId: string;
+  filename: string;
+  insertedRows: number;
+  skippedRows: number;
+  issues: ShiftCsvIssue[];
 }
 
 export interface ScanEquipmentRequest {

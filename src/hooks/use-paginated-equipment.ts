@@ -21,9 +21,25 @@ export function usePaginatedEquipment({
   folder,
   location,
 }: UsePaginatedEquipmentOptions = {}) {
+  const normalizedFilters = {
+    q: q?.trim() || undefined,
+    status: status && status !== "all" ? status : undefined,
+    folder: folder && folder !== "all" ? folder : undefined,
+    location: location && location !== "all" ? location : undefined,
+  };
+
   return useQuery<EquipmentPage>({
-    queryKey: ["/api/equipment", "paginated", page, pageSize, q, status, folder, location],
-    queryFn: () => api.equipment.listPaginated(page, pageSize, { q, status, folder, location }),
+    queryKey: [
+      "/api/equipment",
+      "paginated",
+      page,
+      pageSize,
+      normalizedFilters.q,
+      normalizedFilters.status,
+      normalizedFilters.folder,
+      normalizedFilters.location,
+    ],
+    queryFn: () => api.equipment.listPaginated(page, pageSize, normalizedFilters),
     placeholderData: keepPreviousData,
     enabled,
   });

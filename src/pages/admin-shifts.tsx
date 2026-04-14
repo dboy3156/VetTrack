@@ -1,0 +1,235 @@
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Upload, CheckCircle2, AlertTriangle, History } from "lucide-react";
+import { Layout } from "@/components/layout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { t } from "@/lib/i18n";
+import type { ShiftImportPreview } from "@/types";
+
+export default function AdminShiftsPage() {
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<ShiftImportPreview | null>(null);
+
+  const importsQuery = useQuery({
+    queryKey: ["/api/shifts/imports"],
+    queryFn: api.shifts.imports,
+    enabled: isAdmin,
+  });
+
+  const previewMut = useMutation({
+    mutationFn: (file: File) => api.shifts.previewImport(file),
+    onSuccess: (data) => {
+      setPreview(data);
+      toast.success(t.adminShiftsPage.previewReady);
+    },
+    onError: (error: Error) => {
+      setPreview(null);
+      toast.error(error.message || t.adminShiftsPage.previewFailed);
+    },
+  });
+
+  const confirmMut = useMutation({
+    mutationFn: (file: File) => api.shifts.confirmImport(file),
+    onSuccess: () => {
+      toast.success(t.adminShiftsPage.importSuccess);
+      queryClient.invalidateQueries({ queryKey: ["/api/shifts/imports"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shifts"] });
+      setSelectedFile(null);
+      setPreview(null);
+    },
+    onError: (error: Error) => toast.error(error.message || t.adminShiftsPage.importFailed),
+  });
+
+  const canPreview = Boolean(selectedFile) && !previewMut.isPending;
+  const canImport = Boolean(selectedFile) && Boolean(preview && preview.summary.validRows > 0) && !confirmMut.isPending;
+
+  const sortedPreviewRows = useMemo(() => {
+    if (!preview) return [];
+    return [...preview.rows].sort((a, b) => a.rowNumber - b.rowNumber);
+  }, [preview]);
+
+  if (!isAdmin) {
+    return (
+      <Layout title={t.adminShiftsPage.title}>
+        <div className="py-10 text-center text-sm text-muted-foreground">{t.adminPage.cancel}</div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout title={t.adminShiftsPage.title}>
+      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{t.adminShiftsPage.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.adminShiftsPage.subtitle}</p>
+        </div>
+
+        <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Upload className="w-4 h-4 text-muted-foreground" />
+              {t.adminShiftsPage.uploadCsv}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setSelectedFile(file);
+                setPreview(null);
+              }}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="h-11 text-xs"
+                disabled={!canPreview}
+                onClick={() => {
+                  if (selectedFile) previewMut.mutate(selectedFile);
+                }}
+              >
+                {t.adminShiftsPage.previewButton}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 text-xs"
+                disabled={!canImport}
+                onClick={() => {
+                  if (selectedFile) confirmMut.mutate(selectedFile);
+                }}
+              >
+                {confirmMut.isPending ? t.adminShiftsPage.confirmImporting : t.adminShiftsPage.confirmImportButton}
+              </Button>
+            </div>
+            {selectedFile && (
+              <p className="text-xs text-muted-foreground">
+                {t.adminShiftsPage.selectedFile}: {selectedFile.name}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {preview && (
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                {t.adminShiftsPage.previewSummaryTitle}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-lg border p-2">
+                  <div className="text-muted-foreground">{t.adminShiftsPage.totalRows}</div>
+                  <div className="font-semibold">{preview.summary.totalRows}</div>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <div className="text-muted-foreground">{t.adminShiftsPage.validRows}</div>
+                  <div className="font-semibold text-emerald-600">{preview.summary.validRows}</div>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <div className="text-muted-foreground">{t.adminShiftsPage.skippedRows}</div>
+                  <div className="font-semibold text-amber-600">{preview.summary.skippedRows}</div>
+                </div>
+              </div>
+
+              <div className="overflow-auto rounded-xl border">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/60">
+                    <tr>
+                      <th className="text-left p-2">#</th>
+                      <th className="text-left p-2">{t.adminShiftsPage.date}</th>
+                      <th className="text-left p-2">{t.adminShiftsPage.startTime}</th>
+                      <th className="text-left p-2">{t.adminShiftsPage.endTime}</th>
+                      <th className="text-left p-2">{t.adminShiftsPage.employeeName}</th>
+                      <th className="text-left p-2">{t.adminShiftsPage.role}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedPreviewRows.map((row) => (
+                      <tr key={`preview-${row.rowNumber}`} className="border-t">
+                        <td className="p-2">{row.rowNumber}</td>
+                        <td className="p-2">{row.date}</td>
+                        <td className="p-2">{row.startTime}</td>
+                        <td className="p-2">{row.endTime}</td>
+                        <td className="p-2">{row.employeeName}</td>
+                        <td className="p-2">
+                          {row.role === "senior_technician"
+                            ? t.adminPage.roleSeniorTechnician
+                            : row.role === "admin"
+                            ? t.adminPage.roleAdminShift
+                            : t.adminPage.roleTechnician}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {preview.issues.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                  <div className="flex items-center gap-1 text-xs font-semibold text-amber-700">
+                    <AlertTriangle className="w-4 h-4" />
+                    {t.adminShiftsPage.issuesTitle}
+                  </div>
+                  <ul className="mt-2 space-y-1 text-xs text-amber-800">
+                    {preview.issues.slice(0, 50).map((issue) => (
+                      <li key={`issue-${issue.rowNumber}-${issue.reason}`}>
+                        {t.adminShiftsPage.rowLabel(issue.rowNumber)}: {issue.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <History className="w-4 h-4 text-muted-foreground" />
+              {t.adminShiftsPage.importsHistoryTitle}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {importsQuery.isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((idx) => (
+                  <Skeleton key={idx} className="h-10 rounded-lg" />
+                ))}
+              </div>
+            ) : !importsQuery.data || importsQuery.data.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t.adminShiftsPage.noImportsYet}</p>
+            ) : (
+              <div className="space-y-2">
+                {importsQuery.data.map((entry) => (
+                  <div key={entry.id} className="rounded-lg border p-2 text-xs">
+                    <div className="font-medium">{entry.filename}</div>
+                    <div className="text-muted-foreground">
+                      {new Date(entry.importedAt).toLocaleString()} · {entry.rowCount} {t.adminShiftsPage.rowCount}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {entry.importedByName || entry.importedByEmail || entry.importedBy}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
+  );
+}

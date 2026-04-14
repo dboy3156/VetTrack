@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { Layout } from "@/components/layout";
 import { Helmet } from "react-helmet-async";
 import {
@@ -74,169 +75,169 @@ export default function HelpPage() {
         </div>
 
         {/* Daily tasks */}
-        <Section title="משימות יומיות">
+        <Section title={t.helpPage.dailyTasks}>
           <CheatItem
             icon={QrCode}
             iconBg="bg-blue-50 dark:bg-blue-950/50"
             iconColor="text-blue-600 dark:text-blue-400"
-            title="סרוק קוד QR"
-            description="לחץ על כפתור הסריקה הכחול בתחתית המסך לסריקת ציוד. טוען מיד את הסטטוס וההיסטוריה."
+            title={t.helpPage.scanQrTitle}
+            description={t.helpPage.scanQrDescription}
           />
           <CheatItem
             icon={LogIn}
             iconBg="bg-indigo-50 dark:bg-indigo-950/50"
             iconColor="text-indigo-600 dark:text-indigo-400"
-            title="הוצאת ציוד לשימוש"
-            description="פתח פריט ← לחץ 'הוצא לשימוש'. שמך יופיע על הפריט כדי שהצוות ידע מי מחזיק בו."
+            title={t.helpPage.checkoutTitle}
+            description={t.helpPage.checkoutDescription}
           />
           <CheatItem
             icon={LogOut}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
-            title="החזרת ציוד"
-            description="פתח את הפריט שלקחת ← לחץ 'החזר'. מסיר את שמך ומסמן כזמין."
+            title={t.helpPage.returnTitle}
+            description={t.helpPage.returnDescription}
           />
           <CheatItem
             icon={AlertTriangle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="דיווח על תקלה"
-            description="מצאת ציוד פגום? פתח פריט ← לחץ 'תקלה'. הצוות מקבל התראה מיידית."
+            title={t.helpPage.reportIssueTitle}
+            description={t.helpPage.reportIssueDescription}
           />
         </Section>
 
         {/* Status badges */}
-        <Section title="סטטוס ציוד">
+        <Section title={t.helpPage.equipmentStatus}>
           <CheatItem
             icon={CheckCircle2}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
             title="OK — operational"
-            description="הציוד נסרק ומוכן לשימוש."
+            description={t.helpPage.okDescription}
           />
           <CheatItem
             icon={Droplets}
             iconBg="bg-teal-50 dark:bg-teal-950/50"
             iconColor="text-teal-600 dark:text-teal-400"
-            title="עבר חיטוי — נקי ומוכן"
-            description="הפריט עבר חיטוי. יתריע כשחלון החיטוי יפוג."
+            title={t.helpPage.sterilizedTitle}
+            description={t.helpPage.sterilizedDescription}
           />
           <CheatItem
             icon={Wrench}
             iconBg="bg-amber-50 dark:bg-amber-950/50"
             iconColor="text-amber-600 dark:text-amber-400"
-            title="תחזוקה — נדרש טיפול"
-            description="מסומן לתחזוקה. בדוק עם האדמין לפני שימוש."
+            title={t.helpPage.maintenanceTitle}
+            description={t.helpPage.maintenanceDescription}
           />
           <CheatItem
             icon={AlertTriangle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="תקלה — אין להשתמש"
+            title={t.helpPage.issueTitle}
             description="A fault has been reported. Item should not be used until cleared."
           />
           <CheatItem
             icon={Package}
             iconBg="bg-muted"
             iconColor="text-muted-foreground"
-            title="לא פעיל — מחוץ לשירות"
-            description="הפריט הוצא משירות זמנית או לצמיתות."
+            title={t.helpPage.inactiveTitle}
+            description={t.helpPage.inactiveDescription}
           />
         </Section>
 
         {/* Asset Radar */}
-        <Section title="רדאר ציוד">
+        <Section title={t.helpPage.assetRadar}>
           <CheatItem
             icon={Radar}
             iconBg="bg-blue-50 dark:bg-blue-950/50"
             iconColor="text-blue-600 dark:text-blue-400"
-            title="טבעת בריאות"
-            description="הטבעת הצבעונית על כל כרטיס חדר מציגה את אחוז הפריטים שאומתו ב-24 שעות האחרונות. ירוק ≥ 80%, כתום ≥ 40%, אדום < 40%."
+            title={t.helpPage.healthRingTitle}
+            description={t.helpPage.healthRingDescription}
           />
           <CheatItem
             icon={CheckCircle2}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
-            title="מסונכרן"
-            description="כל הפריטים בחדר זה אומתו ב-24 שעות האחרונות."
+            title={t.helpPage.syncedTitle}
+            description={t.helpPage.syncedDescription}
           />
           <CheatItem
             icon={Clock}
             iconBg="bg-amber-50 dark:bg-amber-950/50"
             iconColor="text-amber-600 dark:text-amber-400"
-            title="לא עדכני"
-            description="החדר לא נבדק ביותר מ-24 שעות. לחץ על החדר לאימות פריטים."
+            title={t.helpPage.staleTitle}
+            description={t.helpPage.staleDescription}
           />
           <CheatItem
             icon={AlertTriangle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="נדרש ביקורת"
-            description="פריט בחדר זה סומן. נדרשת ביקורת מלאה לפני שהחדר יוכל להיות נקי."
+            title={t.helpPage.auditRequiredTitle}
+            description={t.helpPage.auditRequiredDescription}
           />
           <CheatItem
             icon={Nfc}
             iconBg="bg-primary/10"
             iconColor="text-primary"
             title="NFC door sticker"
-            description="לחץ על מדבקת NFC בדלת החדר לפתיחת מסך האימות. אשר לסמן את כל הפריטים כמאומתים בלחיצה אחת."
+            description={t.helpPage.nfcDescription}
           />
         </Section>
 
         {/* Sync indicator */}
-        <Section title="מחוון סנכרון (כותרת עליונה)">
+        <Section title={t.helpPage.syncIndicator}>
           <CheatItem
             icon={Clock}
             iconBg="bg-muted"
             iconColor="text-muted-foreground"
-            title="ממתין"
-            description="הפעולה נשמרה מקומית וממתינה לשליחה לשרת. קורה כשאתה לא מחובר. יסתנכרן אוטומטית כשתתחבר."
+            title={t.helpPage.pendingTitle}
+            description={t.helpPage.pendingDescription}
           />
           <CheatItem
             icon={CheckCircle2}
             iconBg="bg-emerald-50 dark:bg-emerald-950/50"
             iconColor="text-emerald-600 dark:text-emerald-400"
             title="Synced"
-            description="כל השינויים נשמרו בשרת בהצלחה. הכל עדכני."
+            description={t.helpPage.syncedDescription}
           />
           <CheatItem
             icon={XCircle}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="נכשל"
-            description="פעולה לא הצליחה להסתנכרן לאחר מספר ניסיונות. לחץ על אייקון הענן לצפייה ולניסיון חוזר."
+            title={t.helpPage.failedTitle}
+            description={t.helpPage.failedDescription}
           />
           <CheatItem
             icon={WifiOff}
             iconBg="bg-amber-50 dark:bg-amber-950/50"
             iconColor="text-amber-600 dark:text-amber-400"
-            title="לא מחובר"
-            description="אין חיבור לאינטרנט. האפליקציה ממשיכה לעבוד — כל השינויים בתור ויסונכרנו אוטומטית."
+            title={t.helpPage.offlineTitle}
+            description={t.helpPage.offlineDescription}
           />
         </Section>
 
         {/* Alerts */}
-        <Section title="התראות">
+        <Section title={t.helpPage.alerts}>
           <CheatItem
             icon={BellRing}
             iconBg="bg-red-50 dark:bg-red-950/50"
             iconColor="text-red-600 dark:text-red-400"
-            title="התראות פעילות"
-            description="התג האדום על אייקון הפעמון מציג כמה פריטים דורשים תשומת לב. לחץ לצפייה ואישור."
+            title={t.helpPage.activeAlertsTitle}
+            description={t.helpPage.activeAlertsDescription}
           />
           <CheatItem
             icon={Wifi}
             iconBg="bg-blue-50 dark:bg-blue-950/50"
             iconColor="text-blue-600 dark:text-blue-400"
-            title="התראות Push"
-            description="אפשר התראות Push בהגדרות → התראות Push לקבלת התראות בזמן אמת גם כשהאפליקציה ברקע."
+            title={t.helpPage.pushAlertsTitle}
+            description={t.helpPage.pushAlertsDescription}
           />
         </Section>
 
         <div className="text-center pt-2 pb-4">
           <Link href="/">
             <Button variant="outline" className="gap-2 h-11">
-              חזרה ללוח הבקרה
+              {t.helpPage.backToDashboard}
             </Button>
           </Link>
         </div>

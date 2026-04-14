@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, scanLogs, transferLogs, equipment, users } from "../db.js";
-import { desc, eq, count } from "drizzle-orm";
+import { and, desc, eq, count, lt } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { sql } from "drizzle-orm";
 
@@ -20,6 +20,16 @@ const PAGE_SIZE = 30;
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const rawCursor = typeof req.query.cursor === "string" ? req.query.cursor : "";
+    let cursorDate: Date | null = null;
+    if (rawCursor) {
+      const parsed = new Date(rawCursor);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: "Invalid cursor" });
+      }
+      cursorDate = parsed;
+    }
+
     const scans = await db
       .select({
         id: scanLogs.id,
@@ -36,8 +46,9 @@ router.get("/", requireAuth, async (req, res) => {
       })
       .from(scanLogs)
       .leftJoin(equipment, eq(scanLogs.equipmentId, equipment.id))
+      .where(cursorDate ? lt(scanLogs.timestamp, cursorDate) : undefined)
       .orderBy(desc(scanLogs.timestamp))
-      .limit(PAGE_SIZE);
+      .limit(PAGE_SIZE + 1);
 
     const transfers = await db
       .select({
@@ -57,8 +68,9 @@ router.get("/", requireAuth, async (req, res) => {
       .from(transferLogs)
       .leftJoin(equipment, eq(transferLogs.equipmentId, equipment.id))
       .leftJoin(users, eq(transferLogs.userId, users.id))
+      .where(cursorDate ? lt(transferLogs.timestamp, cursorDate) : undefined)
       .orderBy(desc(transferLogs.timestamp))
-      .limit(PAGE_SIZE);
+      .limit(PAGE_SIZE + 1);
 
     const combined = [
       ...scans.map((s) => ({
@@ -93,7 +105,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     const hasMore = combined.length > PAGE_SIZE;
     const items = combined.slice(0, PAGE_SIZE);
-    const nextCursor = hasMore ? items[items.length - 1].timestamp : null;
+    const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].timestamp : null;
 
     res.json({ items, nextCursor });
   } catch (err) {

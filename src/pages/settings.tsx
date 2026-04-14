@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { SettingsSectionHeader, SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { useSettings } from "@/hooks/use-settings";
@@ -33,11 +32,32 @@ import {
 } from "lucide-react";
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
+import type { ShiftRole, UserRole } from "@/types";
+import { useEffect } from "react";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
-  const { name, email, signOut } = useAuth();
+  const { name, email, signOut, effectiveRole, role } = useAuth();
   const push = usePushNotifications();
+  const roleContext = ((effectiveRole ?? role) as UserRole | ShiftRole | undefined) ?? "technician";
+  const isSeniorContext = roleContext === "senior_technician";
+  const isAdminContext = roleContext === "admin";
+  const isTechnicianContext = !isSeniorContext && !isAdminContext;
+
+  const syncRoleNotificationSettings = async (
+    patch: Partial<{
+      technicianReturnRemindersEnabled: boolean;
+      seniorOwnReturnRemindersEnabled: boolean;
+      seniorTeamOverdueAlertsEnabled: boolean;
+      adminHourlySummaryEnabled: boolean;
+    }>
+  ) => {
+    update(patch);
+    if (push.subscribed) {
+      push.updateSettings(patch).catch(() => {});
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -69,34 +89,77 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRoleNotificationToggle = async (
+    key:
+      | "technicianReturnRemindersEnabled"
+      | "seniorOwnReturnRemindersEnabled"
+      | "seniorTeamOverdueAlertsEnabled"
+      | "adminHourlySummaryEnabled",
+    value: boolean
+  ) => {
+    if (settings.soundEnabled) {
+      if (value) {
+        await playFeedbackTone();
+      } else {
+        await playMuteTone();
+      }
+    }
+    await syncRoleNotificationSettings({ [key]: value });
+  };
+
+  useEffect(() => {
+    if (isTechnicianContext) {
+      void syncRoleNotificationSettings({
+        seniorOwnReturnRemindersEnabled: false,
+        seniorTeamOverdueAlertsEnabled: false,
+        adminHourlySummaryEnabled: false,
+      });
+      return;
+    }
+    if (isSeniorContext) {
+      void syncRoleNotificationSettings({
+        technicianReturnRemindersEnabled: false,
+        adminHourlySummaryEnabled: false,
+      });
+      return;
+    }
+    if (isAdminContext) {
+      void syncRoleNotificationSettings({
+        technicianReturnRemindersEnabled: false,
+        seniorOwnReturnRemindersEnabled: false,
+        seniorTeamOverdueAlertsEnabled: false,
+      });
+    }
+  }, [isTechnicianContext, isSeniorContext, isAdminContext]);
+
   return (
-    <Layout title="הגדרות">
-      <div className="space-y-6 pb-8 animate-fade-in">
+    <Layout title={t.settingsPage.title}>
+      <div className="w-full max-w-full overflow-x-hidden space-y-6 pb-8 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">הגדרות</h1>
-          <p className="text-sm text-muted-foreground mt-1">התאם אישית את חווית השימוש ב-VetTrack</p>
+          <h1 className="text-2xl font-bold text-foreground">{t.settingsPage.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.settingsPage.subtitle}</p>
         </div>
 
         {/* Display */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="תצוגה" />
+          <SettingsSectionHeader label={t.settingsPage.display} />
           <div className="space-y-2">
             <SettingsToggle
               icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-              label="מצב לילה"
-              description="מפחית עומס על העיניים בתאורה חלשה"
+              label={t.settingsPage.darkMode}
+              description={t.settingsPage.darkModeDescription}
               checked={settings.darkMode}
               onCheckedChange={(v) => update({ darkMode: v })}
               data-testid="settings-dark-mode"
             />
             <SettingsSelect
               icon={<AlignJustify className="w-5 h-5" />}
-              label="גודל תצוגה"
-              description="כוונון הרווחים וצפיפות הפריסה"
+              label={t.settingsPage.displaySize}
+              description={t.settingsPage.displaySizeDescription}
               value={settings.density}
               options={[
-                { value: "comfortable", label: "רגיל" },
-                { value: "compact", label: "קומפקטי" },
+                { value: "comfortable", label: t.settingsPage.comfortable },
+                { value: "compact", label: t.settingsPage.compact },
               ]}
               onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
               data-testid="settings-density"
@@ -107,20 +170,20 @@ export default function SettingsPage() {
         {/* Push Notifications */}
         {push.supported && (
           <section className="space-y-2">
-            <SettingsSectionHeader label="התראות Push" />
+            <SettingsSectionHeader label={t.settingsPage.pushNotifications} />
             <div className="space-y-2">
               <div className="flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card border border-border/60">
                 <span className="flex-shrink-0 text-muted-foreground">
                   {push.subscribed ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-tight">התראות במכשיר</p>
+                  <p className="text-sm font-medium text-foreground leading-tight">{t.settingsPage.deviceNotifications}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {push.permission === "denied"
-                      ? "הרשאה נדחתה — אפשר בהגדרות הדפדפן"
+                      ? t.settingsPage.permissionDenied
                       : push.subscribed
-                      ? "מכשיר זה יקבל התראות גם כשהאפליקציה סגורה"
-                      : "קבל התראות במכשיר זה, גם כשהאפליקציה סגורה"}
+                      ? t.settingsPage.subscribedDescription
+                      : t.settingsPage.unsubscribedDescription}
                   </p>
                 </div>
                 <Button
@@ -132,20 +195,24 @@ export default function SettingsPage() {
                   onClick={async () => {
                     if (push.subscribed) {
                       const ok = await push.unsubscribe();
-                      if (ok) toast.success("התראות Push כובו");
-                      else toast.error(push.error || "הכיבוי נכשל");
+                      if (ok) toast.success(t.settingsPage.pushDisabled);
+                      else toast.error(push.error || t.settingsPage.pushDisableFailed);
                     } else {
                       const ok = await push.subscribe({
                         soundEnabled: settings.soundEnabled,
                         alertsEnabled: settings.criticalAlertsSound,
+                        technicianReturnRemindersEnabled: settings.technicianReturnRemindersEnabled,
+                        seniorOwnReturnRemindersEnabled: settings.seniorOwnReturnRemindersEnabled,
+                        seniorTeamOverdueAlertsEnabled: settings.seniorTeamOverdueAlertsEnabled,
+                        adminHourlySummaryEnabled: settings.adminHourlySummaryEnabled,
                       });
-                      if (ok) toast.success("התראות Push הופעלו");
-                      else if (push.permission === "denied") toast.error("הרשאה נדחתה");
-                      else toast.error(push.error || "ההפעלה נכשלה");
+                      if (ok) toast.success(t.settingsPage.pushEnabled);
+                      else if (push.permission === "denied") toast.error(t.settingsPage.deniedShort);
+                      else toast.error(push.error || t.settingsPage.pushEnableFailed);
                     }
                   }}
                 >
-                  {push.subscribed ? "כבה" : "הפעל"}
+                  {push.subscribed ? t.settingsPage.disable : t.settingsPage.enable}
                 </Button>
               </div>
               {push.subscribed && (
@@ -154,8 +221,8 @@ export default function SettingsPage() {
                     <Send className="w-5 h-5" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground leading-tight">בדיקת התראות</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">שלח התראת ניסיון כדי לוודא תקינות</p>
+                    <p className="text-sm font-medium text-foreground leading-tight">{t.settingsPage.testNotifications}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t.settingsPage.testNotificationsDescription}</p>
                   </div>
                   <Button
                     size="sm"
@@ -165,12 +232,83 @@ export default function SettingsPage() {
                     data-testid="push-test-btn"
                     onClick={async () => {
                       const ok = await push.sendTestNotification();
-                      if (ok) toast.success("התראת בדיקה נשלחה");
-                      else toast.error(push.error || "שליחת הבדיקה נכשלה");
+                      if (ok) toast.success(t.settingsPage.testSent);
+                      else toast.error(push.error || t.settingsPage.testFailed);
                     }}
                   >
                     Send Test
                   </Button>
+                </div>
+              )}
+
+              {push.subscribed && (
+                <div className="space-y-2">
+                  <p className="px-1 text-xs font-semibold text-muted-foreground">
+                    {t.settingsPage.roleNotificationPreferences}
+                  </p>
+
+                  {!isSeniorContext && !isAdminContext && (
+                    <SettingsToggle
+                      icon={<BellRing className="w-5 h-5" />}
+                      label={t.settingsPage.techReturnReminders}
+                      description={t.settingsPage.techReturnRemindersDescription}
+                      checked={settings.technicianReturnRemindersEnabled}
+                      onCheckedChange={(v) =>
+                        handleRoleNotificationToggle(
+                          "technicianReturnRemindersEnabled",
+                          v
+                        )
+                      }
+                      data-testid="settings-tech-return-reminders"
+                    />
+                  )}
+
+                  {isSeniorContext && (
+                    <>
+                      <SettingsToggle
+                        icon={<BellRing className="w-5 h-5" />}
+                        label={t.settingsPage.seniorOwnReminders}
+                        description={t.settingsPage.seniorOwnRemindersDescription}
+                        checked={settings.seniorOwnReturnRemindersEnabled}
+                        onCheckedChange={(v) =>
+                          handleRoleNotificationToggle(
+                            "seniorOwnReturnRemindersEnabled",
+                            v
+                          )
+                        }
+                        data-testid="settings-senior-own-reminders"
+                      />
+                      <SettingsToggle
+                        icon={<Bell className="w-5 h-5" />}
+                        label={t.settingsPage.seniorTeamAlerts}
+                        description={t.settingsPage.seniorTeamAlertsDescription}
+                        checked={settings.seniorTeamOverdueAlertsEnabled}
+                        onCheckedChange={(v) =>
+                          handleRoleNotificationToggle(
+                            "seniorTeamOverdueAlertsEnabled",
+                            v
+                          )
+                        }
+                        data-testid="settings-senior-team-alerts"
+                      />
+                    </>
+                  )}
+
+                  {isAdminContext && (
+                    <SettingsToggle
+                      icon={<Clock className="w-5 h-5" />}
+                      label={t.settingsPage.adminHourlySummary}
+                      description={t.settingsPage.adminHourlySummaryDescription}
+                      checked={settings.adminHourlySummaryEnabled}
+                      onCheckedChange={(v) =>
+                        handleRoleNotificationToggle(
+                          "adminHourlySummaryEnabled",
+                          v
+                        )
+                      }
+                      data-testid="settings-admin-hourly-summary"
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -179,20 +317,20 @@ export default function SettingsPage() {
 
         {/* Sound */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="שמע" />
+          <SettingsSectionHeader label={t.settingsPage.sound} />
           <div className="space-y-2">
             <SettingsToggle
               icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-              label="שמע ראשי"
-              description="הפעל או כבה את כל הצלילים"
+              label={t.settingsPage.masterSound}
+              description={t.settingsPage.masterSoundDescription}
               checked={settings.soundEnabled}
               onCheckedChange={handleSoundToggle}
               data-testid="settings-sound"
             />
             <SettingsToggle
               icon={<BellRing className="w-5 h-5" />}
-              label="התראות קריטיות"
-              description="הפעל שמע להתראות ציוד דחופות"
+              label={t.settingsPage.criticalAlerts}
+              description={t.settingsPage.criticalAlertsDescription}
               checked={settings.criticalAlertsSound}
               onCheckedChange={handleCriticalAlertsToggle}
               data-testid="settings-critical-sound"
@@ -202,12 +340,12 @@ export default function SettingsPage() {
 
         {/* Date & Time */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="תאריך ושעה" />
+          <SettingsSectionHeader label={t.settingsPage.dateAndTime} />
           <div className="space-y-2">
             <SettingsSelect
               icon={<Clock className="w-5 h-5" />}
-              label="פורמט שעה"
-              description="איך השעות מוצגות"
+              label={t.settingsPage.timeFormat}
+              description={t.settingsPage.timeFormatDescription}
               value={settings.timeFormat}
               options={[
                 { value: "12h", label: "12-hour (AM/PM)" },
@@ -218,8 +356,8 @@ export default function SettingsPage() {
             />
             <SettingsSelect
               icon={<Calendar className="w-5 h-5" />}
-              label="פורמט תאריך"
-              description="איך התאריכים מוצגים"
+              label={t.settingsPage.dateFormat}
+              description={t.settingsPage.dateFormatDescription}
               value={settings.dateFormat}
               options={[
                 { value: "MM/DD/YYYY", label: "MM/DD/YYYY" },
@@ -234,28 +372,28 @@ export default function SettingsPage() {
 
         {/* Reset */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="איפוס" />
+          <SettingsSectionHeader label={t.settingsPage.reset} />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4">
-            <p className="text-sm text-foreground font-medium mb-1">שחזר לברירת מחדל</p>
+            <p className="text-sm text-foreground font-medium mb-1">{t.settingsPage.resetToDefault}</p>
             <p className="text-xs text-muted-foreground mb-3">
-              שחזור כל ההגדרות לערכי ברירת המחדל. לא ניתן לבטל פעולה זו.
+              {t.settingsPage.resetDescription}
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 border-border/60 h-11 text-xs" data-testid="settings-reset-btn">
                   <RotateCcw className="w-4 h-4" />
-                  שחזר לברירת מחדל
+                  {t.settingsPage.resetButton}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>לאפס את כל ההגדרות?</AlertDialogTitle>
+                  <AlertDialogTitle>{t.settingsPage.resetDialogTitle}</AlertDialogTitle>
                   <AlertDialogDescription>
                     This will restore all settings to their default values, including dark mode, sound, and display preferences. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>ביטול</AlertDialogCancel>
+                  <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={reset}
                     className="bg-destructive hover:bg-destructive/90"
@@ -271,7 +409,7 @@ export default function SettingsPage() {
 
         {/* Account */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="חשבון" />
+          <SettingsSectionHeader label={t.settingsPage.account} />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4 space-y-3">
             {(name || email) && (
               <div>
@@ -286,23 +424,21 @@ export default function SettingsPage() {
               data-testid="settings-logout"
             >
               <LogOut className="w-4 h-4" />
-              התנתק
+              {t.settingsPage.logout}
             </Button>
           </div>
         </section>
 
         {/* About */}
         <section className="space-y-2">
-          <SettingsSectionHeader label="אודות" />
+          <SettingsSectionHeader label={t.settingsPage.about} />
           <div className="rounded-xl bg-card border border-border/60 px-4 py-4 space-y-1">
             <p className="text-sm font-medium text-foreground">VetTrack</p>
             <p className="text-xs text-muted-foreground">
               Version <span data-testid="app-version">{__APP_VERSION__}</span>
             </p>
             <a
-              href="/CHANGELOG.md"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/whats-new"
               className="text-xs text-primary underline-offset-2 hover:underline"
               data-testid="changelog-link"
             >
