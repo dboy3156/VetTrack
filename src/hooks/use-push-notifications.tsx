@@ -17,6 +17,10 @@ function buildHeaders(): Record<string, string> {
 }
 
 async function getVapidPublicKey(): Promise<string> {
+  const envVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  if (envVapidKey && envVapidKey.trim()) {
+    return envVapidKey.trim();
+  }
   const res = await fetch("/api/push/vapid-public-key", { headers: buildHeaders() });
   if (!res.ok) throw new Error("Failed to fetch VAPID key");
   const { publicKey } = await res.json();
@@ -92,7 +96,7 @@ export function usePushNotifications() {
         return false;
       }
 
-      const vapidKey = await getVapidPublicKey();
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || await getVapidPublicKey();
       const registration = await navigator.serviceWorker.ready;
 
       const subscription = await registration.pushManager.subscribe({

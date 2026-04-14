@@ -24,6 +24,7 @@ const SettingsPage = lazy(() => import("@/pages/settings"));
 const HelpPage = lazy(() => import("@/pages/help"));
 const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const DemoGuidePage = lazy(() => import("@/pages/demo-guide"));
+const WhatsNewPage = lazy(() => import("@/pages/whats-new"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 function AuthGuard({ children }: { children: ReactNode }) {
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/settings"><AuthGuard><SettingsPage /></AuthGuard></Route>
         <Route path="/help"><AuthGuard><HelpPage /></AuthGuard></Route>
         <Route path="/audit-log"><AuthGuard><AuditLogPage /></AuthGuard></Route>
+        <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
     </Suspense>

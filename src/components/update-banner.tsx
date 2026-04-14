@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { Link } from "wouter";
 
 const STORAGE_KEY = "vettrack-last-seen-version";
 
@@ -52,15 +53,13 @@ export function UpdateBanner() {
         <Sparkles className="w-4 h-4 flex-shrink-0" />
         <span>
           VetTrack v{bannerVersion} is here &mdash;{" "}
-          <a
-            href="/CHANGELOG.md"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/whats-new"
             className="underline underline-offset-2 hover:opacity-80"
             data-testid="update-banner-link"
           >
             see what&apos;s new
-          </a>
+          </Link>
         </span>
       </div>
       <Button

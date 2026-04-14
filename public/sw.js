@@ -235,19 +235,19 @@ self.addEventListener("fetch", (event) => {
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
 self.addEventListener("push", (event) => {
-  let data = {};
+  let data = { title: "VetTrack", body: "התראה חדשה" };
   try {
-    data = event.data ? event.data.json() : {};
+    data = event.data ? event.data.json() : data;
   } catch {
     data = {
       title: "VetTrack",
-      body: event.data ? event.data.text() : "New notification",
+      body: event.data ? event.data.text() : "התראה חדשה",
     };
   }
 
   const title = data.title || "VetTrack";
   const options = {
-    body: data.body || "",
+    body: data.body || "התראה חדשה",
     tag: data.tag || `vettrack-${data.equipmentId || Date.now()}`,
     renotify: true,
     icon: "/icons/icon-192.png",

@@ -19,7 +19,7 @@ const createEquipmentSchema = z.object({
   serialNumber: z.string().max(500).optional(),
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
-  purchaseDate: z.string().optional(),
+  purchaseDate: z.string().optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
@@ -33,7 +33,7 @@ const patchEquipmentSchema = z.object({
   serialNumber: z.string().max(500).optional(),
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
-  purchaseDate: z.string().optional(),
+  purchaseDate: z.string().optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
@@ -429,6 +429,7 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
     invalidateAnalyticsCache();
     res.status(201).json(item);
   } catch (err) {
+    console.error("Validation error:", err);
     console.error(err);
     res.status(500).json({ error: "Failed to create equipment" });
   }

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { SettingsSectionHeader, SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { useSettings } from "@/hooks/use-settings";
@@ -71,7 +70,7 @@ export default function SettingsPage() {
 
   return (
     <Layout title="הגדרות">
-      <div className="space-y-6 pb-8 animate-fade-in">
+      <div className="w-full max-w-full overflow-x-hidden space-y-6 pb-8 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">הגדרות</h1>
           <p className="text-sm text-muted-foreground mt-1">התאם אישית את חווית השימוש ב-VetTrack</p>
@@ -300,9 +299,7 @@ export default function SettingsPage() {
               Version <span data-testid="app-version">{__APP_VERSION__}</span>
             </p>
             <a
-              href="/CHANGELOG.md"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/whats-new"
               className="text-xs text-primary underline-offset-2 hover:underline"
               data-testid="changelog-link"
             >
