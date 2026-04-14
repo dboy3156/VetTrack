@@ -13,7 +13,6 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
-import type { PendingSync, PendingSyncType } from "@/lib/offline-db";
 import { t } from "@/lib/i18n";
 
 interface SyncQueueSheetProps {
@@ -21,7 +20,11 @@ interface SyncQueueSheetProps {
   onClose: () => void;
 }
 
-const TYPE_LABELS: Record<PendingSyncType, string> = {
+type SyncQueueData = ReturnType<typeof useSyncQueue>;
+type SyncQueueItemModel = SyncQueueData["items"][number];
+type SyncQueueItemType = SyncQueueItemModel["type"];
+
+const TYPE_LABELS: Record<SyncQueueItemType, string> = {
   scan: t.syncQueueSheet.typeScan,
   create: t.syncQueueSheet.typeCreate,
   update: t.syncQueueSheet.typeUpdate,
@@ -35,7 +38,7 @@ function extractEquipmentIdFromEndpoint(endpoint: string): string | null {
   return match ? match[1] : null;
 }
 
-function getItemLabel(item: PendingSync): string {
+function getItemLabel(item: SyncQueueItemModel): string {
   if (item.equipmentName) return item.equipmentName;
   const id = extractEquipmentIdFromEndpoint(item.endpoint);
   if (id) return `ID: ${id.slice(0, 8)}…`;
@@ -71,7 +74,7 @@ function SyncQueueItem({
   onRetry,
   onDiscard,
 }: {
-  item: PendingSync;
+  item: SyncQueueItemModel;
   onRetry: () => void;
   onDiscard: () => void;
 }) {

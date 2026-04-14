@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getCachedEquipmentById } from "@/lib/offline-db";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
@@ -85,18 +85,6 @@ export function extractEquipmentId(raw: string): string | null {
   }
 }
 
-async function resolveEquipmentId(id: string): Promise<Equipment | null> {
-  const offline = await getCachedEquipmentById(id);
-  if (offline) return offline as Equipment;
-  if (!navigator.onLine) return null;
-  try {
-    const eq = await api.equipment.get(id);
-    return eq;
-  } catch {
-    return null;
-  }
-}
-
 // Nuclear camera teardown — works in both Safari and PWA/Standalone mode.
 // Requests a fresh stream solely to get a handle on any active tracks, then
 // immediately stops and disables every one of them.
@@ -114,6 +102,7 @@ const killAllCameras = () => {
 export function QrScanner({ onClose }: QrScannerProps) {
   const [, navigate] = useLocation();
   const { userId, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
 
   const [phase, setPhase] = useState<ScannerPhase>("init");
   const [torchOn, setTorchOn] = useState(false);
@@ -141,6 +130,51 @@ export function QrScanner({ onClose }: QrScannerProps) {
       }
     },
     [navigate, onClose]
+  );
+
+  const getEquipmentFromCache = useCallback(
+    (equipmentId: string): Equipment | null => {
+      const detail = queryClient.getQueryData<Equipment>([`/api/equipment/${equipmentId}`]);
+      if (detail?.id === equipmentId) return detail;
+
+      const cachedLists = queryClient.getQueriesData({
+        queryKey: ["/api/equipment"],
+      });
+      for (const [, data] of cachedLists) {
+        if (Array.isArray(data)) {
+          const match = (data as Equipment[]).find((item) => item.id === equipmentId);
+          if (match) return match;
+          continue;
+        }
+        if (
+          data &&
+          typeof data === "object" &&
+          "items" in data &&
+          Array.isArray((data as { items: unknown[] }).items)
+        ) {
+          const match = ((data as { items: Equipment[] }).items).find((item) => item.id === equipmentId);
+          if (match) return match;
+        }
+      }
+      return null;
+    },
+    [queryClient]
+  );
+
+  const resolveEquipmentId = useCallback(
+    async (equipmentId: string): Promise<Equipment | null> => {
+      const cached = getEquipmentFromCache(equipmentId);
+      if (cached) return cached;
+      if (!navigator.onLine) return null;
+      try {
+        const equipment = await api.equipment.get(equipmentId);
+        queryClient.setQueryData([`/api/equipment/${equipmentId}`], equipment);
+        return equipment;
+      } catch {
+        return null;
+      }
+    },
+    [getEquipmentFromCache, queryClient]
   );
 
   const handleScanResult = useCallback(
@@ -173,7 +207,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       setScannedEquipment(eq);
       setPhase("result");
     },
-    []
+    [resolveEquipmentId]
   );
 
   const stopScanner = useCallback(async () => {

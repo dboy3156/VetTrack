@@ -72,7 +72,7 @@ import {
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { removePendingSync, updateCachedEquipment } from "@/lib/offline-db";
+import { useSyncQueue } from "@/hooks/use-sync";
 import { MoveRoomSheet } from "@/components/move-room-sheet";
 import { useSettings } from "@/hooks/use-settings";
 import { playCriticalAlertTone } from "@/lib/sounds";
@@ -103,6 +103,7 @@ export default function EquipmentDetailPage() {
   const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, technician: 20, viewer: 10 };
   const canDuplicate = (ROLE_LEVEL[role] ?? 0) >= 20;
   const { settings } = useSettings();
+  const { discard } = useSyncQueue();
   const queryClient = useQueryClient();
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [scanActionSheetOpen, setScanActionSheetOpen] = useState(false);
@@ -159,7 +160,7 @@ export default function EquipmentDetailPage() {
     const prev = state.previousEquipment;
 
     if (state.pendingSyncId !== undefined) {
-      await removePendingSync(state.pendingSyncId);
+      await discard(state.pendingSyncId);
       queryClient.setQueryData([`/api/equipment/${id}`], prev);
       invalidateAll();
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
@@ -1461,7 +1462,6 @@ export default function EquipmentDetailPage() {
               (prev: Equipment | undefined) => prev ? { ...prev, roomId: newRoomId } : prev,
             );
             queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}`] });
-            updateCachedEquipment(id!, { roomId: newRoomId });
           }}
         />
       )}
