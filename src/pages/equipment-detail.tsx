@@ -66,14 +66,12 @@ import {
   formatDateTime,
   formatRelativeTime,
   buildWhatsAppUrl,
-  generateQrUrl,
   isOverdue,
   isSterilizationDue,
 } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { QRCodeSVG } from "qrcode.react";
 import { removePendingSync, updateCachedEquipment } from "@/lib/offline-db";
 import { MoveRoomSheet } from "@/components/move-room-sheet";
 import { useSettings } from "@/hooks/use-settings";
@@ -113,7 +111,6 @@ export default function EquipmentDetailPage() {
   const [scanNote, setScanNote] = useState("");
   const [scanPhoto, setScanPhoto] = useState<string | null>(null);
   const [noteError, setNoteError] = useState("");
-  const [showQR, setShowQR] = useState(false);
   const [checkoutLocation, setCheckoutLocation] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const reportIssuePhotoRef = useRef<HTMLInputElement>(null);
@@ -601,6 +598,11 @@ export default function EquipmentDetailPage() {
     setScanDialogOpen(true);
   }
 
+  function handlePrintQr() {
+    if (!equipment?.id) return;
+    window.open(`/equipment/${equipment.id}/qr`, "_blank", "noopener,noreferrer");
+  }
+
   if (isLoading) {
     return <EquipmentDetailSkeleton />;
   }
@@ -648,8 +650,6 @@ export default function EquipmentDetailPage() {
   const StatusIcon = statusConf?.icon || Package;
   const overdue = isOverdue(equipment);
   const sterilizationDue = isSterilizationDue(equipment);
-  const qrUrl = generateQrUrl(equipment.id);
-
   const isCheckedOut = !!equipment.checkedOutById;
   const checkedOutByMe = equipment.checkedOutById === userId;
 
@@ -845,9 +845,9 @@ export default function EquipmentDetailPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5 items-end shrink-0">
-                <Button variant="outline" size="sm" onClick={() => setShowQR(true)} data-testid="btn-show-qr" className="h-11">
+                <Button variant="outline" size="sm" onClick={handlePrintQr} data-testid="btn-print-qr" className="h-11">
                   <QrCode className="w-3.5 h-3.5 mr-1" />
-                  QR Code
+                  Print QR
                 </Button>
                 <Button
                   variant="outline"
@@ -1289,22 +1289,6 @@ export default function EquipmentDetailPage() {
               Submit Issue
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* QR Code dialog */}
-      <Dialog open={showQR} onOpenChange={setShowQR}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle>QR Code</DialogTitle>
-            <DialogDescription>{equipment.name}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-2">
-            <div className="p-4 bg-white rounded-2xl border-2 border-border">
-              <QRCodeSVG value={qrUrl} size={200} level="M" includeMargin={false} />
-            </div>
-            <p className="text-xs text-muted-foreground text-center break-all">{qrUrl}</p>
-          </div>
         </DialogContent>
       </Dialog>
 

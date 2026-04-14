@@ -18,6 +18,7 @@ const RoomRadarPage = lazy(() => import("@/pages/room-radar"));
 const AnalyticsPage = lazy(() => import("@/pages/analytics"));
 const ManagementDashboardPage = lazy(() => import("@/pages/management-dashboard"));
 const QrPrintPage = lazy(() => import("@/pages/qr-print"));
+const EquipmentQrPrintPage = lazy(() => import("@/pages/equipment-qr-print"));
 const AdminPage = lazy(() => import("@/pages/admin"));
 const StabilityDashboardPage = lazy(() => import("@/pages/stability-dashboard"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
         <Route path="/equipment/new"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
         <Route path="/equipment/:id/edit"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
+        <Route path="/equipment/:id/qr"><AuthGuard><EquipmentQrPrintPage /></AuthGuard></Route>
         <Route path="/equipment/:id"><AuthGuard><EquipmentDetailPage /></AuthGuard></Route>
         <Route path="/alerts"><AuthGuard><AlertsPage /></AuthGuard></Route>
         <Route path="/my-equipment"><AuthGuard><MyEquipmentPage /></AuthGuard></Route>
