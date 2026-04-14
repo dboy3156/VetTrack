@@ -38,6 +38,7 @@ const ROWS_PER_PAGE = 8;
 const ACTION_TYPE_LABELS: Record<string, string> = {
   user_login: "User Login",
   user_provisioned: "User Provisioned",
+  user_display_name_changed: "Display Name Changed",
   user_role_changed: "Role Changed",
   user_status_changed: "Status Changed",
   equipment_created: "Equipment Created",
@@ -134,7 +135,7 @@ function AuditLogRow({ log }: { log: AuditLog }) {
               )}
             </div>
 
-            {/* Staff name + email */}
+            {/* Staff email only */}
             <div className="flex items-center gap-1 mt-0.5">
               <User className="w-3 h-3 text-muted-foreground" style={{ flexShrink: 0 }} />
               <span className="text-xs text-muted-foreground truncate">
@@ -150,15 +151,6 @@ function AuditLogRow({ log }: { log: AuditLog }) {
             )}
           </div>
 
-          {/* Target ID pill — flexShrink:0 so it never collapses */}
-          {log.targetId && (
-            <span
-              className="text-xs text-muted-foreground whitespace-nowrap font-mono hidden sm:block"
-              style={{ flexShrink: 0 }}
-            >
-              {log.targetId.slice(0, 8)}…
-            </span>
-          )}
         </div>
       </button>
 

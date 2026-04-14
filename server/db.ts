@@ -25,7 +25,7 @@ export const users = pgTable("vt_users", {
   clerkId: text("clerk_id").unique().notNull(),
   email: text("email").notNull(),
   name: text("name").notNull().default(""),
-  displayName: text("display_name"),
+  displayName: text("display_name").notNull().default(""),
   role: varchar("role", { length: 20 }).notNull().default("technician"),
   status: varchar("status", { length: 20 }).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

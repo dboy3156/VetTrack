@@ -21,7 +21,7 @@ export interface User {
   clerkId: string;
   email: string;
   name: string;
-  displayName?: string;
+  displayName: string;
   role: UserRole;
   effectiveRole?: UserRole | ShiftRole;
   roleSource?: "shift" | "permanent";

@@ -29,7 +29,7 @@ import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import shiftsRoutes from "./routes/shifts.js";
 import { runMigrations } from "./migrate.js";
-import { initVapid } from "./lib/push.js";
+import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
 import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
 import { startSmartRoleNotificationScheduler } from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
@@ -240,7 +240,9 @@ app.listen(PORT, "0.0.0.0", () => {
 
 runMigrations()
   .then(() => {
-    initVapid().catch((err) => {
+    initVapid().then(() => {
+      startPushCleanupScheduler();
+    }).catch((err) => {
       console.error("Failed to initialize push notifications", err);
     });
     startCleanupScheduler();

@@ -491,7 +491,7 @@ function PendingUsersSection() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">
-                    {user.name || user.email}
+                    {user.displayName || user.name || user.email}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {user.email}
@@ -517,7 +517,7 @@ function PendingUsersSection() {
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>
-                          Reject {user.name || user.email}?
+                          Reject {user.displayName || user.name || user.email}?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                           This user will be blocked from accessing VetTrack.
@@ -781,7 +781,7 @@ function UsersSection() {
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
-                              Reject {user.name || user.email}?
+                              Reject {user.displayName || user.name || user.email}?
                             </AlertDialogTitle>
                             <AlertDialogDescription>
                               This user will be blocked from accessing VetTrack.
@@ -914,7 +914,7 @@ function UsersSection() {
             <AlertDialogDescription>
               This will change{" "}
               <strong>
-                {pendingRoleChange?.user.name || pendingRoleChange?.user.email}
+                {pendingRoleChange?.user.displayName || pendingRoleChange?.user.name || pendingRoleChange?.user.email}
               </strong>
               's role from{" "}
               <strong>
@@ -962,14 +962,16 @@ function UsersSection() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               Block{" "}
-              {pendingStatusChange?.user.name ||
+              {pendingStatusChange?.user.displayName ||
+                pendingStatusChange?.user.name ||
                 pendingStatusChange?.user.email}
               ?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This will immediately revoke{" "}
               <strong>
-                {pendingStatusChange?.user.name ||
+                {pendingStatusChange?.user.displayName ||
+                  pendingStatusChange?.user.name ||
                   pendingStatusChange?.user.email}
               </strong>
               's access to VetTrack. They will not be able to log in until their
@@ -1127,7 +1129,7 @@ function DeletedItemsSection() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">
-                      {user.name || user.email}
+                      {user.displayName || user.name || user.email}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {user.email}
@@ -1263,6 +1265,23 @@ function SupportSection() {
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-[10px]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateMut.mutate({
+                        id: ticket.id,
+                        status: "resolved",
+                        adminNote: ticket.adminNote || "",
+                      });
+                    }}
+                    disabled={updateMut.isPending || ticket.status === "resolved"}
+                  >
+                    Resolve
+                  </Button>
                   <span
                     className={cn(
                       "text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase",
@@ -1279,24 +1298,6 @@ function SupportSection() {
                   >
                     {STATUS_LABELS[ticket.status]}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-8 shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateMut.mutate({
-                        id: ticket.id,
-                        status: "resolved",
-                        adminNote: "",
-                      });
-                    }}
-                    disabled={
-                      ticket.status === "resolved" || updateMut.isPending
-                    }
-                  >
-                    {t.adminPage.ticketStatusResolved}
-                  </Button>
                 </div>
               </button>
             ))}

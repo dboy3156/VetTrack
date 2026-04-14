@@ -35,10 +35,7 @@ const patchStatusSchema = z.object({
 });
 
 const patchDisplayNameSchema = z.object({
-  displayName: z
-    .string({ required_error: "displayName is required" })
-    .trim()
-    .max(60, "displayName must be at most 60 characters"),
+  display_name: z.string().trim().min(1, "display_name is required").max(120, "display_name is too long"),
 });
 
 const syncUserSchema = z.object({
@@ -171,41 +168,6 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
   }
 });
 
-// PATCH /:id/display_name — self or admin
-router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBody(patchDisplayNameSchema), async (req, res) => {
-  try {
-    const isSelf = req.authUser!.id === req.params.id;
-    const isAdmin = req.authUser!.role === "admin";
-    if (!isSelf && !isAdmin) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    const { displayName } = req.body as z.infer<typeof patchDisplayNameSchema>;
-
-    const [user] = await db
-      .update(users)
-      .set({ displayName })
-      .where(eq(users.id, req.params.id))
-      .returning();
-
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    logAudit({
-      actionType: "user_display_name_changed",
-      performedBy: req.authUser!.id,
-      performedByEmail: req.authUser!.email,
-      targetId: req.params.id,
-      targetType: "user",
-      metadata: { displayName },
-    });
-
-    res.json(user);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update display name" });
-  }
-});
-
 router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchStatusSchema), async (req, res) => {
   try {
     const { status } = req.body as z.infer<typeof patchStatusSchema>;
@@ -237,6 +199,51 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBody(patchDisplayNameSchema), async (req, res) => {
+  try {
+    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+    const { display_name } = req.body as z.infer<typeof patchDisplayNameSchema>;
+    const actorId = req.authUser.id;
+
+    if (actorId !== req.params.id && req.authUser.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "User not found" });
+
+    const [updated] = await db
+      .update(users)
+      .set({ displayName: display_name })
+      .where(eq(users.id, req.params.id))
+      .returning();
+
+    logAudit({
+      actionType: "user_display_name_changed",
+      performedBy: actorId,
+      performedByEmail: req.authUser.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: {
+        field: "display_name",
+        previousDisplayName: existing.displayName,
+        newDisplayName: updated.displayName,
+      },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update display name" });
   }
 });
 
@@ -336,7 +343,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     if (existing) {
       const [updated] = await db
         .update(users)
-        .set({ email, name: name || existing.name })
+        .set({ email, displayName: name || existing.displayName })
         .where(eq(users.id, existing.id))
         .returning();
 
@@ -366,13 +373,14 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
           clerkId,
           email,
           name: name || "",
+          displayName: name || "",
           role: "technician",
         })
         .onConflictDoUpdate({
           target: users.clerkId,
           set: {
             email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
-            name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+            displayName: sql`CASE WHEN EXCLUDED.display_name = '' THEN ${users.displayName} ELSE EXCLUDED.display_name END`,
           },
         })
         .returning();
