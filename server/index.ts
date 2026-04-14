@@ -241,7 +241,11 @@ app.listen(PORT, "0.0.0.0", () => {
 runMigrations()
   .then(() => {
     initVapid().then(() => {
-      startPushCleanupScheduler();
+      if (typeof startPushCleanupScheduler === "function") {
+        startPushCleanupScheduler();
+      } else {
+        console.warn("Push cleanup scheduler is unavailable in this build");
+      }
     }).catch((err) => {
       console.error("Failed to initialize push notifications", err);
     });
