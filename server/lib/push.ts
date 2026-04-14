@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
 
 let vapidReady = false;
+let pushCleanupTimer: ReturnType<typeof setInterval> | null = null;
+const PUSH_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 export async function initVapid(): Promise<void> {
   try {
@@ -144,6 +146,41 @@ async function cleanupExpiredEndpoints(endpoints: string[]): Promise<void> {
       .where(eq(pushSubscriptions.endpoint, endpoint))
       .catch(() => {});
   }
+}
+
+export async function runPushSubscriptionCleanup(): Promise<void> {
+  const subs = await db.select().from(pushSubscriptions);
+  if (subs.length === 0) return;
+
+  const expired: string[] = [];
+  await Promise.all(
+    subs.map(async (sub) => {
+      const result = await dispatchToSub(
+        sub,
+        JSON.stringify({ title: "cleanup", body: "cleanup", silent: true, tag: "cleanup-probe" })
+      );
+      if (result === "expired") expired.push(sub.endpoint);
+    })
+  );
+
+  if (expired.length > 0) {
+    await cleanupExpiredEndpoints(expired);
+    console.log(`[push] cleaned up ${expired.length} expired endpoint(s)`);
+  }
+}
+
+export function startPushCleanupScheduler(): void {
+  if (pushCleanupTimer) return;
+
+  runPushSubscriptionCleanup().catch((err) => {
+    console.error("[push] cleanup run failed:", err);
+  });
+
+  pushCleanupTimer = setInterval(() => {
+    runPushSubscriptionCleanup().catch((err) => {
+      console.error("[push] scheduled cleanup failed:", err);
+    });
+  }, PUSH_CLEANUP_INTERVAL_MS);
 }
 
 export async function sendPushToAll(payload: PushPayload): Promise<void> {
