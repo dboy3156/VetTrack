@@ -3,7 +3,35 @@ import { db, equipment, pushSubscriptions, scheduledNotifications, shifts, suppo
 import { resolveCurrentRole, type PermanentVetTrackRole } from "./role-resolution.js";
 import { sendPushToUser } from "./push.js";
 
-type ReturnReminderPayload = { equipmentName?: string };
+function parseScheduledNotificationPayload(raw: unknown): Record<string, unknown> {
+  if (raw == null) return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      /* invalid JSON → empty */
+    }
+  }
+  return {};
+}
+
+function getAttemptsFromPayload(payload: Record<string, unknown>): number {
+  const a = payload.attempts;
+  if (typeof a === "number" && Number.isFinite(a) && a >= 0) return Math.floor(a);
+  return 0;
+}
+
+/** After a failure, `attempts` has been incremented to this value. */
+function backoffMsAfterFailure(attempts: number): number {
+  if (attempts === 1) return 60_000;
+  if (attempts === 2) return 5 * 60_000;
+  if (attempts === 3) return 15 * 60_000;
+  return 0;
+}
 
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -119,8 +147,9 @@ async function processReturnReminderNotification(
   if (!row.equipmentId) return;
   const equipmentId = row.equipmentId;
   const userId = row.userId;
-  const payload = (row.payload as ReturnReminderPayload | null) ?? {};
-  const nameFromPayload = payload.equipmentName;
+  const payload = parseScheduledNotificationPayload(row.payload);
+  const nameFromPayload =
+    typeof payload.equipmentName === "string" ? payload.equipmentName : undefined;
 
   const [item] = await db
     .select({
@@ -239,25 +268,56 @@ export async function runScheduledNotifications(): Promise<void> {
     .limit(100);
 
   for (const row of due) {
-    const claimed = await db
-      .update(scheduledNotifications)
-      .set({ sentAt: new Date() })
-      .where(and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt)))
-      .returning();
-
-    if (claimed.length === 0) continue;
-
-    const c = claimed[0];
     console.log("Processing scheduled notification:", {
-      id: c.id,
-      type: c.type,
-      userId: c.userId,
+      id: row.id,
+      type: row.type,
+      userId: row.userId,
     });
 
     try {
-      await processReturnReminderNotification(c);
+      await processReturnReminderNotification(row);
+      await db
+        .update(scheduledNotifications)
+        .set({ sentAt: new Date() })
+        .where(
+          and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+        );
+      console.log("Notification sent:", {
+        id: row.id,
+        userId: row.userId,
+      });
     } catch (error) {
-      console.error("Scheduled return reminder failed:", { id: c.id, userId: c.userId, error });
+      const payloadObj = parseScheduledNotificationPayload(row.payload);
+      const prevAttempts = getAttemptsFromPayload(payloadObj);
+      const attempts = prevAttempts + 1;
+
+      console.error("Notification failed:", {
+        id: row.id,
+        userId: row.userId,
+        attempts,
+        error,
+      });
+
+      if (attempts >= 4) {
+        console.warn("Notification abandoned:", { id: row.id, attempts });
+        await db
+          .update(scheduledNotifications)
+          .set({ sentAt: new Date() })
+          .where(
+            and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+          );
+      } else {
+        const delayMs = backoffMsAfterFailure(attempts);
+        await db
+          .update(scheduledNotifications)
+          .set({
+            scheduledAt: new Date(Date.now() + delayMs),
+            payload: { ...payloadObj, attempts },
+          })
+          .where(
+            and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+          );
+      }
     }
   }
 }
