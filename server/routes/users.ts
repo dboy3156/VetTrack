@@ -141,7 +141,10 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       .from(users)
       .where(whereClause);
     const items = await baseQuery.limit(resolvedLimit).offset(resolvedOffset);
-    console.log("USERS RESPONSE:", items);
+    console.log(
+      "EMPTY EMAIL USERS:",
+      items.filter((u) => !u.email),
+    );
     res.json({ items, total, page, pageSize: resolvedLimit, hasMore: resolvedOffset + items.length < total });
   } catch (err) {
     console.error(err);
@@ -396,7 +399,10 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     if (existing) {
       const [updated] = await db
         .update(users)
-        .set({ name: name || existing.name })
+        .set({
+          name: name || existing.name,
+          email: email || existing.email,
+        })
         .where(eq(users.id, existing.id))
         .returning();
 
@@ -429,7 +435,18 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         .onConflictDoUpdate({
           target: users.clerkId,
           set: {
-            name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+            name: sql`
+      CASE 
+        WHEN EXCLUDED.name = '' THEN ${users.name} 
+        ELSE EXCLUDED.name 
+      END
+    `,
+            email: sql`
+      CASE 
+        WHEN EXCLUDED.email = '' THEN ${users.email} 
+        ELSE EXCLUDED.email 
+      END
+    `,
           },
         })
         .returning();
