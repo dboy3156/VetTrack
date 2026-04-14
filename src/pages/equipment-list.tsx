@@ -172,7 +172,15 @@ export default function EquipmentListPage() {
     isLoading: isQueryLoading,
     isError,
     refetch,
-  } = usePaginatedEquipment({ page: 1, pageSize: SERVER_PAGE_SIZE, enabled: !!userId });
+  } = usePaginatedEquipment({
+    page: 1,
+    pageSize: SERVER_PAGE_SIZE,
+    enabled: !!userId,
+    q: search,
+    status: statusFilter,
+    folder: folderFilter,
+    location: locationFilter,
+  });
 
   const equipment = equipmentPage?.items ?? [];
   const totalCount = equipmentPage?.total ?? 0;
