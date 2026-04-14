@@ -70,7 +70,7 @@ export default function SettingsPage() {
 
   return (
     <Layout title="הגדרות">
-      <div className="space-y-6 pb-8 animate-fade-in">
+      <div className="w-full max-w-full overflow-x-hidden space-y-6 pb-8 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">הגדרות</h1>
           <p className="text-sm text-muted-foreground mt-1">התאם אישית את חווית השימוש ב-VetTrack</p>

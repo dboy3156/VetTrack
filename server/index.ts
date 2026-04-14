@@ -26,6 +26,7 @@ import pushRoutes from "./routes/push.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
+import { initVapid } from "./lib/push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -195,4 +196,8 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("ENV PORT =", process.env.PORT);
   console.log(`Server listening on ${PORT}`);
+});
+
+initVapid().catch((err) => {
+  console.error("Failed to initialize push notifications", err);
 });
