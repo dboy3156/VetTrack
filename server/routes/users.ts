@@ -98,8 +98,29 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     const resolvedOffset = (page - 1) * resolvedLimit;
 
     const baseQuery = status
-      ? db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
-      : db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
+      ? db.select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      displayName: users.displayName,
+      role: users.role,
+      status: users.status,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(and(eq(users.status, status as string), isNull(users.deletedAt)))
+      : db.select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      displayName: users.displayName,
+      role: users.role,
+      status: users.status,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(isNull(users.deletedAt))
+    .orderBy(users.createdAt);
 
     const whereClause = status
       ? and(eq(users.status, status as string), isNull(users.deletedAt))
