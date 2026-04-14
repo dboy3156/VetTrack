@@ -97,9 +97,28 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const resolvedOffset = (page - 1) * resolvedLimit;
 
+    const userFields = {
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      displayName: users.displayName,
+      role: users.role,
+      status: users.status,
+      createdAt: users.createdAt,
+      deletedAt: users.deletedAt,
+    };
+
     const baseQuery = status
-      ? db.select().from(users).where(and(eq(users.status, status as string), isNull(users.deletedAt))).orderBy(users.createdAt)
-      : db.select().from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
+      ? db
+          .select(userFields)
+          .from(users)
+          .where(and(eq(users.status, status as string), isNull(users.deletedAt)))
+          .orderBy(users.createdAt)
+      : db
+          .select(userFields)
+          .from(users)
+          .where(isNull(users.deletedAt))
+          .orderBy(users.createdAt);
 
     const whereClause = status
       ? and(eq(users.status, status as string), isNull(users.deletedAt))
@@ -109,6 +128,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       .from(users)
       .where(whereClause);
     const items = await baseQuery.limit(resolvedLimit).offset(resolvedOffset);
+    console.log("USERS RESPONSE:", items);
     res.json({ items, total, page, pageSize: resolvedLimit, hasMore: resolvedOffset + items.length < total });
   } catch (err) {
     console.error(err);

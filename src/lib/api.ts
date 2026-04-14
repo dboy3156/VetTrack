@@ -569,20 +569,14 @@ export const api = {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
   },
   users: {
-    list: async (status?: "pending" | "active" | "blocked"): Promise<User[]> => {
-      const url = status ? `/api/users?status=${status}` : "/api/users";
-      const result = await request<{ items: User[]; total: number }>(url);
-      return result.items;
-    },
     listPaginated: async (
       page = 1,
       pageSize = 100,
       status?: "pending" | "active" | "blocked"
     ): Promise<{ items: User[]; total: number; page: number; pageSize: number; hasMore: boolean }> => {
-      const params = new URLSearchParams({ limit: String(pageSize), page: String(page) });
-      if (status) params.set("status", status);
+      const url = `/api/users?page=${page}&limit=${pageSize}${status ? `&status=${status}` : ""}`;
       return request<{ items: User[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
-        `/api/users?${params}`
+        url
       );
     },
     listPending: () => request<User[]>("/api/users/pending"),
