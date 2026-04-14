@@ -53,6 +53,8 @@ The repo's Clerk keys are **production keys** (`pk_live_*` / `sk_live_*`) bound 
 3. Run a Node HTTPS proxy on port 443 forwarding to Vite on port 5000
 4. Open Chrome with `--ignore-certificate-errors` flag, navigate to `https://vettrack.uk`
 
+The Clerk instance uses **email OTP** (6-digit code) or **Google OAuth** for authentication — **not passwords**. There is no password-based sign-in. To complete the full UI login flow, the user must either enter the email OTP code sent to their inbox or use the Desktop pane to sign in via Google OAuth.
+
 Only 4 route modules are mounted in `server/index.ts`: equipment, analytics, activity, users (rooms and other routes referenced in the codebase are not yet registered).
 
 ### Commands
