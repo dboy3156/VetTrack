@@ -429,23 +429,25 @@ export default function NewEquipmentPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="expectedReturnMinutes" className="text-sm font-medium">
-                  {t.newEquipment.fields.expectedReturnMinutes.label}
-                </Label>
-                <Input
-                  id="expectedReturnMinutes"
-                  type="number"
-                  placeholder={t.newEquipment.fields.expectedReturnMinutes.placeholder}
-                  min={1}
-                  className="h-12 rounded-xl border-border/60 bg-background text-base"
-                  {...register("expectedReturnMinutes")}
-                  data-testid="input-expected-return-minutes"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t.newEquipment.fields.expectedReturnMinutes.description}
-                </p>
-              </div>
+              {showExpectedReturnField && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="expectedReturnMinutes" className="text-sm font-medium">
+                    {t.newEquipment.fields.expectedReturnMinutes.label}
+                  </Label>
+                  <Input
+                    id="expectedReturnMinutes"
+                    type="number"
+                    placeholder={t.newEquipment.fields.expectedReturnMinutes.placeholder}
+                    min={1}
+                    className="h-12 rounded-xl border-border/60 bg-background text-base"
+                    {...register("expectedReturnMinutes")}
+                    data-testid="input-expected-return-minutes"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t.newEquipment.fields.expectedReturnMinutes.description}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
