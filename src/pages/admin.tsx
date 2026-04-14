@@ -686,6 +686,30 @@ function UsersSection() {
     onError: () => toast.error(t.adminPage.statusUpdateFailed),
   });
 
+  const deleteUserMut = useMutation({
+    mutationFn: (id: string) => api.users.delete(id),
+    onSuccess: () => {
+      navigator.vibrate?.(50);
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
+      toast.success("User deleted");
+    },
+    onError: () => toast.error("Failed to delete user"),
+  });
+
+  const restoreUserMut = useMutation({
+    mutationFn: (id: string) => api.users.restore(id),
+    onSuccess: () => {
+      navigator.vibrate?.(50);
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
+      toast.success("User restored");
+    },
+    onError: () => toast.error("Failed to restore user"),
+  });
+
   const filterButtons: { label: string; value: UserStatusFilter }[] = [
     { label: t.adminPage.filterAll, value: "all" },
     { label: t.adminPage.filterPending, value: "pending" },
@@ -823,6 +847,37 @@ function UsersSection() {
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
+                  <div className="flex gap-1.5 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs"
+                      data-testid={`btn-soft-delete-user-${user.id}`}
+                      disabled={deleteUserMut.isPending || Boolean(user.deletedAt)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!confirm("למחוק את המשתמש?")) return;
+                        deleteUserMut.mutate(user.id);
+                      }}
+                    >
+                      מחק
+                    </Button>
+                    {user.deletedAt ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        data-testid={`btn-restore-user-inline-${user.id}`}
+                        disabled={restoreUserMut.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          restoreUserMut.mutate(user.id);
+                        }}
+                      >
+                        שחזר
+                      </Button>
+                    ) : null}
+                  </div>
                   <Select
                     value={user.role}
                     onValueChange={(role) => {

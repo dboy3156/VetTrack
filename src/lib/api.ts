@@ -598,9 +598,9 @@ export const api = {
         { method: "PATCH", body: JSON.stringify({ status }) }
       ),
     delete: (id: string) =>
-      request<void>(`/api/users/${id}`, { method: "DELETE" }),
+      request<User>(`/api/users/${id}/delete`, { method: "PATCH" }),
     restore: (id: string) =>
-      request<User>(`/api/users/${id}/restore`, { method: "POST" }),
+      request<User>(`/api/users/${id}/restore`, { method: "PATCH" }),
     me: () => request<User & {
       effectiveRole?: UserRole | ShiftRole;
       roleSource?: "shift" | "permanent";
