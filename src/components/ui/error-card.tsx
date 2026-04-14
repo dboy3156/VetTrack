@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { t } from "@/lib/i18n";
 
 const MAX_RETRIES = 3;
 const MIN_SPINNER_MS = 1000;
@@ -12,7 +13,7 @@ interface ErrorCardProps {
 }
 
 export function ErrorCard({
-  message = "טעינת הנתונים נכשלה. נסה שוב.",
+  message = t.errorCard.defaultMessage,
   onRetry,
 }: ErrorCardProps) {
   const [isRetrying, setIsRetrying] = useState(false);
@@ -48,7 +49,7 @@ export function ErrorCard({
 
   const exhausted = retryCount >= MAX_RETRIES;
   const displayMessage = exhausted
-    ? "עדיין יש תקלה. בדוק את החיבור או רענן את העמוד."
+    ? t.errorCard.exhaustedMessage
     : message;
 
   return (
@@ -63,7 +64,7 @@ export function ErrorCard({
             className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
             onClick={() => window.location.reload()}
           >
-            רענן עמוד
+            {t.errorCard.refreshPage}
           </Button>
         ) : (
           onRetry && (
@@ -75,7 +76,7 @@ export function ErrorCard({
               disabled={isRetrying}
             >
               <RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />
-              {isRetrying ? "מנסה..." : "נסה שוב"}
+              {isRetrying ? t.errorCard.retrying : t.errorCard.retry}
             </Button>
           )
         )}

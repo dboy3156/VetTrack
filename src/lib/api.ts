@@ -24,6 +24,7 @@ import type {
   SupportTicket,
   CreateSupportTicketRequest,
 } from "@/types";
+import { t } from "@/lib/i18n";
 import { toast } from "sonner";
 import type { PendingSyncType } from "./offline-db";
 import {
@@ -130,13 +131,13 @@ export async function request<T>(
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (res.status === 401) {
       // Token expired or invalid — force a full page reload to re-authenticate
-      toast.error("הפעלתך פגה. נא להתחבר מחדש.");
+      toast.error(t.api.sessionExpired);
       setTimeout(() => window.location.reload(), 1500);
       throw new Error("Session expired");
     }
     if (!res.ok) {
       if (!silent && res.status >= 500) {
-        toast.error("השרת נתקל בשגיאה. נא לנסות שוב או לרענן את העמוד.");
+        toast.error(t.api.serverError);
       }
       const error = await res.json().catch(() => ({ error: "Request failed" }));
       if (isOfflineResponse(res.status, error)) {
@@ -148,7 +149,7 @@ export async function request<T>(
     return res.json();
   } catch (err) {
     if (!silent && isNetworkError(err)) {
-      toast.error("לא ניתן לגשת לשרת. ייתכן שאתה לא מחובר או שהשרת נפל.");
+      toast.error(t.api.networkUnavailable);
     }
     if (isNetworkError(err) && offline) {
       const clientTimestamp = Date.now();

@@ -338,7 +338,8 @@ router.get("/", requireAuth, async (req, res) => {
       .leftJoin(rooms, eq(equipment.roomId, rooms.id))
       .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
       .where(whereClause)
-      .orderBy(desc(equipment.createdAt));
+      // Stable sort key for pagination so pages do not duplicate/drop rows on equal createdAt.
+      .orderBy(desc(equipment.createdAt), desc(equipment.id));
 
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })

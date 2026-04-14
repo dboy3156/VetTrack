@@ -10,6 +10,7 @@ import {
 import { DoorOpen, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Equipment } from "@/types";
+import { t } from "@/lib/i18n";
 
 interface MoveRoomSheetProps {
   equipment: Equipment;
@@ -34,13 +35,13 @@ export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRo
       const room = rooms?.find((r) => r.id === roomId);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
-      toast.success(roomId ? `הועבר אל ${room?.name ?? "חדר"}` : "הוסר מהחדר");
+      toast.success(roomId ? t.moveRoom.toast.movedTo(room?.name ?? t.moveRoom.toast.defaultRoomName) : t.moveRoom.toast.removedFromRoom);
       setMovingToId(null);
       onOpenChange(false);
       onMoved?.(roomId);
     },
     onError: () => {
-      toast.error("ההעברה נכשלה");
+      toast.error(t.moveRoom.toast.moveFailed);
       setMovingToId(null);
     },
   });

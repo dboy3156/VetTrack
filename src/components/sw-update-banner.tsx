@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export function SwUpdateBanner() {
   const workerRef = useRef<ServiceWorker | null>(null);
@@ -14,7 +15,7 @@ export function SwUpdateBanner() {
       if (toastShownRef.current) return;
       toastShownRef.current = true;
 
-      toast("עדכון זמין – לחץ לרענון", {
+      toast(t.swUpdate.updateAvailable, {
         duration: Infinity,
         action: {
           label: "Refresh",

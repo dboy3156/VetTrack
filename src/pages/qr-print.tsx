@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -121,7 +122,7 @@ export default function QrPrintPage() {
   return (
     <Layout>
       <Helmet>
-        <title>הדפסת QR — VetTrack</title>
+        <title>{t.qrPrintPage.titleFull}</title>
         <meta name="description" content="Generate and print QR code labels for veterinary equipment. Select items, preview QR codes, and print sheets for physical labeling." />
         <link rel="canonical" href="https://vettrack.replit.app/print" />
       </Helmet>
@@ -130,7 +131,7 @@ export default function QrPrintPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
             <QrCode className="w-6 h-6 text-primary" />
-            הדפסת QR
+            {t.qrPrintPage.title}
           </h1>
           {selected.size > 0 && (
             <Button
@@ -145,14 +146,14 @@ export default function QrPrintPage() {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          בחר ציוד להדפסה. ניתן להדפיס מספר קודי QR יחד.
+          {t.qrPrintPage.selectHint}
         </p>
 
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="חיפוש ציוד..."
+            placeholder={t.qrPrintPage.searchPlaceholder}
             className="pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -174,8 +175,8 @@ export default function QrPrintPage() {
               <Square className="w-4 h-4" />
             )}
             {selected.size === (filtered?.length ?? 0) && filtered?.length! > 0
-              ? "בטל בחירה"
-              : "בחר הכל"}
+              ? t.qrPrintPage.unselectAll
+              : t.qrPrintPage.selectAll}
           </Button>
           {selected.size > 0 && (
             <span className="text-xs text-muted-foreground">
@@ -206,7 +207,7 @@ export default function QrPrintPage() {
               className="gap-1.5 h-11 text-xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
-              {isRefetching ? "מנסה..." : "נסה שוב"}
+              {isRefetching ? t.qrPrintPage.trying : t.qrPrintPage.retry}
             </Button>
           </div>
         ) : (

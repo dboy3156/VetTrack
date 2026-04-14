@@ -93,7 +93,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     (item) =>
       item.type === "scan" &&
       item.note != null &&
-      (item.note?.includes("Checked out") || item.note?.includes("הוצא לשימוש")) &&
+      (item.note?.includes("Checked out") || item.note?.includes("checked out")) &&
       item.userEmail === userEmail &&
       new Date(item.timestamp) >= todayStart
   ) ?? [];
@@ -118,7 +118,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
   function buildSummaryText(): string {
     const dateStr = format(new Date(), "MMMM d, yyyy");
-    const lines: string[] = [`VetTrack סיכום משמרת — ${dateStr}`, ""];
+    const lines: string[] = [t.shiftSummaryPage.reportHeader(dateStr), ""];
 
     lines.push(t.shiftSummary.sections.checkedOut);
     if (myItems && myItems.length > 0) {
@@ -126,17 +126,17 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         const loc = item.checkedOutLocation || item.location;
         const since = item.checkedOutAt
           ? formatRelativeTime(item.checkedOutAt)
-          : "לא ידוע";
-        lines.push(`• ${item.name}${loc ? ` — ${loc}` : ""} מאז ${since}`);
+          : t.shiftSummaryPage.unknownLocation;
+        lines.push(t.shiftSummaryPage.checkedOutLine(item.name, loc || "", since));
       }
     } else {
-      lines.push("  אין");
+      lines.push(t.shiftSummaryPage.listBulletNone);
     }
 
     lines.push("");
 
     if (todayCheckouts.length > 0) {
-      lines.push(`שימושים היום (${todayCheckouts.length}):`);
+      lines.push(t.shiftSummaryPage.todayUsageHeader(todayCheckouts.length));
       for (const item of todayCheckouts) {
         lines.push(`• ${item.equipmentName} — ${formatRelativeTime(item.timestamp)}`);
       }
@@ -149,7 +149,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         lines.push(`• ${item.equipmentName}`);
       }
     } else {
-      lines.push("  אין");
+      lines.push(t.shiftSummaryPage.listBulletNone);
     }
 
     lines.push("");
@@ -161,7 +161,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
         lines.push(`• ${tag} ${alert.equipmentName} — ${alert.detail}`);
       }
     } else {
-      lines.push("  אין");
+      lines.push(t.shiftSummaryPage.listBulletNone);
     }
 
     return lines.join("\n");
@@ -218,7 +218,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
     const filename = `vettrack-shift-summary-${format(new Date(), "yyyy-MM-dd")}.pdf`;
     doc.save(filename);
-    toast.success("קובץ סיכום המשמרת ירד בהצלחה");
+    toast.success(t.shiftSummaryPage.reportDownloaded);
   }
 
   if (!open) return null;
@@ -246,7 +246,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
           <div className="flex items-center gap-2">
             <ClipboardCheck className="w-5 h-5 text-primary" />
             <div>
-              <h2 className="font-bold text-base leading-tight">סיכום משמרת</h2>
+              <h2 className="font-bold text-base leading-tight">{t.shiftSummaryPage.summaryTitle}</h2>
               <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, MMMM d")}</p>
             </div>
           </div>
@@ -272,9 +272,9 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
           ) : isError ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
               <AlertTriangle className="w-8 h-8 text-destructive" />
-              <p className="text-sm text-destructive font-medium text-center">טעינת נתוני המשמרת נכשלה.</p>
+              <p className="text-sm text-destructive font-medium text-center">{t.shiftSummaryPage.loadFailed}</p>
               <Button variant="outline" size="sm" onClick={retryAll}>
-                נסה שוב
+                {t.shiftSummaryPage.retry}
               </Button>
             </div>
           ) : (
@@ -283,7 +283,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <PackageOpen className="w-4 h-4 text-blue-500" />
-                  <h3 className="text-sm font-semibold">בשימוש כרגע</h3>
+                  <h3 className="text-sm font-semibold">{t.shiftSummaryPage.checkedOutNow}</h3>
                   <Badge variant="secondary" className="ml-auto">
                     {myItems?.length ?? 0}
                   </Badge>
@@ -298,7 +298,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{item.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            מאז {formatRelativeTime(item.checkedOutAt)}
+                            {t.shiftSummaryPage.since} {formatRelativeTime(item.checkedOutAt)}
                           </p>
                         </div>
                         {(item.checkedOutLocation || item.location) && (
@@ -313,7 +313,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">אין ציוד בשימוש כרגע</p>
+                    <p className="text-sm text-muted-foreground">{t.shiftSummaryPage.noneInUse}</p>
                   </div>
                 )}
               </div>
@@ -323,7 +323,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
                     <ArrowUpRight className="w-4 h-4 text-blue-500" />
-                    <h3 className="text-sm font-semibold">שימושים היום</h3>
+                    <h3 className="text-sm font-semibold">{t.shiftSummaryPage.checkoutsToday}</h3>
                     <Badge variant="secondary" className="ml-auto">
                       {todayCheckouts.length}
                     </Badge>
@@ -348,7 +348,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <Wrench className="w-4 h-4 text-amber-500" />
-                  <h3 className="text-sm font-semibold">תקלות שדווחו היום</h3>
+                  <h3 className="text-sm font-semibold">{t.shiftSummaryPage.issuesReportedToday}</h3>
                   <Badge variant={todayIssues.length > 0 ? "maintenance" : "secondary"} className="ml-auto">
                     {todayIssues.length}
                   </Badge>
@@ -370,7 +370,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">לא דווחו תקלות היום</p>
+                    <p className="text-sm text-muted-foreground">{t.shiftSummaryPage.noIssuesToday}</p>
                   </div>
                 )}
               </div>
@@ -379,7 +379,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <AlertTriangle className="w-4 h-4 text-red-500" />
-                  <h3 className="text-sm font-semibold">התראות שלא טופלו</h3>
+                  <h3 className="text-sm font-semibold">{t.shiftSummaryPage.unacknowledgedAlerts}</h3>
                   <Badge variant={urgentAlerts.length > 0 ? "issue" : "secondary"} className="ml-auto">
                     {urgentAlerts.length}
                   </Badge>
@@ -408,7 +408,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                 ) : (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-dashed">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <p className="text-sm text-muted-foreground">אין התראות קריטיות</p>
+                    <p className="text-sm text-muted-foreground">{t.shiftSummaryPage.noCriticalAlerts}</p>
                   </div>
                 )}
               </div>
@@ -436,7 +436,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
             data-testid="btn-download-shift-summary-pdf"
           >
             <FileText className="w-4 h-4" />
-            הורד PDF
+            {t.shiftSummaryPage.downloadPdf}
           </Button>
         </div>
       </div>

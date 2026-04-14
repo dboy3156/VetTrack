@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -202,7 +203,7 @@ export default function RoomsListPage() {
       setRoomName("");
       setRoomFloor("");
     },
-    onError: (err: Error) => toast.error(err.message || "יצירת החדר נכשלה"),
+    onError: (err: Error) => toast.error(err.message || t.roomsListPage.createRoomFailed),
   });
 
   const handleCreate = () => {
@@ -218,7 +219,7 @@ export default function RoomsListPage() {
   return (
     <Layout>
       <Helmet>
-        <title>רדאר ציוד — VetTrack</title>
+        <title>{t.qrPrintPage.titleFull}</title>
         <meta name="description" content="Room-by-room equipment inventory. Verify all items in a room with one tap." />
       </Helmet>
 
@@ -230,7 +231,7 @@ export default function RoomsListPage() {
               <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Radar className="w-4 h-4 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold leading-tight">רדאר ציוד</h1>
+              <h1 className="text-2xl font-bold leading-tight">{t.roomsListPage.title}</h1>
               <HelpTooltip
                 side="bottom"
                 content="Each room card shows a Health Ring: a coloured circle showing what % of items were verified in the last 24 hours. Green ≥ 80%, Amber ≥ 40%, Red < 40%. Stale = not audited in 24+ hours."
@@ -284,10 +285,10 @@ export default function RoomsListPage() {
         ) : !rooms || rooms.length === 0 ? (
           <EmptyState
             icon={DoorOpen}
-            message="אין חדרים עדיין"
+            message={t.roomsListPage.emptyRooms}
             subMessage={
               isAdmin
-                ? "צור את החדר הראשון כדי לארגן ציוד לפי מיקום."
+                ? t.roomsListPage.createFirstRoomHint
                 : "No rooms have been created yet. Ask an admin to set them up."
             }
             action={
@@ -308,15 +309,15 @@ export default function RoomsListPage() {
         )}
       </div>
 
-      {/* יצירת חדר dialog */}
+      {/* create room dialog */}
       <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setRoomName(""); setRoomFloor(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>יצירת חדר</DialogTitle>
+            <DialogTitle>{t.roomsListPage.createRoomDialogTitle}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="room-name">שם החדר *</Label>
+              <Label htmlFor="room-name">{t.roomsListPage.roomName}</Label>
               <Input
                 id="room-name"
                 value={roomName}
@@ -327,7 +328,7 @@ export default function RoomsListPage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="room-floor">קומה / אזור (אופציונלי)</Label>
+              <Label htmlFor="room-floor">{t.roomsListPage.roomFloorOptional}</Label>
               <Input
                 id="room-floor"
                 value={roomFloor}
@@ -347,7 +348,7 @@ export default function RoomsListPage() {
               className="gap-2"
             >
               {createMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              יצירת חדר
+              {t.roomsListPage.createRoom}
             </Button>
           </DialogFooter>
         </DialogContent>

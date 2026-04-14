@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -175,7 +176,7 @@ function SystemStatusBadge({ status, running }: { status: TestReport | null; run
   return (
     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-semibold text-sm">
       <ShieldCheck className="w-4 h-4" />
-      כל הבדיקות תקינות
+      {t.stabilityPage.allChecksHealthy}
     </div>
   );
 }
@@ -233,12 +234,12 @@ function SuiteSection({ suite, results }: { suite: Suite; results: TestResult[] 
 }
 
 const SCHEDULE_OPTIONS = [
-  { label: "מושבת", value: 0 },
-  { label: "כל 2 שעות", value: 2 },
-  { label: "כל 4 שעות", value: 4 },
-  { label: "כל 8 שעות", value: 8 },
-  { label: "כל 12 שעות", value: 12 },
-  { label: "כל 24 שעות", value: 24 },
+  { label: t.stabilityPage.disabled, value: 0 },
+  { label: t.stabilityPage.everyTwoHours, value: 2 },
+  { label: t.stabilityPage.everyFourHours, value: 4 },
+  { label: t.stabilityPage.everyEightHours, value: 8 },
+  { label: t.stabilityPage.everyTwelveHours, value: 12 },
+  { label: t.stabilityPage.everyTwentyFourHours, value: 24 },
 ];
 
 const exportStabilityPDF = (report: TestReport) => { 
@@ -292,13 +293,13 @@ export default function StabilityDashboardPage() {
   const runMutation = useMutation({
     mutationFn: () => fetch(`${API}/run`, { method: "POST", credentials: "include" }).then((r) => r.json()),
     onSuccess: () => {
-      toast.success("ריצת בדיקה החלה");
+      toast.success(t.stabilityPage.runStarted);
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["/api/stability/status"] });
         qc.invalidateQueries({ queryKey: ["/api/stability/results"] });
       }, 1000);
     },
-    onError: () => toast.error("הפעלת ריצת הבדיקה נכשלה"),
+    onError: () => toast.error(t.stabilityPage.runStartFailed),
   });
 
   const testModeMutation = useMutation({
@@ -310,7 +311,7 @@ export default function StabilityDashboardPage() {
         body: JSON.stringify({ enabled }),
       }).then((r) => r.json()),
     onSuccess: (_, enabled) => {
-      toast.success(enabled ? "מצב בדיקה הופעל" : "מצב בדיקה כובה");
+      toast.success(enabled ? t.stabilityPage.testModeEnabled : t.stabilityPage.testModeDisabled);
       qc.invalidateQueries({ queryKey: ["/api/stability/status"] });
     },
   });
@@ -333,7 +334,7 @@ export default function StabilityDashboardPage() {
     mutationFn: () =>
       fetch(`${API}/logs`, { method: "DELETE", credentials: "include" }).then((r) => r.json()),
     onSuccess: () => {
-      toast.success("הלוגים נוקו");
+      toast.success(t.stabilityPage.logsCleared);
       qc.invalidateQueries({ queryKey: ["/api/stability/logs"] });
     },
   });
@@ -362,7 +363,7 @@ export default function StabilityDashboardPage() {
   return (
     <Layout>
       <Helmet>
-        <title>לוח יציבות מערכת — VetTrack</title>
+        <title>{t.stabilityPage.titleFull}</title>
       </Helmet>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
@@ -371,10 +372,10 @@ export default function StabilityDashboardPage() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <FlaskConical className="w-6 h-6 text-primary" />
-              לוח יציבות מערכת
+              {t.stabilityPage.title}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              איתור באגים, קריסות ובעיות ביצועים
+              {t.stabilityPage.subtitle}
             </p>
           </div>
           <SystemStatusBadge status={report ?? null} running={isRunning} />
@@ -394,7 +395,7 @@ export default function StabilityDashboardPage() {
                 {isRunning ? (
                   <><RefreshCw className="w-4 h-4 animate-spin" />Running...</>
                 ) : (
-                  <><Play className="w-4 h-4" />הרץ את כל הבדיקות</>
+                  <><Play className="w-4 h-4" />{t.stabilityPage.runAllTests}</>
                 )}
               </Button>
               {report?.finishedAt && (
@@ -420,7 +421,7 @@ export default function StabilityDashboardPage() {
                   <ToggleLeft className="w-5 h-5 text-muted-foreground" />
                 )}
                 <span className={cn("text-sm font-medium", status?.testModeEnabled ? "text-primary" : "text-muted-foreground")}>
-                  {status?.testModeEnabled ? "מופעל" : "מושבת"}
+                  {status?.testModeEnabled ? t.stabilityPage.enabled : t.stabilityPage.disabled}
                 </span>
               </button>
               <p className="text-xs text-muted-foreground">Enable to run CRUD tests safely with isolated test data</p>
@@ -474,12 +475,12 @@ export default function StabilityDashboardPage() {
           </div>
         )}
 
-        {/* תוצאות בדיקה */}
+        {/* test results */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Server className="w-4 h-4" />
-              תוצאות בדיקה
+              {t.stabilityPage.testResults}
               {isRunning && <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto" />}
               {report?.status === "done" && (
               <>
@@ -507,7 +508,7 @@ export default function StabilityDashboardPage() {
             ) : !report || report.results.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
                 <FlaskConical className="w-10 h-10 opacity-30" />
-                <p className="text-sm">No test results yet. Click <strong>הרץ את כל הבדיקות</strong> to start.</p>
+                <p className="text-sm">{t.stabilityPage.noResultsHint}</p>
               </div>
             ) : (
               <>
@@ -525,12 +526,12 @@ export default function StabilityDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* לוג פעולות פנימי */}
+        {/* internal action log */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="w-4 h-4" />
-              לוג פעולות פנימי
+              {t.stabilityPage.internalLog}
               <span className="ml-auto text-xs font-normal text-muted-foreground">{logs.length} entries</span>
             </CardTitle>
           </CardHeader>
