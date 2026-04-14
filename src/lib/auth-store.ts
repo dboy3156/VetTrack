@@ -5,15 +5,30 @@ interface AuthState {
   bearerToken: string | null;
 }
 
-let authState: AuthState = {
+const EMPTY_AUTH_STATE: AuthState = {
   userId: "",
   email: "",
   name: "",
   bearerToken: null,
 };
 
+let authState: AuthState = { ...EMPTY_AUTH_STATE };
+
 export function setAuthState(state: AuthState) {
-  authState = state;
+  authState = {
+    userId: state.userId || "",
+    email: state.email || "",
+    name: state.name || "",
+    bearerToken: state.bearerToken?.trim() || null,
+  };
+}
+
+export function clearAuthState() {
+  authState = { ...EMPTY_AUTH_STATE };
+}
+
+export function hasAuthToken(): boolean {
+  return authState.bearerToken !== null;
 }
 
 export function getAuthHeaders(): Record<string, string> {

@@ -7,7 +7,7 @@ import {
   removePendingSync,
   type PendingSync,
 } from "./offline-db";
-import { getAuthHeaders } from "./auth-store";
+import { clearAuthState, getAuthHeaders, hasAuthToken } from "./auth-store";
 import { clearOfflineSession } from "./offline-session";
 import { addConflict } from "./conflict-store";
 
@@ -107,6 +107,7 @@ export async function processQueue(): Promise<void> {
   if (!authStateGetter) return;
   const authSnap = authStateGetter();
   if (!authSnap?.isSignedIn || authSnap.isOfflineSession) return;
+  if (!hasAuthToken()) return;
 
   syncing = true;
   notifyListeners();
@@ -303,12 +304,15 @@ async function attemptSync(item: PendingSync): Promise<ItemResult> {
 
     if (res.status === 401) {
       haltQueue = true;
+      clearAuthState();
       clearOfflineSession();
       if (queryClientRef) queryClientRef.clear();
-      await updatePendingSync(item.id, {
-        status: "failed",
-        errorMessage: "Auth error — please sign in again",
-      });
+      try {
+        await updatePendingSync(item.id, {
+          status: "failed",
+          errorMessage: "Auth error — please sign in again",
+        });
+      } catch {}
       toast.error("הפעלתך פגה — נא להתחבר מחדש", {
         description: "Your pending changes were saved and will sync after you sign in.",
         duration: 10_000,
