@@ -133,7 +133,7 @@ export interface CreateEquipmentRequest {
   serialNumber?: string;
   model?: string;
   manufacturer?: string;
-  purchaseDate?: string;
+  purchaseDate?: string | null;
   location?: string;
   folderId?: string;
   roomId?: string;

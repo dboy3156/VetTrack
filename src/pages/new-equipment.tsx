@@ -174,7 +174,7 @@ export default function NewEquipmentPage() {
       serialNumber: normalizeOptionalString(data.serialNumber),
       model: normalizeOptionalString(data.model),
       manufacturer: normalizeOptionalString(data.manufacturer),
-      purchaseDate: normalizeOptionalString(data.purchaseDate),
+      purchaseDate: normalizeOptionalString(data.purchaseDate) ?? null,
       location: normalizeOptionalString(data.location),
       folderId: data.folderId === "none" ? undefined : data.folderId,
       maintenanceIntervalDays: data.maintenanceIntervalDays,

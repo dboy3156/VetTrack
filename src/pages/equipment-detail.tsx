@@ -600,7 +600,7 @@ export default function EquipmentDetailPage() {
 
   function handlePrintQr() {
     if (!equipment?.id) return;
-    window.open(`/equipment/${equipment.id}/qr`, "_blank", "noopener,noreferrer");
+    window.open(`/equipment/${id}/qr`, "_blank");
   }
 
   if (isLoading) {

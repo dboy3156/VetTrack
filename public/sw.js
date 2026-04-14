@@ -234,29 +234,14 @@ self.addEventListener("fetch", (event) => {
 
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
-self.addEventListener("push", (event) => {
-  let data = { title: "VetTrack", body: "התראה חדשה" };
-  try {
-    data = event.data ? event.data.json() : data;
-  } catch {
-    data = {
-      title: "VetTrack",
-      body: event.data ? event.data.text() : "התראה חדשה",
-    };
-  }
-
-  const title = data.title || "VetTrack";
-  const options = {
-    body: data.body || "התראה חדשה",
-    tag: data.tag || `vettrack-${data.equipmentId || Date.now()}`,
-    renotify: true,
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    silent: data.silent || false,
-    data: { url: data.url || "/" },
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() ?? { title: 'VetTrack', body: 'התראה חדשה' };
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
