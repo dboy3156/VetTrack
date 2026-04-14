@@ -35,6 +35,13 @@ const app = express();
 // Trust first proxy so rate limiting derives client IPs correctly.
 app.set("trust proxy", 1);
 
+// Health checks must bypass all middleware (CORS, Clerk, CSP, body parsing, etc.).
+function sendHealthOk(_req: express.Request, res: express.Response) {
+  res.status(200).send("ok");
+}
+app.get("/api/health", sendHealthOk);
+app.get("/api/healthz", sendHealthOk);
+
 function hasInvalidHeaderChars(value: string): boolean {
   return /[\r\n\0]/.test(value);
 }
@@ -140,13 +147,6 @@ app.use(
 app.use(compression());
 app.use(express.json());
 
-// HEAL CHECK BYPASS: Force return 200 before any middleware
-function sendHealthOk(_req: express.Request, res: express.Response) {
-  res.status(200).send("ok");
-}
-app.get("/api/health", sendHealthOk);
-app.get("/api/healthz", sendHealthOk);
-
 // SAFE CLERK LOAD
 app.use(async (req, res, next) => {
   if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
@@ -192,7 +192,14 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ error: "Internal Server Error" });
 });
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+function resolvePort(value: string | undefined): number {
+  if (!value || value.trim() === "") return 3000;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return 3000;
+  return parsed;
+}
+
+const PORT = resolvePort(process.env.PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log("ENV PORT =", process.env.PORT);
   console.log(`Server listening on ${PORT}`);

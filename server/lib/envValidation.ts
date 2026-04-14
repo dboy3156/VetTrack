@@ -41,5 +41,12 @@ export function validateEnv(): void {
     process.exit(1);
   }
 
+  if (!process.env.CLERK_SECRET_KEY || process.env.CLERK_SECRET_KEY.trim() === "") {
+    console.error("\n❌ FATAL: Production auth is misconfigured:");
+    console.error("  - CLERK_SECRET_KEY must be set in production.");
+    console.error("    Dev auth fallback is disabled outside NODE_ENV=development.\n");
+    process.exit(1);
+  }
+
   console.log("✅ Production environment validation passed");
 }

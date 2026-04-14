@@ -54,6 +54,14 @@ const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
   "dev-user-beta":  { id: "dev-user-beta",  clerkId: "dev-user-beta",  email: "beta@vettrack.dev",  name: "Dev Beta"  },
 };
 
+const isProduction = process.env.NODE_ENV === "production";
+const isDevelopment = process.env.NODE_ENV === "development";
+const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
+
+if (isProduction && !hasClerkSecret) {
+  throw new Error("CLERK_SECRET_KEY is required in production. Refusing to start with dev auth bypass.");
+}
+
 export async function requireAuth(
   req: Request,
   res: Response,
@@ -65,9 +73,9 @@ export async function requireAuth(
     return next();
   }
 
-  const isDev = !process.env.CLERK_SECRET_KEY;
+  const isDevBypass = isDevelopment && !hasClerkSecret;
 
-  if (isDev) {
+  if (isDevBypass) {
     const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
     const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
     const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;
@@ -190,9 +198,9 @@ export async function requireAuthAny(
     return next();
   }
 
-  const isDev = !process.env.CLERK_SECRET_KEY;
+  const isDevBypass = isDevelopment && !hasClerkSecret;
 
-  if (isDev) {
+  if (isDevBypass) {
     const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
     const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
     const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;

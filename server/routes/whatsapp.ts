@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db, whatsappAlerts, equipment } from "../db.js";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { format } from "date-fns";
@@ -44,7 +44,10 @@ const VALID_STATUSES = ["ok", "issue", "maintenance", "sterilized", "overdue", "
 
 const whatsappAlertSchema = z.object({
   equipmentId: z.string().min(1, "equipmentId is required"),
-  status: z.string().min(1, "status is required").max(50),
+  status: z.enum(VALID_STATUSES, {
+    required_error: "status is required",
+    invalid_type_error: "Invalid status",
+  }),
   note: z.string().max(500).optional(),
   phone: z.string().max(30).optional(),
 });
@@ -56,10 +59,14 @@ router.post("/alert", requireAuth, requireRole("technician"), validateBody(whats
     const [item] = await db
       .select()
       .from(equipment)
-      .where(eq(equipment.id, equipmentId))
+      .where(and(eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
       .limit(1);
 
-    const equipmentName = item?.name || "Unknown Equipment";
+    if (!item) {
+      return res.status(404).json({ error: "Equipment not found" });
+    }
+
+    const equipmentName = item.name;
     const timestamp = format(new Date(), "MMM d, yyyy 'at' h:mm a");
 
     let message = `🚨 VetTrack Alert\n\nEquipment: *${equipmentName}*\nStatus: *${status.toUpperCase()}*\nTime: ${timestamp}`;

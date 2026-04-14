@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
 import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens, users } from "../db.js";
-import { eq, inArray, desc, and, lt, sql, isNull, isNotNull } from "drizzle-orm";
+import { eq, inArray, desc, and, or, ilike, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter, writeLimiter } from "../middleware/rate-limiters.js";
@@ -256,11 +256,52 @@ router.get("/", requireAuth, async (req, res) => {
   try {
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const status = typeof req.query.status === "string" ? req.query.status.trim() : "";
+    const folder = typeof req.query.folder === "string" ? req.query.folder.trim() : "";
+    const location = typeof req.query.location === "string" ? req.query.location.trim() : "";
+
     const limit = (!isNaN(rawLimit) && rawLimit > 0)
       ? Math.min(rawLimit, EQUIPMENT_MAX_PAGE_SIZE)
       : EQUIPMENT_DEFAULT_PAGE_SIZE;
     const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const offset = (page - 1) * limit;
+
+    const whereClauses = [isNull(equipment.deletedAt)];
+
+    if (q) {
+      const pattern = `%${q}%`;
+      const searchCondition = or(
+        ilike(equipment.name, pattern),
+        ilike(equipment.serialNumber, pattern),
+        ilike(equipment.model, pattern),
+        ilike(equipment.manufacturer, pattern),
+        ilike(equipment.location, pattern)
+      );
+      if (searchCondition) whereClauses.push(searchCondition);
+    }
+
+    if (status && status !== "all" && EQUIPMENT_STATUS_VALUES.includes(status as typeof EQUIPMENT_STATUS_VALUES[number])) {
+      whereClauses.push(eq(equipment.status, status as typeof EQUIPMENT_STATUS_VALUES[number]));
+    }
+
+    if (folder && folder !== "all") {
+      if (folder === "unfiled") {
+        whereClauses.push(isNull(equipment.folderId));
+      } else {
+        whereClauses.push(eq(equipment.folderId, folder));
+      }
+    }
+
+    if (location && location !== "all") {
+      const locationCondition = or(
+        eq(equipment.location, location),
+        eq(equipment.checkedOutLocation, location)
+      );
+      if (locationCondition) whereClauses.push(locationCondition);
+    }
+
+    const whereClause = and(...whereClauses);
 
     const baseQuery = db
       .select({
@@ -296,13 +337,13 @@ router.get("/", requireAuth, async (req, res) => {
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
       .leftJoin(rooms, eq(equipment.roomId, rooms.id))
       .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
-      .where(isNull(equipment.deletedAt))
+      .where(whereClause)
       .orderBy(desc(equipment.createdAt));
 
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(equipment)
-      .where(isNull(equipment.deletedAt));
+      .where(whereClause);
     const items = await baseQuery.limit(limit).offset(offset);
     res.json({ items, total, page, pageSize: limit, hasMore: offset + items.length < total });
   } catch (err) {

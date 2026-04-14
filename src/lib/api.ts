@@ -278,7 +278,8 @@ export const api = {
     listPaginated: async (page = 1, pageSize = 100, filters?: { q?: string; status?: string; folder?: string; location?: string }): Promise<EquipmentPage> => {
       try {
         const params = new URLSearchParams({ limit: String(pageSize), page: String(page) });
-        if (filters?.q) params.set("q", filters.q);
+        const q = filters?.q?.trim();
+        if (q) params.set("q", q);
         if (filters?.status && filters.status !== "all") params.set("status", filters.status);
         if (filters?.folder && filters.folder !== "all") params.set("folder", filters.folder);
         if (filters?.location && filters.location !== "all") params.set("location", filters.location);
@@ -309,8 +310,9 @@ export const api = {
         if (isNetworkError(err)) {
           const all = await getCachedEquipment();
           const userId = getCurrentUserId();
+          // checkedOutById stores DB user IDs; compare against DB user ID from auth-store.
           if (userId) return all.filter((e) => e.checkedOutById === userId);
-          return all.filter((e) => !!e.checkedOutById);
+          return [];
         }
         throw err;
       }
@@ -550,7 +552,7 @@ export const api = {
   activity: {
     feed: (cursor?: string) =>
       requestWithOfflineFallback<{ items: ActivityFeedItem[]; nextCursor: string | null }>(
-        cursor ? `/api/activity?cursor=${cursor}` : "/api/activity",
+        cursor ? `/api/activity?cursor=${encodeURIComponent(cursor)}` : "/api/activity",
         () => Promise.resolve({ items: [], nextCursor: null })
       ),
     myScanCount: () =>

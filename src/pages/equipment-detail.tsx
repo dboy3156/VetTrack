@@ -720,7 +720,7 @@ export default function EquipmentDetailPage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete {equipment.name}?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This permanently deletes this equipment and all its scan history.
+                      This hides the equipment from active lists (soft-delete). Audit and scan history are preserved.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

@@ -16,6 +16,16 @@ interface AuthState {
 
 interface AuthContextType extends AuthState { signOut: () => Promise<void>; }
 
+interface SyncedUserResponse {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  status: UserStatus;
+  error?: string;
+  message?: string;
+}
+
 const AuthContext = createContext<AuthContextType>({
   userId: null, email: null, name: null, role: "technician", status: null,
   isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
@@ -99,10 +109,10 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       const token = await getToken();
       const email = user?.primaryEmailAddress?.emailAddress || "";
       const name = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
-      const userId = user?.id || "";
+      const clerkId = user?.id || "";
 
       setAuthState({
-        userId,
+        userId: "",
         email,
         name,
         bearerToken: token || null,
@@ -122,31 +132,68 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
           res = await fetch("/api/users/sync", {
             method: "POST",
             headers,
-            body: JSON.stringify({ clerkId: user?.id, email, name })
+            body: JSON.stringify({ clerkId, email, name })
           });
         }
 
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as Partial<SyncedUserResponse>));
         
         if (res.ok) {
+          const dbUserId = typeof data.id === "string" ? data.id : "";
+          const role = (data.role ?? "technician") as UserRole;
+          const status = (data.status ?? null) as UserStatus;
+          const resolvedEmail = typeof data.email === "string" ? data.email : email;
+          const resolvedName = typeof data.name === "string" ? data.name : name;
+          if (!dbUserId) {
+            throw new Error("Missing DB user ID in /api/users/me response");
+          }
+
+          setAuthState({
+            userId: dbUserId,
+            email: resolvedEmail,
+            name: resolvedName,
+            bearerToken: token || null,
+          });
+
           clearHaltQueue();
           saveOfflineSession({
-            userId, email, name,
-            role: data.role, status: data.status, token: token || ""
+            userId: dbUserId,
+            email: resolvedEmail,
+            name: resolvedName,
+            role,
+            status: status ?? "active",
+            token: token || ""
           });
 
           setState({
-            userId: userId || null, email, name,
-            role: data.role, status: data.status,
-            isLoaded: true, isSignedIn: true, isAdmin: data.role === "admin",
+            userId: dbUserId,
+            email: resolvedEmail,
+            name: resolvedName,
+            role,
+            status,
+            isLoaded: true, isSignedIn: true, isAdmin: role === "admin",
             isOfflineSession: false
           });
 
           processQueue().catch(() => {});
         } else if (res.status === 403) {
           clearHaltQueue();
-          // טיפול במשתמשים חסומים/ממתינים
-          setState(s => ({ ...s, isLoaded: true, isSignedIn: true, status: data.error?.includes("pending") || data.error?.includes("blocked") ? "pending" : "blocked", isOfflineSession: false }));
+          const errorText = [data.error, data.message]
+            .filter((part): part is string => typeof part === "string")
+            .join(" ")
+            .toLowerCase();
+          const resolvedStatus: UserStatus = errorText.includes("blocked")
+            ? "blocked"
+            : errorText.includes("pending")
+              ? "pending"
+              : "blocked";
+          setState(s => ({
+            ...s,
+            isLoaded: true,
+            isSignedIn: true,
+            status: resolvedStatus,
+            isOfflineSession: false,
+          }));
         }
       } catch (err) {
         console.error("Auth Sync Error:", err);
