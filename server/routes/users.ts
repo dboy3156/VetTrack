@@ -35,7 +35,7 @@ const patchStatusSchema = z.object({
 });
 
 const patchDisplayNameSchema = z.object({
-  display_name: z.string().trim().min(1, "display_name is required").max(120, "display_name is too long"),
+  display_name: z.string().trim().min(1, "display_name is required").max(60, "display_name is too long"),
 });
 
 const syncUserSchema = z.object({
@@ -43,6 +43,12 @@ const syncUserSchema = z.object({
   email: z.string().email("email must be a valid email address"),
   name: z.string().optional(),
 });
+
+function serializeUser(user: typeof users.$inferSelect) {
+  return {
+    ...user,
+  };
+}
 
 router.get("/me", requireAuth, async (req, res) => {
   try {
@@ -131,7 +137,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
     const [target] = await db
       .select()
       .from(users)
-      .where(eq(users.id, req.params.id))
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
     if (!target) return res.status(404).json({ error: "User not found" });
@@ -149,7 +155,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
     const [user] = await db
       .update(users)
       .set({ role })
-      .where(eq(users.id, req.params.id))
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
     logAudit({
@@ -175,13 +181,13 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
     const [existing] = await db
       .select()
       .from(users)
-      .where(eq(users.id, req.params.id))
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
     const [user] = await db
       .update(users)
       .set({ status })
-      .where(eq(users.id, req.params.id))
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -247,8 +253,10 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
   }
 });
 
-router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
+router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res) => {
   try {
+    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+
     const [existing] = await db
       .select()
       .from(users)
@@ -257,11 +265,14 @@ router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req,
 
     if (!existing) return res.status(404).json({ error: "User not found" });
 
-    if (existing.id === req.authUser!.id) {
-      return res.status(400).json({ error: "Cannot delete your own account" });
+    const actorId = req.authUser.id;
+    const isSelf = actorId === req.params.id;
+    const isAdmin = req.authUser.role === "admin";
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
-    if (existing.role === "admin") {
+    if (existing.role === "admin" && isAdmin && !isSelf) {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(users)
@@ -273,7 +284,7 @@ router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req,
 
     const [deleted] = await db
       .update(users)
-      .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
+      .set({ deletedAt: new Date(), deletedBy: actorId })
       .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
@@ -281,22 +292,31 @@ router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req,
 
     logAudit({
       actionType: "user_deleted",
-      performedBy: req.authUser!.id,
-      performedByEmail: req.authUser!.email,
+      performedBy: actorId,
+      performedByEmail: req.authUser.email,
       targetId: req.params.id,
       targetType: "user",
       metadata: { email: deleted.email, role: deleted.role },
     });
 
-    res.status(204).send();
+    res.json(deleted);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to delete user" });
   }
 });
 
-router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
+router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res) => {
   try {
+    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+    const actorId = req.authUser.id;
+    const isSelf = actorId === req.params.id;
+    const isAdmin = req.authUser.role === "admin";
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
     const [existing] = await db
       .select()
       .from(users)
@@ -313,8 +333,8 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
 
     logAudit({
       actionType: "user_restored",
-      performedBy: req.authUser!.id,
-      performedByEmail: req.authUser!.email,
+      performedBy: actorId,
+      performedByEmail: req.authUser.email,
       targetId: req.params.id,
       targetType: "user",
       metadata: { email: restored.email, role: restored.role },
@@ -343,7 +363,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     if (existing) {
       const [updated] = await db
         .update(users)
-        .set({ email, displayName: name || existing.displayName })
+        .set({ name: name || existing.name })
         .where(eq(users.id, existing.id))
         .returning();
 
@@ -356,10 +376,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         metadata: { name },
       });
 
-      return res.json({
-        ...updated,
-        displayName: updated.displayName ?? null,
-      });
+      return res.json(serializeUser(updated));
     }
 
     const insertedId = randomUUID();
@@ -373,14 +390,13 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
           clerkId,
           email,
           name: name || "",
-          displayName: name || "",
+          displayName: name || email,
           role: "technician",
         })
         .onConflictDoUpdate({
           target: users.clerkId,
           set: {
-            email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
-            displayName: sql`CASE WHEN EXCLUDED.display_name = '' THEN ${users.displayName} ELSE EXCLUDED.display_name END`,
+            name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
           },
         })
         .returning();
@@ -392,12 +408,11 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         const [race] = await db
           .select()
           .from(users)
-          .where(eq(users.clerkId, clerkId))
+          .where(and(eq(users.clerkId, clerkId), isNull(users.deletedAt)))
           .limit(1);
         if (race) {
           return res.json({
-            ...race,
-            displayName: race.displayName ?? null,
+            ...serializeUser(race),
           });
         }
       }
@@ -424,10 +439,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
       });
     }
 
-    res.status(wasCreated ? 201 : 200).json({
-      ...newUser,
-      displayName: newUser.displayName ?? null,
-    });
+    res.status(wasCreated ? 201 : 200).json(serializeUser(newUser));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to sync user" });

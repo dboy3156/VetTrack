@@ -7,6 +7,8 @@ export type AuditActionType =
   | "user_display_name_changed"
   | "user_role_changed"
   | "user_status_changed"
+  | "user_deleted"
+  | "user_restored"
   | "equipment_created"
   | "equipment_updated"
   | "equipment_deleted"
