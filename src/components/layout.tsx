@@ -71,9 +71,14 @@ interface LayoutProps {
 const lh = t.layoutHebrew;
 
 export function Layout({ children, title, onScan }: LayoutProps) {
+  const QUICK_SETTINGS_PANEL_WIDTH = 288;
+  const QUICK_SETTINGS_MARGIN = 8;
+
   const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
+  const [quickSettingsUseViewportRight, setQuickSettingsUseViewportRight] = useState(false);
+  const [quickSettingsViewportTop, setQuickSettingsViewportTop] = useState(0);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -82,6 +87,28 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
+  const quickSettingsToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!quickSettingsOpen) return;
+
+    const updateQuickSettingsPlacement = () => {
+      const toggle = quickSettingsToggleRef.current;
+      if (!toggle) return;
+      const rect = toggle.getBoundingClientRect();
+      const wouldClipLeft = rect.right < QUICK_SETTINGS_PANEL_WIDTH + QUICK_SETTINGS_MARGIN;
+      setQuickSettingsUseViewportRight(wouldClipLeft);
+      setQuickSettingsViewportTop(rect.bottom + QUICK_SETTINGS_MARGIN);
+    };
+
+    updateQuickSettingsPlacement();
+    window.addEventListener("resize", updateQuickSettingsPlacement);
+    window.addEventListener("scroll", updateQuickSettingsPlacement, true);
+    return () => {
+      window.removeEventListener("resize", updateQuickSettingsPlacement);
+      window.removeEventListener("scroll", updateQuickSettingsPlacement, true);
+    };
+  }, [quickSettingsOpen]);
 
   const openScanner = () => {
     if (onScan) {
@@ -301,6 +328,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             {/* Quick settings button */}
             <div className="relative" ref={quickSettingsRef}>
               <Button
+                ref={quickSettingsToggleRef}
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => {
@@ -317,7 +345,11 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               {/* Quick Settings dropdown panel */}
               {quickSettingsOpen && (
                 <div
-                  className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-2xl shadow-lg z-50 p-3 space-y-2"
+                  className={cn(
+                    "w-72 bg-card border border-border rounded-2xl shadow-lg z-50 p-3 space-y-2",
+                    quickSettingsUseViewportRight ? "fixed right-2" : "absolute right-0 top-full mt-2"
+                  )}
+                  style={quickSettingsUseViewportRight ? { top: quickSettingsViewportTop } : undefined}
                   data-testid="quick-settings-panel"
                 >
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 pb-1">
