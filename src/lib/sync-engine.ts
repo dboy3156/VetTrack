@@ -7,7 +7,7 @@ import {
   removePendingSync,
   type PendingSync,
 } from "./offline-db";
-import { getAuthHeaders } from "./auth-store";
+import { getFreshToken } from "./auth-store";
 import { clearOfflineSession } from "./offline-session";
 import { addConflict } from "./conflict-store";
 
@@ -254,11 +254,9 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
 async function attemptSync(item: PendingSync): Promise<ItemResult> {
   if (!item.id) return "transient_failure";
 
-  const liveHeaders = getAuthHeaders();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...liveHeaders,
-  };
+  const token = await getFreshToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   if (item.clientTimestamp) headers["X-Client-Timestamp"] = String(item.clientTimestamp);
 
   try {
