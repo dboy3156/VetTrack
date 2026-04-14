@@ -569,6 +569,15 @@ export const api = {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
   },
   users: {
+    list: async (status?: "pending" | "active" | "blocked"): Promise<User[]> => {
+      const url = status ? `/api/users?status=${status}` : "/api/users";
+      const result = await request<{ items: User[]; total: number }>(url);
+      
+      console.log("USERS API RESPONSE:", result)
+      console.log("USERS ITEMS:", result.items)
+      
+      return result.items;
+    },
     listPaginated: async (
       page = 1,
       pageSize = 100,
