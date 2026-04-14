@@ -28,6 +28,7 @@ import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import shiftsRoutes from "./routes/shifts.js";
+import { runMigrations } from "./migrate.js";
 import { initVapid } from "./lib/push.js";
 import { startSmartRoleNotificationScheduler } from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
@@ -236,8 +237,13 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on ${PORT}`);
 });
 
-initVapid().catch((err) => {
-  console.error("Failed to initialize push notifications", err);
-});
-
-startSmartRoleNotificationScheduler();
+runMigrations()
+  .then(() => {
+    initVapid().catch((err) => {
+      console.error("Failed to initialize push notifications", err);
+    });
+    startSmartRoleNotificationScheduler();
+  })
+  .catch((err) => {
+    console.error("💥 Migration failed, aborting scheduler start", err);
+  });
