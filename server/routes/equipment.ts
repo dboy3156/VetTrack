@@ -11,6 +11,7 @@ import { checkDedupe, sendPushToAll } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
 import { logAudit } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
+import { scheduleSmartReturnReminder, cancelSmartReturnReminder } from "../lib/role-notification-scheduler.js";
 
 const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
@@ -25,6 +26,7 @@ const createEquipmentSchema = z.object({
   roomId: z.string().optional().nullable(),
   nfcTagId: z.string().max(500).optional().nullable(),
   maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
+  expectedReturnMinutes: z.number().int().positive().optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
 });
 
@@ -39,6 +41,7 @@ const patchEquipmentSchema = z.object({
   roomId: z.string().optional().nullable(),
   nfcTagId: z.string().max(500).optional().nullable(),
   maintenanceIntervalDays: z.number().int().positive().optional().nullable(),
+  expectedReturnMinutes: z.number().int().positive().optional().nullable(),
   imageUrl: z.string().max(500).optional().nullable(),
   status: z.enum(EQUIPMENT_STATUS_VALUES).optional(),
 });
@@ -234,6 +237,7 @@ router.get("/my", requireAuth, async (req, res) => {
         checkedOutByEmail: equipment.checkedOutByEmail,
         checkedOutAt: equipment.checkedOutAt,
         checkedOutLocation: equipment.checkedOutLocation,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -331,6 +335,7 @@ router.get("/", requireAuth, async (req, res) => {
         checkedOutByEmail: equipment.checkedOutByEmail,
         checkedOutAt: equipment.checkedOutAt,
         checkedOutLocation: equipment.checkedOutLocation,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -408,6 +413,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         checkedOutByEmail: equipment.checkedOutByEmail,
         checkedOutAt: equipment.checkedOutAt,
         checkedOutLocation: equipment.checkedOutLocation,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
       })
       .from(equipment)
@@ -437,8 +443,13 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
       roomId,
       nfcTagId,
       maintenanceIntervalDays,
+      expectedReturnMinutes,
       imageUrl,
     } = req.body as z.infer<typeof createEquipmentSchema>;
+
+    if (expectedReturnMinutes !== undefined && req.authUser?.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can set expected return minutes" });
+    }
 
     const [item] = await db
       .insert(equipment)
@@ -454,6 +465,7 @@ router.post("/", requireAuth, writeLimiter, requireRole("technician"), validateB
         roomId: roomId ?? null,
         nfcTagId: nfcTagId ?? null,
         maintenanceIntervalDays: maintenanceIntervalDays ?? null,
+        expectedReturnMinutes: expectedReturnMinutes ?? null,
         imageUrl: imageUrl ?? null,
         status: "ok",
       })
@@ -490,9 +502,14 @@ try {
       roomId,
       nfcTagId,
       maintenanceIntervalDays,
+      expectedReturnMinutes,
       imageUrl,
       status,
     } = req.body as z.infer<typeof patchEquipmentSchema>;
+
+    if (expectedReturnMinutes !== undefined && req.authUser?.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can set expected return minutes" });
+    }
 
     let result: EquipmentRow | null = null;
 
@@ -516,6 +533,7 @@ try {
           ...(roomId !== undefined && { roomId: roomId ?? null }),
           ...(nfcTagId !== undefined && { nfcTagId: nfcTagId ?? null }),
           ...(maintenanceIntervalDays !== undefined && { maintenanceIntervalDays }),
+          ...(expectedReturnMinutes !== undefined && { expectedReturnMinutes }),
           ...(imageUrl !== undefined && { imageUrl }),
           ...(status !== undefined && { status }),
         })
@@ -710,6 +728,14 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireRole("technici
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
+    void scheduleSmartReturnReminder({
+      equipmentId: u.id,
+      equipmentName: u.name,
+      expectedReturnMinutes: u.expectedReturnMinutes,
+      userId: req.authUser!.id,
+      checkedOutAt: u.checkedOutAt,
+    });
+
     if (!checkDedupe(u.id, "checkout")) {
       sendPushToAll({
         title: "Equipment Checked Out",
@@ -812,6 +838,8 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireRole("technician
     invalidateAnalyticsCache();
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
+
+    cancelSmartReturnReminder(u.id, req.authUser!.id);
 
     if (!checkDedupe(u.id, "return")) {
       sendPushToAll({

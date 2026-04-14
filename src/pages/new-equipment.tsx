@@ -22,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 const SUBMIT_TIMEOUT_MS = 30_000;
 
@@ -34,6 +35,17 @@ const schema = z.object({
   location: z.string().optional(),
   folderId: z.string().optional(),
   maintenanceIntervalDays: z.preprocess(
+    (value) => {
+      if (value === "" || value === null || value === undefined) return undefined;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? value : parsed;
+      }
+      return value;
+    },
+    z.number().int().positive().optional()
+  ),
+  expectedReturnMinutes: z.preprocess(
     (value) => {
       if (value === "" || value === null || value === undefined) return undefined;
       if (typeof value === "string") {
@@ -57,6 +69,7 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
 }
 
 export default function NewEquipmentPage() {
+  const { isAdmin } = useAuth();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const { id: editId } = useParams<{ id?: string }>();
@@ -80,6 +93,7 @@ export default function NewEquipmentPage() {
   }, [searchStr]);
 
   const isCopy = !isEditing && !!prefill.copiedFrom;
+  const showExpectedReturnField = isAdmin;
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -110,6 +124,7 @@ export default function NewEquipmentPage() {
       maintenanceIntervalDays: prefill.maintenanceIntervalDays
         ? parseInt(prefill.maintenanceIntervalDays, 10)
         : undefined,
+      expectedReturnMinutes: undefined,
     },
   });
 
@@ -124,6 +139,7 @@ export default function NewEquipmentPage() {
         location: existingEquipment.location ?? undefined,
         folderId: existingEquipment.folderId ?? undefined,
         maintenanceIntervalDays: existingEquipment.maintenanceIntervalDays ?? undefined,
+        expectedReturnMinutes: existingEquipment.expectedReturnMinutes ?? undefined,
         imageUrl: existingEquipment.imageUrl ?? undefined,
       });
     }
@@ -178,6 +194,7 @@ export default function NewEquipmentPage() {
       location: normalizeOptionalString(data.location),
       folderId: data.folderId === "none" ? undefined : data.folderId,
       maintenanceIntervalDays: data.maintenanceIntervalDays,
+      ...(showExpectedReturnField && { expectedReturnMinutes: data.expectedReturnMinutes }),
       imageUrl: normalizeOptionalString(data.imageUrl),
     };
   }
@@ -192,6 +209,7 @@ export default function NewEquipmentPage() {
       location: normalizeOptionalString(data.location) ?? null,
       folderId: data.folderId === "none" ? null : data.folderId,
       maintenanceIntervalDays: data.maintenanceIntervalDays ?? null,
+      ...(showExpectedReturnField && { expectedReturnMinutes: data.expectedReturnMinutes ?? null }),
       imageUrl: normalizeOptionalString(data.imageUrl) ?? null,
     };
   }
@@ -410,6 +428,26 @@ export default function NewEquipmentPage() {
                   Set to auto-alert when maintenance is overdue.
                 </p>
               </div>
+
+              {showExpectedReturnField && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="expectedReturnMinutes" className="text-sm font-medium">
+                    {t.newEquipment.fields.expectedReturnMinutes.label}
+                  </Label>
+                  <Input
+                    id="expectedReturnMinutes"
+                    type="number"
+                    placeholder={t.newEquipment.fields.expectedReturnMinutes.placeholder}
+                    min={1}
+                    className="h-12 rounded-xl border-border/60 bg-background text-base"
+                    {...register("expectedReturnMinutes")}
+                    data-testid="input-expected-return-minutes"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t.newEquipment.fields.expectedReturnMinutes.description}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

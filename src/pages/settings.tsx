@@ -33,11 +33,31 @@ import {
 import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import type { ShiftRole, UserRole } from "@/types";
+import { useEffect } from "react";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
-  const { name, email, signOut } = useAuth();
+  const { name, email, signOut, effectiveRole, role } = useAuth();
   const push = usePushNotifications();
+  const roleContext = ((effectiveRole ?? role) as UserRole | ShiftRole | undefined) ?? "technician";
+  const isSeniorContext = roleContext === "senior_technician";
+  const isAdminContext = roleContext === "admin";
+  const isTechnicianContext = !isSeniorContext && !isAdminContext;
+
+  const syncRoleNotificationSettings = async (
+    patch: Partial<{
+      technicianReturnRemindersEnabled: boolean;
+      seniorOwnReturnRemindersEnabled: boolean;
+      seniorTeamOverdueAlertsEnabled: boolean;
+      adminHourlySummaryEnabled: boolean;
+    }>
+  ) => {
+    update(patch);
+    if (push.subscribed) {
+      push.updateSettings(patch).catch(() => {});
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -68,6 +88,49 @@ export default function SettingsPage() {
       push.updateSettings({ alertsEnabled: v }).catch(() => {});
     }
   };
+
+  const handleRoleNotificationToggle = async (
+    key:
+      | "technicianReturnRemindersEnabled"
+      | "seniorOwnReturnRemindersEnabled"
+      | "seniorTeamOverdueAlertsEnabled"
+      | "adminHourlySummaryEnabled",
+    value: boolean
+  ) => {
+    if (settings.soundEnabled) {
+      if (value) {
+        await playFeedbackTone();
+      } else {
+        await playMuteTone();
+      }
+    }
+    await syncRoleNotificationSettings({ [key]: value });
+  };
+
+  useEffect(() => {
+    if (isTechnicianContext) {
+      void syncRoleNotificationSettings({
+        seniorOwnReturnRemindersEnabled: false,
+        seniorTeamOverdueAlertsEnabled: false,
+        adminHourlySummaryEnabled: false,
+      });
+      return;
+    }
+    if (isSeniorContext) {
+      void syncRoleNotificationSettings({
+        technicianReturnRemindersEnabled: false,
+        adminHourlySummaryEnabled: false,
+      });
+      return;
+    }
+    if (isAdminContext) {
+      void syncRoleNotificationSettings({
+        technicianReturnRemindersEnabled: false,
+        seniorOwnReturnRemindersEnabled: false,
+        seniorTeamOverdueAlertsEnabled: false,
+      });
+    }
+  }, [isTechnicianContext, isSeniorContext, isAdminContext]);
 
   return (
     <Layout title={t.settingsPage.title}>
@@ -138,6 +201,10 @@ export default function SettingsPage() {
                       const ok = await push.subscribe({
                         soundEnabled: settings.soundEnabled,
                         alertsEnabled: settings.criticalAlertsSound,
+                        technicianReturnRemindersEnabled: settings.technicianReturnRemindersEnabled,
+                        seniorOwnReturnRemindersEnabled: settings.seniorOwnReturnRemindersEnabled,
+                        seniorTeamOverdueAlertsEnabled: settings.seniorTeamOverdueAlertsEnabled,
+                        adminHourlySummaryEnabled: settings.adminHourlySummaryEnabled,
                       });
                       if (ok) toast.success(t.settingsPage.pushEnabled);
                       else if (push.permission === "denied") toast.error(t.settingsPage.deniedShort);
@@ -171,6 +238,77 @@ export default function SettingsPage() {
                   >
                     Send Test
                   </Button>
+                </div>
+              )}
+
+              {push.subscribed && (
+                <div className="space-y-2">
+                  <p className="px-1 text-xs font-semibold text-muted-foreground">
+                    {t.settingsPage.roleNotificationPreferences}
+                  </p>
+
+                  {!isSeniorContext && !isAdminContext && (
+                    <SettingsToggle
+                      icon={<BellRing className="w-5 h-5" />}
+                      label={t.settingsPage.techReturnReminders}
+                      description={t.settingsPage.techReturnRemindersDescription}
+                      checked={settings.technicianReturnRemindersEnabled}
+                      onCheckedChange={(v) =>
+                        handleRoleNotificationToggle(
+                          "technicianReturnRemindersEnabled",
+                          v
+                        )
+                      }
+                      data-testid="settings-tech-return-reminders"
+                    />
+                  )}
+
+                  {isSeniorContext && (
+                    <>
+                      <SettingsToggle
+                        icon={<BellRing className="w-5 h-5" />}
+                        label={t.settingsPage.seniorOwnReminders}
+                        description={t.settingsPage.seniorOwnRemindersDescription}
+                        checked={settings.seniorOwnReturnRemindersEnabled}
+                        onCheckedChange={(v) =>
+                          handleRoleNotificationToggle(
+                            "seniorOwnReturnRemindersEnabled",
+                            v
+                          )
+                        }
+                        data-testid="settings-senior-own-reminders"
+                      />
+                      <SettingsToggle
+                        icon={<Bell className="w-5 h-5" />}
+                        label={t.settingsPage.seniorTeamAlerts}
+                        description={t.settingsPage.seniorTeamAlertsDescription}
+                        checked={settings.seniorTeamOverdueAlertsEnabled}
+                        onCheckedChange={(v) =>
+                          handleRoleNotificationToggle(
+                            "seniorTeamOverdueAlertsEnabled",
+                            v
+                          )
+                        }
+                        data-testid="settings-senior-team-alerts"
+                      />
+                    </>
+                  )}
+
+                  {isAdminContext && (
+                    <SettingsToggle
+                      icon={<Clock className="w-5 h-5" />}
+                      label={t.settingsPage.adminHourlySummary}
+                      description={t.settingsPage.adminHourlySummaryDescription}
+                      checked={settings.adminHourlySummaryEnabled}
+                      onCheckedChange={(v) =>
+                        handleRoleNotificationToggle(
+                          "adminHourlySummaryEnabled",
+                          v
+                        )
+                      }
+                      data-testid="settings-admin-hourly-summary"
+                    />
+                  )}
                 </div>
               )}
             </div>

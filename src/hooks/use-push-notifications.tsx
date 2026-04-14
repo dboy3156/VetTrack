@@ -79,7 +79,14 @@ export function usePushNotifications() {
   }, []);
 
   const subscribe = useCallback(async (
-    opts?: { soundEnabled?: boolean; alertsEnabled?: boolean }
+    opts?: {
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }
   ): Promise<boolean> => {
     setState((s) => ({ ...s, loading: true, error: null }));
 
@@ -116,6 +123,10 @@ export function usePushNotifications() {
           },
           soundEnabled: opts?.soundEnabled !== false,
           alertsEnabled: opts?.alertsEnabled !== false,
+          technicianReturnRemindersEnabled: opts?.technicianReturnRemindersEnabled !== false,
+          seniorOwnReturnRemindersEnabled: opts?.seniorOwnReturnRemindersEnabled !== false,
+          seniorTeamOverdueAlertsEnabled: opts?.seniorTeamOverdueAlertsEnabled !== false,
+          adminHourlySummaryEnabled: opts?.adminHourlySummaryEnabled !== false,
         }),
       });
 
@@ -158,7 +169,14 @@ export function usePushNotifications() {
   }, []);
 
   const updateSettings = useCallback(async (
-    opts: { soundEnabled?: boolean; alertsEnabled?: boolean }
+    opts: {
+      soundEnabled?: boolean;
+      alertsEnabled?: boolean;
+      technicianReturnRemindersEnabled?: boolean;
+      seniorOwnReturnRemindersEnabled?: boolean;
+      seniorTeamOverdueAlertsEnabled?: boolean;
+      adminHourlySummaryEnabled?: boolean;
+    }
   ): Promise<boolean> => {
     try {
       const registration = await navigator.serviceWorker.ready;

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
-import type { UserRole } from "@/types";
+import type { Shift, ShiftRole, UserRole } from "@/types";
 import { setAuthState } from "@/lib/auth-store";
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,13 @@ export type UserStatus = "pending" | "active" | "blocked" | null;
 
 interface AuthState {
   userId: string | null; email: string | null; name: string | null;
-  role: UserRole; status: UserStatus; isLoaded: boolean;
+  role: UserRole;
+  effectiveRole: UserRole | ShiftRole;
+  roleSource: "shift" | "permanent";
+  activeShift: Shift | null;
+  resolvedAt: string | null;
+  status: UserStatus;
+  isLoaded: boolean;
   isSignedIn: boolean; isAdmin: boolean; isOfflineSession: boolean;
 }
 
@@ -21,13 +27,18 @@ interface SyncedUserResponse {
   email: string;
   name: string;
   role: UserRole;
+  effectiveRole?: UserRole | ShiftRole;
+  roleSource?: "shift" | "permanent";
+  activeShift?: Shift | null;
+  resolvedAt?: string;
   status: UserStatus;
   error?: string;
   message?: string;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  userId: null, email: null, name: null, role: "technician", status: null,
+  userId: null, email: null, name: null, role: "technician",
+  effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
   isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
   signOut: async () => {},
 });
@@ -55,6 +66,10 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         email: offlineSnapshot.email,
         name: offlineSnapshot.name,
         role: offlineSnapshot.role as UserRole,
+        effectiveRole: offlineSnapshot.role as UserRole,
+        roleSource: "permanent",
+        activeShift: null,
+        resolvedAt: null,
         status: offlineSnapshot.status as UserStatus,
         isLoaded: true,
         isSignedIn: true,
@@ -64,7 +79,8 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     }
 
     return {
-      userId: null, email: null, name: null, role: "technician", status: null,
+      userId: null, email: null, name: null, role: "technician",
+      effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     };
   });
@@ -99,7 +115,8 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       clearHaltQueue();
       setAuthState({ userId: "", email: "", name: "", bearerToken: null });
       setState({
-        userId: null, email: null, name: null, role: "technician", status: null,
+        userId: null, email: null, name: null, role: "technician",
+        effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
         isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
       });
       return;
@@ -170,6 +187,10 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
             email: resolvedEmail,
             name: resolvedName,
             role,
+            effectiveRole: (data.effectiveRole ?? role) as UserRole | ShiftRole,
+            roleSource: data.roleSource ?? "permanent",
+            activeShift: data.activeShift ?? null,
+            resolvedAt: data.resolvedAt ?? null,
             status,
             isLoaded: true, isSignedIn: true, isAdmin: role === "admin",
             isOfflineSession: false

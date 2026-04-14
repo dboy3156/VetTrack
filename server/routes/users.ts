@@ -7,6 +7,7 @@ import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { logAudit } from "../lib/audit.js";
+import { resolveCurrentRole } from "../lib/role-resolution.js";
 
 /*
  * PERMISSIONS MATRIX — /api/users
@@ -42,7 +43,17 @@ const syncUserSchema = z.object({
 router.get("/me", requireAuth, async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
-    res.json(req.authUser);
+    const resolved = await resolveCurrentRole({
+      userName: req.authUser.name,
+      fallbackRole: req.authUser.role,
+    });
+    res.json({
+      ...req.authUser,
+      effectiveRole: resolved.effectiveRole,
+      roleSource: resolved.source,
+      activeShift: resolved.activeShift,
+      resolvedAt: resolved.resolvedAt.toISOString(),
+    });
   } catch (err) {
     res.status(500).json({ error: "Failed to get user" });
   }

@@ -27,7 +27,9 @@ import pushRoutes from "./routes/push.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
+import shiftsRoutes from "./routes/shifts.js";
 import { initVapid } from "./lib/push.js";
+import { startSmartRoleNotificationScheduler } from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -206,6 +208,7 @@ app.use("/api/push", pushRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/storage", storageRoutes);
+app.use("/api/shifts", shiftsRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));
@@ -236,3 +239,5 @@ app.listen(PORT, "0.0.0.0", () => {
 initVapid().catch((err) => {
   console.error("Failed to initialize push notifications", err);
 });
+
+startSmartRoleNotificationScheduler();
