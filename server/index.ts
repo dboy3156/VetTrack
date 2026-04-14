@@ -26,6 +26,8 @@ import pushRoutes from "./routes/push.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
+import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
+import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -192,6 +194,15 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 });
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+initVapid()
+  .then(() => {
+    startPushCleanupScheduler();
+  })
+  .catch((err) => {
+    console.error("Push initialization failed:", err);
+  });
+startCleanupScheduler();
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log("ENV PORT =", process.env.PORT);
   console.log(`Server listening on ${PORT}`);

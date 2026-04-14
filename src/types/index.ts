@@ -20,6 +20,7 @@ export interface User {
   clerkId: string;
   email: string;
   name: string;
+  displayName: string;
   role: UserRole;
   status: UserStatus;
   createdAt: string;

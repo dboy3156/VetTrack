@@ -33,6 +33,10 @@ const patchStatusSchema = z.object({
   status: z.enum(VALID_STATUSES, { required_error: "status is required" }),
 });
 
+const patchDisplayNameSchema = z.object({
+  display_name: z.string().trim().min(1, "display_name is required").max(120, "display_name is too long"),
+});
+
 const syncUserSchema = z.object({
   clerkId: z.string().min(1, "clerkId is required"),
   email: z.string().email("email must be a valid email address"),
@@ -187,6 +191,51 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
   }
 });
 
+router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBody(patchDisplayNameSchema), async (req, res) => {
+  try {
+    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+
+    const { display_name } = req.body as z.infer<typeof patchDisplayNameSchema>;
+    const actorId = req.authUser.id;
+
+    if (actorId !== req.params.id && req.authUser.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!existing) return res.status(404).json({ error: "User not found" });
+
+    const [updated] = await db
+      .update(users)
+      .set({ displayName: display_name })
+      .where(eq(users.id, req.params.id))
+      .returning();
+
+    logAudit({
+      actionType: "user_display_name_changed",
+      performedBy: actorId,
+      performedByEmail: req.authUser.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: {
+        field: "display_name",
+        previousDisplayName: existing.displayName,
+        newDisplayName: updated.displayName,
+      },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update display name" });
+  }
+});
+
 router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
     const [existing] = await db
@@ -283,7 +332,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     if (existing) {
       const [updated] = await db
         .update(users)
-        .set({ email, name: name || existing.name })
+        .set({ email, displayName: name || existing.displayName })
         .where(eq(users.id, existing.id))
         .returning();
 
@@ -310,13 +359,14 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
           clerkId,
           email,
           name: name || "",
+          displayName: name || "",
           role: "technician",
         })
         .onConflictDoUpdate({
           target: users.clerkId,
           set: {
             email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
-            name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+            displayName: sql`CASE WHEN EXCLUDED.display_name = '' THEN ${users.displayName} ELSE EXCLUDED.display_name END`,
           },
         })
         .returning();

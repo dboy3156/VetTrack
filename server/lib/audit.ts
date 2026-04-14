@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 export type AuditActionType =
   | "user_login"
   | "user_provisioned"
+  | "user_display_name_changed"
   | "user_role_changed"
   | "user_status_changed"
   | "equipment_created"
