@@ -1,9 +1,9 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { db, equipment, pushSubscriptions, shifts, supportTickets, users } from "../db.js";
+import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { db, equipment, pushSubscriptions, scheduledNotifications, shifts, supportTickets, users } from "../db.js";
 import { resolveCurrentRole, type PermanentVetTrackRole } from "./role-resolution.js";
 import { sendPushToUser } from "./push.js";
 
-const scheduledReminderTimers = new Map<string, NodeJS.Timeout>();
+type ReturnReminderPayload = { equipmentName?: string };
 
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -113,6 +113,64 @@ async function sendSeniorOwnReminder(
   });
 }
 
+async function processReturnReminderNotification(
+  row: typeof scheduledNotifications.$inferSelect
+): Promise<void> {
+  if (!row.equipmentId) return;
+  const equipmentId = row.equipmentId;
+  const userId = row.userId;
+  const payload = (row.payload as ReturnReminderPayload | null) ?? {};
+  const nameFromPayload = payload.equipmentName;
+
+  const [item] = await db
+    .select({
+      id: equipment.id,
+      name: equipment.name,
+      checkedOutById: equipment.checkedOutById,
+      checkedOutAt: equipment.checkedOutAt,
+      expectedReturnMinutes: equipment.expectedReturnMinutes,
+    })
+    .from(equipment)
+    .where(and(eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
+    .limit(1);
+
+  if (!item) return;
+  if (item.checkedOutById !== userId) return;
+  if (!isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, new Date())) return;
+
+  const [userRow] = await db
+    .select({ name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const userName = userRow?.name ?? "";
+  const fallbackRole = (userRow?.role as PermanentVetTrackRole | undefined) ?? "technician";
+  const roleResolution = await resolveCurrentRole({
+    userName,
+    fallbackRole,
+  });
+
+  console.log("Notification role:", {
+    userId,
+    effectiveRole: roleResolution.effectiveRole,
+    source: roleResolution.source,
+  });
+
+  if (roleResolution.effectiveRole === "admin") {
+    return;
+  }
+
+  const displayName = item.name || nameFromPayload || "ציוד";
+
+  if (roleResolution.effectiveRole === "senior_technician") {
+    await sendSeniorOwnReminder(userId, equipmentId, displayName);
+    return;
+  }
+
+  await sendTechnicianReminder(userId, equipmentId, displayName);
+}
+
 export async function scheduleSmartReturnReminder(params: {
   equipmentId: string;
   equipmentName: string;
@@ -127,78 +185,92 @@ export async function scheduleSmartReturnReminder(params: {
   if (Number.isNaN(checkoutDate.getTime())) return;
 
   const reminderAt = checkoutDate.getTime() + params.expectedReturnMinutes * 60_000;
-  const delayMs = reminderAt - Date.now();
-  if (delayMs <= 0) return;
+  if (reminderAt <= Date.now()) return;
 
-  const timerKey = `${params.equipmentId}:${params.userId}`;
-  const existingTimer = scheduledReminderTimers.get(timerKey);
-  if (existingTimer) clearTimeout(existingTimer);
+  await db
+    .delete(scheduledNotifications)
+    .where(
+      and(
+        eq(scheduledNotifications.type, "return_reminder"),
+        eq(scheduledNotifications.userId, params.userId),
+        eq(scheduledNotifications.equipmentId, params.equipmentId),
+        isNull(scheduledNotifications.sentAt)
+      )
+    );
 
-  const timeoutHandle = setTimeout(async () => {
-    scheduledReminderTimers.delete(timerKey);
-    try {
-      const [item] = await db
-        .select({
-          id: equipment.id,
-          name: equipment.name,
-          checkedOutById: equipment.checkedOutById,
-          checkedOutAt: equipment.checkedOutAt,
-          expectedReturnMinutes: equipment.expectedReturnMinutes,
-        })
-        .from(equipment)
-        .where(and(eq(equipment.id, params.equipmentId), isNull(equipment.deletedAt)))
-        .limit(1);
-
-      if (!item) return;
-      if (item.checkedOutById !== params.userId) return;
-      if (!isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, new Date())) return;
-
-      const [userRow] = await db
-        .select({ name: users.name, role: users.role })
-        .from(users)
-        .where(eq(users.id, params.userId))
-        .limit(1);
-
-      const userName = userRow?.name ?? "";
-      const fallbackRole = (userRow?.role as PermanentVetTrackRole | undefined) ?? "technician";
-      const roleResolution = await resolveCurrentRole({
-        userName,
-        fallbackRole,
-      });
-
-      console.log("Notification role:", {
-        userId: params.userId,
-        effectiveRole: roleResolution.effectiveRole,
-        source: roleResolution.source,
-      });
-
-      if (roleResolution.effectiveRole === "admin") {
-        return;
-      }
-
-      const displayName = item.name || params.equipmentName || "ציוד";
-
-      if (roleResolution.effectiveRole === "senior_technician") {
-        await sendSeniorOwnReminder(params.userId, params.equipmentId, displayName);
-        return;
-      }
-
-      await sendTechnicianReminder(params.userId, params.equipmentId, displayName);
-    } catch (error) {
-      console.error("Failed to process scheduled smart reminder", error);
-    }
-  }, delayMs);
-
-  scheduledReminderTimers.set(timerKey, timeoutHandle);
+  await db.insert(scheduledNotifications).values({
+    type: "return_reminder",
+    userId: params.userId,
+    equipmentId: params.equipmentId,
+    scheduledAt: new Date(reminderAt),
+    payload: { equipmentName: params.equipmentName },
+  });
 }
 
-export function cancelSmartReturnReminder(equipmentId: string, userId: string | null | undefined): void {
+export async function cancelSmartReturnReminder(
+  equipmentId: string,
+  userId: string | null | undefined
+): Promise<void> {
   if (!userId) return;
-  const key = `${equipmentId}:${userId}`;
-  const timer = scheduledReminderTimers.get(key);
-  if (!timer) return;
-  clearTimeout(timer);
-  scheduledReminderTimers.delete(key);
+  await db
+    .delete(scheduledNotifications)
+    .where(
+      and(
+        eq(scheduledNotifications.type, "return_reminder"),
+        eq(scheduledNotifications.userId, userId),
+        eq(scheduledNotifications.equipmentId, equipmentId),
+        isNull(scheduledNotifications.sentAt)
+      )
+    );
+}
+
+export async function runScheduledNotifications(): Promise<void> {
+  const due = await db
+    .select()
+    .from(scheduledNotifications)
+    .where(
+      and(
+        eq(scheduledNotifications.type, "return_reminder"),
+        isNull(scheduledNotifications.sentAt),
+        lte(scheduledNotifications.scheduledAt, sql`now()`)
+      )
+    )
+    .orderBy(asc(scheduledNotifications.scheduledAt))
+    .limit(100);
+
+  for (const row of due) {
+    const claimed = await db
+      .update(scheduledNotifications)
+      .set({ sentAt: new Date() })
+      .where(and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt)))
+      .returning();
+
+    if (claimed.length === 0) continue;
+
+    const c = claimed[0];
+    console.log("Processing scheduled notification:", {
+      id: c.id,
+      type: c.type,
+      userId: c.userId,
+    });
+
+    try {
+      await processReturnReminderNotification(c);
+    } catch (error) {
+      console.error("Scheduled return reminder failed:", { id: c.id, userId: c.userId, error });
+    }
+  }
+}
+
+let scheduledNotificationProcessorStarted = false;
+
+export function startScheduledNotificationProcessor(): void {
+  if (scheduledNotificationProcessorStarted) return;
+  scheduledNotificationProcessorStarted = true;
+  void runScheduledNotifications().catch((e) => console.error("runScheduledNotifications", e));
+  setInterval(() => {
+    runScheduledNotifications().catch((e) => console.error("runScheduledNotifications", e));
+  }, 60_000);
 }
 
 type ActiveShiftRow = {

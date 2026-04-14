@@ -11,6 +11,7 @@ import {
   jsonb,
   date,
   time,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 if (!process.env.DATABASE_URL) {
@@ -184,6 +185,16 @@ export const pushSubscriptions = pgTable("vt_push_subscriptions", {
   seniorTeamOverdueAlertsEnabled: boolean("senior_team_overdue_alerts_enabled").notNull().default(true),
   adminHourlySummaryEnabled: boolean("admin_hourly_summary_enabled").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const scheduledNotifications = pgTable("vt_scheduled_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  type: text("type").notNull(),
+  userId: text("user_id").notNull(),
+  equipmentId: text("equipment_id"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  payload: jsonb("payload"),
 });
 
 export const supportTickets = pgTable("vt_support_tickets", {
