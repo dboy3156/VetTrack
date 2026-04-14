@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import type { AuditLog } from "@/types";
+import { t } from "@/lib/i18n";
 
 // Client-side rows per page — DOM never holds more than ROWS_PER_PAGE divs.
 const ROWS_PER_PAGE = 8;
@@ -136,11 +137,8 @@ function AuditLogRow({ log }: { log: AuditLog }) {
             {/* Staff name + email */}
             <div className="flex items-center gap-1 mt-0.5">
               <User className="w-3 h-3 text-muted-foreground" style={{ flexShrink: 0 }} />
-              <span className="text-xs text-foreground font-medium" style={{ flexShrink: 0 }}>
-                {log.performedBy ?? "—"}
-              </span>
               <span className="text-xs text-muted-foreground truncate">
-                · {log.performedByEmail ?? ""}
+                {log.performedByEmail ?? ""}
               </span>
             </div>
 
@@ -251,7 +249,7 @@ export function SharedAuditLogsPanel({
             <div className="flex flex-wrap gap-4 items-end">
               {/* Staff name filter */}
               <div className="flex flex-col gap-1.5 min-w-[160px]">
-                <Label className="text-xs">Staff Name</Label>
+                <Label className="text-xs">{t.adminPage.logFilterStaff}</Label>
                 <div className="relative">
                   <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                   <Input
@@ -266,7 +264,7 @@ export function SharedAuditLogsPanel({
 
               {/* Action type */}
               <div className="flex flex-col gap-1.5 min-w-[180px]">
-                <Label className="text-xs">Action Type</Label>
+                <Label className="text-xs">{t.adminPage.logFilterAction}</Label>
                 <Select value={actionType || "all"} onValueChange={(v) => setActionType(v === "all" ? "" : v)}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="All actions" />
@@ -282,9 +280,10 @@ export function SharedAuditLogsPanel({
 
               {/* Date range */}
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">From</Label>
+                <Label className="text-xs">{t.adminPage.logFilterFrom}</Label>
                 <Input
                   type="date"
+                  placeholder="מ-תאריך"
                   value={from}
                   onChange={(e) => setFrom(e.target.value)}
                   className="h-8 text-sm w-36"
@@ -292,9 +291,10 @@ export function SharedAuditLogsPanel({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">To</Label>
+                <Label className="text-xs">{t.adminPage.logFilterTo}</Label>
                 <Input
                   type="date"
+                  placeholder="עד-תאריך"
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
                   className="h-8 text-sm w-36"
@@ -302,9 +302,9 @@ export function SharedAuditLogsPanel({
               </div>
 
               <div className="flex gap-2">
-                <Button size="sm" className="h-11 text-xs" onClick={handleFilter}>Apply</Button>
+                <Button size="sm" className="h-11 text-xs" onClick={handleFilter}>{t.adminPage.logFilterApply}</Button>
                 {hasActiveFilter && (
-                  <Button size="sm" variant="outline" className="h-11 text-xs" onClick={handleReset}>Reset</Button>
+                  <Button size="sm" variant="outline" className="h-11 text-xs" onClick={handleReset}>{t.adminPage.logFilterReset}</Button>
                 )}
               </div>
             </div>
@@ -368,8 +368,9 @@ export function SharedAuditLogsPanel({
                 {/* Summary bar */}
                 <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    {allItems.length} entries{data?.hasMore ? "+" : ""}
-                    {" · "}client page {safeClientPage}/{clientTotalPages}
+                    {t.adminPage.logEntries(allItems.length, Boolean(data?.hasMore))}
+                    {" · "}
+                    {t.adminPage.logClientPage(safeClientPage, clientTotalPages)}
                     {hasActiveFilter && <span className="ml-1 text-primary font-medium">· Filtered</span>}
                   </span>
                   {isRefetching && (

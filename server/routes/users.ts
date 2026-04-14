@@ -34,6 +34,13 @@ const patchStatusSchema = z.object({
   status: z.enum(VALID_STATUSES, { required_error: "status is required" }),
 });
 
+const patchDisplayNameSchema = z.object({
+  displayName: z
+    .string({ required_error: "displayName is required" })
+    .trim()
+    .max(60, "displayName must be at most 60 characters"),
+});
+
 const syncUserSchema = z.object({
   clerkId: z.string().min(1, "clerkId is required"),
   email: z.string().email("email must be a valid email address"),
@@ -161,6 +168,41 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update role" });
+  }
+});
+
+// PATCH /:id/display_name — self or admin
+router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBody(patchDisplayNameSchema), async (req, res) => {
+  try {
+    const isSelf = req.authUser!.id === req.params.id;
+    const isAdmin = req.authUser!.role === "admin";
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const { displayName } = req.body as z.infer<typeof patchDisplayNameSchema>;
+
+    const [user] = await db
+      .update(users)
+      .set({ displayName })
+      .where(eq(users.id, req.params.id))
+      .returning();
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    logAudit({
+      actionType: "user_display_name_changed",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: { displayName },
+    });
+
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update display name" });
   }
 });
 
@@ -307,7 +349,10 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         metadata: { name },
       });
 
-      return res.json(updated);
+      return res.json({
+        ...updated,
+        displayName: updated.displayName ?? null,
+      });
     }
 
     const insertedId = randomUUID();
@@ -341,7 +386,12 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
           .from(users)
           .where(eq(users.clerkId, clerkId))
           .limit(1);
-        if (race) return res.json(race);
+        if (race) {
+          return res.json({
+            ...race,
+            displayName: race.displayName ?? null,
+          });
+        }
       }
       throw insertErr;
     }
@@ -366,7 +416,10 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
       });
     }
 
-    res.status(wasCreated ? 201 : 200).json(newUser);
+    res.status(wasCreated ? 201 : 200).json({
+      ...newUser,
+      displayName: newUser.displayName ?? null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to sync user" });

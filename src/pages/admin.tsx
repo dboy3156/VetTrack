@@ -752,7 +752,7 @@ function UsersSection() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate">
-                      {user.name || user.email}
+                      {user.displayName || user.name || user.email}
                     </p>
                     <RoleBadge role={user.role} />
                     <StatusBadge status={user.status} />
@@ -1236,9 +1236,14 @@ function SupportSection() {
             ))}
           </div>
         ) : !tickets || tickets.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            No support tickets yet.
-          </p>
+          <div className="text-center py-6">
+            <p className="text-sm text-muted-foreground">
+              {t.adminPage.noTicketsYet}
+            </p>
+            <p className="text-xs text-muted-foreground/80 mt-1">
+              {t.adminPage.noTicketsYetSub}
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col gap-2">
             {tickets.map((ticket) => (
@@ -1274,6 +1279,24 @@ function SupportSection() {
                   >
                     {STATUS_LABELS[ticket.status]}
                   </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateMut.mutate({
+                        id: ticket.id,
+                        status: "resolved",
+                        adminNote: "",
+                      });
+                    }}
+                    disabled={
+                      ticket.status === "resolved" || updateMut.isPending
+                    }
+                  >
+                    {t.adminPage.ticketStatusResolved}
+                  </Button>
                 </div>
               </button>
             ))}

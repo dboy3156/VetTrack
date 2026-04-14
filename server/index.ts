@@ -30,6 +30,7 @@ import storageRoutes from "./routes/storage.js";
 import shiftsRoutes from "./routes/shifts.js";
 import { runMigrations } from "./migrate.js";
 import { initVapid } from "./lib/push.js";
+import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
 import { startSmartRoleNotificationScheduler } from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 
@@ -242,6 +243,7 @@ runMigrations()
     initVapid().catch((err) => {
       console.error("Failed to initialize push notifications", err);
     });
+    startCleanupScheduler();
     startSmartRoleNotificationScheduler();
   })
   .catch((err) => {
