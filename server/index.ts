@@ -28,7 +28,7 @@ import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import { initVapid } from "./lib/push.js";
-import { apiGlobalLimiter } from "./middleware/rate-limiters.js";
+import { globalApiLimiter } from "./middleware/rate-limiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -190,7 +190,7 @@ app.use(async (req, res, next) => {
 });
 
 // Global API limiter runs before route-specific limiters.
-app.use("/api", apiGlobalLimiter);
+app.use("/api", globalApiLimiter);
 
 app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);
