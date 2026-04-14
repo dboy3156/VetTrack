@@ -619,6 +619,7 @@ type UserStatusFilter = "all" | "pending" | "active" | "blocked";
 function UsersSection() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
+  const effectiveStatus = statusFilter === "all" ? undefined : statusFilter;
   const [pendingRoleChange, setPendingRoleChange] = useState<{
     user: User;
     newRole: UserRole;
@@ -635,13 +636,9 @@ function UsersSection() {
     hasNextPage: hasMoreUsers,
     isFetchingNextPage: isFetchingMoreUsers,
   } = useInfiniteQuery({
-    queryKey: ["/api/users", statusFilter],
+    queryKey: ["/api/users", effectiveStatus ?? "all"],
     queryFn: ({ pageParam = 1 }) =>
-      api.users.listPaginated(
-        pageParam as number,
-        100,
-        statusFilter === "all" ? undefined : statusFilter
-      ),
+      api.users.listPaginated(pageParam as number, 100, effectiveStatus),
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     initialPageParam: 1,
   });

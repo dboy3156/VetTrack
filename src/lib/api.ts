@@ -583,10 +583,9 @@ export const api = {
       pageSize = 100,
       status?: "pending" | "active" | "blocked"
     ): Promise<{ items: User[]; total: number; page: number; pageSize: number; hasMore: boolean }> => {
-      const params = new URLSearchParams({ limit: String(pageSize), page: String(page) });
-      if (status) params.set("status", status);
+      const url = `/api/users?page=${page}&limit=${pageSize}${status ? `&status=${status}` : ""}`;
       return request<{ items: User[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
-        `/api/users?${params}`
+        url
       );
     },
     listPending: () => request<User[]>("/api/users/pending"),
