@@ -1,52 +1,50 @@
-import { useEffect } from "react";
-import { useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { Helmet } from "react-helmet-async";
-import { QRCodeSVG } from "qrcode.react";
-import { request } from "@/lib/api";
-import type { Equipment } from "@/types";
+import { useEffect } from 'react';
+import { useParams } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
+import { QRCodeSVG } from 'qrcode.react';
 
-export default function EquipmentQrPrintPage() {
+export default function EquipmentQRPrint() {
   const { id } = useParams<{ id: string }>();
-  const equipmentId = id ?? "";
-  const equipmentUrl = `https://vettrack.uk/equipment/${equipmentId}`;
+  const url = `https://vettrack.uk/equipment/${id}`;
 
-  const { data: equipment } = useQuery({
-    queryKey: [`/api/equipment/${equipmentId}`],
-    queryFn: () => request<Equipment>(`/api/equipment/${equipmentId}`),
-    enabled: !!equipmentId,
+  const { data: equipment, isSuccess } = useQuery({
+    queryKey: ['/api/equipment', id],
+    queryFn: () => fetch(`/api/equipment/${id}`, { credentials: 'include' }).then(r => r.json()),
   });
 
   useEffect(() => {
-    if (!equipment) return;
+    if (isSuccess) {
+      const timer = setTimeout(() => window.print(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccess]);
 
-    const timeoutId = window.setTimeout(() => {
-      window.print();
-    }, 500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [equipment]);
-
-  if (!equipment) return null;
+  if (!equipment) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <p>טוען...</p>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Helmet>
-        <title>Print QR — {equipment.name}</title>
-      </Helmet>
-      <div className="print-area min-h-screen bg-white p-8 flex items-center justify-center">
-        <div className="flex flex-col items-center text-center max-w-md">
-          <QRCodeSVG value={equipmentUrl} size={320} level="H" includeMargin />
-          <h1 className="mt-6 text-2xl font-bold text-black">{equipment.name}</h1>
-          {equipment.serialNumber && (
-            <p className="mt-1 text-base text-gray-700">{equipment.serialNumber}</p>
-          )}
-          {equipment.location && (
-            <p className="mt-1 text-base text-gray-700">{equipment.location}</p>
-          )}
-          <p className="mt-3 text-xs text-gray-500 break-all">{equipmentUrl}</p>
-        </div>
-      </div>
-    </>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      backgroundColor: '#ffffff',
+      padding: '32px',
+      fontFamily: 'sans-serif',
+    }}>
+      <QRCodeSVG value={url} size={256} level="H" includeMargin />
+      <h2 style={{ marginTop: '16px', fontSize: '20px', fontWeight: 'bold', textAlign: 'center' }}>
+        {equipment.name}
+      </h2>
+      <p style={{ fontSize: '14px', color: '#666', margin: '4px 0' }}>{equipment.serialNumber}</p>
+      <p style={{ fontSize: '14px', color: '#666', margin: '4px 0' }}>{equipment.location}</p>
+      <p style={{ fontSize: '11px', color: '#aaa', marginTop: '8px', wordBreak: 'break-all', textAlign: 'center', maxWidth: '280px' }}>{url}</p>
+    </div>
   );
 }

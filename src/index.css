@@ -264,30 +264,6 @@ nav,
 
 @media print {
   body {
-    background: #fff !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-  }
-
-  body * {
-    visibility: hidden;
-  }
-
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-
-  .print-area {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    min-height: 100vh;
-    margin: 0 !important;
-    padding: 1rem !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: #fff !important;
+    background: white !important;
   }
 }
