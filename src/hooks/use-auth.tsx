@@ -7,6 +7,15 @@ import { restoreOfflineSession, saveOfflineSession, clearOfflineSession } from "
 import { setAuthStateRef, clearHaltQueue, processQueue } from "@/lib/sync-engine";
 
 export type UserStatus = "pending" | "active" | "blocked" | null;
+export type AccessDeniedReason =
+  | "MISSING_CLINIC_ID"
+  | "TENANT_CONTEXT_MISSING"
+  | "TENANT_MISMATCH"
+  | "INSUFFICIENT_ROLE"
+  | "ACCOUNT_DELETED"
+  | "ACCOUNT_BLOCKED"
+  | "ACCOUNT_PENDING_APPROVAL"
+  | null;
 
 interface AuthState {
   userId: string | null; email: string | null; name: string | null;
@@ -16,6 +25,7 @@ interface AuthState {
   activeShift: Shift | null;
   resolvedAt: string | null;
   status: UserStatus;
+  accessDeniedReason: AccessDeniedReason;
   isLoaded: boolean;
   isSignedIn: boolean; isAdmin: boolean; isOfflineSession: boolean;
 }
@@ -33,12 +43,13 @@ interface SyncedUserResponse {
   resolvedAt?: string;
   status: UserStatus;
   error?: string;
+  reason?: string;
   message?: string;
 }
 
 const AuthContext = createContext<AuthContextType>({
   userId: null, email: null, name: null, role: "technician",
-  effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+  effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
   isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
   signOut: async () => {},
 });
@@ -71,6 +82,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         activeShift: null,
         resolvedAt: null,
         status: offlineSnapshot.status as UserStatus,
+        accessDeniedReason: null,
         isLoaded: true,
         isSignedIn: true,
         isAdmin: offlineSnapshot.role === "admin",
@@ -80,7 +92,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
 
     return {
       userId: null, email: null, name: null, role: "technician",
-      effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+      effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     };
   });
@@ -116,7 +128,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       setAuthState({ userId: "", email: "", name: "", bearerToken: null });
       setState({
         userId: null, email: null, name: null, role: "technician",
-        effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+        effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
         isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
       });
       return;
@@ -196,6 +208,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
             activeShift: data.activeShift ?? null,
             resolvedAt: data.resolvedAt ?? null,
             status,
+            accessDeniedReason: null,
             isLoaded: true, isSignedIn: true, isAdmin: role === "admin",
             isOfflineSession: false
           });
@@ -203,20 +216,19 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
           processQueue().catch(() => {});
         } else if (res.status === 403) {
           clearHaltQueue();
-          const errorText = [data.error, data.message]
-            .filter((part): part is string => typeof part === "string")
-            .join(" ")
-            .toLowerCase();
-          const resolvedStatus: UserStatus = errorText.includes("blocked")
-            ? "blocked"
-            : errorText.includes("pending")
-              ? "pending"
-              : "blocked";
+          const reason = (typeof data.reason === "string" ? data.reason : null) as AccessDeniedReason;
+          const resolvedStatus: UserStatus =
+            reason === "ACCOUNT_BLOCKED"
+              ? "blocked"
+              : reason === "ACCOUNT_PENDING_APPROVAL"
+                ? "pending"
+                : null;
           setState(s => ({
             ...s,
             isLoaded: true,
             isSignedIn: true,
             status: resolvedStatus,
+            accessDeniedReason: reason,
             isOfflineSession: false,
           }));
         } else if (res.status === 401) {
@@ -228,7 +240,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
           setAuthState({ userId: "", email: "", name: "", bearerToken: null });
           setState({
             userId: null, email: null, name: null, role: "technician",
-            effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+            effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
             isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
           });
         } else {
@@ -242,6 +254,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
             isLoaded: true,
             isSignedIn: true,
             status: "pending",
+            accessDeniedReason: null,
             isOfflineSession: false,
           }));
         }
@@ -251,7 +264,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         setAuthState({ userId: "", email: "", name: "", bearerToken: null });
         setState({
           userId: null, email: null, name: null, role: "technician",
-          effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+          effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
           isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
         });
       } finally {

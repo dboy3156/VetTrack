@@ -252,8 +252,20 @@
       "pendingTitle": "Account pending hospital management approval",
       "blockedTitle": "Access blocked",
       "blockedDescription": "Contact IT department for assistance.",
+      "accessDeniedTitle": "Access denied",
+      "accessDeniedDescription": "Your session could not be mapped to a clinic.",
+      "retry": "Retry",
       "signOut": "Sign out",
-      "loadingApp": "Loading system..."
+      "loadingApp": "Loading system...",
+      "reasons": {
+        "missingClinicId": "User is not assigned to a clinic. Sign out and sign in again, then contact admin if this continues.",
+        "missingClinicContext": "Clinic context is missing in this request. Try again.",
+        "tenantMismatch": "Your account clinic does not match the active tenant.",
+        "insufficientRole": "You do not have permission to access this area.",
+        "accountDeleted": "Your account was removed.",
+        "accountBlocked": "Your account is blocked.",
+        "accountPendingApproval": "Your account is pending approval."
+      }
     }
   },
 

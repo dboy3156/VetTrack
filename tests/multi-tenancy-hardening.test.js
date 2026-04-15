@@ -33,7 +33,7 @@ const authMiddleware = fs.readFileSync(authMiddlewarePath, "utf8");
 console.log("\n── Multi-Tenancy Hardening Smoke Test");
 
 assert(
-  tenantMiddleware.includes('res.status(403).json({ error: "Clinic context missing" })'),
+  tenantMiddleware.includes('buildAccessDeniedBody("TENANT_CONTEXT_MISSING", "Clinic context missing")'),
   "Missing clinic context is rejected with 403",
   "tenant-context middleware must fail closed when clinic context is absent"
 );
