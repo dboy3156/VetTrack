@@ -28,6 +28,9 @@ const rootEl = document.getElementById("root");
 
 function AppBootstrap() {
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a1f84a'},body:JSON.stringify({sessionId:'a1f84a',runId:'rtl-audit-run1',hypothesisId:'H0',location:'src/main.tsx:32',message:'App bootstrap mounted',data:{href:window.location.href,docDir:document.documentElement.getAttribute("dir"),userAgent:navigator.userAgent.slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch((err) => {
       console.error("VetTrack: service worker registration failed", err);

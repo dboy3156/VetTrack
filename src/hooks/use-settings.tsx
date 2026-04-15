@@ -59,6 +59,9 @@ function applySettings(settings: Settings) {
   const html = document.documentElement;
   const list = html?.classList;
   if (!list) return;
+  // #region agent log
+  fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a1f84a'},body:JSON.stringify({sessionId:'a1f84a',runId:'rtl-audit-run1',hypothesisId:'H1',location:'src/hooks/use-settings.tsx:62',message:'applySettings direction snapshot',data:{docDir:html.getAttribute("dir"),docLang:html.getAttribute("lang"),density:settings.density,darkMode:settings.darkMode},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   if (settings.darkMode) {
     list?.add("dark");
   } else {

@@ -9,7 +9,34 @@ const REQUIRED_IN_PRODUCTION: string[] = [
   "VITE_CLERK_PUBLISHABLE_KEY",
 ];
 
+function validateClerkKeyPair(): void {
+  const publishable = (process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "").trim();
+  const secret = (process.env.CLERK_SECRET_KEY ?? "").trim();
+
+  if (!publishable || !secret) return;
+
+  const publishableIsTest = publishable.startsWith("pk_test_");
+  const publishableIsLive = publishable.startsWith("pk_live_");
+  const secretIsTest = secret.startsWith("sk_test_");
+  const secretIsLive = secret.startsWith("sk_live_");
+
+  const isMismatch =
+    (publishableIsTest && secretIsLive) ||
+    (publishableIsLive && secretIsTest);
+
+  if (isMismatch) {
+    console.error("\n❌ FATAL: Clerk key mismatch detected:\n");
+    console.error(`  - VITE_CLERK_PUBLISHABLE_KEY: ${publishable.slice(0, 8)}...`);
+    console.error(`  - CLERK_SECRET_KEY: ${secret.slice(0, 8)}...`);
+    console.error("  - Do not mix test and live Clerk keys.");
+    console.error("    Use pk_test + sk_test OR pk_live + sk_live.\n");
+    process.exit(1);
+  }
+}
+
 export function validateEnv(): void {
+  validateClerkKeyPair();
+
   if (process.env.NODE_ENV !== "production") return;
 
   const errors: string[] = [];

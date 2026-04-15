@@ -91,6 +91,16 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const quickSettingsToggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    const docEl = document.documentElement;
+    const bodyDirection = window.getComputedStyle(document.body).direction;
+    const hardcodedLeftCount = document.querySelectorAll('[class*="left-"]').length;
+    const hardcodedRightCount = document.querySelectorAll('[class*="right-"]').length;
+    // #region agent log
+    fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a1f84a'},body:JSON.stringify({sessionId:'a1f84a',runId:'rtl-audit-run1',hypothesisId:'H1_H2',location:'src/components/layout.tsx:95',message:'Route RTL snapshot',data:{location,docDir:docEl.getAttribute("dir"),docLang:docEl.getAttribute("lang"),bodyDirection,hardcodedLeftCount,hardcodedRightCount,viewportWidth:window.innerWidth},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, [location]);
+
+  useEffect(() => {
     if (!quickSettingsOpen) return;
 
     const updateQuickSettingsPlacement = () => {
@@ -105,6 +115,13 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     updateQuickSettingsPlacement();
     window.addEventListener("resize", updateQuickSettingsPlacement);
     window.addEventListener("scroll", updateQuickSettingsPlacement, true);
+    const toggle = quickSettingsToggleRef.current;
+    if (toggle) {
+      const rect = toggle.getBoundingClientRect();
+      // #region agent log
+      fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a1f84a'},body:JSON.stringify({sessionId:'a1f84a',runId:'rtl-audit-run1',hypothesisId:'H3',location:'src/components/layout.tsx:118',message:'Quick settings placement decision',data:{quickSettingsOpen,docDir:document.documentElement.getAttribute("dir"),rectLeft:Math.round(rect.left),rectRight:Math.round(rect.right),viewportWidth:window.innerWidth,selectedMode:quickSettingsUseViewportRight?"fixed-right":"absolute-right"},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+    }
     return () => {
       window.removeEventListener("resize", updateQuickSettingsPlacement);
       window.removeEventListener("scroll", updateQuickSettingsPlacement, true);
@@ -458,7 +475,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
               {/* Management group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">Management</p>
-              {["/analytics", "/dashboard", "/admin", "/stability", "/print"].map((href) => {
+              {["/analytics", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
                 return (

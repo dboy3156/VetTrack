@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, CheckCircle2, AlertTriangle, History } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -12,11 +12,30 @@ import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import type { ShiftImportPreview } from "@/types";
 
+function debugLog(runId: string, hypothesisId: string, location: string, message: string, data: Record<string, unknown>) {
+  // #region agent log
+  fetch("http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fabc13" },
+    body: JSON.stringify({
+      sessionId: "fabc13",
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 export default function AdminShiftsPage() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ShiftImportPreview | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const importsQuery = useQuery({
     queryKey: ["/api/shifts/imports"],
@@ -27,10 +46,22 @@ export default function AdminShiftsPage() {
   const previewMut = useMutation({
     mutationFn: (file: File) => api.shifts.previewImport(file),
     onSuccess: (data) => {
+      // #region agent log
+      debugLog("baseline", "H2", "admin-shifts.tsx:onPreviewSuccess", "Preview succeeded", {
+        totalRows: data.summary.totalRows,
+        validRows: data.summary.validRows,
+        skippedRows: data.summary.skippedRows,
+      });
+      // #endregion
       setPreview(data);
       toast.success(t.adminShiftsPage.previewReady);
     },
     onError: (error: Error) => {
+      // #region agent log
+      debugLog("baseline", "H2", "admin-shifts.tsx:onPreviewError", "Preview failed", {
+        error: error.message,
+      });
+      // #endregion
       setPreview(null);
       toast.error(error.message || t.adminShiftsPage.previewFailed);
     },
@@ -38,14 +69,31 @@ export default function AdminShiftsPage() {
 
   const confirmMut = useMutation({
     mutationFn: (file: File) => api.shifts.confirmImport(file),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      // #region agent log
+      debugLog("baseline", "H3", "admin-shifts.tsx:onConfirmSuccess", "Confirm succeeded", {
+        filename: result.filename,
+        insertedRows: result.insertedRows,
+        skippedRows: result.skippedRows,
+      });
+      // #endregion
       toast.success(t.adminShiftsPage.importSuccess);
       queryClient.invalidateQueries({ queryKey: ["/api/shifts/imports"] });
       queryClient.invalidateQueries({ queryKey: ["/api/shifts"] });
-      setSelectedFile(null);
-      setPreview(null);
+      // Keep selected file + preview visible after confirm so admins can
+      // still see exactly which CSV/rows were imported.
+      console.log(
+        `[admin shifts] confirmed import filename=${result.filename} inserted=${result.insertedRows} skipped=${result.skippedRows}`
+      );
     },
-    onError: (error: Error) => toast.error(error.message || t.adminShiftsPage.importFailed),
+    onError: (error: Error) => {
+      // #region agent log
+      debugLog("baseline", "H3", "admin-shifts.tsx:onConfirmError", "Confirm failed", {
+        error: error.message,
+      });
+      // #endregion
+      toast.error(error.message || t.adminShiftsPage.importFailed);
+    },
   });
 
   const canPreview = Boolean(selectedFile) && !previewMut.isPending;
@@ -80,11 +128,28 @@ export default function AdminShiftsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Input
+            <input
+              ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
+              className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null;
+                // #region agent log
+                debugLog("baseline", "H1", "admin-shifts.tsx:onFileSelect", "File selected", {
+                  hasFile: Boolean(file),
+                  name: file?.name ?? null,
+                  type: file?.type ?? null,
+                  size: file?.size ?? null,
+                });
+                // #endregion
+                if (file && !file.name.toLowerCase().endsWith(".csv")) {
+                  toast.error("Please choose a .csv file");
+                  setSelectedFile(null);
+                  setPreview(null);
+                  event.currentTarget.value = "";
+                  return;
+                }
                 setSelectedFile(file);
                 setPreview(null);
               }}
@@ -92,10 +157,25 @@ export default function AdminShiftsPage() {
             <div className="flex gap-2">
               <Button
                 size="sm"
+                variant="outline"
+                className="h-11 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+                data-testid="btn-choose-shifts-csv"
+              >
+                {t.adminShiftsPage.uploadCsv}
+              </Button>
+              <Button
+                size="sm"
                 className="h-11 text-xs"
                 disabled={!canPreview}
                 onClick={() => {
                   if (selectedFile) previewMut.mutate(selectedFile);
+                  // #region agent log
+                  debugLog("baseline", "H2", "admin-shifts.tsx:onPreviewClick", "Preview clicked", {
+                    hasSelectedFile: Boolean(selectedFile),
+                    selectedFileName: selectedFile?.name ?? null,
+                  });
+                  // #endregion
                 }}
               >
                 {t.adminShiftsPage.previewButton}
@@ -107,9 +187,30 @@ export default function AdminShiftsPage() {
                 disabled={!canImport}
                 onClick={() => {
                   if (selectedFile) confirmMut.mutate(selectedFile);
+                  // #region agent log
+                  debugLog("baseline", "H3", "admin-shifts.tsx:onConfirmClick", "Confirm clicked", {
+                    hasSelectedFile: Boolean(selectedFile),
+                    hasPreview: Boolean(preview),
+                    validRows: preview?.summary.validRows ?? null,
+                  });
+                  // #endregion
                 }}
               >
                 {confirmMut.isPending ? t.adminShiftsPage.confirmImporting : t.adminShiftsPage.confirmImportButton}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-11 text-xs"
+                disabled={!selectedFile && !preview}
+                onClick={() => {
+                  setSelectedFile(null);
+                  setPreview(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                data-testid="btn-clear-shifts-upload"
+              >
+                Clear upload
               </Button>
             </div>
             {selectedFile && (
@@ -209,6 +310,19 @@ export default function AdminShiftsPage() {
                 {[1, 2, 3].map((idx) => (
                   <Skeleton key={idx} className="h-10 rounded-lg" />
                 ))}
+              </div>
+            ) : importsQuery.isError ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                <p className="text-xs text-amber-800">Failed to load import history.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  onClick={() => importsQuery.refetch()}
+                  data-testid="btn-retry-import-history"
+                >
+                  Retry
+                </Button>
               </div>
             ) : !importsQuery.data || importsQuery.data.length === 0 ? (
               <p className="text-xs text-muted-foreground">{t.adminShiftsPage.noImportsYet}</p>

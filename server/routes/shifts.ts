@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { createHash, randomUUID } from "crypto";
 import multer from "multer";
 import { and, desc, eq } from "drizzle-orm";
@@ -32,6 +32,24 @@ interface ShiftParseResult {
 
 const router = Router();
 
+function debugLog(runId: string, hypothesisId: string, location: string, message: string, data: Record<string, unknown>) {
+  // #region agent log
+  fetch("http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fabc13" },
+    body: JSON.stringify({
+      sessionId: "fabc13",
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -43,6 +61,23 @@ const upload = multer({
     cb(new Error("Only CSV files are accepted"));
   },
 });
+
+function uploadCsvFile(req: Request, res: Response, next: NextFunction) {
+  upload.single("file")(req, res, (err?: unknown) => {
+    if (!err) {
+      next();
+      return;
+    }
+    const message = err instanceof Error ? err.message : "Invalid CSV upload";
+    // #region agent log
+    debugLog("baseline", "H2", "shifts.ts:uploadCsvFile", "Upload middleware rejected file", {
+      message,
+      originalName: (req as { file?: { originalname?: string } }).file?.originalname ?? null,
+    });
+    // #endregion
+    res.status(400).json({ error: message });
+  });
+}
 
 const CSV_HEADER_VARIANTS = {
   date: ["date", "shiftdate", "workdate", "תאריך", "תאריךמשמרת", "יום"],
@@ -348,6 +383,12 @@ router.get("/imports", requireAuth, requireAdmin, async (_req, res) => {
       .orderBy(desc(shiftImports.importedAt))
       .limit(100);
 
+    // #region agent log
+    debugLog("baseline", "H5", "shifts.ts:getImports", "Fetched imports history", {
+      rowCount: rows.length,
+      latestId: rows[0]?.id ?? null,
+    });
+    // #endregion
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -355,14 +396,29 @@ router.get("/imports", requireAuth, requireAdmin, async (_req, res) => {
   }
 });
 
-router.post("/import/preview", requireAuth, requireAdmin, upload.single("file"), async (req, res) => {
+router.post("/import/preview", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
   try {
+    // #region agent log
+    debugLog("baseline", "H2", "shifts.ts:preview:start", "Preview request started", {
+      hasFile: Boolean(req.file),
+      fileName: req.file?.originalname ?? null,
+      authUserId: req.authUser?.id ?? null,
+    });
+    // #endregion
     const { csv, filename } = resolveCsvFromRequest(req as { file?: Express.Multer.File; body: Record<string, unknown> });
     if (!csv.trim()) {
       return res.status(400).json({ error: "Provide a CSV file upload or `csv` string in request body" });
     }
 
     const parsed = parseShiftsCsvContent(csv, filename);
+    // #region agent log
+    debugLog("baseline", "H2", "shifts.ts:preview:parsed", "Preview parsed CSV", {
+      filename: parsed.filename,
+      totalRows: parsed.totalRows,
+      validRows: parsed.validRows.length,
+      issues: parsed.issues.length,
+    });
+    // #endregion
     return res.json({
       filename: parsed.filename,
       summary: {
@@ -379,18 +435,33 @@ router.post("/import/preview", requireAuth, requireAdmin, upload.single("file"),
   }
 });
 
-router.post("/import/confirm", requireAuth, requireAdmin, upload.single("file"), async (req, res) => {
+router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
   try {
     if (!req.authUser) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // #region agent log
+    debugLog("baseline", "H3", "shifts.ts:confirm:start", "Confirm request started", {
+      hasFile: Boolean(req.file),
+      fileName: req.file?.originalname ?? null,
+      authUserId: req.authUser?.id ?? null,
+    });
+    // #endregion
     const { csv, filename } = resolveCsvFromRequest(req as { file?: Express.Multer.File; body: Record<string, unknown> });
     if (!csv.trim()) {
       return res.status(400).json({ error: "Provide a CSV file upload or `csv` string in request body" });
     }
 
     const parsed = parseShiftsCsvContent(csv, filename);
+    // #region agent log
+    debugLog("baseline", "H4", "shifts.ts:confirm:parsed", "Confirm parsed CSV", {
+      filename: parsed.filename,
+      totalRows: parsed.totalRows,
+      validRows: parsed.validRows.length,
+      issues: parsed.issues.length,
+    });
+    // #endregion
     if (parsed.validRows.length === 0) {
       return res.status(400).json({
         error: "No valid shift rows found for import",
@@ -423,12 +494,26 @@ router.post("/import/confirm", requireAuth, requireAdmin, upload.single("file"),
           .onConflictDoNothing();
       }
 
-      await tx.insert(shiftImports).values({
-        id: importId,
-        importedBy: req.authUser!.id,
-        filename: parsed.filename,
-        rowCount: parsed.validRows.length,
+      const importingUser = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, req.authUser!.id))
+        .limit(1);
+
+      // #region agent log
+      debugLog("baseline", "H5", "shifts.ts:confirm:importingUser", "Checked importing user existence for history insert", {
+        authUserId: req.authUser!.id,
+        existsInUsers: importingUser.length > 0,
       });
+      // #endregion
+      if (importingUser.length > 0) {
+        await tx.insert(shiftImports).values({
+          id: importId,
+          importedBy: req.authUser!.id,
+          filename: parsed.filename,
+          rowCount: parsed.validRows.length,
+        });
+      }
     });
 
     return res.json({
@@ -444,7 +529,7 @@ router.post("/import/confirm", requireAuth, requireAdmin, upload.single("file"),
   }
 });
 
-router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (req, res) => {
+router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "CSV file is required (multipart field: file)" });
