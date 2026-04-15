@@ -6,6 +6,8 @@ import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { STABILITY_TOKEN } from "../lib/stability-token.js";
 import { resolveCurrentRole } from "../lib/role-resolution.js";
+import { resolveRequestLocale } from "../../lib/i18n/middleware.js";
+import { normalizeLocale } from "../../lib/i18n/loader.js";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -21,6 +23,7 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   status: string;
+  locale?: string;
 }
 
 declare global {
@@ -34,7 +37,6 @@ declare global {
   }
 }
 
-/** Single hierarchy for permanent roles and effective roles from resolveCurrentRole (incl. shift roles). */
 const ROLE_HIERARCHY: Record<string, number> = {
   admin: 40,
   vet: 30,
@@ -52,9 +54,6 @@ const DEV_USER: AuthUser = {
   status: "active",
 };
 
-// DEV_USER_PRESETS: named test identities for multi-user tests.
-// Only active in dev mode (no CLERK_SECRET_KEY). Use x-dev-user-id-override
-// to select a named identity. Combine with x-dev-role-override for role.
 const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
   "dev-user-alpha": { id: "dev-user-alpha", clerkId: "dev-user-alpha", email: "alpha@vettrack.dev", name: "Dev Alpha" },
   "dev-user-beta":  { id: "dev-user-beta",  clerkId: "dev-user-beta",  email: "beta@vettrack.dev",  name: "Dev Beta"  },
@@ -102,15 +101,21 @@ async function ensureDevUserRecord(devUser: AuthUser): Promise<AuthUser> {
   };
 }
 
-export async function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  // Internal stability test runner token — grants admin access
+export type ResolveResult =
+  | { ok: true; user: AuthUser }
+  | { ok: false; status: number; body: Record<string, string> };
+
+export type AuthResolver = (req: Request) => Promise<ResolveResult>;
+
+function isLikelyInvalidTokenError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return msg.includes("token") || msg.includes("jwt") || msg.includes("session");
+}
+
+export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   if (req.headers["x-stability-token"] === STABILITY_TOKEN) {
-    req.authUser = { ...DEV_USER, role: "admin" };
-    return next();
+    return { ok: true, user: { ...DEV_USER, role: "admin" } };
   }
 
   const isDevBypass = isDevelopment && !hasClerkSecret;
@@ -124,221 +129,158 @@ export async function requireAuth(
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
         ? { ...baseUser, role: overrideRole }
         : baseUser;
-    req.authUser = await ensureDevUserRecord(devUser);
-    Sentry.setUser({ id: devUser.id, email: devUser.email });
-    return next();
+    const resolved = await ensureDevUserRecord(devUser);
+    return { ok: true, user: resolved };
   }
 
+  let clerkUserId: string | null | undefined;
+  let sessionClaims: Record<string, unknown> | undefined;
   try {
-    const { userId: clerkUserId, sessionClaims } = getAuth(req);
+    const auth = getAuth(req);
+    clerkUserId = auth.userId;
+    sessionClaims = auth.sessionClaims as Record<string, unknown> | undefined;
+  } catch (err) {
+    console.error("[auth] Failed to read auth session", err);
+    return { ok: false, status: 401, body: { error: "Invalid authentication token" } };
+  }
 
-    if (!clerkUserId) {
-      return res.status(401).json({ error: "Unauthorized" });
+  if (!clerkUserId) {
+    return { ok: false, status: 401, body: { error: "Unauthorized" } };
+  }
+
+  let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
+  let clerkName = (sessionClaims?.name as string | undefined) ?? "";
+  const clerkLocaleClaim =
+    (sessionClaims?.locale as string | undefined) ??
+    (sessionClaims?.["https://clerk.dev/locale"] as string | undefined);
+  const clerkLocale = normalizeLocale(clerkLocaleClaim);
+  if (!clerkEmail) {
+    try {
+      const clerkUser = await clerkClient().users.getUser(clerkUserId);
+      clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
+      clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
+    } catch (err) {
+      console.warn("[auth] Unable to enrich Clerk profile; continuing with session claims only", err);
     }
+  }
 
-    // Session claims may not include email (Clerk default JWT omits it).
-    // Fall back to fetching the full user from the Clerk API.
-    let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
-    let clerkName = (sessionClaims?.name as string | undefined) ?? "";
-    if (!clerkEmail) {
-      try {
-        const clerkUser = await clerkClient().users.getUser(clerkUserId);
-        clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
-        clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
-      } catch {
-        // Non-fatal — proceed with empty email; auto-promote won't trigger
-      }
+  const isAdminEmail = clerkEmail && ADMIN_EMAILS.includes(clerkEmail.toLowerCase());
+  const defaultStatus = isAdminEmail ? "active" : "pending";
+  const defaultRole: UserRole = isAdminEmail ? "admin" : "technician";
+
+  // SECURITY: Role is ALWAYS resolved from the database record.
+  // The onConflictDoUpdate set clause deliberately excludes `role` so that
+  // a user whose role was downgraded mid-session cannot retain elevated access
+  // on their next authenticated request.
+  let [user] = await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      clerkId: clerkUserId,
+      email: clerkEmail,
+      name: clerkName,
+      displayName: clerkName || clerkEmail,
+      role: defaultRole,
+      status: defaultStatus,
+    })
+    .onConflictDoUpdate({
+      target: users.clerkId,
+      set: {
+        email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
+        name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+        displayName: sql`CASE WHEN ${users.displayName} = '' AND EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE ${users.displayName} END`,
+      },
+    })
+    .returning();
+
+  if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    if (user.role !== "admin") {
+      [user] = await db
+        .update(users)
+        .set({ role: "admin", status: "active" })
+        .where(eq(users.id, user.id))
+        .returning();
+    } else if (user.status !== "active") {
+      [user] = await db
+        .update(users)
+        .set({ status: "active" })
+        .where(eq(users.id, user.id))
+        .returning();
     }
+  }
 
-    const isAdminEmail = clerkEmail && ADMIN_EMAILS.includes(clerkEmail.toLowerCase());
-    const defaultStatus = isAdminEmail ? "active" : "pending";
-    const defaultRole: UserRole = isAdminEmail ? "admin" : "technician";
+  if (user.deletedAt) {
+    return { ok: false, status: 403, body: { error: "deleted", message: "Your account has been removed." } };
+  }
 
-    // SECURITY: Role is ALWAYS resolved from the database record.
-    // The onConflictDoUpdate set clause deliberately excludes `role` so that
-    // a user whose role was downgraded mid-session cannot retain elevated access
-    // on their next authenticated request. JWT claims, request headers, and
-    // request body fields are never used to determine the effective role.
-    let [user] = await db
-      .insert(users)
-      .values({
-        id: randomUUID(),
-        clerkId: clerkUserId,
-        email: clerkEmail,
-        name: clerkName,
-        displayName: clerkName || clerkEmail,
-        role: defaultRole,
-        status: defaultStatus,
-      })
-      .onConflictDoUpdate({
-        target: users.clerkId,
-        set: {
-          email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
-          name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
-          displayName: sql`CASE WHEN ${users.displayName} = '' AND EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE ${users.displayName} END`,
-        },
-      })
-      .returning();
-
-    // Auto-promote users whose email is in ADMIN_EMAILS
-    if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-      if (user.role !== "admin") {
-        [user] = await db
-          .update(users)
-          .set({ role: "admin", status: "active" })
-          .where(eq(users.id, user.id))
-          .returning();
-      } else if (user.status !== "active") {
-        [user] = await db
-          .update(users)
-          .set({ status: "active" })
-          .where(eq(users.id, user.id))
-          .returning();
-      }
-    }
-
-    if (user.deletedAt) {
-      return res.status(403).json({ error: "deleted", message: "Your account has been removed." });
-    }
-
-    req.authUser = {
+  return {
+    ok: true,
+    user: {
       id: user.id,
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
       role: user.role as UserRole,
       status: user.status,
-    };
-
-    Sentry.setUser({ id: user.id, email: user.email });
-
-    if (user.status === "pending") {
-      return res.status(403).json({ error: "Account pending approval" });
-    }
-
-    if (user.status === "blocked") {
-      return res.status(403).json({ error: "blocked", message: "Your account has been suspended." });
-    }
-
-    next();
-  } catch (err) {
-    console.error("Auth error:", err);
-    res.status(500).json({ error: "Auth failed" });
-  }
+      locale: clerkLocale,
+    },
+  };
 }
 
-export async function requireAuthAny(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  // Internal stability test runner token — grants admin access
-  if (req.headers["x-stability-token"] === STABILITY_TOKEN) {
-    req.authUser = { ...DEV_USER, role: "admin" };
-    return next();
-  }
-
-  const isDevBypass = isDevelopment && !hasClerkSecret;
-
-  if (isDevBypass) {
-    const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
-    const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
-    const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;
-    const baseUser: AuthUser = userPreset ? { ...DEV_USER, ...userPreset } : DEV_USER;
-    const devUser: AuthUser =
-      overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
-        ? { ...baseUser, role: overrideRole }
-        : baseUser;
-    req.authUser = await ensureDevUserRecord(devUser);
-    Sentry.setUser({ id: devUser.id, email: devUser.email });
-    return next();
-  }
-
-  try {
-    const { userId: clerkUserId, sessionClaims } = getAuth(req);
-
-    if (!clerkUserId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Session claims may not include email — fall back to Clerk API
-    let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
-    let clerkName = (sessionClaims?.name as string | undefined) ?? "";
-    if (!clerkEmail) {
-      try {
-        const clerkUser = await clerkClient().users.getUser(clerkUserId);
-        clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
-        clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
-      } catch {
-        // Non-fatal — proceed with empty email; auto-promote won't trigger
+export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
+  return async function requireAuthHandler(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await resolver(req);
+      if (!result.ok) {
+        return res.status(result.status).json(result.body);
       }
-    }
 
-    const isAdminEmail = clerkEmail && ADMIN_EMAILS.includes(clerkEmail.toLowerCase());
-    const defaultStatus = isAdminEmail ? "active" : "pending";
-    const defaultRole: UserRole = isAdminEmail ? "admin" : "technician";
+      req.authUser = result.user;
+      req.locale = resolveRequestLocale(req, result.user.locale);
+      Sentry.setUser({ id: result.user.id, email: result.user.email });
 
-    // SECURITY: Role is ALWAYS resolved from the database record.
-    let [user] = await db
-      .insert(users)
-      .values({
-        id: randomUUID(),
-        clerkId: clerkUserId,
-        email: clerkEmail,
-        name: clerkName,
-        displayName: clerkName || clerkEmail,
-        role: defaultRole,
-        status: defaultStatus,
-      })
-      .onConflictDoUpdate({
-        target: users.clerkId,
-        set: {
-          email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
-          name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
-          displayName: sql`CASE WHEN ${users.displayName} = '' AND EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE ${users.displayName} END`,
-        },
-      })
-      .returning();
-
-    // Auto-promote users whose email is in ADMIN_EMAILS (synced with requireAuth)
-    if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-      if (user.role !== "admin") {
-        [user] = await db
-          .update(users)
-          .set({ role: "admin", status: "active" })
-          .where(eq(users.id, user.id))
-          .returning();
-      } else if (user.status !== "active") {
-        [user] = await db
-          .update(users)
-          .set({ status: "active" })
-          .where(eq(users.id, user.id))
-          .returning();
+      if (result.user.status === "pending") {
+        return res.status(403).json({ error: "Account pending approval" });
       }
+
+      if (result.user.status === "blocked") {
+        return res.status(403).json({ error: "blocked", message: "Your account has been suspended." });
+      }
+
+      next();
+    } catch (err) {
+      const status = isLikelyInvalidTokenError(err) ? 401 : 500;
+      const message = status === 401 ? "Invalid authentication token" : "Auth failed";
+      console.error("[auth] requireAuth error", err);
+      return res.status(status).json({ error: message });
     }
-
-    // Block deleted accounts before granting access
-    if (user.deletedAt) {
-      return res.status(403).json({ error: "deleted", message: "Your account has been removed." });
-    }
-
-    req.authUser = {
-      id: user.id,
-      clerkId: user.clerkId,
-      email: user.email,
-      name: user.name,
-      role: user.role as UserRole,
-      status: user.status,
-    };
-
-    Sentry.setUser({ id: user.id, email: user.email });
-    next();
-  } catch (err) {
-    console.error("Auth error:", err);
-    res.status(500).json({ error: "Auth failed" });
-  }
+  };
 }
 
+export const requireAuth = createRequireAuth();
+
+export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
+  return async function requireAuthAnyHandler(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await resolver(req);
+      if (!result.ok) {
+        return res.status(result.status).json(result.body);
+      }
+
+      req.authUser = result.user;
+      req.locale = resolveRequestLocale(req, result.user.locale);
+      Sentry.setUser({ id: result.user.id, email: result.user.email });
+      next();
+    } catch (err) {
+      const status = isLikelyInvalidTokenError(err) ? 401 : 500;
+      const message = status === 401 ? "Invalid authentication token" : "Auth failed";
+      console.error("[auth] requireAuthAny error", err);
+      return res.status(status).json({ error: message });
+    }
+  };
+}
+
+export const requireAuthAny = createRequireAuthAny();
 
 export function requireAdmin(
   req: Request,

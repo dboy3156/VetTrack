@@ -30,7 +30,7 @@ import type {
   ShiftImportPreview,
   ShiftImportResult,
 } from "@/types";
-import { t } from "@/lib/i18n";
+import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
 import type { PendingSyncType } from "./offline-db";
 import {
@@ -57,7 +57,7 @@ const BASE_HEADERS: Record<string, string> = {
 };
 
 function buildHeaders(): Record<string, string> {
-  return { ...BASE_HEADERS, ...getAuthHeaders() };
+  return { ...BASE_HEADERS, ...getAuthHeaders(), "X-Locale": getStoredLocale() };
 }
 
 interface OfflineOptions {

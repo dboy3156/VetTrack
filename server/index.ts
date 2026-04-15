@@ -32,6 +32,8 @@ import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import shiftsRoutes from "./routes/shifts.js";
 import testRoutes from "./routes/test.js";
+import demoSeedRoutes from "./routes/demo-seed.js";
+import healthRoutes from "./routes/health.js";
 import { runMigrations } from "./migrate.js";
 import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
 import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
@@ -40,6 +42,7 @@ import {
   startSmartRoleNotificationScheduler,
 } from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
+import { i18nMiddleware } from "../lib/i18n/middleware.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
@@ -206,6 +209,7 @@ app.use(async (req, res, next) => {
 
 // Global API limiter runs before route-specific limiters.
 app.use("/api", globalApiLimiter);
+app.use("/api", i18nMiddleware);
 
 app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);
@@ -223,6 +227,8 @@ app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/storage", storageRoutes);
 app.use("/api/shifts", shiftsRoutes);
 app.use("/api/test", testRoutes);
+app.use("/api/demo-seed", demoSeedRoutes);
+app.use("/api/health/ready", healthRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));

@@ -1,10 +1,18 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import {
+  applyLocaleDocumentAttributes,
+  getStoredLocale,
+  isSupportedLocale,
+  setStoredLocale,
+  type Locale,
+} from "@/lib/i18n";
 
 export type Density = "compact" | "comfortable";
 export type TimeFormat = "12h" | "24h";
 export type DateFormat = "MM/DD/YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD";
 
 export interface Settings {
+  locale: Locale;
   darkMode: boolean;
   density: Density;
   soundEnabled: boolean;
@@ -21,6 +29,7 @@ export interface Settings {
 const STORAGE_KEY = "vettrack-settings";
 
 const DEFAULT_SETTINGS: Settings = {
+  locale: getStoredLocale(),
   darkMode: false,
   density: "comfortable",
   soundEnabled: true,
@@ -40,8 +49,10 @@ function loadSettings(): Settings {
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
     if ("language" in parsed) {
+      parsed.locale = isSupportedLocale(parsed.language) ? parsed.language : getStoredLocale();
       delete parsed.language;
     }
+    if (!isSupportedLocale(parsed.locale)) parsed.locale = getStoredLocale();
     return { ...DEFAULT_SETTINGS, ...parsed };
   } catch {
     return DEFAULT_SETTINGS;
@@ -65,6 +76,8 @@ function applySettings(settings: Settings) {
     list?.remove("dark");
   }
   html.setAttribute("data-density", settings.density);
+  const locale = setStoredLocale(settings.locale);
+  applyLocaleDocumentAttributes(locale);
   const brightness = Math.min(100, Math.max(30, settings.brightness ?? 100));
   const body = document.body;
   if (!body) return;
