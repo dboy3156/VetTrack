@@ -128,4 +128,75 @@ router.get("/", async (_req, res) => {
   res.status(httpStatus).json({ status, checks });
 });
 
+router.get("/data-integrity", async (req, res) => {
+  const expectedToken = process.env.DATA_INTEGRITY_HEALTH_TOKEN?.trim();
+  const providedToken = typeof req.headers["x-health-token"] === "string"
+    ? req.headers["x-health-token"].trim()
+    : "";
+
+  if (process.env.NODE_ENV === "production" && expectedToken && providedToken !== expectedToken) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const [nullCountsResult, mismatchCountsResult, orphanCountsResult, fallbackResult] = await Promise.all([
+      pool.query<{ table_name: string; null_or_empty_count: string }>(
+        "SELECT table_name, null_or_empty_count::text FROM vt_data_integrity_null_clinic_counts ORDER BY table_name"
+      ),
+      pool.query<{ check_name: string; mismatch_count: string }>(
+        "SELECT check_name, mismatch_count::text FROM vt_data_integrity_cross_tenant_mismatch_counts ORDER BY check_name"
+      ),
+      pool.query<{ check_name: string; orphan_count: string }>(
+        "SELECT check_name, orphan_count::text FROM vt_data_integrity_orphan_counts ORDER BY check_name"
+      ),
+      pool.query<{ table_name: string; fallback_row_count: string }>(`
+        SELECT table_name, fallback_row_count::text
+        FROM vt_clinic_backfill_fallback_audit
+        WHERE migration_name = '025_data_integrity_hardening.sql'
+        ORDER BY table_name
+      `),
+    ]);
+
+    const nullClinicCounts = Object.fromEntries(
+      nullCountsResult.rows.map((row) => [row.table_name, Number.parseInt(row.null_or_empty_count, 10)])
+    );
+    const crossTenantMismatchCounts = Object.fromEntries(
+      mismatchCountsResult.rows.map((row) => [row.check_name, Number.parseInt(row.mismatch_count, 10)])
+    );
+    const orphanCounts = Object.fromEntries(
+      orphanCountsResult.rows.map((row) => [row.check_name, Number.parseInt(row.orphan_count, 10)])
+    );
+    const fallbackUsage = Object.fromEntries(
+      fallbackResult.rows.map((row) => [row.table_name, Number.parseInt(row.fallback_row_count, 10)])
+    );
+
+    const totalNullClinic = Object.values(nullClinicCounts).reduce((sum, value) => sum + value, 0);
+    const totalMismatches = Object.values(crossTenantMismatchCounts).reduce((sum, value) => sum + value, 0);
+    const totalOrphans = Object.values(orphanCounts).reduce((sum, value) => sum + value, 0);
+    const totalFallbackRows = Object.values(fallbackUsage).reduce((sum, value) => sum + value, 0);
+
+    const status = totalNullClinic === 0 && totalMismatches === 0 ? "ok" : "degraded";
+
+    res.status(status === "ok" ? 200 : 503).json({
+      status,
+      totals: {
+        nullClinicIdRows: totalNullClinic,
+        crossTenantMismatches: totalMismatches,
+        orphanRelations: totalOrphans,
+        fallbackRows: totalFallbackRows,
+      },
+      nullClinicCounts,
+      crossTenantMismatchCounts,
+      orphanCounts,
+      fallbackUsage,
+    });
+  } catch (error) {
+    console.error("[health] data-integrity check failed", error);
+    res.status(503).json({
+      status: "error",
+      error: "Failed to evaluate data integrity checks",
+    });
+  }
+});
+
 export default router;

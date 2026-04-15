@@ -2,12 +2,13 @@ import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db, users } from "../db.js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { STABILITY_TOKEN } from "../lib/stability-token.js";
 import { resolveCurrentRole } from "../lib/role-resolution.js";
 import { resolveRequestLocale } from "../../lib/i18n/middleware.js";
 import { normalizeLocale } from "../../lib/i18n/loader.js";
+import { buildAccessDeniedBody, recordAccessDenied } from "../lib/access-denied.js";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -151,14 +152,36 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     sessionClaims = auth.sessionClaims as Record<string, unknown> | undefined;
   } catch (err) {
     console.error("[auth] Failed to read auth session", err);
-    return { ok: false, status: 401, body: { error: "Invalid authentication token" } };
+    return { ok: false, status: 401, body: { error: "UNAUTHORIZED", reason: "INVALID_AUTH_TOKEN", message: "Invalid authentication token" } };
   }
 
   if (!clerkUserId) {
-    return { ok: false, status: 401, body: { error: "Unauthorized" } };
+    return { ok: false, status: 401, body: { error: "UNAUTHORIZED", reason: "MISSING_AUTH_USER", message: "Unauthorized" } };
   }
   if (!clerkOrgId) {
-    return { ok: false, status: 403, body: { error: "Clinic context missing" } };
+    const [existingUser] = await db
+      .select({
+        clinicId: users.clinicId,
+        id: users.id,
+      })
+      .from(users)
+      .where(and(eq(users.clerkId, clerkUserId), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (existingUser?.clinicId) {
+      clerkOrgId = existingUser.clinicId;
+      console.warn("[auth] Clerk org missing; using clinic from existing DB user", {
+        clerkUserId,
+        dbUserId: existingUser.id,
+        clinicId: clerkOrgId,
+      });
+    } else {
+      return {
+        ok: false,
+        status: 403,
+        body: buildAccessDeniedBody("MISSING_CLINIC_ID", "User is not assigned to a clinic"),
+      };
+    }
   }
 
   let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
@@ -224,7 +247,15 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   }
 
   if (user.deletedAt) {
-    return { ok: false, status: 403, body: { error: "deleted", message: "Your account has been removed." } };
+    return { ok: false, status: 403, body: { error: "ACCESS_DENIED", reason: "ACCOUNT_DELETED", message: "Your account has been removed." } };
+  }
+
+  if (user.clinicId !== clerkOrgId) {
+    return {
+      ok: false,
+      status: 403,
+      body: buildAccessDeniedBody("TENANT_MISMATCH", "Authenticated clinic does not match user clinic assignment"),
+    };
   }
 
   return {
@@ -247,6 +278,26 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
     try {
       const result = await resolver(req);
       if (!result.ok) {
+        if (result.status === 403 && typeof result.body.reason === "string") {
+          const reason = result.body.reason;
+          if (
+            reason === "MISSING_CLINIC_ID" ||
+            reason === "TENANT_MISMATCH" ||
+            reason === "ACCOUNT_PENDING_APPROVAL" ||
+            reason === "ACCOUNT_BLOCKED" ||
+            reason === "ACCOUNT_DELETED" ||
+            reason === "TENANT_CONTEXT_MISSING" ||
+            reason === "INSUFFICIENT_ROLE"
+          ) {
+            recordAccessDenied({
+              req,
+              source: "requireAuth",
+              statusCode: result.status,
+              reason,
+              message: result.body.message,
+            });
+          }
+        }
         return res.status(result.status).json(result.body);
       }
 
@@ -256,11 +307,33 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
       Sentry.setUser({ id: result.user.id, email: result.user.email });
 
       if (result.user.status === "pending") {
-        return res.status(403).json({ error: "Account pending approval" });
+        recordAccessDenied({
+          req,
+          source: "requireAuth",
+          statusCode: 403,
+          reason: "ACCOUNT_PENDING_APPROVAL",
+          clinicId: result.user.clinicId,
+          userId: result.user.id,
+          message: "Account pending approval",
+        });
+        return res.status(403).json(
+          buildAccessDeniedBody("ACCOUNT_PENDING_APPROVAL", "Account pending approval")
+        );
       }
 
       if (result.user.status === "blocked") {
-        return res.status(403).json({ error: "blocked", message: "Your account has been suspended." });
+        recordAccessDenied({
+          req,
+          source: "requireAuth",
+          statusCode: 403,
+          reason: "ACCOUNT_BLOCKED",
+          clinicId: result.user.clinicId,
+          userId: result.user.id,
+          message: "Your account has been suspended.",
+        });
+        return res.status(403).json(
+          buildAccessDeniedBody("ACCOUNT_BLOCKED", "Your account has been suspended.")
+        );
       }
 
       next();
@@ -280,6 +353,26 @@ export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
     try {
       const result = await resolver(req);
       if (!result.ok) {
+        if (result.status === 403 && typeof result.body.reason === "string") {
+          const reason = result.body.reason;
+          if (
+            reason === "MISSING_CLINIC_ID" ||
+            reason === "TENANT_MISMATCH" ||
+            reason === "ACCOUNT_PENDING_APPROVAL" ||
+            reason === "ACCOUNT_BLOCKED" ||
+            reason === "ACCOUNT_DELETED" ||
+            reason === "TENANT_CONTEXT_MISSING" ||
+            reason === "INSUFFICIENT_ROLE"
+          ) {
+            recordAccessDenied({
+              req,
+              source: "requireAuthAny",
+              statusCode: result.status,
+              reason,
+              message: result.body.message,
+            });
+          }
+        }
         return res.status(result.status).json(result.body);
       }
 
@@ -305,8 +398,18 @@ export function requireAdmin(
   next: NextFunction
 ) {
   if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
-  if (req.authUser.role !== "admin")
-    return res.status(403).json({ error: "Admin access required" });
+  if (req.authUser.role !== "admin") {
+    recordAccessDenied({
+      req,
+      source: "requireAdmin",
+      statusCode: 403,
+      reason: "INSUFFICIENT_ROLE",
+      message: "Admin access required",
+    });
+    return res.status(403).json(
+      buildAccessDeniedBody("INSUFFICIENT_ROLE", "Admin access required")
+    );
+  }
   next();
 }
 
@@ -316,7 +419,16 @@ export function requireRole(minRole: UserRole) {
     const userLevel = ROLE_HIERARCHY[req.authUser.role] ?? 0;
     const requiredLevel = ROLE_HIERARCHY[minRole] ?? 0;
     if (userLevel < requiredLevel) {
-      return res.status(403).json({ error: "Insufficient permissions" });
+      recordAccessDenied({
+        req,
+        source: "requireRole",
+        statusCode: 403,
+        reason: "INSUFFICIENT_ROLE",
+        message: "Insufficient permissions",
+      });
+      return res.status(403).json(
+        buildAccessDeniedBody("INSUFFICIENT_ROLE", "Insufficient permissions")
+      );
     }
     next();
   };
@@ -351,7 +463,16 @@ export function requireEffectiveRole(minRole: UserRole) {
       const userLevel = ROLE_HIERARCHY[effectiveRole] ?? 0;
       const requiredLevel = ROLE_HIERARCHY[minRole] ?? 0;
       if (userLevel < requiredLevel) {
-        return res.status(403).json({ error: "Insufficient permissions" });
+        recordAccessDenied({
+          req,
+          source: "requireEffectiveRole",
+          statusCode: 403,
+          reason: "INSUFFICIENT_ROLE",
+          message: "Insufficient permissions",
+        });
+        return res.status(403).json(
+          buildAccessDeniedBody("INSUFFICIENT_ROLE", "Insufficient permissions")
+        );
       }
 
       next();

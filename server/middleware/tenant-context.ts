@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
+import { buildAccessDeniedBody, recordAccessDenied } from "../lib/access-denied.js";
 
 export interface AuthenticatedRequest extends Request {
   clinicId: string;
@@ -38,7 +39,16 @@ export function tenantContext(req: Request, res: Response, next: NextFunction): 
 
   const clinicId = (fromAuthUser ?? fromClerk ?? fromDevHeader ?? fromDevDefault ?? fromImplicitDevDefault)?.trim();
   if (!clinicId) {
-    res.status(403).json({ error: "Clinic context missing" });
+    recordAccessDenied({
+      req,
+      source: "tenant-context",
+      statusCode: 403,
+      reason: "TENANT_CONTEXT_MISSING",
+      message: "Clinic context missing",
+    });
+    res.status(403).json(
+      buildAccessDeniedBody("TENANT_CONTEXT_MISSING", "Clinic context missing")
+    );
     return;
   }
 

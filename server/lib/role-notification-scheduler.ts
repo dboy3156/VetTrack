@@ -7,6 +7,14 @@ import {
   getScheduledNotificationPollIntervalMs,
 } from "./test-mode.js";
 
+function requireClinicId(clinicId: string | null | undefined): string {
+  const normalized = clinicId?.trim();
+  if (!normalized) {
+    throw new Error("Missing clinicId in role notification scheduler");
+  }
+  return normalized;
+}
+
 function parseScheduledNotificationPayload(raw: unknown): Record<string, unknown> {
   if (raw == null) return {};
   if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
@@ -62,12 +70,13 @@ async function userAllowsReminder(
     | "senior_team_overdue_alerts_enabled"
     | "admin_hourly_summary_enabled"
 ): Promise<boolean> {
+  const scopedClinicId = requireClinicId(clinicId);
   const [row] = await db
     .select({
       enabled: sql<boolean>`COALESCE(bool_or(${sql.raw(settingField)}), false)`,
     })
     .from(pushSubscriptions)
-    .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.userId, userId)));
+    .where(and(eq(pushSubscriptions.clinicId, scopedClinicId), eq(pushSubscriptions.userId, userId)));
 
   return Boolean(row?.enabled);
 }
@@ -131,7 +140,7 @@ async function sendScheduledCheckoutReturnReminder(
   equipmentId: string,
   equipmentName: string
 ): Promise<void> {
-  await sendPushToUser(clinicId, userId, {
+  await sendPushToUser(requireClinicId(clinicId), userId, {
     title: "VetTrack",
     body: buildReminderMessage(equipmentName),
     tag: `smart-reminder:${equipmentId}`,
@@ -177,6 +186,7 @@ export async function scheduleSmartReturnReminder(params: {
   userId: string;
   checkedOutAt: Date | string | null;
 }): Promise<void> {
+  const clinicId = requireClinicId(params.clinicId);
   if (!params.expectedReturnMinutes || params.expectedReturnMinutes <= 0) return;
   if (!params.checkedOutAt) return;
 
@@ -191,7 +201,7 @@ export async function scheduleSmartReturnReminder(params: {
     .delete(scheduledNotifications)
     .where(
       and(
-        eq(scheduledNotifications.clinicId, params.clinicId),
+        eq(scheduledNotifications.clinicId, clinicId),
         eq(scheduledNotifications.type, "return_reminder"),
         eq(scheduledNotifications.userId, params.userId),
         eq(scheduledNotifications.equipmentId, params.equipmentId),
@@ -200,7 +210,7 @@ export async function scheduleSmartReturnReminder(params: {
     );
 
   await db.insert(scheduledNotifications).values({
-    clinicId: params.clinicId,
+    clinicId,
     type: "return_reminder",
     userId: params.userId,
     equipmentId: params.equipmentId,
@@ -215,11 +225,12 @@ export async function cancelSmartReturnReminder(
   userId: string | null | undefined
 ): Promise<void> {
   if (!userId) return;
+  const scopedClinicId = requireClinicId(clinicId);
   await db
     .delete(scheduledNotifications)
     .where(
       and(
-        eq(scheduledNotifications.clinicId, clinicId),
+        eq(scheduledNotifications.clinicId, scopedClinicId),
         eq(scheduledNotifications.type, "return_reminder"),
         eq(scheduledNotifications.userId, userId),
         eq(scheduledNotifications.equipmentId, equipmentId),

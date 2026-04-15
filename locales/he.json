@@ -252,8 +252,20 @@
       "pendingTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
       "blockedTitle": "גישה חסומה",
       "blockedDescription": "פנה למחלקת מערכות מידע לבירור.",
+      "accessDeniedTitle": "אין גישה",
+      "accessDeniedDescription": "לא ניתן לשייך את ההפעלה שלך למרפאה.",
+      "retry": "נסה שוב",
       "signOut": "התנתק",
-      "loadingApp": "טוען מערכת..."
+      "loadingApp": "טוען מערכת...",
+      "reasons": {
+        "missingClinicId": "המשתמש לא משויך למרפאה. התנתק והתחבר מחדש, ואם הבעיה נמשכת פנה למנהל המערכת.",
+        "missingClinicContext": "לא התקבל הקשר מרפאה בבקשה. נסה שוב.",
+        "tenantMismatch": "המרפאה של החשבון לא תואמת למרפאה הפעילה.",
+        "insufficientRole": "אין לך הרשאה לגשת לאזור זה.",
+        "accountDeleted": "החשבון הוסר מהמערכת.",
+        "accountBlocked": "החשבון חסום.",
+        "accountPendingApproval": "החשבון ממתין לאישור."
+      }
     }
   },
 

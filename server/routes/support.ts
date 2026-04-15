@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, supportTickets, users } from "../db.js";
 import { eq, desc, ne, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireClinicId } from "../middleware/tenant-context.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { sendPushToAll } from "../lib/push.js";
 
@@ -41,7 +42,7 @@ const patchTicketSchema = z.object({
 router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "לא מורשה" });
-    const clinicId = req.clinicId!;
+    const clinicId = requireClinicId(req);
 
     const { title, description, severity, pageUrl, deviceInfo, appVersion } = req.body as z.infer<typeof createTicketSchema>;
 
@@ -79,7 +80,7 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const clinicId = req.clinicId!;
+    const clinicId = requireClinicId(req);
     const tickets = await db
       .select()
       .from(supportTickets)
@@ -95,7 +96,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 
 router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
   try {
-    const clinicId = req.clinicId!;
+    const clinicId = requireClinicId(req);
     const tickets = await db
       .select({ id: supportTickets.id })
       .from(supportTickets)
@@ -110,7 +111,7 @@ router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
 
 router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchTicketSchema), async (req, res) => {
   try {
-    const clinicId = req.clinicId!;
+    const clinicId = requireClinicId(req);
     const { status, adminNote } = req.body as z.infer<typeof patchTicketSchema>;
 
     const updateData: Record<string, unknown> = {

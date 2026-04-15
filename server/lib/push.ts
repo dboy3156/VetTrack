@@ -83,6 +83,12 @@ export interface PushPayload {
   silent?: boolean;
 }
 
+function assertClinicId(clinicId: string): void {
+  if (!clinicId || clinicId.trim() === "") {
+    throw new Error("Missing clinicId for push operation");
+  }
+}
+
 const dedupeCache = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 60_000;
 
@@ -152,6 +158,7 @@ async function cleanupExpiredEndpoints(endpoints: string[]): Promise<void> {
 }
 
 export async function sendPushToAll(clinicId: string, payload: PushPayload): Promise<void> {
+  assertClinicId(clinicId);
   if (!vapidReady) return;
 
   const subs = await db
@@ -184,6 +191,7 @@ export async function sendPushToAll(clinicId: string, payload: PushPayload): Pro
 }
 
 export async function sendPushToRole(clinicId: string, role: string, payload: PushPayload): Promise<void> {
+  assertClinicId(clinicId);
 
   const allSubs = await db.select({
     endpoint: pushSubscriptions.endpoint,
@@ -226,6 +234,7 @@ export async function sendPushToRole(clinicId: string, role: string, payload: Pu
 }
 
 export async function sendPushToOthers(clinicId: string, excludeUserId: string, payload: PushPayload): Promise<void> {
+  assertClinicId(clinicId);
   if (!vapidReady) return;
 
   const allSubs = await db
@@ -259,6 +268,7 @@ export async function sendPushToOthers(clinicId: string, excludeUserId: string, 
 }
 
 export async function sendPushToUser(clinicId: string, userId: string, payload: PushPayload): Promise<void> {
+  assertClinicId(clinicId);
   if (!vapidReady) return;
 
   const subs = await db
