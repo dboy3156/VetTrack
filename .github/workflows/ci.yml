@@ -42,17 +42,17 @@ jobs:
       - name: 📦 Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: 9.15.9
           run_install: false
 
-      - name: 🟢 Setup Node.js 20
+      - name: 🟢 Setup Node.js (from .nvmrc)
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: ".nvmrc"
           cache: "pnpm"
 
       - name: 📥 Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: 🔷 TypeScript check
         run: pnpm exec tsc --noEmit
@@ -96,13 +96,13 @@ jobs:
       - name: 📦 Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: 9.15.9
           run_install: false
 
-      - name: 🟢 Setup Node.js 20
+      - name: 🟢 Setup Node.js (from .nvmrc)
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version-file: ".nvmrc"
           cache: "pnpm"
 
       - name: 📥 Install dependencies
