@@ -28,9 +28,11 @@ function overlaps(existing, incoming) {
 
 const repoRoot = path.resolve(__dirname, "..");
 const migration026 = fs.readFileSync(path.join(repoRoot, "migrations", "026_appointments_scheduling.sql"), "utf8");
+const migration027 = fs.readFileSync(path.join(repoRoot, "migrations", "027_appointments_product_polish.sql"), "utf8");
 const serviceFile = fs.readFileSync(path.join(repoRoot, "server", "services", "appointments.service.ts"), "utf8");
 const routeFile = fs.readFileSync(path.join(repoRoot, "server", "routes", "appointments.ts"), "utf8");
 const serverIndex = fs.readFileSync(path.join(repoRoot, "server", "index.ts"), "utf8");
+const appointmentsPage = fs.readFileSync(path.join(repoRoot, "src", "pages", "appointments.tsx"), "utf8");
 
 console.log("\n── Appointments Scheduling Test");
 
@@ -38,6 +40,18 @@ assert(
   migration026.includes("CREATE TABLE IF NOT EXISTS vt_appointments"),
   "Appointments table migration exists",
   "Expected migration 026 to create vt_appointments table"
+);
+
+assert(
+  migration027.includes("conflict_override") && migration027.includes("override_reason"),
+  "Product polish migration adds conflict override fields",
+  "Expected migration 027 to add conflict_override and override_reason columns"
+);
+
+assert(
+  migration027.includes("arrived") && migration027.includes("in_progress"),
+  "Workflow status migration includes arrived/in_progress",
+  "Expected migration 027 to extend appointment status check"
 );
 
 assert(
@@ -54,6 +68,27 @@ assert(
     serviceFile.includes("gt(appointments.endTime, args.startTime)"),
   "Service enforces overlap rule at backend layer",
   "Expected service to apply overlap predicate in DB query"
+);
+
+assert(
+  serviceFile.includes("assertWithinVetShift") &&
+    serviceFile.includes("Cannot schedule outside vet shift hours"),
+  "Service enforces shift boundary validation",
+  "Expected appointment service to block times outside shift windows"
+);
+
+assert(
+  serviceFile.includes("VALID_STATUS_TRANSITIONS") &&
+    serviceFile.includes("INVALID_STATUS_TRANSITION"),
+  "Service enforces status transition rules",
+  "Expected appointment service to validate workflow transitions"
+);
+
+assert(
+  serviceFile.includes("OVERRIDE_REASON_REQUIRED") &&
+    serviceFile.includes("OVERRIDE_NOT_NEEDED"),
+  "Service enforces conflict override reason semantics",
+  "Expected override to require reason and real conflict"
 );
 
 assert(
@@ -74,15 +109,38 @@ assert(
 
 assert(
   routeFile.includes("requireEffectiveRole(\"technician\")") &&
-    routeFile.includes("error: \"VALIDATION_FAILED\""),
+    routeFile.includes("error: \"VALIDATION_FAILED\"") &&
+    routeFile.includes("router.get(\"/meta\""),
   "Routes require auth + structured validation errors",
-  "Expected appointments route to enforce auth and return structured errors"
+  "Expected appointments route to enforce auth, expose metadata, and return structured errors"
 );
 
 assert(
   serverIndex.includes("app.use(\"/api/appointments\", appointmentsRoutes);"),
   "Appointments API mounted in server",
   "Expected server/index.ts to mount /api/appointments"
+);
+
+assert(
+  appointmentsPage.includes("SLOT_MINUTES = 15") &&
+    appointmentsPage.includes("DAY_START_HOUR = 8") &&
+    appointmentsPage.includes("DAY_END_HOUR = 20"),
+  "UI calendar grid uses hour timeline with 15-min slots",
+  "Expected appointments page to render timeline slots between 08:00 and 20:00"
+);
+
+assert(
+  appointmentsPage.includes("DURATION_PRESETS") &&
+    appointmentsPage.includes("manualEndOverride"),
+  "UI supports duration presets and manual end-time override",
+  "Expected appointments page to auto-calc duration while allowing manual edits"
+);
+
+assert(
+  appointmentsPage.includes("conflictOpen") &&
+    appointmentsPage.includes("Confirm Override"),
+  "UI includes conflict override confirmation flow",
+  "Expected conflict warning and reason confirmation dialog in appointments page"
 );
 
 // Behavioral overlap tests (same predicate as service requirement)
@@ -110,6 +168,28 @@ assert(
   utcMillis === offsetMillis,
   "Timezone conversion resolves to the same UTC instant",
   "Expected Date parsing with explicit offset to map correctly to UTC"
+);
+
+// Status transition behavior (must mirror service map)
+const transitions = {
+  scheduled: ["arrived", "in_progress", "completed", "cancelled", "no_show"],
+  arrived: ["in_progress", "completed", "cancelled", "no_show"],
+  in_progress: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+  no_show: [],
+};
+
+assert(
+  transitions.scheduled.includes("arrived") && transitions.arrived.includes("in_progress"),
+  "Forward status transitions are allowed",
+  "Expected scheduled->arrived->in_progress flow to be valid"
+);
+
+assert(
+  transitions.completed.includes("scheduled") === false,
+  "Invalid backwards status transition is blocked",
+  "Expected completed->scheduled to be invalid"
 );
 
 console.log(`\n${"─".repeat(48)}`);

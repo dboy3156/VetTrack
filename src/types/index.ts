@@ -220,7 +220,7 @@ export interface ShiftImportResult {
   issues: ShiftCsvIssue[];
 }
 
-export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
 
 export interface Appointment {
   id: string;
@@ -231,6 +231,8 @@ export interface Appointment {
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
+  conflictOverride: boolean;
+  overrideReason?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -243,6 +245,8 @@ export interface CreateAppointmentRequest {
   startTime: string;
   endTime: string;
   status?: AppointmentStatus;
+  conflictOverride?: boolean;
+  overrideReason?: string | null;
   notes?: string | null;
 }
 
@@ -253,7 +257,25 @@ export interface UpdateAppointmentRequest {
   startTime?: string;
   endTime?: string;
   status?: AppointmentStatus;
+  conflictOverride?: boolean;
+  overrideReason?: string | null;
   notes?: string | null;
+}
+
+export interface VetShiftWindow {
+  id: string;
+  employeeName: string;
+  startTime: string;
+  endTime: string;
+  role: ShiftRole;
+}
+
+export interface AppointmentVetMeta {
+  id: string;
+  name: string;
+  displayName: string;
+  role: UserRole;
+  shifts: VetShiftWindow[];
 }
 
 export interface ScanEquipmentRequest {
