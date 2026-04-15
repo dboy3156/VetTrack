@@ -33,6 +33,7 @@ import {
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { CreateRoomRequest, Room } from "@/types";
 
 function SyncBadge({ status }: { status: string }) {
@@ -181,18 +182,49 @@ function RoomCardSkeleton() {
   return <Skeleton className="h-48 rounded-xl" />;
 }
 
+type Zone = "all" | "icu" | "er" | "surgery" | "other";
+
+const ZONE_LABELS: Record<Zone, string> = {
+  all: "All",
+  icu: "ICU",
+  er: "ER",
+  surgery: "Surgery",
+  other: "Other",
+};
+
+function inferZone(room: Room): Zone {
+  const n = (room.name + " " + (room.floor ?? "")).toLowerCase();
+  if (n.includes("icu") || n.includes("intensive")) return "icu";
+  if (n.includes("er ") || n.includes("emergency") || n.includes("triage")) return "er";
+  if (n.includes("surg") || n.includes("or ") || n.includes("operating")) return "surgery";
+  return "other";
+}
+
 export default function RoomsListPage() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [roomName, setRoomName] = useState("");
   const [roomFloor, setRoomFloor] = useState("");
+  const [activeZone, setActiveZone] = useState<Zone>("all");
 
   const { data: rooms, isLoading, isError } = useQuery({
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
     staleTime: 30_000,
   });
+
+  const zoneCounts: Record<Zone, number> = { all: 0, icu: 0, er: 0, surgery: 0, other: 0 };
+  if (rooms) {
+    zoneCounts.all = rooms.length;
+    for (const r of rooms) zoneCounts[inferZone(r)]++;
+  }
+
+  const visibleZones: Zone[] = ["all", ...( ["icu", "er", "surgery", "other"] as Zone[]).filter((z) => zoneCounts[z] > 0)];
+
+  const filteredRooms = rooms && activeZone !== "all"
+    ? rooms.filter((r) => inferZone(r) === activeZone)
+    : rooms;
 
   const createMut = useMutation({
     mutationFn: (data: CreateRoomRequest) => api.rooms.create(data),
@@ -275,6 +307,32 @@ export default function RoomsListPage() {
           </div>
         )}
 
+        {/* Zone switcher */}
+        {rooms && rooms.length > 0 && visibleZones.length > 2 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-1 px-1">
+            {visibleZones.map((zone) => (
+              <button
+                key={zone}
+                onClick={() => setActiveZone(zone)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap min-h-[40px]",
+                  activeZone === zone
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-card text-foreground border-border hover:bg-muted"
+                )}
+              >
+                {ZONE_LABELS[zone]}
+                <span className={cn(
+                  "text-[10px] font-bold rounded-full px-1.5 py-px",
+                  activeZone === zone ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                )}>
+                  {zoneCounts[zone]}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Grid — minHeight:240 prevents CLS when skeleton → rooms transition occurs */}
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3" style={{ minHeight: 240 }}>
@@ -300,11 +358,19 @@ export default function RoomsListPage() {
               ) : undefined
             }
           />
-        ) : (
+        ) : filteredRooms && filteredRooms.length > 0 ? (
           <div className="grid grid-cols-2 gap-3" style={{ minHeight: 240 }}>
-            {rooms.map((room) => (
+            {filteredRooms.map((room) => (
               <RoomCard key={room.id} room={room} />
             ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-10 gap-2 text-center">
+            <DoorOpen className="w-8 h-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No rooms in {ZONE_LABELS[activeZone]}</p>
+            <button className="text-xs text-primary font-medium" onClick={() => setActiveZone("all")}>
+              Show all rooms
+            </button>
           </div>
         )}
       </div>

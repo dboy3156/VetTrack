@@ -13,11 +13,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { computeDashboardData } from "@/lib/dashboard-utils";
 import { generateMonthlyReport } from "@/lib/generate-report";
 import {
-  LayoutDashboard,
   CheckCircle2,
-  Wrench,
   AlertTriangle,
-  PackageX,
   Users,
   MapPin,
   FileDown,
@@ -28,11 +25,13 @@ import {
   Server,
   Clock,
   MemoryStick,
+  QrCode,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
+import { QrScanner } from "@/components/qr-scanner";
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -45,6 +44,7 @@ function formatUptime(seconds: number): string {
 
 export default function ManagementDashboardPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const { data: equipment, isLoading, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["/api/equipment"],
@@ -135,64 +135,29 @@ export default function ManagementDashboardPage() {
           />
         )}
 
-        {/* Summary Counts */}
-        <div>
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Overview
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {isLoading ? (
-              <>
-                <Skeleton className="h-20 rounded-2xl" />
-                <Skeleton className="h-20 rounded-2xl" />
-                <Skeleton className="h-20 rounded-2xl" />
-                <Skeleton className="h-20 rounded-2xl" />
-              </>
-            ) : (
-              <>
-                <Card className="bg-card border-border/60 shadow-sm" data-testid="count-available">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.available}</span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground">{counts.available}</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border/60 shadow-sm" data-testid="count-in-use">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Users className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.inUse}</span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground">{counts.inUse}</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border/60 shadow-sm" data-testid="count-issues">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wrench className="w-4 h-4 text-red-400" />
-                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.issues}</span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground">{counts.issues}</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border/60 shadow-sm" data-testid="count-missing">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <PackageX className="w-4 h-4 text-amber-500" />
-                      <span className="text-xs text-muted-foreground font-medium">{t.managementDashboardPage.missing}</span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground">{counts.missing}</p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
+        {/* Summary Strip — glanceable in under 2 seconds */}
+        {isLoading ? (
+          <div className="grid grid-cols-3 gap-2">
+            <Skeleton className="h-[72px] rounded-xl" />
+            <Skeleton className="h-[72px] rounded-xl" />
+            <Skeleton className="h-[72px] rounded-xl" />
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2" data-testid="summary-strip">
+            <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3 min-h-[72px]">
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 leading-none">{counts.available}</p>
+              <span className="text-[11px] font-semibold text-emerald-700/80 dark:text-emerald-400/80">Available</span>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 min-h-[72px]">
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 leading-none">{counts.inUse}</p>
+              <span className="text-[11px] font-semibold text-amber-700/80 dark:text-amber-400/80">In Use</span>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 min-h-[72px]">
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300 leading-none">{counts.issues + counts.missing}</p>
+              <span className="text-[11px] font-semibold text-red-700/80 dark:text-red-400/80">Issues</span>
+            </div>
+          </div>
+        )}
 
         {/* Critical alerts */}
         <Card className="bg-card border-border/60 shadow-sm" data-testid="section-critical-alerts">
@@ -440,6 +405,20 @@ export default function ManagementDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Floating QR scan button — thumb-reachable, bottom-right */}
+      <button
+        onClick={() => setScannerOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
+        aria-label="Scan QR code"
+        data-testid="fab-qr-scan"
+      >
+        <QrCode className="w-6 h-6" />
+      </button>
+
+      {scannerOpen && (
+        <QrScanner onClose={() => setScannerOpen(false)} />
+      )}
     </Layout>
   );
 }
