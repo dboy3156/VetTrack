@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useConflicts, removeConflict, type ConflictItem } from "@/lib/conflict-store";
 import { request } from "@/lib/api";
+import { t } from "@/lib/i18n";
 
 async function resolveConflict(
   item: ConflictItem,
@@ -24,23 +25,23 @@ export function ConflictModal({ queryClient }: { queryClient: QueryClient }) {
 
   return (
     <div className="conflict-modal">
-      <h2>Sync Conflicts</h2>
-      <p>These items were changed on another device while you were offline.</p>
+      <h2>{t.conflictModal.title}</h2>
+      <p>{t.conflictModal.description}</p>
       {conflicts.map((c) => (
         <div key={c.id} className="conflict-item">
-          <p><strong>Server version:</strong></p>
+          <p><strong>{t.conflictModal.serverVersion}</strong></p>
           <pre>{JSON.stringify(c.serverData, null, 2)}</pre>
-          <p><strong>Your version:</strong></p>
+          <p><strong>{t.conflictModal.yourVersion}</strong></p>
           <pre>{JSON.stringify(c.localData, null, 2)}</pre>
           <button
             onClick={() => resolveConflict(c, "overwrite", queryClient)}
           >
-            Keep Mine
+            {t.conflictModal.keepMine}
           </button>
           <button
             onClick={() => resolveConflict(c, "discard", queryClient)}
           >
-            Use Server Version
+            {t.conflictModal.useServerVersion}
           </button>
         </div>
       ))}

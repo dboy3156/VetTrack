@@ -1,0 +1,873 @@
+{
+  "common": {
+    "appName": "VetTrack",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "search": "Search",
+    "loading": "Loading...",
+    "working": "Working...",
+    "confirm": "Confirm",
+    "all": "All",
+    "none": "None",
+    "unknown": "Unknown",
+    "select": "Select",
+    "unfiled": "Unfiled",
+    "justNow": "Just now",
+    "sterilization": "Sterilization",
+    "closeNavigationMenu": "Close navigation menu",
+    "openNavigationMenu": "Open navigation menu",
+    "quickSettings": "Quick settings"
+  },
+
+  "status": {
+    "ok": "OK",
+    "issue": "Issue",
+    "maintenance": "Maintenance",
+    "sterilized": "Sterilized",
+    "all": "All statuses"
+  },
+
+  "layout": {
+    "nav": {
+      "alerts": "Alerts",
+      "mine": "Mine"
+    },
+    "settings": {
+      "darkMode": "Dark mode",
+      "displaySize": "Display size",
+      "comfortable": "Comfortable",
+      "compact": "Compact",
+      "masterSound": "Master sound",
+      "criticalAlerts": "Critical alerts"
+    },
+    "toast": {
+      "equipmentNotFound": "Equipment not found — try again"
+    },
+    "sync": {
+      "pendingActions": "{count} actions pending sync — tap to sync",
+      "failedActions": "{count} actions failed to sync",
+      "viewQueue": "View sync queue",
+      "failedMessage": "Some actions failed. Tap the cloud icon to retry.",
+      "pendingMessage": "{count} actions saved locally and waiting for server. Tap to sync now, or they will sync automatically when connected."
+    }
+  },
+
+  "equipmentList": {
+    "search": {
+      "placeholder": "Search by name, serial number, model..."
+    },
+    "folders": {
+      "all": "All folders",
+      "unfiled": "Unfiled",
+      "searchPlaceholder": "Search folders...",
+      "filterByFolder": "Filter by folder"
+    },
+    "actions": {
+      "select": "Select",
+      "cancel": "Cancel",
+      "move": "Move",
+      "delete": "Delete",
+      "working": "Working...",
+      "exportExcel": "Export to Excel"
+    },
+    "empty": {
+      "message": "No equipment found",
+      "filteredHint": "Try changing the filters or search term.",
+      "emptyHint": "Add your first item to start tracking."
+    },
+    "errors": {
+      "loadFailed": "Failed to load equipment. Try again.",
+      "renderFailed": "Equipment list display failed"
+    },
+    "toast": {
+      "deleteSuccess": "Successfully deleted {count} items",
+      "deleteError": "Deletion failed",
+      "moveSuccess": "Moved successfully",
+      "moveError": "Move failed",
+      "checkoutError": "Equipment checkout failed",
+      "returnError": "Return failed"
+    }
+  },
+
+  "equipmentDetail": {
+    "serialNumber": "Serial number",
+    "model": "Model",
+    "manufacturer": "Manufacturer",
+    "purchaseDate": "Purchase date",
+    "location": "Location",
+    "maintenanceInterval": "Maintenance interval",
+    "lastMaintenance": "Last maintenance",
+    "lastSterilization": "Last sterilization",
+    "issuePhoto": "Issue photo",
+    "loadOlder": "Load older",
+    "describeIssue": "Describe the issue clearly...",
+    "addObservations": "Add observations...",
+    "checkedOutBy": "Checked out by {email}",
+    "updateStatusTitle": "Update status",
+    "statusLabel": "Status",
+    "reportIssueTitle": "Report an issue",
+    "toast": {
+      "undone": "Action undone",
+      "undoFailed": "Undo failed — time expired",
+      "savedOffline": "Saved offline — will sync when connected",
+      "issueReportedOffline": "Issue reported — WhatsApp message will be sent when connected.",
+      "issueReportedWhatsApp": "Issue reported — WhatsApp alert sent.",
+      "scanFailedDefault": "Scan failed",
+      "checkedOut": "Equipment in use",
+      "checkedOutByYou": "Checked out by you",
+      "dismiss": "Dismiss",
+      "photoSizeLimit": "Photo size limit is 2MB",
+      "trying": "Trying...",
+      "tryAgain": "Try again",
+      "duplicateEquipment": "Duplicate equipment",
+      "checkoutFailedDefault": "Equipment checkout failed",
+      "returned": "Equipment available",
+      "returnFailedDefault": "Return failed",
+      "deleted": "Equipment deleted",
+      "deleteFailed": "Deletion failed",
+      "issueReported": "Issue reported",
+      "issueWhatsAppOffline": "WhatsApp message will be sent when connected.",
+      "reportFailedDefault": "Report failed"
+    }
+  },
+
+  "newEquipment": {
+    "heading": {
+      "edit": "Edit equipment",
+      "duplicate": "Duplicate equipment",
+      "add": "Add equipment"
+    },
+    "fields": {
+      "name": {
+        "placeholder": "e.g. Autoclave Unit A",
+        "error": "Name is required"
+      },
+      "serialNumber": { "placeholder": "SN-12345" },
+      "model": { "placeholder": "Model name" },
+      "manufacturer": { "placeholder": "Manufacturer" },
+      "folder": { "placeholder": "Unfiled", "none": "Unfiled" },
+      "location": { "placeholder": "e.g. Surgery Room 1" },
+      "expectedReturnMinutes": {
+        "label": "Expected return time (minutes)",
+        "placeholder": "e.g. 45",
+        "description": "Required for smart role-based return reminders."
+      }
+    },
+    "saveChanges": "Save changes",
+    "saveEquipment": "Save equipment",
+    "toast": {
+      "addSuccess": "Equipment added successfully!",
+      "addErrorDefault": "Failed to save equipment. Try again.",
+      "updateSuccess": "Equipment updated successfully!",
+      "updateErrorDefault": "Failed to update equipment. Try again.",
+      "timeout": "Request timed out. Please check your connection and try again."
+    }
+  },
+
+  "myEquipment": {
+    "toast": {
+      "returnSuccess": "Equipment available",
+      "returnError": "Return failed",
+      "returnAllSuccess": "Returned {count} items — all equipment available",
+      "returnAllPartialError": "Some items were not returned. Try again."
+    },
+    "empty": {
+      "message": "No equipment in use",
+      "subMessage": "Equipment you check out will appear here."
+    },
+    "errors": {
+      "loadFailed": "Failed to load checked-out equipment. Try again."
+    },
+    "actions": {
+      "returnAll": "Return all"
+    }
+  },
+
+  "alerts": {
+    "types": {
+      "issue": { "label": "Active issue", "badgeLabel": "Critical" },
+      "overdue": { "label": "Overdue", "badgeLabel": "High" },
+      "sterilization_due": { "label": "Sterilization needed", "badgeLabel": "Medium" },
+      "inactive": { "label": "Inactive", "badgeLabel": "Low" }
+    },
+    "itemCount": "{count} {count, plural, one{item} other{items}}",
+    "timeAgo": {
+      "justNow": "Just now"
+    },
+    "toast": {
+      "acknowledged": "Marked as handled",
+      "acknowledgeError": "Acknowledgment failed",
+      "removeError": "Removal failed"
+    },
+    "empty": {
+      "message": "All good!",
+      "subMessage": "No alerts right now. All equipment is in good condition."
+    },
+    "errors": {
+      "loadFailed": "Failed to load alerts. Try again."
+    }
+  },
+
+  "shiftSummary": {
+    "sections": {
+      "checkedOut": "Currently in use:",
+      "checkoutsToday": "Checkouts today:",
+      "issuesReported": "Issues reported today:",
+      "unacknowledgedAlerts": "Unacknowledged alerts:"
+    },
+    "severity": {
+      "critical": "[Critical]",
+      "high": "[High]"
+    },
+    "badge": {
+      "critical": "Critical",
+      "high": "High"
+    },
+    "toast": {
+      "copySuccess": "Summary copied to clipboard",
+      "copyError": "Copy failed — please copy manually"
+    },
+    "actions": {
+      "copy": "Copy",
+      "exportExcel": "Export to Excel"
+    }
+  },
+
+  "auth": {
+    "signIn": {
+      "meta": {
+        "description": "Sign in to VetTrack to manage veterinary equipment, scan QR codes, and track in real time."
+      }
+    },
+    "signUp": {
+      "meta": {
+        "description": "Create a VetTrack account to manage veterinary equipment, scan QR codes, and track in real time."
+      }
+    },
+    "guard": {
+      "pendingTitle": "Account pending hospital management approval",
+      "blockedTitle": "Access blocked",
+      "blockedDescription": "Contact IT department for assistance.",
+      "signOut": "Sign out",
+      "loadingApp": "Loading system..."
+    }
+  },
+
+  "home": {
+    "equipmentOverview": "Equipment overview",
+    "shiftSummary": "Shift summary",
+    "scanQrCode": "Scan QR",
+    "addEquipment": "Add equipment",
+    "browseEquipment": "Browse equipment"
+  },
+
+  "equipment": {
+    "title": "Equipment",
+    "scanQr": "Scan QR",
+    "shiftSummary": "Shift summary",
+    "myEquipment": "My equipment",
+    "importCsv": "Import CSV",
+    "select": "Select"
+  },
+
+  "app": {
+    "pendingApprovalTitle": "Account pending hospital management approval",
+    "blockedAccessTitle": "Access blocked",
+    "blockedAccessSubtitle": "Contact IT department for assistance.",
+    "signOut": "Sign out",
+    "loadingSystem": "Loading system..."
+  },
+
+  "api": {
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "serverError": "The server encountered an error. Please try again or refresh the page.",
+    "networkUnavailable": "Cannot reach the server. You may be offline or the server is down."
+  },
+
+  "syncEngine": {
+    "pausedTooManyErrors": "Sync paused — too many errors",
+    "resumedTryingPending": "Sync resumed — retrying pending changes",
+    "sessionExpiredSignInAgain": "Your session expired — please sign in again"
+  },
+
+  "errorCard": {
+    "defaultMessage": "Failed to load data. Try again.",
+    "persistentFailure": "Still failing. Check your connection or refresh the page.",
+    "exhaustedMessage": "Still failing. Check your connection or refresh the page.",
+    "refreshPage": "Refresh page",
+    "trying": "Trying...",
+    "retrying": "Retrying...",
+    "retry": "Retry"
+  },
+
+  "swUpdate": {
+    "updateAvailable": "Update available — tap to refresh"
+  },
+
+  "reportIssueDialog": {
+    "title": "Report an issue",
+    "issueTitle": "Title",
+    "issueTitlePlaceholder": "Brief description of the issue",
+    "issueDetails": "Issue details",
+    "issueDetailsPlaceholder": "Describe what happened and what you expected...",
+    "severity": "Severity",
+    "severityLow": "Low — minor inconvenience",
+    "severityMedium": "Medium — affects work",
+    "severityHigh": "High — blocking issue",
+    "reportingAs": "Reporting as",
+    "submit": "Submit report",
+    "success": "Issue reported. Thank you!",
+    "failed": "Failed to submit report. Please try again.",
+    "reportedAsPrefix": "Reporting as",
+    "actions": {
+      "submit": "Submit report"
+    },
+    "toast": {
+      "reported": "Issue reported. Thank you!",
+      "submitFailed": "Failed to submit report. Please try again."
+    },
+    "fields": {
+      "title": {
+        "label": "Title",
+        "placeholder": "Brief description of the issue"
+      },
+      "description": {
+        "label": "Issue details",
+        "placeholder": "Describe what happened and what you expected..."
+      },
+      "severity": {
+        "label": "Severity",
+        "low": "Low — minor inconvenience",
+        "medium": "Medium — affects work",
+        "high": "High — blocking issue"
+      }
+    }
+  },
+
+  "qrScanner": {
+    "unknownQrFormat": "Unknown QR code format",
+    "torchUnavailable": "Torch not available on this device",
+    "invalidCodeFormat": "Invalid code format",
+    "title": "Scan QR code",
+    "guideAim": "Aim at VetTrack QR code",
+    "permissionDeniedTitle": "Camera access denied",
+    "permissionDeniedDesc": "Allow camera access in settings",
+    "manualEnterTitle": "Enter equipment code",
+    "manualEnterDesc": "Enter the equipment ID from the QR label, or paste the full URL.",
+    "manualEnterButton": "Enter code manually",
+    "search": "Search",
+    "backToCamera": "Back to camera"
+  },
+
+  "onboarding": {
+    "step1": {
+      "tag": "Step 1 of 3",
+      "title": "Scan your first item",
+      "description": "Tap the blue scan button at the bottom of the screen to read a QR code. The app instantly loads the status and history.",
+      "tip": "The scan button is always visible at the center of the bottom bar — you can scan from any screen."
+    },
+    "step2": {
+      "tag": "Step 2 of 3",
+      "title": "Track equipment",
+      "description": "Open an item and tap 'Check out' to mark it as in your use. Tap 'Return' when done so the team knows where the equipment is.",
+      "tip": "Items you've checked out appear in the 'Mine' tab in the bottom navigation."
+    },
+    "step3": {
+      "tag": "Step 3 of 3",
+      "title": "Report issues instantly",
+      "description": "Found damaged equipment? Tap 'Report issue' on the item detail page. The team gets an immediate alert.",
+      "tip": "You can also report issues from the menu icon in the top right corner."
+    },
+    "step1Tag": "Step 1 of 3",
+    "step1Title": "Scan your first item",
+    "step1Description": "Tap the blue scan button at the bottom of the screen to read a QR code. The app instantly loads the status and history.",
+    "step1Tip": "The scan button is always visible at the center of the bottom bar — you can scan from any screen.",
+    "step2Tag": "Step 2 of 3",
+    "step2Title": "Track equipment",
+    "step2Description": "Open an item and tap 'Check out' to mark it as in your use. Tap 'Return' when done so the team knows where the equipment is.",
+    "step2Tip": "Items you've checked out appear in the 'Mine' tab in the bottom navigation.",
+    "step3Tag": "Step 3 of 3",
+    "step3Title": "Report issues instantly",
+    "step3Description": "Found damaged equipment? Tap 'Report issue' on the item detail page. The team gets an immediate alert.",
+    "step3Tip": "You can also report issues from the menu icon in the top right corner.",
+    "gotIt": "Got it!",
+    "next": "Next"
+  },
+
+  "moveRoomSheet": {
+    "movedTo": "Moved to {roomName}",
+    "movedToDefaultRoom": "Moved to room",
+    "removedFromRoom": "Removed from room",
+    "moveFailed": "Move failed"
+  },
+
+  "moveRoom": {
+    "toast": {
+      "movedTo": "Moved to {roomName}",
+      "defaultRoomName": "room",
+      "removedFromRoom": "Removed from room",
+      "moveFailed": "Move failed"
+    }
+  },
+
+  "syncQueueSheet": {
+    "typeScan": "Scan",
+    "typeCreate": "Create",
+    "typeUpdate": "Update",
+    "typeDelete": "Delete",
+    "typeCheckout": "Checkout",
+    "typeReturn": "Return",
+    "unknownEquipment": "Unknown equipment",
+    "pending": "Pending",
+    "failed": "Failed",
+    "resumingNow": "Resuming now...",
+    "allSynced": "All actions synced",
+    "syncingNow": "Syncing...",
+    "syncNow": "Sync now"
+  },
+
+  "settingsPage": {
+    "title": "Settings",
+    "subtitle": "Customize your VetTrack experience",
+    "display": "Display",
+    "darkMode": "Dark mode",
+    "darkModeDescription": "Reduces eye strain in low light",
+    "displaySize": "Display size",
+    "displaySizeDescription": "Adjust spacing and layout density",
+    "comfortable": "Comfortable",
+    "compact": "Compact",
+    "pushNotifications": "Push notifications",
+    "deviceNotifications": "Device notifications",
+    "permissionDenied": "Permission denied — enable in browser settings",
+    "subscribedDescription": "This device will receive notifications even when the app is closed",
+    "unsubscribedDescription": "Receive notifications on this device, even when the app is closed",
+    "pushDisabled": "Push notifications disabled",
+    "pushDisableFailed": "Failed to disable",
+    "pushEnabled": "Push notifications enabled",
+    "pushEnableFailed": "Failed to enable",
+    "deniedShort": "Permission denied",
+    "disable": "Disable",
+    "enable": "Enable",
+    "testNotifications": "Test notifications",
+    "testNotificationsDescription": "Send a test notification to verify setup",
+    "testSent": "Test notification sent",
+    "testFailed": "Failed to send test",
+    "roleNotificationPreferences": "Role-based notification preferences",
+    "techReturnReminders": "Equipment return reminder",
+    "techReturnRemindersDescription": "Sent to the person who checked out the item (any role) when expected return time passes",
+    "seniorOwnReminders": "Personal reminders",
+    "seniorOwnRemindersDescription": "Push reminder when an item you checked out exceeds expected return time (any role)",
+    "seniorTeamAlerts": "Team overdue alerts",
+    "seniorTeamAlertsDescription": "Hourly alerts about overdue equipment in the shift team",
+    "adminHourlySummary": "Administrative hourly summary",
+    "adminHourlySummaryDescription": "Hourly consolidated alert about overdue equipment across the entire hospital",
+    "sound": "Sound",
+    "masterSound": "Master sound",
+    "masterSoundDescription": "Enable or disable all sounds",
+    "criticalAlerts": "Critical alerts",
+    "criticalAlertsDescription": "Enable sound for urgent equipment alerts",
+    "dateAndTime": "Date and time",
+    "timeFormat": "Time format",
+    "timeFormatDescription": "How times are displayed",
+    "dateFormat": "Date format",
+    "dateFormatDescription": "How dates are displayed",
+    "reset": "Reset",
+    "resetToDefault": "Reset to default",
+    "resetDescription": "Restore all settings to default values. This cannot be undone.",
+    "resetButton": "Reset to default",
+    "resetDialogTitle": "Reset all settings?",
+    "account": "Account",
+    "about": "About",
+    "logout": "Sign out"
+  },
+
+  "adminShiftsPage": {
+    "title": "Shift management",
+    "subtitle": "Import shifts from EZShift and view import history",
+    "uploadCsv": "Upload CSV",
+    "selectedFile": "Selected file",
+    "previewReady": "Preview ready",
+    "previewFailed": "Preview generation failed",
+    "importSuccess": "Shift import completed",
+    "importFailed": "Shift import failed",
+    "noFileSelected": "No file selected",
+    "previewButton": "Preview",
+    "confirmImportButton": "Confirm import",
+    "confirmImporting": "Importing...",
+    "previewSummaryTitle": "Preview summary",
+    "totalRows": "Total rows",
+    "validRows": "Valid rows",
+    "skippedRows": "Skipped rows",
+    "previewRowsTitle": "Rows to import",
+    "issuesTitle": "Errors and skips",
+    "importsHistoryTitle": "Import history",
+    "noImportsYet": "No import history yet",
+    "noPreviewYet": "No preview generated yet",
+    "rowLabel": "Row {row}",
+    "importedBy": "Imported by",
+    "importedAt": "Import time",
+    "filename": "Filename",
+    "rowCount": "Row count",
+    "date": "Date",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "employeeName": "Employee name",
+    "role": "Role"
+  },
+
+  "alertsPage": {
+    "oneMinuteAgo": "1 minute ago",
+    "minutesAgo": "{minutes} minutes ago",
+    "oneHourAgo": "1 hour ago",
+    "hoursAgo": "{hours} hours ago",
+    "oneDayAgo": "1 day ago",
+    "daysAgo": "{days} days ago",
+    "title": "Alerts",
+    "metaDescription": "Active equipment alerts by severity: critical issues, overdue maintenance, sterilization reminders, and inactive equipment.",
+    "activeCount": "{count} active",
+    "ackLoadFailed": "Failed to load acknowledgment statuses. You can view alerts, but acknowledgment actions are temporarily disabled.",
+    "browseEquipment": "Browse equipment",
+    "inProgressSince": "In progress since",
+    "removeAckAria": "Remove acknowledgment status",
+    "takeOwnership": "I'm handling this"
+  },
+
+  "analyticsPage": {
+    "title": "Analytics",
+    "maintenance": "Maintenance",
+    "sterilization": "Sterilization",
+    "overdue": "Overdue",
+    "issues": "Issues",
+    "complianceRate": "Compliance rate",
+    "overdueItems": "Overdue items",
+    "openIssues": "Open issues",
+    "statusDistribution": "Equipment status distribution",
+    "noDataYet": "No data yet",
+    "scanActivity14Days": "Scan activity — last 14 days",
+    "topProblemEquipment": "Top problem equipment",
+    "noIssuesReported": "No issues reported",
+    "topProblemSubMessage": "Equipment with recurring issues will appear here",
+    "maintenanceLabel": "Maintenance",
+    "itemsLabel": "items"
+  },
+
+  "myEquipmentPage": {
+    "scanQr": "Scan QR",
+    "shiftSummary": "Shift summary",
+    "browseEquipment": "Browse equipment"
+  },
+
+  "notFoundPage": {
+    "title": "Page not found — VetTrack"
+  },
+
+  "homePage": {
+    "greeting": "Hello, {name}",
+    "fallbackName": "there",
+    "activeAlerts": "Active alerts",
+    "showAll": "Show all",
+    "recentActivity": "Recent activity",
+    "getStarted": "Get started",
+    "total": "Total",
+    "getStartedDescription": "Add your first equipment item to start tracking"
+  },
+
+  "helpPage": {
+    "dailyTasks": "Daily tasks",
+    "equipmentStatus": "Equipment status",
+    "assetRadar": "Asset radar",
+    "syncIndicator": "Sync indicator (header)",
+    "alerts": "Alerts",
+    "backToDashboard": "Back to dashboard",
+    "scanQrTitle": "Scan QR code",
+    "scanQrDescription": "Tap the blue scan button at the bottom to scan equipment. Instantly loads status and history.",
+    "checkoutTitle": "Check out equipment",
+    "checkoutDescription": "Open an item -> tap 'Check out'. Your name appears on the item so the team knows who has it.",
+    "returnTitle": "Return equipment",
+    "returnDescription": "Open the item you took -> tap 'Return'. Removes your name and marks it as available.",
+    "reportIssueTitle": "Report an issue",
+    "reportIssueDescription": "Found damaged equipment? Open item -> tap 'Issue'. The team receives an immediate alert.",
+    "okDescription": "Equipment scanned and ready to use.",
+    "sterilizedTitle": "Sterilized — clean and ready",
+    "sterilizedDescription": "Item has been sterilized. Will alert when sterilization window expires.",
+    "maintenanceTitle": "Maintenance — service needed",
+    "maintenanceDescription": "Marked for maintenance. Check with admin before use.",
+    "issueTitle": "Issue — do not use",
+    "inactiveTitle": "Inactive — out of service",
+    "inactiveDescription": "Item has been removed from service temporarily or permanently.",
+    "healthRingTitle": "Health ring",
+    "healthRingDescription": "The colored ring on each room card shows the percentage of items verified in the last 24 hours. Green >= 80%, Orange >= 40%, Red < 40%.",
+    "syncedTitle": "Synced",
+    "syncedDescription": "All items in this room have been verified in the last 24 hours.",
+    "staleTitle": "Stale",
+    "staleDescription": "Room has not been checked in over 24 hours. Tap the room to verify items.",
+    "auditRequiredTitle": "Audit required",
+    "auditRequiredDescription": "An item in this room was flagged. A full audit is required before the room can be cleared.",
+    "nfcDescription": "Tap the NFC sticker on the room door to open the verification screen. Confirm to mark all items as verified in one tap.",
+    "pendingTitle": "Pending",
+    "pendingDescription": "Action saved locally and waiting to be sent to the server. Happens when offline. Will sync automatically when connected.",
+    "failedTitle": "Failed",
+    "failedDescription": "Action could not sync after multiple attempts. Tap the cloud icon to view and retry.",
+    "offlineTitle": "Offline",
+    "offlineDescription": "No internet connection. The app continues to work — all changes are queued and will sync automatically.",
+    "activeAlertsTitle": "Active alerts",
+    "activeAlertsDescription": "The red badge on the bell icon shows how many items need attention. Tap to view and acknowledge.",
+    "pushAlertsTitle": "Push alerts",
+    "pushAlertsDescription": "Enable push notifications in Settings -> Push Notifications to receive real-time alerts even when the app is in the background."
+  },
+
+  "roomRadarPage": {
+    "verifiedReset": "Verified (room reset)",
+    "verifiedNow": "Verified now",
+    "verifyFailed": "Verification failed",
+    "loadingRoom": "Loading room...",
+    "noAvailableEquipment": "No available equipment",
+    "allCheckedOutSubMessage": "All items in this room are currently checked out.",
+    "verifyAllInRoom": "Verify all in {roomName}"
+  },
+
+  "roomsListPage": {
+    "createRoomFailed": "Failed to create room",
+    "title": "Asset radar",
+    "emptyRooms": "No rooms yet",
+    "createFirstRoomHint": "Create the first room to organize equipment by location.",
+    "createRoomDialogTitle": "Create room",
+    "roomName": "Room name *",
+    "roomFloorOptional": "Floor / area (optional)",
+    "createRoom": "Create room"
+  },
+
+  "managementDashboardPage": {
+    "title": "Dashboard",
+    "refresh": "Refresh",
+    "loadEquipmentFailed": "Failed to load equipment data. Please try again.",
+    "available": "Available",
+    "inUse": "In use",
+    "issues": "Issues",
+    "missing": "Missing",
+    "criticalAlerts": "Critical alerts",
+    "allGood": "All good",
+    "allInPlace": "All equipment is in place",
+    "issue": "Issue",
+    "whoHasWhat": "Who has what",
+    "allReturned": "All equipment returned",
+    "noneInUse": "No equipment currently in use",
+    "locationOverview": "Location overview",
+    "noLocationData": "No location data",
+    "noLocationDataSubMessage": "Equipment with assigned locations will appear here",
+    "systemHealth": "System health",
+    "refreshEveryMinute": "Refreshes every 60 seconds",
+    "uptime": "Uptime",
+    "memory": "Memory",
+    "sessions": "Sessions",
+    "syncSuccess": "Sync successes",
+    "syncFailures": "Sync failures"
+  },
+
+  "qrPrintPage": {
+    "title": "Print QR",
+    "selectHint": "Select equipment to print. You can print multiple QR codes together.",
+    "searchPlaceholder": "Search equipment...",
+    "unselectAll": "Deselect all",
+    "selectAll": "Select all",
+    "titleFull": "Print QR — VetTrack",
+    "trying": "Trying...",
+    "retry": "Retry"
+  },
+
+  "stabilityPage": {
+    "allChecksHealthy": "All checks healthy",
+    "disabled": "Disabled",
+    "everyTwoHours": "Every 2 hours",
+    "everyFourHours": "Every 4 hours",
+    "everyEightHours": "Every 8 hours",
+    "everyTwelveHours": "Every 12 hours",
+    "everyTwentyFourHours": "Every 24 hours",
+    "runStarted": "Test run started",
+    "runStartFailed": "Failed to start test run",
+    "testModeEnabled": "Test mode enabled",
+    "testModeDisabled": "Test mode disabled",
+    "logsCleared": "Logs cleared",
+    "titleFull": "System Stability Dashboard — VetTrack",
+    "title": "System Stability Dashboard",
+    "subtitle": "Detect bugs, crashes, and performance issues",
+    "runAllTests": "Run all tests",
+    "enabled": "Enabled",
+    "testResults": "Test results",
+    "internalLog": "Internal operations log",
+    "noResultsHint": "No test results yet. Click 'Run all tests' to start."
+  },
+
+  "shiftSummaryPage": {
+    "summaryTitle": "Shift summary",
+    "loadFailed": "Failed to load shift data.",
+    "retry": "Retry",
+    "checkedOutNow": "Currently checked out",
+    "since": "Since",
+    "noneInUse": "No equipment currently in use",
+    "checkoutsToday": "Checkouts today",
+    "issuesReportedToday": "Issues reported today",
+    "noIssuesToday": "No issues reported today",
+    "unacknowledgedAlerts": "Unacknowledged alerts",
+    "noCriticalAlerts": "No critical alerts",
+    "downloadPdf": "Download PDF",
+    "reportDownloaded": "Shift summary report downloaded successfully",
+    "reportHeader": "VetTrack Shift Summary — {dateStr}",
+    "unknownLocation": "Unknown",
+    "listBulletNone": "  None",
+    "checkedOutLineWithLoc": "• {name} — {loc} since {since}",
+    "checkedOutLineNoLoc": "• {name} since {since}",
+    "todayUsageHeader": "Checkouts today ({count}):"
+  },
+
+  "adminPage": {
+    "tabFolders": "Folders",
+    "tabPending": "Pending",
+    "tabUsers": "Users",
+    "tabSupport": "Support",
+    "tabLogs": "Logs",
+    "tabShifts": "Shifts",
+    "foldersTitle": "Folders",
+    "pendingUsersTitle": "Pending users",
+    "usersTitle": "Users",
+    "folderCreated": "Folder created",
+    "folderCreateFailed": "Failed to create folder",
+    "folderUpdated": "Folder updated",
+    "folderUpdateFailed": "Failed to update folder",
+    "folderDeleted": "Folder deleted",
+    "folderDeleteFailed": "Failed to delete folder",
+    "editFolder": "Edit folder",
+    "createFolder": "Create folder",
+    "folderName": "Folder name",
+    "noFoldersYet": "No folders yet. Create one to organize your equipment.",
+    "update": "Update",
+    "create": "Create",
+    "userApproved": "User approved",
+    "userRejected": "User rejected",
+    "userStatusUpdateFailed": "Failed to update user status",
+    "roleAdmin": "Admin",
+    "roleVet": "Veterinarian",
+    "roleTechnician": "Technician",
+    "roleViewer": "Viewer",
+    "roleUpdated": "Role updated",
+    "roleUpdateFailed": "Failed to update role",
+    "statusUpdated": "Status updated",
+    "statusUpdateFailed": "Failed to update status",
+    "filterAll": "All",
+    "filterPending": "Pending",
+    "filterActive": "Active",
+    "filterBlocked": "Blocked",
+    "noUsersYet": "No users yet",
+    "firstLoginUsersHint": "Users will appear here the first time they sign in.",
+    "tryOtherFilterHint": "Try switching to another filter to see other users.",
+    "loadMore": "Load more",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Name to display in the interface",
+    "displayNameUpdated": "Display name updated",
+    "displayNameUpdateFailed": "Failed to update display name",
+    "deletedUsersTitle": "Deleted users",
+    "supportTicketsTitle": "Support tickets",
+    "cancel": "Cancel",
+    "equipmentRestored": "Equipment restored",
+    "equipmentRestoreFailed": "Failed to restore equipment",
+    "userRestored": "User restored",
+    "userRestoreFailed": "Failed to restore user",
+    "ticketStatusOpen": "Open",
+    "ticketStatusInProgress": "In progress",
+    "ticketStatusResolved": "Resolved",
+    "ticketUpdated": "Ticket updated",
+    "ticketUpdateFailed": "Failed to update ticket",
+    "internalNotePlaceholder": "Add internal note...",
+    "shiftsTitle": "Shift import",
+    "shiftsSubtitle": "Upload a CSV file from EZShift, review the preview, then confirm import",
+    "uploadCsv": "Upload CSV",
+    "selectedFile": "Selected file",
+    "previewReady": "Preview ready",
+    "previewFailed": "Preview generation failed",
+    "importSuccess": "Shift import completed",
+    "importFailed": "Shift import failed",
+    "noRowsToImport": "No valid rows to import",
+    "previewSummary": "Preview summary",
+    "totalRows": "Total rows",
+    "validRows": "Valid rows",
+    "skippedRows": "Skipped rows",
+    "previewRowsTitle": "Valid rows",
+    "previewIssuesTitle": "Errors by row",
+    "importHistoryTitle": "Import history",
+    "roleSeniorTechnician": "Senior technician",
+    "roleAdminShift": "Manager",
+    "noShiftImportsYet": "No import history yet",
+    "confirmImport": "Confirm import",
+    "noPreviewYet": "No preview generated yet",
+    "logEntries": "{count}{hasMoreSuffix} entries",
+    "logClientPage": "Page {current} of {total}",
+    "logFilterFrom": "From date",
+    "logFilterTo": "To date",
+    "logFilterAction": "Action type",
+    "logFilterStaff": "Staff member",
+    "logFilterApply": "Filter",
+    "logFilterReset": "Reset",
+    "noTicketsYet": "No support tickets yet",
+    "noTicketsYetSub": "Tickets submitted by users will appear here."
+  },
+
+  "layoutHebrew": {
+    "home": "Home",
+    "radar": "Radar",
+    "analytics": "Analytics",
+    "dashboard": "Dashboard",
+    "printQr": "Print QR",
+    "admin": "Admin",
+    "adminShifts": "Shifts",
+    "stability": "Stability",
+    "quickGuide": "Quick guide",
+    "settings": "Settings",
+    "about": "About VetTrack",
+    "offline": "Offline",
+    "syncing": "Syncing...",
+    "synced": "Synced",
+    "pendingShort": "{count} pending",
+    "failedShort": "{count} failed",
+    "pendingTitle": "{count} actions pending — tap to sync",
+    "failedTitle": "{count} actions failed to sync",
+    "pendingTooltip": "{count} actions saved locally and waiting for server. Tap to sync now, or they will sync automatically when connected.",
+    "alertAria": "Open {count} alerts",
+    "quickSettings": "Quick settings",
+    "allSettings": "All settings",
+    "reportIssue": "Report issue",
+    "scanQrAria": "Scan QR code"
+  },
+
+  "conflictModal": {
+    "title": "Sync Conflicts",
+    "description": "These items were changed on another device while you were offline.",
+    "serverVersion": "Server version:",
+    "yourVersion": "Your version:",
+    "keepMine": "Keep Mine",
+    "useServerVersion": "Use Server Version"
+  },
+
+  "updateBanner": {
+    "newVersion": "VetTrack v{version} is here — ",
+    "seeWhatsNew": "see what's new",
+    "dismissAria": "Dismiss update notification"
+  },
+
+  "pageErrorBoundary": {
+    "defaultFallback": "This section failed to load",
+    "tryAgain": "Try again"
+  },
+
+  "errors": {
+    "server": {
+      "internalError": "Internal server error",
+      "failedToListEquipment": "Failed to list equipment",
+      "failedToGetAuditLogs": "Failed to get audit logs",
+      "failedToSeedDemo": "Failed to seed demo data"
+    }
+  }
+}

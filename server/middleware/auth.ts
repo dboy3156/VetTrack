@@ -23,6 +23,7 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   status: string;
+  clinicId: string;
   locale?: string;
 }
 
@@ -52,6 +53,7 @@ const DEV_USER: AuthUser = {
   name: "Dev Admin",
   role: "admin",
   status: "active",
+  clinicId: "dev-clinic-default",
 };
 
 const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
@@ -98,6 +100,7 @@ async function ensureDevUserRecord(devUser: AuthUser): Promise<AuthUser> {
     name: row.name,
     role: row.role as UserRole,
     status: row.status,
+    clinicId: devUser.clinicId,
   };
 }
 
@@ -123,21 +126,26 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   if (isDevBypass) {
     const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
     const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
+    const overrideClinicId = req.headers["x-dev-clinic-id-override"] as string | undefined;
     const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;
     const baseUser: AuthUser = userPreset ? { ...DEV_USER, ...userPreset } : DEV_USER;
+    const clinicId = (overrideClinicId ?? process.env.DEV_DEFAULT_CLINIC_ID ?? DEV_USER.clinicId).trim();
+    const tenantUser: AuthUser = { ...baseUser, clinicId };
     const devUser: AuthUser =
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
-        ? { ...baseUser, role: overrideRole }
-        : baseUser;
+        ? { ...tenantUser, role: overrideRole }
+        : tenantUser;
     const resolved = await ensureDevUserRecord(devUser);
     return { ok: true, user: resolved };
   }
 
   let clerkUserId: string | null | undefined;
+  let clerkOrgId: string | null | undefined;
   let sessionClaims: Record<string, unknown> | undefined;
   try {
     const auth = getAuth(req);
     clerkUserId = auth.userId;
+    clerkOrgId = auth.orgId;
     sessionClaims = auth.sessionClaims as Record<string, unknown> | undefined;
   } catch (err) {
     console.error("[auth] Failed to read auth session", err);
@@ -146,6 +154,9 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
 
   if (!clerkUserId) {
     return { ok: false, status: 401, body: { error: "Unauthorized" } };
+  }
+  if (!clerkOrgId) {
+    return { ok: false, status: 403, body: { error: "Clinic context missing" } };
   }
 
   let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
@@ -222,6 +233,7 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
       name: user.name,
       role: user.role as UserRole,
       status: user.status,
+      clinicId: clerkOrgId,
       locale: clerkLocale,
     },
   };

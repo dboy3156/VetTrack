@@ -1,0 +1,873 @@
+{
+  "common": {
+    "appName": "VetTrack",
+    "save": "שמור",
+    "cancel": "ביטול",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "close": "סגור",
+    "back": "חזרה",
+    "search": "חיפוש",
+    "loading": "טוען...",
+    "working": "מעבד...",
+    "confirm": "אישור",
+    "all": "הכל",
+    "none": "ללא",
+    "unknown": "לא ידוע",
+    "select": "בחירה",
+    "unfiled": "ללא תיקייה",
+    "justNow": "עכשיו",
+    "sterilization": "חיטוי",
+    "closeNavigationMenu": "סגור תפריט ניווט",
+    "openNavigationMenu": "פתח תפריט ניווט",
+    "quickSettings": "הגדרות מהירות"
+  },
+
+  "status": {
+    "ok": "תקין",
+    "issue": "תקלה",
+    "maintenance": "תחזוקה",
+    "sterilized": "עבר חיטוי",
+    "all": "כל הסטטוסים"
+  },
+
+  "layout": {
+    "nav": {
+      "alerts": "התראות",
+      "mine": "שלי"
+    },
+    "settings": {
+      "darkMode": "מצב לילה",
+      "displaySize": "גודל תצוגה",
+      "comfortable": "רגיל",
+      "compact": "קומפקטי",
+      "masterSound": "שמע ראשי",
+      "criticalAlerts": "התראות קריטיות"
+    },
+    "toast": {
+      "equipmentNotFound": "הציוד לא נמצא — נסה שוב"
+    },
+    "sync": {
+      "pendingActions": "{count} פעולות ממתינות לסנכרון — לחץ לסנכרון",
+      "failedActions": "{count} פעולות נכשלו בסנכרון",
+      "viewQueue": "צפה בתור הסנכרון",
+      "failedMessage": "חלק מהפעולות נכשלו. לחץ על אייקון הענן לניסיון מחדש.",
+      "pendingMessage": "{count} פעולות נשמרו מקומית וממתינות לשרת. לחץ לסנכרון עכשיו, או שהן יסונכרנו אוטומטית כשתתחבר."
+    }
+  },
+
+  "equipmentList": {
+    "search": {
+      "placeholder": "חיפוש לפי שם, מספר סידורי, דגם..."
+    },
+    "folders": {
+      "all": "כל התיקיות",
+      "unfiled": "ללא תיקייה",
+      "searchPlaceholder": "חיפוש תיקיות...",
+      "filterByFolder": "סינון לפי תיקייה"
+    },
+    "actions": {
+      "select": "בחירה",
+      "cancel": "ביטול",
+      "move": "העבר",
+      "delete": "מחק",
+      "working": "מעבד...",
+      "exportExcel": "ייצוא לאקסל"
+    },
+    "empty": {
+      "message": "לא נמצא ציוד",
+      "filteredHint": "נסה לשנות את המסננים או את מונח החיפוש.",
+      "emptyHint": "הוסף את הפריט הראשון כדי להתחיל במעקב."
+    },
+    "errors": {
+      "loadFailed": "טעינת הציוד נכשלה. נסה שוב.",
+      "renderFailed": "תצוגת רשימת הציוד נכשלה"
+    },
+    "toast": {
+      "deleteSuccess": "נמחקו {count} פריטים בהצלחה",
+      "deleteError": "המחיקה נכשלה",
+      "moveSuccess": "הועבר בהצלחה",
+      "moveError": "ההעברה נכשלה",
+      "checkoutError": "לקיחת הציוד נכשלה",
+      "returnError": "ההחזרה נכשלה"
+    }
+  },
+
+  "equipmentDetail": {
+    "serialNumber": "מספר סידורי",
+    "model": "דגם",
+    "manufacturer": "יצרן",
+    "purchaseDate": "תאריך רכישה",
+    "location": "מיקום",
+    "maintenanceInterval": "מרווח תחזוקה",
+    "lastMaintenance": "תחזוקה אחרונה",
+    "lastSterilization": "חיטוי אחרון",
+    "issuePhoto": "תמונת תקלה",
+    "loadOlder": "טען ישנים יותר",
+    "describeIssue": "תאר את התקלה בבירור...",
+    "addObservations": "הוסף הערות...",
+    "checkedOutBy": "בשימוש על ידי {email}",
+    "updateStatusTitle": "עדכון סטטוס",
+    "statusLabel": "סטטוס",
+    "reportIssueTitle": "דיווח על תקלה",
+    "toast": {
+      "undone": "הפעולה בוטלה",
+      "undoFailed": "הביטול נכשל — הזמן פג",
+      "savedOffline": "נשמר במצב לא מקוון — יסונכרן כשתתחבר",
+      "issueReportedOffline": "תקלה דווחה — הודעת WhatsApp תישלח כשתתחבר.",
+      "issueReportedWhatsApp": "תקלה דווחה — נשלחה התראת WhatsApp.",
+      "scanFailedDefault": "הסריקה נכשלה",
+      "checkedOut": "הציוד בשימוש",
+      "checkedOutByYou": "הוצא לשימוש על ידך",
+      "dismiss": "סגור",
+      "photoSizeLimit": "גודל התמונה עד 2MB",
+      "trying": "מנסה...",
+      "tryAgain": "נסה שוב",
+      "duplicateEquipment": "שכפל ציוד",
+      "checkoutFailedDefault": "לקיחת הציוד נכשלה",
+      "returned": "הציוד זמין",
+      "returnFailedDefault": "ההחזרה נכשלה",
+      "deleted": "הציוד נמחק",
+      "deleteFailed": "המחיקה נכשלה",
+      "issueReported": "תקלה דווחה",
+      "issueWhatsAppOffline": "הודעת WhatsApp תישלח כשתתחבר.",
+      "reportFailedDefault": "הדיווח נכשל"
+    }
+  },
+
+  "newEquipment": {
+    "heading": {
+      "edit": "עריכת ציוד",
+      "duplicate": "שכפול ציוד",
+      "add": "הוספת ציוד"
+    },
+    "fields": {
+      "name": {
+        "placeholder": "לדוגמה: אוטוקלב יחידה א׳",
+        "error": "שם הוא שדה חובה"
+      },
+      "serialNumber": { "placeholder": "SN-12345" },
+      "model": { "placeholder": "שם דגם" },
+      "manufacturer": { "placeholder": "יצרן" },
+      "folder": { "placeholder": "ללא תיקייה", "none": "ללא תיקייה" },
+      "location": { "placeholder": "לדוגמה: חדר ניתוח 1" },
+      "expectedReturnMinutes": {
+        "label": "זמן שימוש צפוי (דקות)",
+        "placeholder": "לדוגמה: 45",
+        "description": "נדרש לתזכורות החזרה חכמות לפי תפקיד."
+      }
+    },
+    "saveChanges": "שמור שינויים",
+    "saveEquipment": "שמור ציוד",
+    "toast": {
+      "addSuccess": "הציוד נוסף בהצלחה!",
+      "addErrorDefault": "שמירת הציוד נכשלה. נסה שוב.",
+      "updateSuccess": "הציוד עודכן בהצלחה!",
+      "updateErrorDefault": "עדכון הציוד נכשל. נסה שוב.",
+      "timeout": "תוקף הבקשה פג. אנא בדוק את החיבור ונסה שוב."
+    }
+  },
+
+  "myEquipment": {
+    "toast": {
+      "returnSuccess": "הציוד זמין",
+      "returnError": "ההחזרה נכשלה",
+      "returnAllSuccess": "הוחזרו {count} פריטים — כל הציוד זמין",
+      "returnAllPartialError": "חלק מהפריטים לא הוחזרו. נסה שוב."
+    },
+    "empty": {
+      "message": "אין ציוד בשימוש",
+      "subMessage": "ציוד שתיקח יופיע כאן."
+    },
+    "errors": {
+      "loadFailed": "טעינת ציוד בשימוש נכשלה. נסה שוב."
+    },
+    "actions": {
+      "returnAll": "החזר הכל"
+    }
+  },
+
+  "alerts": {
+    "types": {
+      "issue": { "label": "תקלה פעילה", "badgeLabel": "קריטי" },
+      "overdue": { "label": "באיחור", "badgeLabel": "גבוה" },
+      "sterilization_due": { "label": "נדרש חיטוי", "badgeLabel": "בינוני" },
+      "inactive": { "label": "לא פעיל", "badgeLabel": "נמוך" }
+    },
+    "itemCount": "{count} {count, plural, one{פריט} other{פריטים}}",
+    "timeAgo": {
+      "justNow": "עכשיו"
+    },
+    "toast": {
+      "acknowledged": "סומן בטיפול",
+      "acknowledgeError": "האישור נכשל",
+      "removeError": "ההסרה נכשלה"
+    },
+    "empty": {
+      "message": "הכל תקין!",
+      "subMessage": "אין התראות כרגע. כל הציוד במצב תקין."
+    },
+    "errors": {
+      "loadFailed": "טעינת ההתראות נכשלה. נסה שוב."
+    }
+  },
+
+  "shiftSummary": {
+    "sections": {
+      "checkedOut": "בשימוש כרגע:",
+      "checkoutsToday": "שימושים היום:",
+      "issuesReported": "תקלות שדווחו היום:",
+      "unacknowledgedAlerts": "התראות שלא טופלו:"
+    },
+    "severity": {
+      "critical": "[קריטי]",
+      "high": "[גבוה]"
+    },
+    "badge": {
+      "critical": "קריטי",
+      "high": "גבוה"
+    },
+    "toast": {
+      "copySuccess": "הסיכום הועתק ללוח",
+      "copyError": "ההעתקה נכשלה — אנא העתק ידנית"
+    },
+    "actions": {
+      "copy": "העתק",
+      "exportExcel": "ייצוא לאקסל"
+    }
+  },
+
+  "auth": {
+    "signIn": {
+      "meta": {
+        "description": "התחבר ל-VetTrack לניהול ציוד וטרינרי, סריקת QR ומעקב בזמן אמת."
+      }
+    },
+    "signUp": {
+      "meta": {
+        "description": "צור חשבון VetTrack לניהול ציוד וטרינרי, סריקת QR ומעקב בזמן אמת."
+      }
+    },
+    "guard": {
+      "pendingTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
+      "blockedTitle": "גישה חסומה",
+      "blockedDescription": "פנה למחלקת מערכות מידע לבירור.",
+      "signOut": "התנתק",
+      "loadingApp": "טוען מערכת..."
+    }
+  },
+
+  "home": {
+    "equipmentOverview": "סקירת ציוד",
+    "shiftSummary": "סיכום משמרת",
+    "scanQrCode": "סרוק QR",
+    "addEquipment": "הוסף ציוד",
+    "browseEquipment": "עיין בציוד"
+  },
+
+  "equipment": {
+    "title": "ציוד",
+    "scanQr": "סרוק QR",
+    "shiftSummary": "סיכום משמרת",
+    "myEquipment": "הציוד שלי",
+    "importCsv": "ייבוא CSV",
+    "select": "בחירה"
+  },
+
+  "app": {
+    "pendingApprovalTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
+    "blockedAccessTitle": "גישה חסומה",
+    "blockedAccessSubtitle": "פנה למחלקת מערכות מידע לבירור.",
+    "signOut": "התנתק",
+    "loadingSystem": "טוען מערכת..."
+  },
+
+  "api": {
+    "sessionExpired": "הפעלתך פגה. נא להתחבר מחדש.",
+    "serverError": "השרת נתקל בשגיאה. נא לנסות שוב או לרענן את העמוד.",
+    "networkUnavailable": "לא ניתן לגשת לשרת. ייתכן שאתה לא מחובר או שהשרת נפל."
+  },
+
+  "syncEngine": {
+    "pausedTooManyErrors": "הסנכרון הושהה — יותר מדי שגיאות",
+    "resumedTryingPending": "הסנכרון חודש — מנסה שוב שינויים ממתינים",
+    "sessionExpiredSignInAgain": "הפעלתך פגה — נא להתחבר מחדש"
+  },
+
+  "errorCard": {
+    "defaultMessage": "טעינת הנתונים נכשלה. נסה שוב.",
+    "persistentFailure": "עדיין יש תקלה. בדוק את החיבור או רענן את העמוד.",
+    "exhaustedMessage": "עדיין יש תקלה. בדוק את החיבור או רענן את העמוד.",
+    "refreshPage": "רענן עמוד",
+    "trying": "מנסה...",
+    "retrying": "מנסה...",
+    "retry": "נסה שוב"
+  },
+
+  "swUpdate": {
+    "updateAvailable": "עדכון זמין – לחץ לרענון"
+  },
+
+  "reportIssueDialog": {
+    "title": "דיווח על תקלה",
+    "issueTitle": "כותרת",
+    "issueTitlePlaceholder": "תיאור קצר של התקלה",
+    "issueDetails": "פירוט התקלה",
+    "issueDetailsPlaceholder": "תאר מה קרה ומה ציפית שיקרה...",
+    "severity": "חומרה",
+    "severityLow": "נמוכה — חוסר נוחות קל",
+    "severityMedium": "בינונית — משפיע על העבודה",
+    "severityHigh": "גבוהה — תקלה חוסמת עבודה",
+    "reportingAs": "מדווח בתור",
+    "submit": "שלח דיווח",
+    "success": "התקלה דווחה. תודה!",
+    "failed": "שליחת הדיווח נכשלה. נא לנסות שוב.",
+    "reportedAsPrefix": "מדווח בתור",
+    "actions": {
+      "submit": "שלח דיווח"
+    },
+    "toast": {
+      "reported": "התקלה דווחה. תודה!",
+      "submitFailed": "שליחת הדיווח נכשלה. נא לנסות שוב."
+    },
+    "fields": {
+      "title": {
+        "label": "כותרת",
+        "placeholder": "תיאור קצר של התקלה"
+      },
+      "description": {
+        "label": "פירוט התקלה",
+        "placeholder": "תאר מה קרה ומה ציפית שיקרה..."
+      },
+      "severity": {
+        "label": "חומרה",
+        "low": "נמוכה — חוסר נוחות קל",
+        "medium": "בינונית — משפיע על העבודה",
+        "high": "גבוהה — תקלה חוסמת עבודה"
+      }
+    }
+  },
+
+  "qrScanner": {
+    "unknownQrFormat": "פורמט קוד QR לא מוכר",
+    "torchUnavailable": "פנס לא זמין במכשיר זה",
+    "invalidCodeFormat": "פורמט קוד לא תקין",
+    "title": "סרוק קוד QR",
+    "guideAim": "כוון אל קוד ה-QR של VetTrack",
+    "permissionDeniedTitle": "הגישה למצלמה נדחתה",
+    "permissionDeniedDesc": "אפשר גישה למצלמה בהגדרות",
+    "manualEnterTitle": "הזן קוד ציוד",
+    "manualEnterDesc": "הזן את מזהה הציוד מתווית ה-QR, או הדבק את הכתובת המלאה.",
+    "manualEnterButton": "הזן קוד ידנית",
+    "search": "חפש",
+    "backToCamera": "חזור למצלמה"
+  },
+
+  "onboarding": {
+    "step1": {
+      "tag": "שלב 1 מתוך 3",
+      "title": "סרוק את הפריט הראשון",
+      "description": "לחץ על כפתור הסריקה הכחול בתחתית המסך כדי לקרוא קוד QR של ציוד. האפליקציה טוענת מיד את הסטטוס וההיסטוריה.",
+      "tip": "כפתור הסריקה תמיד נראה במרכז הסרגל התחתון — ניתן לסרוק מכל מסך."
+    },
+    "step2": {
+      "tag": "שלב 2 מתוך 3",
+      "title": "עקוב אחר הציוד",
+      "description": "פתח פריט ולחץ 'הוצא לשימוש' כדי לסמן אותו בשימושך. לחץ 'החזר' כשסיימת כדי שהצוות ידע היכן הציוד.",
+      "tip": "הפריטים שלקחת מופיעים בלשונית 'שלי' בניווט התחתון."
+    },
+    "step3": {
+      "tag": "שלב 3 מתוך 3",
+      "title": "דווח על תקלות מיידית",
+      "description": "זיהית ציוד פגום? לחץ 'דווח על תקלה' בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
+      "tip": "ניתן גם לדווח על תקלות מאייקון התפריט בפינה הימנית העליונה."
+    },
+    "step1Tag": "שלב 1 מתוך 3",
+    "step1Title": "סרוק את הפריט הראשון",
+    "step1Description": "לחץ על כפתור הסריקה הכחול בתחתית המסך כדי לקרוא קוד QR של ציוד. האפליקציה טוענת מיד את הסטטוס וההיסטוריה.",
+    "step1Tip": "כפתור הסריקה תמיד נראה במרכז הסרגל התחתון — ניתן לסרוק מכל מסך.",
+    "step2Tag": "שלב 2 מתוך 3",
+    "step2Title": "עקוב אחר הציוד",
+    "step2Description": "פתח פריט ולחץ 'הוצא לשימוש' כדי לסמן אותו בשימושך. לחץ 'החזר' כשסיימת כדי שהצוות ידע היכן הציוד.",
+    "step2Tip": "הפריטים שלקחת מופיעים בלשונית 'שלי' בניווט התחתון.",
+    "step3Tag": "שלב 3 מתוך 3",
+    "step3Title": "דווח על תקלות מיידית",
+    "step3Description": "זיהית ציוד פגום? לחץ 'דווח על תקלה' בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
+    "step3Tip": "ניתן גם לדווח על תקלות מאייקון התפריט בפינה הימנית העליונה.",
+    "gotIt": "הבנתי!",
+    "next": "הבא"
+  },
+
+  "moveRoomSheet": {
+    "movedTo": "הועבר אל {roomName}",
+    "movedToDefaultRoom": "הועבר אל חדר",
+    "removedFromRoom": "הוסר מהחדר",
+    "moveFailed": "ההעברה נכשלה"
+  },
+
+  "moveRoom": {
+    "toast": {
+      "movedTo": "הועבר אל {roomName}",
+      "defaultRoomName": "חדר",
+      "removedFromRoom": "הוסר מהחדר",
+      "moveFailed": "ההעברה נכשלה"
+    }
+  },
+
+  "syncQueueSheet": {
+    "typeScan": "סריקה",
+    "typeCreate": "יצירה",
+    "typeUpdate": "עדכון",
+    "typeDelete": "מחיקה",
+    "typeCheckout": "הוצאה לשימוש",
+    "typeReturn": "החזרה",
+    "unknownEquipment": "ציוד לא ידוע",
+    "pending": "ממתין",
+    "failed": "נכשל",
+    "resumingNow": "ממשיך עכשיו...",
+    "allSynced": "כל הפעולות סונכרנו",
+    "syncingNow": "מסנכרן...",
+    "syncNow": "סנכרן עכשיו"
+  },
+
+  "settingsPage": {
+    "title": "הגדרות",
+    "subtitle": "התאם אישית את חווית השימוש ב-VetTrack",
+    "display": "תצוגה",
+    "darkMode": "מצב לילה",
+    "darkModeDescription": "מפחית עומס על העיניים בתאורה חלשה",
+    "displaySize": "גודל תצוגה",
+    "displaySizeDescription": "כוונון הרווחים וצפיפות הפריסה",
+    "comfortable": "רגיל",
+    "compact": "קומפקטי",
+    "pushNotifications": "התראות Push",
+    "deviceNotifications": "התראות במכשיר",
+    "permissionDenied": "הרשאה נדחתה — אפשר בהגדרות הדפדפן",
+    "subscribedDescription": "מכשיר זה יקבל התראות גם כשהאפליקציה סגורה",
+    "unsubscribedDescription": "קבל התראות במכשיר זה, גם כשהאפליקציה סגורה",
+    "pushDisabled": "התראות Push כובו",
+    "pushDisableFailed": "הכיבוי נכשל",
+    "pushEnabled": "התראות Push הופעלו",
+    "pushEnableFailed": "ההפעלה נכשלה",
+    "deniedShort": "הרשאה נדחתה",
+    "disable": "כבה",
+    "enable": "הפעל",
+    "testNotifications": "בדיקת התראות",
+    "testNotificationsDescription": "שלח התראת ניסיון כדי לוודא תקינות",
+    "testSent": "התראת בדיקה נשלחה",
+    "testFailed": "שליחת הבדיקה נכשלה",
+    "roleNotificationPreferences": "העדפות התראות לפי הקשר תפקיד",
+    "techReturnReminders": "תזכורת להחזרת ציוד",
+    "techReturnRemindersDescription": "נשלחת למי שהוציא את הפריט (בכל תפקיד) כשעבר זמן ההחזרה הצפוי",
+    "seniorOwnReminders": "תזכורות אישיות",
+    "seniorOwnRemindersDescription": "תזכורת בדחיפה כשפריט שהוצאת עובר את זמן ההחזרה הצפוי (בכל תפקיד)",
+    "seniorTeamAlerts": "התראות צוות על איחור",
+    "seniorTeamAlertsDescription": "התראות שעתיות על ציוד מאחר בצוות המשמרת",
+    "adminHourlySummary": "סיכום שעתי אדמיניסטרטיבי",
+    "adminHourlySummaryDescription": "התראה שעתית מרוכזת על ציוד מאחר בכל בית החולים",
+    "sound": "שמע",
+    "masterSound": "שמע ראשי",
+    "masterSoundDescription": "הפעל או כבה את כל הצלילים",
+    "criticalAlerts": "התראות קריטיות",
+    "criticalAlertsDescription": "הפעל שמע להתראות ציוד דחופות",
+    "dateAndTime": "תאריך ושעה",
+    "timeFormat": "פורמט שעה",
+    "timeFormatDescription": "איך השעות מוצגות",
+    "dateFormat": "פורמט תאריך",
+    "dateFormatDescription": "איך התאריכים מוצגים",
+    "reset": "איפוס",
+    "resetToDefault": "שחזר לברירת מחדל",
+    "resetDescription": "שחזור כל ההגדרות לערכי ברירת המחדל. לא ניתן לבטל פעולה זו.",
+    "resetButton": "שחזר לברירת מחדל",
+    "resetDialogTitle": "לאפס את כל ההגדרות?",
+    "account": "חשבון",
+    "about": "אודות",
+    "logout": "התנתק"
+  },
+
+  "adminShiftsPage": {
+    "title": "ניהול משמרות",
+    "subtitle": "ייבוא משמרות מ-EZShift ותצוגת היסטוריית יבוא",
+    "uploadCsv": "העלה CSV",
+    "selectedFile": "קובץ נבחר",
+    "previewReady": "תצוגה מקדימה מוכנה",
+    "previewFailed": "בניית תצוגה מקדימה נכשלה",
+    "importSuccess": "ייבוא המשמרות הושלם",
+    "importFailed": "ייבוא המשמרות נכשל",
+    "noFileSelected": "לא נבחר קובץ",
+    "previewButton": "תצוגה מקדימה",
+    "confirmImportButton": "אשר ייבוא",
+    "confirmImporting": "מייבא...",
+    "previewSummaryTitle": "סיכום תצוגה מקדימה",
+    "totalRows": "סה\"כ שורות",
+    "validRows": "שורות תקינות",
+    "skippedRows": "שורות שדולגו",
+    "previewRowsTitle": "שורות שייובאו",
+    "issuesTitle": "שגיאות ודילוגים",
+    "importsHistoryTitle": "היסטוריית יבוא",
+    "noImportsYet": "אין היסטוריית יבוא עדיין",
+    "noPreviewYet": "עדיין לא נוצרה תצוגה מקדימה",
+    "rowLabel": "שורה {row}",
+    "importedBy": "יובא על ידי",
+    "importedAt": "זמן יבוא",
+    "filename": "שם קובץ",
+    "rowCount": "כמות שורות",
+    "date": "תאריך",
+    "startTime": "שעת התחלה",
+    "endTime": "שעת סיום",
+    "employeeName": "שם עובד",
+    "role": "תפקיד"
+  },
+
+  "alertsPage": {
+    "oneMinuteAgo": "לפני דקה",
+    "minutesAgo": "לפני {minutes} דקות",
+    "oneHourAgo": "לפני שעה",
+    "hoursAgo": "לפני {hours} שעות",
+    "oneDayAgo": "לפני יום",
+    "daysAgo": "לפני {days} ימים",
+    "title": "התראות",
+    "metaDescription": "התראות ציוד פעילות לפי חומרה: תקלות קריטיות, תחזוקה באיחור, תזכורות חיטוי וציוד לא פעיל.",
+    "activeCount": "{count} פעילות",
+    "ackLoadFailed": "טעינת סטטוסי טיפול נכשלה. אפשר לצפות בהתראות, אך פעולות טיפול מושבתות זמנית.",
+    "browseEquipment": "דפדף בציוד",
+    "inProgressSince": "בטיפול מאז",
+    "removeAckAria": "הסר סטטוס טיפול",
+    "takeOwnership": "אני מטפל/ת בזה"
+  },
+
+  "analyticsPage": {
+    "title": "ניתוח נתונים",
+    "maintenance": "תחזוקה",
+    "sterilization": "חיטוי",
+    "overdue": "באיחור",
+    "issues": "תקלות",
+    "complianceRate": "אחוז תקינות",
+    "overdueItems": "פריטים באיחור",
+    "openIssues": "תקלות פתוחות",
+    "statusDistribution": "התפלגות סטטוס ציוד",
+    "noDataYet": "אין נתונים עדיין",
+    "scanActivity14Days": "פעילות סריקה — 14 ימים אחרונים",
+    "topProblemEquipment": "הציוד הבעייתי ביותר",
+    "noIssuesReported": "לא דווחו תקלות",
+    "topProblemSubMessage": "ציוד עם תקלות חוזרות יופיע כאן",
+    "maintenanceLabel": "תחזוקה",
+    "itemsLabel": "פריטים"
+  },
+
+  "myEquipmentPage": {
+    "scanQr": "סרוק QR",
+    "shiftSummary": "סיכום משמרת",
+    "browseEquipment": "דפדף בציוד"
+  },
+
+  "notFoundPage": {
+    "title": "העמוד לא נמצא — VetTrack"
+  },
+
+  "homePage": {
+    "greeting": "שלום, {name}",
+    "fallbackName": "שם",
+    "activeAlerts": "התראות פעילות",
+    "showAll": "הצג הכל",
+    "recentActivity": "פעילות אחרונה",
+    "getStarted": "התחל",
+    "total": "סה״כ",
+    "getStartedDescription": "הוסף את פריט הציוד הראשון כדי להתחיל במעקב"
+  },
+
+  "helpPage": {
+    "dailyTasks": "משימות יומיות",
+    "equipmentStatus": "סטטוס ציוד",
+    "assetRadar": "רדאר ציוד",
+    "syncIndicator": "מחוון סנכרון (כותרת עליונה)",
+    "alerts": "התראות",
+    "backToDashboard": "חזרה ללוח הבקרה",
+    "scanQrTitle": "סרוק קוד QR",
+    "scanQrDescription": "לחץ על כפתור הסריקה הכחול בתחתית המסך לסריקת ציוד. טוען מיד את הסטטוס וההיסטוריה.",
+    "checkoutTitle": "הוצאת ציוד לשימוש",
+    "checkoutDescription": "פתח פריט ← לחץ 'הוצא לשימוש'. שמך יופיע על הפריט כדי שהצוות ידע מי מחזיק בו.",
+    "returnTitle": "החזרת ציוד",
+    "returnDescription": "פתח את הפריט שלקחת ← לחץ 'החזר'. מסיר את שמך ומסמן כזמין.",
+    "reportIssueTitle": "דיווח על תקלה",
+    "reportIssueDescription": "מצאת ציוד פגום? פתח פריט ← לחץ 'תקלה'. הצוות מקבל התראה מיידית.",
+    "okDescription": "הציוד נסרק ומוכן לשימוש.",
+    "sterilizedTitle": "עבר חיטוי — נקי ומוכן",
+    "sterilizedDescription": "הפריט עבר חיטוי. יתריע כשחלון החיטוי יפוג.",
+    "maintenanceTitle": "תחזוקה — נדרש טיפול",
+    "maintenanceDescription": "מסומן לתחזוקה. בדוק עם האדמין לפני שימוש.",
+    "issueTitle": "תקלה — אין להשתמש",
+    "inactiveTitle": "לא פעיל — מחוץ לשירות",
+    "inactiveDescription": "הפריט הוצא משירות זמנית או לצמיתות.",
+    "healthRingTitle": "טבעת בריאות",
+    "healthRingDescription": "הטבעת הצבעונית על כל כרטיס חדר מציגה את אחוז הפריטים שאומתו ב-24 שעות האחרונות. ירוק ≥ 80%, כתום ≥ 40%, אדום < 40%.",
+    "syncedTitle": "מסונכרן",
+    "syncedDescription": "כל הפריטים בחדר זה אומתו ב-24 שעות האחרונות.",
+    "staleTitle": "לא עדכני",
+    "staleDescription": "החדר לא נבדק ביותר מ-24 שעות. לחץ על החדר לאימות פריטים.",
+    "auditRequiredTitle": "נדרש ביקורת",
+    "auditRequiredDescription": "פריט בחדר זה סומן. נדרשת ביקורת מלאה לפני שהחדר יוכל להיות נקי.",
+    "nfcDescription": "לחץ על מדבקת NFC בדלת החדר לפתיחת מסך האימות. אשר לסמן את כל הפריטים כמאומתים בלחיצה אחת.",
+    "pendingTitle": "ממתין",
+    "pendingDescription": "הפעולה נשמרה מקומית וממתינה לשליחה לשרת. קורה כשאתה לא מחובר. יסתנכרן אוטומטית כשתתחבר.",
+    "failedTitle": "נכשל",
+    "failedDescription": "פעולה לא הצליחה להסתנכרן לאחר מספר ניסיונות. לחץ על אייקון הענן לצפייה ולניסיון חוזר.",
+    "offlineTitle": "לא מחובר",
+    "offlineDescription": "אין חיבור לאינטרנט. האפליקציה ממשיכה לעבוד — כל השינויים בתור ויסונכרנו אוטומטית.",
+    "activeAlertsTitle": "התראות פעילות",
+    "activeAlertsDescription": "התג האדום על אייקון הפעמון מציג כמה פריטים דורשים תשומת לב. לחץ לצפייה ואישור.",
+    "pushAlertsTitle": "התראות Push",
+    "pushAlertsDescription": "אפשר התראות Push בהגדרות → התראות Push לקבלת התראות בזמן אמת גם כשהאפליקציה ברקע."
+  },
+
+  "roomRadarPage": {
+    "verifiedReset": "אומת (חדר אופס)",
+    "verifiedNow": "אומת עכשיו",
+    "verifyFailed": "האימות נכשל",
+    "loadingRoom": "טוען חדר...",
+    "noAvailableEquipment": "אין ציוד זמין",
+    "allCheckedOutSubMessage": "כל הפריטים בחדר זה מוצאים כרגע.",
+    "verifyAllInRoom": "אמת הכל ב- {roomName}"
+  },
+
+  "roomsListPage": {
+    "createRoomFailed": "יצירת החדר נכשלה",
+    "title": "רדאר ציוד",
+    "emptyRooms": "אין חדרים עדיין",
+    "createFirstRoomHint": "צור את החדר הראשון כדי לארגן ציוד לפי מיקום.",
+    "createRoomDialogTitle": "יצירת חדר",
+    "roomName": "שם החדר *",
+    "roomFloorOptional": "קומה / אזור (אופציונלי)",
+    "createRoom": "יצירת חדר"
+  },
+
+  "managementDashboardPage": {
+    "title": "לוח בקרה",
+    "refresh": "רענן",
+    "loadEquipmentFailed": "טעינת נתוני הציוד נכשלה. נא לנסות שוב.",
+    "available": "זמין",
+    "inUse": "בשימוש",
+    "issues": "תקלות",
+    "missing": "חסר",
+    "criticalAlerts": "התראות קריטיות",
+    "allGood": "הכל תקין",
+    "allInPlace": "כל הציוד נמצא במקומו",
+    "issue": "תקלה",
+    "whoHasWhat": "מי מחזיק במה",
+    "allReturned": "כל הציוד הוחזר",
+    "noneInUse": "אין כרגע ציוד בשימוש",
+    "locationOverview": "סקירת מיקומים",
+    "noLocationData": "אין נתוני מיקום",
+    "noLocationDataSubMessage": "ציוד עם מיקומים משויכים יופיע כאן",
+    "systemHealth": "בריאות המערכת",
+    "refreshEveryMinute": "מתעדכן כל 60 שניות",
+    "uptime": "זמן פעולה",
+    "memory": "זיכרון",
+    "sessions": "הפעלות",
+    "syncSuccess": "הצלחות סנכרון",
+    "syncFailures": "שגיאות סנכרון"
+  },
+
+  "qrPrintPage": {
+    "title": "הדפסת QR",
+    "selectHint": "בחר ציוד להדפסה. ניתן להדפיס מספר קודי QR יחד.",
+    "searchPlaceholder": "חיפוש ציוד...",
+    "unselectAll": "בטל בחירה",
+    "selectAll": "בחר הכל",
+    "titleFull": "הדפסת QR — VetTrack",
+    "trying": "מנסה...",
+    "retry": "נסה שוב"
+  },
+
+  "stabilityPage": {
+    "allChecksHealthy": "כל הבדיקות תקינות",
+    "disabled": "מושבת",
+    "everyTwoHours": "כל 2 שעות",
+    "everyFourHours": "כל 4 שעות",
+    "everyEightHours": "כל 8 שעות",
+    "everyTwelveHours": "כל 12 שעות",
+    "everyTwentyFourHours": "כל 24 שעות",
+    "runStarted": "ריצת בדיקה החלה",
+    "runStartFailed": "הפעלת ריצת הבדיקה נכשלה",
+    "testModeEnabled": "מצב בדיקה הופעל",
+    "testModeDisabled": "מצב בדיקה כובה",
+    "logsCleared": "הלוגים נוקו",
+    "titleFull": "לוח יציבות מערכת — VetTrack",
+    "title": "לוח יציבות מערכת",
+    "subtitle": "איתור באגים, קריסות ובעיות ביצועים",
+    "runAllTests": "הרץ את כל הבדיקות",
+    "enabled": "מופעל",
+    "testResults": "תוצאות בדיקה",
+    "internalLog": "לוג פעולות פנימי",
+    "noResultsHint": "אין תוצאות בדיקה. לחץ על 'הרץ את כל הבדיקות' כדי להתחיל."
+  },
+
+  "shiftSummaryPage": {
+    "summaryTitle": "סיכום משמרת",
+    "loadFailed": "טעינת נתוני המשמרת נכשלה.",
+    "retry": "נסה שוב",
+    "checkedOutNow": "בשימוש כרגע",
+    "since": "מאז",
+    "noneInUse": "אין ציוד בשימוש כרגע",
+    "checkoutsToday": "שימושים היום",
+    "issuesReportedToday": "תקלות שדווחו היום",
+    "noIssuesToday": "לא דווחו תקלות היום",
+    "unacknowledgedAlerts": "התראות שלא טופלו",
+    "noCriticalAlerts": "אין התראות קריטיות",
+    "downloadPdf": "הורד PDF",
+    "reportDownloaded": "קובץ סיכום המשמרת ירד בהצלחה",
+    "reportHeader": "VetTrack סיכום משמרת — {dateStr}",
+    "unknownLocation": "לא ידוע",
+    "listBulletNone": "  אין",
+    "checkedOutLineWithLoc": "• {name} — {loc} מאז {since}",
+    "checkedOutLineNoLoc": "• {name} מאז {since}",
+    "todayUsageHeader": "שימושים היום ({count}):"
+  },
+
+  "adminPage": {
+    "tabFolders": "תיקיות",
+    "tabPending": "ממתינים",
+    "tabUsers": "משתמשים",
+    "tabSupport": "תמיכה",
+    "tabLogs": "לוגים",
+    "tabShifts": "משמרות",
+    "foldersTitle": "תיקיות",
+    "pendingUsersTitle": "ממתינים משתמשים",
+    "usersTitle": "משתמשים",
+    "folderCreated": "התיקייה נוצרה",
+    "folderCreateFailed": "יצירת התיקייה נכשלה",
+    "folderUpdated": "התיקייה עודכנה",
+    "folderUpdateFailed": "עדכון התיקייה נכשל",
+    "folderDeleted": "התיקייה נמחקה",
+    "folderDeleteFailed": "מחיקת התיקייה נכשלה",
+    "editFolder": "ערוך תיקייה",
+    "createFolder": "צור תיקייה",
+    "folderName": "שם תיקייה",
+    "noFoldersYet": "אין תיקיות עדיין. צור אחת כדי לארגן את הציוד.",
+    "update": "עדכן",
+    "create": "צור",
+    "userApproved": "המשתמש אושר",
+    "userRejected": "המשתמש נדחה",
+    "userStatusUpdateFailed": "עדכון סטטוס המשתמש נכשל",
+    "roleAdmin": "אדמין",
+    "roleVet": "וטרינר",
+    "roleTechnician": "טכנאי",
+    "roleViewer": "צופה",
+    "roleUpdated": "התפקיד עודכן",
+    "roleUpdateFailed": "עדכון התפקיד נכשל",
+    "statusUpdated": "הסטטוס עודכן",
+    "statusUpdateFailed": "עדכון הסטטוס נכשל",
+    "filterAll": "הכל",
+    "filterPending": "ממתין",
+    "filterActive": "פעיל",
+    "filterBlocked": "חסום",
+    "noUsersYet": "אין משתמשים עדיין",
+    "firstLoginUsersHint": "משתמשים יופיעו כאן בפעם הראשונה שהם מתחברים.",
+    "tryOtherFilterHint": "נסה לעבור לפילטר אחר כדי לראות משתמשים אחרים.",
+    "loadMore": "טען עוד",
+    "displayName": "שם תצוגה",
+    "displayNamePlaceholder": "שם שיוצג בממשק",
+    "displayNameUpdated": "שם התצוגה עודכן",
+    "displayNameUpdateFailed": "עדכון שם התצוגה נכשל",
+    "deletedUsersTitle": "משתמשים שנמחקו",
+    "supportTicketsTitle": "פניות תמיכה",
+    "cancel": "ביטול",
+    "equipmentRestored": "הציוד שוחזר",
+    "equipmentRestoreFailed": "שחזור הציוד נכשל",
+    "userRestored": "המשתמש שוחזר",
+    "userRestoreFailed": "שחזור המשתמש נכשל",
+    "ticketStatusOpen": "פתוח",
+    "ticketStatusInProgress": "בטיפול",
+    "ticketStatusResolved": "טופל",
+    "ticketUpdated": "הפניה עודכנה",
+    "ticketUpdateFailed": "עדכון הפניה נכשל",
+    "internalNotePlaceholder": "הוסף הערה פנימית...",
+    "shiftsTitle": "ייבוא משמרות",
+    "shiftsSubtitle": "העלה קובץ CSV מ-EZShift, בדוק תצוגה מקדימה ואז אשר ייבוא",
+    "uploadCsv": "העלה CSV",
+    "selectedFile": "קובץ נבחר",
+    "previewReady": "תצוגה מקדימה מוכנה",
+    "previewFailed": "בניית תצוגה מקדימה נכשלה",
+    "importSuccess": "ייבוא המשמרות הושלם",
+    "importFailed": "ייבוא המשמרות נכשל",
+    "noRowsToImport": "אין שורות תקינות לייבוא",
+    "previewSummary": "סיכום תצוגה מקדימה",
+    "totalRows": "סה\"כ שורות",
+    "validRows": "שורות תקינות",
+    "skippedRows": "שורות שדולגו",
+    "previewRowsTitle": "שורות תקינות",
+    "previewIssuesTitle": "שגיאות לפי שורה",
+    "importHistoryTitle": "היסטוריית ייבוא",
+    "roleSeniorTechnician": "טכנאי בכיר",
+    "roleAdminShift": "מנהל",
+    "noShiftImportsYet": "אין היסטוריית ייבוא עדיין",
+    "confirmImport": "אשר ייבוא",
+    "noPreviewYet": "עדיין לא נבנתה תצוגה מקדימה",
+    "logEntries": "{count}{hasMoreSuffix} רשומות",
+    "logClientPage": "עמוד {current} מתוך {total}",
+    "logFilterFrom": "מתאריך",
+    "logFilterTo": "עד תאריך",
+    "logFilterAction": "סוג פעולה",
+    "logFilterStaff": "איש צוות",
+    "logFilterApply": "סנן",
+    "logFilterReset": "אפס",
+    "noTicketsYet": "אין פניות תמיכה עדיין",
+    "noTicketsYetSub": "פניות שיישלחו על ידי משתמשים יופיעו כאן."
+  },
+
+  "layoutHebrew": {
+    "home": "ראשי",
+    "radar": "רדאר",
+    "analytics": "ניתוח נתונים",
+    "dashboard": "לוח בקרה",
+    "printQr": "הדפסת QR",
+    "admin": "ניהול",
+    "adminShifts": "משמרות",
+    "stability": "יציבות",
+    "quickGuide": "מדריך מהיר",
+    "settings": "הגדרות",
+    "about": "אודות VetTrack",
+    "offline": "לא מחובר",
+    "syncing": "מסנכרן...",
+    "synced": "מסונכרן",
+    "pendingShort": "{count} ממתינות",
+    "failedShort": "{count} נכשלו",
+    "pendingTitle": "{count} פעולות ממתינות — לחץ לסנכרון",
+    "failedTitle": "{count} פעולות נכשלו בסנכרון",
+    "pendingTooltip": "{count} פעולות נשמרו מקומית וממתינות לשרת. לחץ לסנכרון עכשיו, או שהן יסונכרנו אוטומטית כשיש חיבור.",
+    "alertAria": "פתח {count} התראות",
+    "quickSettings": "הגדרות מהירות",
+    "allSettings": "כל ההגדרות",
+    "reportIssue": "דווח על בעיה",
+    "scanQrAria": "סרוק קוד QR"
+  },
+
+  "conflictModal": {
+    "title": "התנגשויות סנכרון",
+    "description": "פריטים אלה שונו במכשיר אחר בזמן שהיית במצב לא מקוון.",
+    "serverVersion": "גרסת השרת:",
+    "yourVersion": "הגרסה שלך:",
+    "keepMine": "שמור את שלי",
+    "useServerVersion": "השתמש בגרסת השרת"
+  },
+
+  "updateBanner": {
+    "newVersion": "VetTrack v{version} כאן — ",
+    "seeWhatsNew": "ראה מה חדש",
+    "dismissAria": "סגור הודעת עדכון"
+  },
+
+  "pageErrorBoundary": {
+    "defaultFallback": "הקטע הזה נכשל בטעינה",
+    "tryAgain": "נסה שוב"
+  },
+
+  "errors": {
+    "server": {
+      "internalError": "שגיאה פנימית בשרת",
+      "failedToListEquipment": "טעינת רשימת הציוד נכשלה",
+      "failedToGetAuditLogs": "טעינת לוג הביקורת נכשלה",
+      "failedToSeedDemo": "יצירת נתוני דמו נכשלה"
+    }
+  }
+}

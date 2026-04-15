@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { t } from "@/lib/i18n";
 
 interface Props {
   children: ReactNode;
@@ -43,7 +44,7 @@ export class PageErrorBoundary extends Component<Props, State> {
           <AlertTriangle className="w-6 h-6 text-destructive opacity-70" />
           <div>
             <p className="text-sm font-medium text-foreground">
-              {this.props.fallbackLabel ?? "This section failed to load"}
+              {this.props.fallbackLabel ?? t.pageErrorBoundary.defaultFallback}
             </p>
             {this.state.errorMessage && (
               <p className="text-xs text-muted-foreground mt-1 font-mono">
@@ -58,7 +59,7 @@ export class PageErrorBoundary extends Component<Props, State> {
             onClick={this.reset}
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Try again
+            {t.pageErrorBoundary.tryAgain}
           </Button>
         </div>
       );
