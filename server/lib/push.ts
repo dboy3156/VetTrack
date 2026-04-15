@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { db, pushSubscriptions, serverConfig, users } from "../db.js";
+import { db, pool, pushSubscriptions, serverConfig, users } from "../db.js";
 import { eq } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
 
@@ -273,4 +273,35 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   );
 
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
+}
+
+const PUSH_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let pushCleanupSchedulerStarted = false;
+
+/** Remove subscriptions for soft-deleted or removed users (table hygiene; 410/404 cleanup happens on send). */
+export async function cleanupStalePushSubscriptions(): Promise<void> {
+  const result = await pool.query(`
+    DELETE FROM vt_push_subscriptions
+    WHERE user_id IN (SELECT id FROM vt_users WHERE deleted_at IS NOT NULL)
+       OR user_id NOT IN (SELECT id FROM vt_users)
+  `);
+  const deleted = result.rowCount ?? 0;
+  if (deleted > 0) {
+    console.log(`[push-cleanup] removed ${deleted} stale subscription(s)`);
+  }
+}
+
+export function startPushCleanupScheduler(): void {
+  if (pushCleanupSchedulerStarted) return;
+  pushCleanupSchedulerStarted = true;
+
+  cleanupStalePushSubscriptions().catch((err) => {
+    console.error("[push-cleanup] startup run failed:", err);
+  });
+
+  setInterval(() => {
+    cleanupStalePushSubscriptions().catch((err) => {
+      console.error("[push-cleanup] scheduled run failed:", err);
+    });
+  }, PUSH_CLEANUP_INTERVAL_MS);
 }
