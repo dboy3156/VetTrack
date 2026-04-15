@@ -246,7 +246,9 @@ function resolvePort(value: string | undefined): number {
 
 const PORT = resolvePort(process.env.PORT);
 app.listen(PORT, "0.0.0.0", () => {
-  console.log("ENV PORT =", process.env.PORT);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("ENV PORT =", process.env.PORT);
+  }
   console.log(`Server listening on ${PORT}`);
 });
 

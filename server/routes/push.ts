@@ -56,8 +56,6 @@ router.get("/vapid-public-key", async (_req, res) => {
 });
 
 router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscribeSchema), async (req, res) => {
-  console.log("SUBSCRIBE REQUEST:", req.body);
-
   if (!req.authUser?.id) {
     console.error("SUBSCRIBE: missing req.authUser.id");
     return res.status(401).json({ error: "Unauthorized" });

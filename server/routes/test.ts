@@ -13,6 +13,15 @@ import {
 
 const router = Router();
 
+function requireNotProduction(_req: Request, res: Response, next: NextFunction) {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ error: "Not available in production" });
+  }
+  next();
+}
+
+router.use(requireNotProduction);
+
 function requireTestMode(_req: Request, res: Response, next: NextFunction) {
   if (!isTestMode()) {
     return res.status(404).json({ error: "Not found" });

@@ -5,7 +5,6 @@ import { sendPushToUser } from "./push.js";
 import {
   getReturnReminderDelayMsPerUnit,
   getScheduledNotificationPollIntervalMs,
-  isTestMode,
 } from "./test-mode.js";
 
 function parseScheduledNotificationPayload(raw: unknown): Record<string, unknown> {
@@ -222,11 +221,9 @@ export async function cancelSmartReturnReminder(
     );
 }
 
-export async function runScheduledNotifications(): Promise<void> {
-  if (isTestMode()) {
-    console.log("[TEST] runScheduledNotifications: tick");
-  }
+const isDevLog = process.env.NODE_ENV !== "production";
 
+export async function runScheduledNotifications(): Promise<void> {
   const due = await db
     .select()
     .from(scheduledNotifications)
@@ -241,14 +238,13 @@ export async function runScheduledNotifications(): Promise<void> {
     .limit(100);
 
   for (const row of due) {
-    if (isTestMode()) {
-      console.log("[TEST] Processing due row:", { id: row.id, userId: row.userId, scheduledAt: row.scheduledAt });
+    if (isDevLog) {
+      console.log("Processing scheduled notification:", {
+        id: row.id,
+        type: row.type,
+        userId: row.userId,
+      });
     }
-    console.log("Processing scheduled notification:", {
-      id: row.id,
-      type: row.type,
-      userId: row.userId,
-    });
 
     try {
       await processReturnReminderNotification(row);
@@ -258,10 +254,12 @@ export async function runScheduledNotifications(): Promise<void> {
         .where(
           and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
         );
-      console.log("Notification sent:", {
-        id: row.id,
-        userId: row.userId,
-      });
+      if (isDevLog) {
+        console.log("Notification sent:", {
+          id: row.id,
+          userId: row.userId,
+        });
+      }
     } catch (error) {
       const payloadObj = parseScheduledNotificationPayload(row.payload);
       const prevAttempts = getAttemptsFromPayload(payloadObj);
@@ -304,9 +302,6 @@ export function startScheduledNotificationProcessor(): void {
   if (scheduledNotificationProcessorStarted) return;
   scheduledNotificationProcessorStarted = true;
   const intervalMs = getScheduledNotificationPollIntervalMs();
-  if (isTestMode()) {
-    console.log("[TEST] scheduled notification processor interval (ms):", intervalMs);
-  }
   void runScheduledNotifications().catch((e) => console.error("runScheduledNotifications", e));
   setInterval(() => {
     runScheduledNotifications().catch((e) => console.error("runScheduledNotifications", e));
@@ -432,11 +427,13 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
       fallbackRole,
     });
 
-    console.log("Notification role:", {
-      userId: seniorUser.id,
-      effectiveRole: seniorRole.effectiveRole,
-      source: seniorRole.source,
-    });
+    if (isDevLog) {
+      console.log("Notification role:", {
+        userId: seniorUser.id,
+        effectiveRole: seniorRole.effectiveRole,
+        source: seniorRole.source,
+      });
+    }
 
     if (seniorRole.effectiveRole !== "senior_technician") continue;
 

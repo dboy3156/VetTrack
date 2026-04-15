@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import {
   runAllTests,
@@ -12,6 +12,13 @@ import {
 import { getActionLogs, clearActionLogs, logAction } from "../lib/stability-log.js";
 
 const router = Router();
+
+function requireNotProduction(_req: Request, res: Response, next: NextFunction) {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ error: "Not available in production" });
+  }
+  next();
+}
 
 router.get("/status", requireAuth, requireAdmin, (_req, res) => {
   const report = getReport();
@@ -51,7 +58,7 @@ router.delete("/logs", requireAuth, requireAdmin, (_req, res) => {
   res.json({ message: "Logs cleared" });
 });
 
-router.post("/test-mode", requireAuth, requireAdmin, (req, res) => {
+router.post("/test-mode", requireAuth, requireAdmin, requireNotProduction, (req, res) => {
   const { enabled } = req.body as { enabled: boolean };
   if (typeof enabled !== "boolean") {
     return res.status(400).json({ error: "enabled must be a boolean" });
@@ -60,7 +67,7 @@ router.post("/test-mode", requireAuth, requireAdmin, (req, res) => {
   res.json({ testModeEnabled: enabled });
 });
 
-router.post("/schedule", requireAuth, requireAdmin, (req, res) => {
+router.post("/schedule", requireAuth, requireAdmin, requireNotProduction, (req, res) => {
   const { hours } = req.body as { hours: number };
   const h = Number(hours);
   if (!Number.isFinite(h) || h < 0) {

@@ -340,12 +340,14 @@ export function requireEffectiveRole(minRole: UserRole) {
       req.roleSource = source;
       req.activeShift = activeShift;
 
-      console.log("Role check:", {
-        user: req.authUser.name,
-        dbRole: req.authUser.role,
-        effectiveRole,
-        source,
-      });
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Role check:", {
+          user: req.authUser.name,
+          dbRole: req.authUser.role,
+          effectiveRole,
+          source,
+        });
+      }
 
       if (req.authUser.role === "admin") {
         return next();
