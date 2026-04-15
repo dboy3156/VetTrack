@@ -146,8 +146,9 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         // 1. Try fetching the existing user
         let res = await fetch("/api/users/me", { headers, signal: controller.signal });
         
-        // 2. If the user does not exist (404/401), sync/provision user
-        if (!res.ok && res.status !== 403) {
+        // 2. Sync/provision only when user is missing/unauthorized.
+        // Avoid calling /sync on transient failures such as 429.
+        if (!res.ok && (res.status === 401 || res.status === 404)) {
           res = await fetch("/api/users/sync", {
             method: "POST",
             headers,
@@ -216,6 +217,31 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
             isLoaded: true,
             isSignedIn: true,
             status: resolvedStatus,
+            isOfflineSession: false,
+          }));
+        } else if (res.status === 401) {
+          // Clerk reports signed-in, but backend rejected auth token/session.
+          // Resolve to signed-out state so AuthGuard routes to /signin instead
+          // of leaving protected pages mounted in a bad auth loop.
+          console.error("Auth sync unauthorized:", data);
+          clearHaltQueue();
+          setAuthState({ userId: "", email: "", name: "", bearerToken: null });
+          setState({
+            userId: null, email: null, name: null, role: "technician",
+            effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+            isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+          });
+        } else {
+          // Resolve auth state without forcing a local sign-out.
+          // For transient errors (e.g. 429) forcing isSignedIn=false can create
+          // a redirect loop with Clerk session state.
+          console.error("Auth sync failed with unexpected status:", res.status, data);
+          clearHaltQueue();
+          setState((s) => ({
+            ...s,
+            isLoaded: true,
+            isSignedIn: true,
+            status: "pending",
             isOfflineSession: false,
           }));
         }

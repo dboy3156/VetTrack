@@ -68,6 +68,40 @@ if (isProduction && !hasClerkSecret) {
   throw new Error("CLERK_SECRET_KEY is required in production. Refusing to start with dev auth bypass.");
 }
 
+async function ensureDevUserRecord(devUser: AuthUser): Promise<AuthUser> {
+  const [row] = await db
+    .insert(users)
+    .values({
+      id: devUser.id,
+      clerkId: devUser.clerkId,
+      email: devUser.email,
+      name: devUser.name,
+      displayName: devUser.name || devUser.email,
+      role: devUser.role,
+      status: devUser.status,
+    })
+    .onConflictDoUpdate({
+      target: users.clerkId,
+      set: {
+        email: devUser.email,
+        name: devUser.name,
+        displayName: devUser.name || devUser.email,
+        role: devUser.role,
+        status: devUser.status,
+      },
+    })
+    .returning();
+
+  return {
+    id: row.id,
+    clerkId: row.clerkId,
+    email: row.email,
+    name: row.name,
+    role: row.role as UserRole,
+    status: row.status,
+  };
+}
+
 export async function requireAuth(
   req: Request,
   res: Response,
@@ -90,7 +124,7 @@ export async function requireAuth(
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
         ? { ...baseUser, role: overrideRole }
         : baseUser;
-    req.authUser = devUser;
+    req.authUser = await ensureDevUserRecord(devUser);
     Sentry.setUser({ id: devUser.id, email: devUser.email });
     return next();
   }
@@ -215,7 +249,7 @@ export async function requireAuthAny(
       overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
         ? { ...baseUser, role: overrideRole }
         : baseUser;
-    req.authUser = devUser;
+    req.authUser = await ensureDevUserRecord(devUser);
     Sentry.setUser({ id: devUser.id, email: devUser.email });
     return next();
   }

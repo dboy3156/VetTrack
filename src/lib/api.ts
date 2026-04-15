@@ -99,6 +99,7 @@ function isNetworkError(err: unknown): boolean {
 }
 
 const FETCH_TIMEOUT_MS = 30_000;
+let authRedirectInProgress = false;
 
 function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const outer = init.signal as AbortSignal | undefined | null;
@@ -136,9 +137,14 @@ export async function request<T>(
   try {
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (res.status === 401) {
-      // Token expired or invalid — force a full page reload to re-authenticate
-      toast.error(t.api.sessionExpired);
-      setTimeout(() => window.location.reload(), 1500);
+      // Token expired/invalid. Avoid reload loops; route to sign-in once.
+      if (!authRedirectInProgress) {
+        authRedirectInProgress = true;
+        toast.error(t.api.sessionExpired);
+      }
+      if (typeof window !== "undefined" && window.location.pathname !== "/signin" && authRedirectInProgress) {
+        window.location.assign("/signin");
+      }
       throw new Error("Session expired");
     }
     if (!res.ok) {

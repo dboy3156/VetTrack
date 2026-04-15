@@ -53,6 +53,7 @@ import {
   RefreshCw,
   RotateCcw,
   Wrench,
+  CalendarDays,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
@@ -127,10 +128,44 @@ export default function AdminPage() {
         <link rel="canonical" href="https://vettrack.replit.app/admin" />
       </Helmet>
       <div className="flex flex-col gap-6 pb-24 animate-fade-in">
-        <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
-          <Shield className="w-6 h-6 text-primary" />
-          Admin
-        </h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold leading-tight flex items-center gap-2">
+            <Shield className="w-6 h-6 text-primary" />
+            Admin
+          </h1>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-11 text-xs shrink-0"
+            onClick={() => navigate("/admin/shifts")}
+            data-testid="btn-open-shifts-import"
+          >
+            <CalendarDays className="w-4 h-4 mr-1" />
+            Shifts CSV Import
+          </Button>
+        </div>
+
+        <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              Shift CSV Import
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Import EZShift-style schedule rows (Employee, Shift, Date, Start, End) into VetTrack roles.
+            </p>
+            <Button
+              size="sm"
+              className="h-11 text-xs shrink-0"
+              onClick={() => navigate("/admin/shifts")}
+              data-testid="btn-go-to-shifts-import-card"
+            >
+              Open Import Screen
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Tab bar */}
         <div className="flex gap-2 border-b pb-0 overflow-x-auto">
@@ -195,6 +230,16 @@ export default function AdminPage() {
                 {unresolvedCount > 9 ? "9+" : unresolvedCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => navigate("/admin/shifts")}
+            data-testid="admin-tab-shifts"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <CalendarDays className="w-4 h-4" />
+            Shifts
           </button>
           <button
             onClick={() => setActiveTab("audit-logs")}
