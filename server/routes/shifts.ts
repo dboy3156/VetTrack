@@ -179,6 +179,12 @@ function detectShiftRole(shiftName: string): ShiftRole | null {
   return null;
 }
 
+function detectRole(shiftName: string): ShiftRole | null {
+  if (shiftName.includes("בכיר")) return "senior_technician";
+  if (shiftName.includes("טכנאי")) return "technician";
+  return null;
+}
+
 function resolveHeaderIndex(headers: string[], variants: readonly string[]): number {
   const normalizedHeaders = headers.map((header) => normalizeHeader(header));
   for (const variant of variants) {
@@ -431,6 +437,89 @@ router.post("/import/confirm", requireAuth, requireAdmin, upload.single("file"),
       insertedRows: parsed.validRows.length,
       skippedRows: parsed.issues.length,
       issues: parsed.issues,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to import shifts CSV" });
+  }
+});
+
+router.post("/import", requireAuth, requireAdmin, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "CSV file is required (multipart field: file)" });
+    }
+
+    const csvText = req.file.buffer.toString("utf-8");
+    const lines = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
+    if (nonEmptyLines.length === 0) {
+      return res.status(400).json({ error: "CSV file is empty" });
+    }
+
+    const headers = nonEmptyLines[0].split(",").map((value) => value.trim().toLowerCase());
+    const employeeIdx = headers.indexOf("employee");
+    const shiftIdx = headers.indexOf("shift");
+    const dateIdx = headers.indexOf("date");
+    const startIdx = headers.indexOf("start");
+    const endIdx = headers.indexOf("end");
+
+    if (employeeIdx === -1 || shiftIdx === -1 || dateIdx === -1 || startIdx === -1 || endIdx === -1) {
+      return res.status(400).json({ error: "CSV must include: Employee, Shift, Date, Start, End" });
+    }
+
+    const values: Array<{
+      id: string;
+      employeeName: string;
+      role: ShiftRole;
+      date: string;
+      startTime: string;
+      endTime: string;
+    }> = [];
+
+    let totalRows = 0;
+    let skippedRows = 0;
+
+    for (let i = 1; i < nonEmptyLines.length; i++) {
+      const rawRow = nonEmptyLines[i];
+      const columns = rawRow.split(",").map((value) => value.trim().replace(/^"(.*)"$/s, "$1"));
+
+      totalRows += 1;
+
+      const employeeName = columns[employeeIdx] ?? "";
+      const shiftName = columns[shiftIdx] ?? "";
+      const date = columns[dateIdx] ?? "";
+      const startTime = columns[startIdx] ?? "";
+      const endTime = columns[endIdx] ?? "";
+      const role = detectRole(shiftName);
+
+      if (!employeeName || !role || !date || !startTime || !endTime) {
+        skippedRows += 1;
+        continue;
+      }
+
+      values.push({
+        id: randomUUID(),
+        employeeName,
+        role,
+        date,
+        startTime,
+        endTime,
+      });
+    }
+
+    if (values.length > 0) {
+      await db.insert(shifts).values(values);
+    }
+
+    console.log(
+      `[shifts import demo] totalRows=${totalRows} insertedRows=${values.length} skippedRows=${skippedRows}`
+    );
+
+    return res.json({
+      success: true,
+      inserted: values.length,
     });
   } catch (error) {
     console.error(error);
