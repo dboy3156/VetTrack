@@ -61,7 +61,7 @@ const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
 };
 
 const isProduction = process.env.NODE_ENV === "production";
-const isDevelopment = process.env.NODE_ENV === "development";
+const isDevelopment = process.env.NODE_ENV !== "production";
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
 
 if (isProduction && !hasClerkSecret) {
@@ -340,12 +340,14 @@ export function requireEffectiveRole(minRole: UserRole) {
       req.roleSource = source;
       req.activeShift = activeShift;
 
-      console.log("Role check:", {
-        user: req.authUser.name,
-        dbRole: req.authUser.role,
-        effectiveRole,
-        source,
-      });
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Role check:", {
+          user: req.authUser.name,
+          dbRole: req.authUser.role,
+          effectiveRole,
+          source,
+        });
+      }
 
       if (req.authUser.role === "admin") {
         return next();

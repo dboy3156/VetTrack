@@ -656,6 +656,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
     let updated: EquipmentRow | null = null;
+    let reminderBaseTime: Date | null = null;
     let undoToken = "";
 
     await db.transaction(async (tx) => {
@@ -677,6 +678,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
       }
 
       const checkoutTime = clientTimestamp ? new Date(clientTimestamp) : new Date();
+      reminderBaseTime = checkoutTime;
       const [updatedRow] = await tx
         .update(equipment)
         .set({
@@ -733,7 +735,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
       equipmentName: u.name,
       expectedReturnMinutes: u.expectedReturnMinutes,
       userId: req.authUser!.id,
-      checkedOutAt: u.checkedOutAt,
+      checkedOutAt: reminderBaseTime ?? u.checkedOutAt,
     });
 
     if (!checkDedupe(u.id, "checkout")) {

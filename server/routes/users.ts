@@ -122,10 +122,6 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       .from(users)
       .where(whereClause);
     const items = await baseQuery.limit(resolvedLimit).offset(resolvedOffset);
-    console.log(
-      "EMPTY EMAIL USERS:",
-      items.filter((u) => !u.email),
-    );
     res.json({ items, total, page, pageSize: resolvedLimit, hasMore: resolvedOffset + items.length < total });
   } catch (err) {
     console.error(err);

@@ -41,6 +41,7 @@ const requiredPrefixes = [
   "/api/whatsapp",
   "/api/audit-logs",
   "/api/storage",
+  "/api/test",
 ];
 
 console.log("\n── Route Registration Smoke Test");

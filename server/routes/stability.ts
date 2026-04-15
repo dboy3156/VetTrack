@@ -1,5 +1,5 @@
-import { Router } from "express";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { Router, type NextFunction, type Request, type Response } from "express";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import {
   runAllTests,
   getReport,
@@ -13,7 +13,17 @@ import { getActionLogs, clearActionLogs, logAction } from "../lib/stability-log.
 
 const router = Router();
 
-router.get("/status", requireAuth, requireAdmin, (_req, res) => {
+function requireNotProduction(_req: Request, res: Response, next: NextFunction) {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ error: "Not available in production" });
+  }
+  next();
+}
+
+router.use(requireAuth);
+router.use(requireEffectiveRole("admin"));
+
+router.get("/status", (_req, res) => {
   const report = getReport();
   const running = isTestRunning();
   const scheduleHours = getScheduleHours();
@@ -25,7 +35,7 @@ router.get("/status", requireAuth, requireAdmin, (_req, res) => {
   });
 });
 
-router.post("/run", requireAuth, requireAdmin, (_req, res) => {
+router.post("/run", (_req, res) => {
   if (isTestRunning()) {
     return res.status(409).json({ error: "A test run is already in progress" });
   }
@@ -35,23 +45,23 @@ router.post("/run", requireAuth, requireAdmin, (_req, res) => {
   res.json({ message: "Test run started", runId: `run-${Date.now()}` });
 });
 
-router.get("/results", requireAuth, requireAdmin, (_req, res) => {
+router.get("/results", (_req, res) => {
   res.json(getReport());
 });
 
-router.get("/logs", requireAuth, requireAdmin, (req, res) => {
+router.get("/logs", (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 200, 500);
   const search = (req.query.search as string | undefined) || undefined;
   res.json(getActionLogs(limit, search));
 });
 
-router.delete("/logs", requireAuth, requireAdmin, (_req, res) => {
+router.delete("/logs", (_req, res) => {
   clearActionLogs();
   logAction("info", "system", "Action logs cleared by admin");
   res.json({ message: "Logs cleared" });
 });
 
-router.post("/test-mode", requireAuth, requireAdmin, (req, res) => {
+router.post("/test-mode", requireNotProduction, (req, res) => {
   const { enabled } = req.body as { enabled: boolean };
   if (typeof enabled !== "boolean") {
     return res.status(400).json({ error: "enabled must be a boolean" });
@@ -60,7 +70,7 @@ router.post("/test-mode", requireAuth, requireAdmin, (req, res) => {
   res.json({ testModeEnabled: enabled });
 });
 
-router.post("/schedule", requireAuth, requireAdmin, (req, res) => {
+router.post("/schedule", requireNotProduction, (req, res) => {
   const { hours } = req.body as { hours: number };
   const h = Number(hours);
   if (!Number.isFinite(h) || h < 0) {

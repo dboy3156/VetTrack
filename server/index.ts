@@ -3,6 +3,8 @@ process.on("unhandledRejection", (r) =>
   console.error("💥 UNHANDLED PROMISE:", r),
 );
 
+import "dotenv/config";
+
 import { validateEnv } from "./lib/envValidation.js";
 validateEnv();
 
@@ -11,6 +13,7 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import xss from "xss";
+import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import equipmentRoutes from "./routes/equipment.js";
@@ -28,6 +31,7 @@ import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import shiftsRoutes from "./routes/shifts.js";
+import testRoutes from "./routes/test.js";
 import { runMigrations } from "./migrate.js";
 import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
 import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
@@ -38,6 +42,7 @@ import {
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
 
 const app = express();
 // Deployment runs behind a reverse proxy that sets X-Forwarded-For.
@@ -50,6 +55,9 @@ function sendHealthOk(_req: express.Request, res: express.Response) {
 }
 app.get("/api/health", sendHealthOk);
 app.get("/api/healthz", sendHealthOk);
+app.get("/api/version", (_req, res) => {
+  res.status(200).json({ version: appVersion ?? "0.0.0" });
+});
 
 function hasInvalidHeaderChars(value: string): boolean {
   return /[\r\n\0]/.test(value);
@@ -214,6 +222,7 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/storage", storageRoutes);
 app.use("/api/shifts", shiftsRoutes);
+app.use("/api/test", testRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));
@@ -237,7 +246,9 @@ function resolvePort(value: string | undefined): number {
 
 const PORT = resolvePort(process.env.PORT);
 app.listen(PORT, "0.0.0.0", () => {
-  console.log("ENV PORT =", process.env.PORT);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("ENV PORT =", process.env.PORT);
+  }
   console.log(`Server listening on ${PORT}`);
 });
 

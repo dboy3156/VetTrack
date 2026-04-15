@@ -477,10 +477,12 @@ export const t = {
     testSent: "התראת בדיקה נשלחה",
     testFailed: "שליחת הבדיקה נכשלה",
     roleNotificationPreferences: "העדפות התראות לפי הקשר תפקיד",
-    techReturnReminders: "תזכורות החזרת ציוד",
-    techReturnRemindersDescription: "קבלת תזכורת כשזמן השימוש הצפוי הסתיים",
+    techReturnReminders: "תזכורת להחזרת ציוד",
+    techReturnRemindersDescription:
+      "נשלחת למי שהוציא את הפריט (בכל תפקיד) כשעבר זמן ההחזרה הצפוי",
     seniorOwnReminders: "תזכורות אישיות",
-    seniorOwnRemindersDescription: "תזכורות החזרה עבור ציוד שהוצא על ידך",
+    seniorOwnRemindersDescription:
+      "תזכורת בדחיפה כשפריט שהוצאת עובר את זמן ההחזרה הצפוי (בכל תפקיד)",
     seniorTeamAlerts: "התראות צוות על איחור",
     seniorTeamAlertsDescription: "התראות שעתיות על ציוד מאחר בצוות המשמרת",
     adminHourlySummary: "סיכום שעתי אדמיניסטרטיבי",
