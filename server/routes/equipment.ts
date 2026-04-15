@@ -839,7 +839,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
-    cancelSmartReturnReminder(u.id, req.authUser!.id);
+    await cancelSmartReturnReminder(u.id, req.authUser!.id);
 
     if (!checkDedupe(u.id, "return")) {
       sendPushToAll({
