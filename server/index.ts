@@ -41,6 +41,8 @@ import {
   startScheduledNotificationProcessor,
   startSmartRoleNotificationScheduler,
 } from "./lib/role-notification-scheduler.js";
+import { startAccessDeniedMetricsWindowScheduler } from "./lib/access-denied.js";
+import { startSystemWatchdog } from "./lib/system-watchdog.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
@@ -269,8 +271,10 @@ runMigrations()
       console.error("Failed to initialize push notifications", err);
     });
     startCleanupScheduler();
+    startAccessDeniedMetricsWindowScheduler();
     startScheduledNotificationProcessor();
     startSmartRoleNotificationScheduler();
+    startSystemWatchdog();
     console.log("✅ Background schedulers started");
   })
   .catch((err) => {

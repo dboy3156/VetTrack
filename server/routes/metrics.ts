@@ -2,7 +2,13 @@ import { Router } from "express";
 import { pool } from "../db.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { getSyncMetrics } from "../lib/sync-metrics.js";
-import { getAccessDeniedMetricsSnapshot } from "../lib/access-denied.js";
+import {
+  getAccessDeniedLogSafetySnapshot,
+  getAccessDeniedMetricsSnapshot,
+  getAccessDeniedMetricsWindowSnapshot,
+} from "../lib/access-denied.js";
+import { getAlertEngineSnapshot } from "../lib/alert-engine.js";
+import { getSystemWatchdogStatus } from "../lib/system-watchdog.js";
 
 const router = Router();
 
@@ -23,6 +29,10 @@ router.get("/", requireAuth, requireAdmin, async (_req, res) => {
 
     const syncMetrics = getSyncMetrics();
     const accessDeniedMetrics = getAccessDeniedMetricsSnapshot();
+    const accessDeniedWindow = getAccessDeniedMetricsWindowSnapshot();
+    const alertEngine = getAlertEngineSnapshot();
+    const watchdog = getSystemWatchdogStatus();
+    const accessDeniedLogSafety = getAccessDeniedLogSafetySnapshot();
 
     res.json({
       uptime: uptimeSeconds,
@@ -31,6 +41,15 @@ router.get("/", requireAuth, requireAdmin, async (_req, res) => {
       activeSessions,
       syncMetrics,
       accessDeniedMetrics,
+      accessDeniedWindow,
+      alertCounts: alertEngine.counts,
+      lastAlertTimestamp: alertEngine.lastAlertAt,
+      systemDegraded: alertEngine.isDegraded,
+      watchdogStatus: watchdog,
+      logSafety: {
+        accessDenied: accessDeniedLogSafety,
+        alerts: alertEngine.logSafety,
+      },
     });
   } catch (err) {
     console.error("Metrics error:", err);
