@@ -93,7 +93,7 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
   try {
     await db
       .delete(pushSubscriptions)
-      .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.endpoint, endpoint)));
+      .where(eq(pushSubscriptions.endpoint, endpoint));
   } catch (err) {
     console.error("SUBSCRIBE DB delete failed:", err);
     return res.status(500).json({ error: "Failed to save subscription" });

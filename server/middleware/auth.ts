@@ -327,6 +327,7 @@ export function requireEffectiveRole(minRole: UserRole) {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
     try {
       const { effectiveRole, source, activeShift } = await resolveCurrentRole({
+        clinicId: req.clinicId!,
         userName: req.authUser.name,
         fallbackRole: req.authUser.role,
       });

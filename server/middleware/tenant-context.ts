@@ -27,6 +27,7 @@ export function tenantContext(req: Request, res: Response, next: NextFunction): 
     ? req.headers["x-dev-clinic-id-override"]
     : undefined;
   const fromDevDefault = process.env.DEV_DEFAULT_CLINIC_ID;
+  const fromImplicitDevDefault = process.env.NODE_ENV !== "production" ? "dev-clinic-default" : undefined;
   const fromClerk = (() => {
     try {
       return getAuth(req).orgId ?? undefined;
@@ -35,7 +36,7 @@ export function tenantContext(req: Request, res: Response, next: NextFunction): 
     }
   })();
 
-  const clinicId = (fromAuthUser ?? fromClerk ?? fromDevHeader ?? fromDevDefault)?.trim();
+  const clinicId = (fromAuthUser ?? fromClerk ?? fromDevHeader ?? fromDevDefault ?? fromImplicitDevDefault)?.trim();
   if (!clinicId) {
     res.status(403).json({ error: "Clinic context missing" });
     return;

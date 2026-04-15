@@ -64,6 +64,7 @@ router.get("/me", requireAuth, async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
     const resolved = await resolveCurrentRole({
+      clinicId: req.clinicId!,
       userName: req.authUser.name,
       fallbackRole: req.authUser.role,
     });

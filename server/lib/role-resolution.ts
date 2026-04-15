@@ -6,6 +6,7 @@ export type ShiftRole = "technician" | "senior_technician" | "admin";
 export type EffectiveRole = PermanentVetTrackRole | ShiftRole;
 
 export interface RoleResolutionInput {
+  clinicId: string;
   userName: string;
   fallbackRole: PermanentVetTrackRole;
   now?: Date;
@@ -79,6 +80,7 @@ export async function resolveCurrentRole(input: RoleResolutionInput): Promise<Ro
     .where(
       and(
         sql`lower(trim(${shifts.employeeName})) = lower(trim(${normalizedName}))`,
+        eq(shifts.clinicId, input.clinicId),
         or(
           and(
             eq(shifts.date, today),

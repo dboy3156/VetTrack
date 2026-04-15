@@ -71,7 +71,7 @@ async function checkAndSendReminders(): Promise<void> {
           name: equipment.name,
         })
         .from(equipment)
-        .where(and(eq(equipment.id, ack.equipmentId), isNull(equipment.deletedAt)))
+        .where(and(eq(equipment.clinicId, ack.clinicId), eq(equipment.id, ack.equipmentId), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!eqRow) continue;
@@ -80,7 +80,7 @@ async function checkAndSendReminders(): Promise<void> {
 
       if (stillActive) {
         try {
-          await sendPushToUser(ack.acknowledgedById, {
+          await sendPushToUser(ack.clinicId, ack.acknowledgedById, {
             title: "Still needs attention",
             body: `You said you'd handle the ${ack.alertType.replace(/_/g, " ")} alert on "${eqRow.name}" — still unresolved`,
             tag: `reminder:${ack.equipmentId}:${ack.alertType}`,
