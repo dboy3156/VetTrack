@@ -1,5 +1,5 @@
 /**
- * One-time backfill: set missing user emails from Clerk by clerkId.
+ * One-time backfill: set missing user emails / names from Clerk by clerkId.
  *
  * Requires DATABASE_URL and CLERK_SECRET_KEY (see .env or your shell).
  *
@@ -14,14 +14,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function hasEmail(value: string | null | undefined): boolean {
-  return Boolean(value?.trim());
+function isEmpty(value: string | null | undefined): boolean {
+  return !value?.trim();
 }
 
 async function main(): Promise<void> {
-  console.log("🚀 Starting backfill…");
-  console.log("DATABASE_URL:", process.env.DATABASE_URL ? "✅ set" : "❌ missing");
-  console.log("CLERK_SECRET_KEY:", process.env.CLERK_SECRET_KEY ? "✅ set" : "❌ missing");
+  console.log("Starting backfill…");
+  console.log("DATABASE_URL:", process.env.DATABASE_URL ? "set" : "MISSING");
+  console.log("CLERK_SECRET_KEY:", process.env.CLERK_SECRET_KEY ? "set" : "MISSING");
 
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set");
@@ -43,28 +43,36 @@ async function main(): Promise<void> {
     return addr?.emailAddress?.trim() ?? "";
   }
 
+  function getClerkName(clerkUser: ClerkUser): string {
+    return `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
+  }
+
   try {
     const rows = await db
       .select({
         id: users.id,
         clerkId: users.clerkId,
         email: users.email,
+        name: users.name,
+        displayName: users.displayName,
       })
       .from(users);
 
-    const missingEmail = rows.filter((u) => !hasEmail(u.email));
-    const toBackfill = missingEmail.filter((u) => Boolean(u.clerkId?.trim()));
-    const skippedNoClerkId = missingEmail.length - toBackfill.length;
+    const needsBackfill = rows.filter(
+      (u) =>
+        Boolean(u.clerkId?.trim()) &&
+        (isEmpty(u.email) || isEmpty(u.name) || isEmpty(u.displayName)),
+    );
 
     console.log(
-      `Found ${rows.length} user row(s); ${missingEmail.length} missing email; ${toBackfill.length} will call Clerk (${skippedNoClerkId} skipped without clerkId).\n`,
+      `Found ${rows.length} user row(s); ${needsBackfill.length} need backfill (missing email, name, or displayName).\n`,
     );
 
     let updated = 0;
-    let missingClerkEmail = 0;
+    let skipped = 0;
     let clerkCallIndex = 0;
 
-    for (const user of toBackfill) {
+    for (const user of needsBackfill) {
       if (clerkCallIndex > 0) {
         await sleep(CLERK_DELAY_MS);
       }
@@ -76,18 +84,26 @@ async function main(): Promise<void> {
         }
         try {
           const clerkUser = await clerkClient.users.getUser(user.clerkId);
-          const primary = getPrimaryClerkEmail(clerkUser);
+          const clerkEmail = getPrimaryClerkEmail(clerkUser);
+          const clerkName = getClerkName(clerkUser);
 
-          if (!primary) {
-            missingClerkEmail += 1;
+          const patch: Record<string, string> = {};
+          if (isEmpty(user.email) && clerkEmail) patch.email = clerkEmail;
+          if (isEmpty(user.name) && clerkName) patch.name = clerkName;
+          if (isEmpty(user.displayName) && (clerkName || clerkEmail)) {
+            patch.displayName = clerkName || clerkEmail;
+          }
+
+          if (Object.keys(patch).length === 0) {
+            skipped += 1;
             console.warn(
-              `[missing Clerk email] id=${user.id} clerkId=${user.clerkId} (no primary email)`,
+              `[skipped] id=${user.id} clerkId=${user.clerkId} — Clerk has no data to fill`,
             );
           } else {
-            await db.update(users).set({ email: primary }).where(eq(users.id, user.id));
+            await db.update(users).set(patch).where(eq(users.id, user.id));
             updated += 1;
             console.log(
-              `[updated] id=${user.id} clerkId=${user.clerkId} email=${primary}`,
+              `[updated] id=${user.id} clerkId=${user.clerkId} fields=${Object.keys(patch).join(",")} → ${JSON.stringify(patch)}`,
             );
           }
           break;
@@ -107,7 +123,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `\nDone. Updated: ${updated}; missing primary email in Clerk: ${missingClerkEmail}; skipped (no clerkId): ${skippedNoClerkId}`,
+      `\nDone. Updated: ${updated}; skipped (no Clerk data): ${skipped}; total checked: ${needsBackfill.length}`,
     );
   } finally {
     await pool.end();
