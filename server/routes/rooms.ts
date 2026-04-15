@@ -36,9 +36,11 @@ const patchRoomSchema = z.object({
 // GET /api/rooms — list all rooms with per-room equipment counts
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const allRooms = await db
       .select()
       .from(rooms)
+      .where(eq(rooms.clinicId, clinicId))
       .orderBy(rooms.name);
 
     if (allRooms.length === 0) {
@@ -56,7 +58,7 @@ router.get("/", requireAuth, async (req, res) => {
         recentlyVerified: sql<number>`count(*) filter (where ${equipment.lastVerifiedAt} > ${cutoff24h})::int`,
       })
       .from(equipment)
-      .where(and(isNotNull(equipment.roomId), isNull(equipment.deletedAt)))
+      .where(and(eq(equipment.clinicId, clinicId), isNotNull(equipment.roomId), isNull(equipment.deletedAt)))
       .groupBy(equipment.roomId);
 
     const countMap = new Map(counts.map((c) => [c.roomId, c]));
@@ -87,10 +89,11 @@ router.get("/", requireAuth, async (req, res) => {
 // GET /api/rooms/:id — single room with counts
 router.get("/:id", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const [room] = await db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, req.params.id))
+      .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .limit(1);
 
     if (!room) return res.status(404).json({ error: "Room not found" });
@@ -105,7 +108,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         recentlyVerified: sql<number>`count(*) filter (where ${equipment.lastVerifiedAt} > ${cutoff24h})::int`,
       })
       .from(equipment)
-      .where(and(eq(equipment.roomId, room.id), isNull(equipment.deletedAt)));
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.roomId, room.id), isNull(equipment.deletedAt)));
 
     const total = counts?.total ?? 0;
     const inUse = counts?.inUse ?? 0;
@@ -129,6 +132,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 // GET /api/rooms/:id/activity — last 5 scan_log entries for equipment in this room
 router.get("/:id/activity", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const entries = await db
       .select({
         id: scanLogs.id,
@@ -144,9 +148,14 @@ router.get("/:id/activity", requireAuth, async (req, res) => {
       .from(scanLogs)
       .innerJoin(
         equipment,
-        and(eq(scanLogs.equipmentId, equipment.id), eq(equipment.roomId, req.params.id))
+        and(
+          eq(scanLogs.equipmentId, equipment.id),
+          eq(equipment.roomId, req.params.id),
+          eq(equipment.clinicId, clinicId),
+          eq(scanLogs.clinicId, clinicId)
+        )
       )
-      .leftJoin(users, eq(scanLogs.userId, users.id))
+      .leftJoin(users, and(eq(scanLogs.userId, users.id), eq(users.clinicId, clinicId)))
       .orderBy(desc(scanLogs.timestamp))
       .limit(5);
 
@@ -165,12 +174,13 @@ router.get("/:id/activity", requireAuth, async (req, res) => {
 // POST /api/rooms — create room
 router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(createRoomSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { name, floor, masterNfcTagId } = req.body as z.infer<typeof createRoomSchema>;
 
     const [existing] = await db
       .select({ id: rooms.id })
       .from(rooms)
-      .where(eq(rooms.name, name.trim()))
+      .where(and(eq(rooms.clinicId, clinicId), eq(rooms.name, name.trim())))
       .limit(1);
 
     if (existing) {
@@ -182,6 +192,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(c
       .insert(rooms)
       .values({
         id: randomUUID(),
+        clinicId,
         name: name.trim(),
         floor: floor?.trim() ?? null,
         masterNfcTagId: masterNfcTagId?.trim() ?? null,
@@ -192,6 +203,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(c
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "room_created",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -210,12 +222,13 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(c
 // PATCH /api/rooms/:id — update room metadata
 router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { name, floor, masterNfcTagId, syncStatus } = req.body as z.infer<typeof patchRoomSchema>;
 
     const [existing] = await db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, req.params.id))
+      .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "Room not found" });
@@ -224,7 +237,7 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
       const [conflict] = await db
         .select({ id: rooms.id })
         .from(rooms)
-        .where(eq(rooms.name, name.trim()))
+        .where(and(eq(rooms.clinicId, clinicId), eq(rooms.name, name.trim())))
         .limit(1);
       if (conflict) return res.status(409).json({ error: "A room with that name already exists" });
     }
@@ -238,10 +251,11 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
         ...(syncStatus !== undefined && { syncStatus }),
         updatedAt: new Date(),
       })
-      .where(eq(rooms.id, req.params.id))
+      .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "room_updated",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -260,10 +274,11 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
 // DELETE /api/rooms/:id — admin only, only if room has no equipment assigned
 router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const [existing] = await db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, req.params.id))
+      .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "Room not found" });
@@ -271,7 +286,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(equipment)
-      .where(and(eq(equipment.roomId, req.params.id), isNull(equipment.deletedAt)));
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.roomId, req.params.id), isNull(equipment.deletedAt)));
 
     if (count > 0) {
       return res.status(409).json({
@@ -279,9 +294,10 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
       });
     }
 
-    await db.delete(rooms).where(eq(rooms.id, req.params.id));
+    await db.delete(rooms).where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)));
 
     logAudit({
+      clinicId,
       actionType: "room_deleted",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,

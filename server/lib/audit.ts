@@ -30,6 +30,7 @@ export type AuditActionType =
   | "room_bulk_verified";
 
 export interface LogAuditParams {
+  clinicId: string;
   actionType: AuditActionType;
   performedBy: string;
   performedByEmail: string;
@@ -39,9 +40,13 @@ export interface LogAuditParams {
 }
 
 export function logAudit(params: LogAuditParams): void {
+  if (!params.clinicId) {
+    throw new Error("clinicId is required for audit logging");
+  }
   db.insert(auditLogs)
     .values({
       id: randomUUID(),
+      clinicId: params.clinicId,
       actionType: params.actionType,
       performedBy: params.performedBy,
       performedByEmail: params.performedByEmail,

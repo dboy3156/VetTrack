@@ -248,6 +248,7 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
       }
 
       req.authUser = result.user;
+      req.clinicId = result.user.clinicId;
       req.locale = resolveRequestLocale(req, result.user.locale);
       Sentry.setUser({ id: result.user.id, email: result.user.email });
 
@@ -280,6 +281,7 @@ export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
       }
 
       req.authUser = result.user;
+      req.clinicId = result.user.clinicId;
       req.locale = resolveRequestLocale(req, result.user.locale);
       Sentry.setUser({ id: result.user.id, email: result.user.email });
       next();
