@@ -48,6 +48,7 @@ router.post(
   validateBody(createScenarioSchema),
   async (req, res) => {
     const { equipmentId } = req.body as z.infer<typeof createScenarioSchema>;
+    const clinicId = req.clinicId!;
     const userId = req.authUser!.id;
 
     const [item] = await db
@@ -57,7 +58,7 @@ router.post(
         checkedOutById: equipment.checkedOutById,
       })
       .from(equipment)
-      .where(and(eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
       .limit(1);
 
     if (!item) {
@@ -72,6 +73,7 @@ router.post(
       .where(
         and(
           eq(scheduledNotifications.type, "return_reminder"),
+          eq(scheduledNotifications.clinicId, clinicId),
           eq(scheduledNotifications.userId, userId),
           eq(scheduledNotifications.equipmentId, equipmentId),
           isNull(scheduledNotifications.sentAt)
@@ -81,6 +83,7 @@ router.post(
     const [row] = await db
       .insert(scheduledNotifications)
       .values({
+        clinicId,
         type: "return_reminder",
         userId,
         equipmentId,
@@ -96,6 +99,7 @@ router.post(
 /** GET /api/test/notifications — recent scheduled notifications for the current user. */
 router.get("/notifications", requireAuth, requireTestMode, async (req, res) => {
   const userId = req.authUser!.id;
+  const clinicId = req.clinicId!;
   const rows = await db
     .select({
       id: scheduledNotifications.id,
@@ -106,7 +110,7 @@ router.get("/notifications", requireAuth, requireTestMode, async (req, res) => {
       payload: scheduledNotifications.payload,
     })
     .from(scheduledNotifications)
-    .where(eq(scheduledNotifications.userId, userId))
+    .where(and(eq(scheduledNotifications.clinicId, clinicId), eq(scheduledNotifications.userId, userId)))
     .orderBy(desc(scheduledNotifications.scheduledAt))
     .limit(100);
 

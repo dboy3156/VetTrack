@@ -81,10 +81,11 @@ router.get("/me", requireAuth, async (req, res) => {
 
 router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const deletedUsers = await db
       .select({ ...userFields, deletedAt: users.deletedAt })
       .from(users)
-      .where(isNotNull(users.deletedAt))
+      .where(and(eq(users.clinicId, clinicId), isNotNull(users.deletedAt)))
       .orderBy(desc(users.deletedAt));
     res.json(deletedUsers);
   } catch (err) {
@@ -95,6 +96,7 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { status } = req.query;
     const validStatuses = ["pending", "active", "blocked"];
     if (status !== undefined && !validStatuses.includes(status as string)) {
@@ -111,12 +113,12 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       ? db
           .select(userFields)
           .from(users)
-          .where(and(eq(users.status, status as string), isNull(users.deletedAt)))
-      : db.select(userFields).from(users).where(isNull(users.deletedAt)).orderBy(users.createdAt);
+          .where(and(eq(users.clinicId, clinicId), eq(users.status, status as string), isNull(users.deletedAt)))
+      : db.select(userFields).from(users).where(and(eq(users.clinicId, clinicId), isNull(users.deletedAt))).orderBy(users.createdAt);
 
     const whereClause = status
-      ? and(eq(users.status, status as string), isNull(users.deletedAt))
-      : isNull(users.deletedAt);
+      ? and(eq(users.clinicId, clinicId), eq(users.status, status as string), isNull(users.deletedAt))
+      : and(eq(users.clinicId, clinicId), isNull(users.deletedAt));
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(users)
@@ -131,10 +133,11 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 
 router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const pendingUsers = await db
       .select(userFields)
       .from(users)
-      .where(and(eq(users.status, "pending"), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.status, "pending"), isNull(users.deletedAt)))
       .orderBy(users.createdAt);
     res.json(pendingUsers);
   } catch (err) {
@@ -145,12 +148,13 @@ router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
 
 router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchRoleSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { role } = req.body as z.infer<typeof patchRoleSchema>;
 
     const [target] = await db
       .select()
       .from(users)
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
     if (!target) return res.status(404).json({ error: "User not found" });
@@ -159,7 +163,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(users)
-        .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
+        .where(and(eq(users.clinicId, clinicId), eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
         return res.status(409).json({ error: "Cannot demote the last admin. Promote another user to admin first." });
       }
@@ -168,10 +172,11 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
     const [user] = await db
       .update(users)
       .set({ role })
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "user_role_changed",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -189,23 +194,25 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
 
 router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchStatusSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { status } = req.body as z.infer<typeof patchStatusSchema>;
 
     const [existing] = await db
       .select()
       .from(users)
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
     const [user] = await db
       .update(users)
       .set({ status })
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
     logAudit({
+      clinicId,
       actionType: "user_status_changed",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -224,6 +231,7 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
 router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBody(patchDisplayNameSchema), async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    const clinicId = req.clinicId!;
 
     const { display_name } = req.body as z.infer<typeof patchDisplayNameSchema>;
     const actorId = req.authUser.id;
@@ -235,7 +243,7 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
     const [existing] = await db
       .select()
       .from(users)
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "User not found" });
@@ -243,10 +251,11 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
     const [updated] = await db
       .update(users)
       .set({ displayName: display_name })
-      .where(eq(users.id, req.params.id))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id)))
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "user_display_name_changed",
       performedBy: actorId,
       performedByEmail: req.authUser.email,
@@ -269,11 +278,12 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
 router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    const clinicId = req.clinicId!;
 
     const [existing] = await db
       .select()
       .from(users)
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "User not found" });
@@ -289,7 +299,7 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(users)
-        .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
+        .where(and(eq(users.clinicId, clinicId), eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
         return res.status(409).json({ error: "Cannot delete the last admin. Promote another user to admin first." });
       }
@@ -298,12 +308,13 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
     const [deleted] = await db
       .update(users)
       .set({ deletedAt: new Date(), deletedBy: actorId })
-      .where(and(eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
     if (!deleted) return res.status(404).json({ error: "User not found" });
 
     logAudit({
+      clinicId,
       actionType: "user_deleted",
       performedBy: actorId,
       performedByEmail: req.authUser.email,
@@ -322,6 +333,7 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
 router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    const clinicId = req.clinicId!;
 
     const actorId = req.authUser.id;
     const isSelf = actorId === req.params.id;
@@ -333,7 +345,7 @@ router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res
     const [existing] = await db
       .select()
       .from(users)
-      .where(and(eq(users.id, req.params.id), isNotNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNotNull(users.deletedAt)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "User not found or not deleted" });
@@ -341,10 +353,11 @@ router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res
     const [restored] = await db
       .update(users)
       .set({ deletedAt: null, deletedBy: null })
-      .where(eq(users.id, req.params.id))
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id)))
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "user_restored",
       performedBy: actorId,
       performedByEmail: req.authUser.email,
@@ -361,6 +374,7 @@ router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res
 });
 router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { clerkId, email, name } = req.body as z.infer<typeof syncUserSchema>;
 
     if (clerkId !== req.authUser!.clerkId) {
@@ -370,7 +384,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     const [existing] = await db
       .select()
       .from(users)
-      .where(and(eq(users.clerkId, clerkId), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.clerkId, clerkId), isNull(users.deletedAt)))
       .limit(1);
 
     if (existing) {
@@ -380,10 +394,11 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
           name: name || existing.name,
           email: email || existing.email,
         })
-        .where(eq(users.id, existing.id))
+        .where(and(eq(users.clinicId, clinicId), eq(users.id, existing.id)))
         .returning();
 
       logAudit({
+        clinicId,
         actionType: "user_login",
         performedBy: existing.id,
         performedByEmail: email,
@@ -403,6 +418,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         .insert(users)
         .values({
           id: insertedId,
+          clinicId,
           clerkId,
           email,
           name: name || "",
@@ -424,6 +440,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         ELSE EXCLUDED.email 
       END
     `,
+            clinicId,
           },
         })
         .returning();
@@ -435,7 +452,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         const [race] = await db
           .select()
           .from(users)
-          .where(and(eq(users.clerkId, clerkId), isNull(users.deletedAt)))
+          .where(and(eq(users.clinicId, clinicId), eq(users.clerkId, clerkId), isNull(users.deletedAt)))
           .limit(1);
         if (race) {
           return res.json({
@@ -448,6 +465,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
 
     if (wasCreated) {
       logAudit({
+        clinicId,
         actionType: "user_provisioned",
         performedBy: newUser.id,
         performedByEmail: email,
@@ -457,6 +475,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
       });
     } else {
       logAudit({
+        clinicId,
         actionType: "user_login",
         performedBy: newUser.id,
         performedByEmail: email,

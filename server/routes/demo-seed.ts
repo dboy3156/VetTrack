@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, equipment, folders, scanLogs } from "../db.js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
@@ -61,19 +61,21 @@ const DEMO_ITEMS: DemoItem[] = [
 
 router.post("/", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const now = new Date();
     const actorId = req.authUser!.id;
     const actorEmail = req.authUser!.email;
 
     const existingRows = await db
       .select({ id: equipment.id, name: equipment.name })
-      .from(equipment);
+      .from(equipment)
+      .where(eq(equipment.clinicId, clinicId));
     const existingByName = new Map(existingRows.map((e) => [e.name, e.id]));
 
     const [existingFolder] = await db
       .select()
       .from(folders)
-      .where(eq(folders.name, DEMO_FOLDER_NAME))
+      .where(and(eq(folders.clinicId, clinicId), eq(folders.name, DEMO_FOLDER_NAME)))
       .limit(1);
 
     let folderId: string;
@@ -82,7 +84,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
     } else {
       const [newFolder] = await db
         .insert(folders)
-        .values({ id: randomUUID(), name: DEMO_FOLDER_NAME, type: "manual" })
+        .values({ id: randomUUID(), clinicId, name: DEMO_FOLDER_NAME, type: "manual" })
         .returning();
       folderId = newFolder.id;
     }
@@ -120,7 +122,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
             folderId,
             ...checkoutFields,
           })
-          .where(eq(equipment.id, existingId));
+          .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, existingId)));
 
         patched.push(item.name);
       } else {
@@ -129,6 +131,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 
         await db.insert(equipment).values({
           id: equipmentId,
+          clinicId,
           name: item.name,
           serialNumber: item.serialNumber,
           model: item.model,
@@ -144,6 +147,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
 
         await db.insert(scanLogs).values({
           id: randomUUID(),
+          clinicId,
           equipmentId,
           userId: actorId,
           userEmail: actorEmail,

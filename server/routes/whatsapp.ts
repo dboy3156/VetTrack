@@ -75,12 +75,13 @@ const whatsappAlertSchema = z.object({
 
 router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateBody(whatsappAlertSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { equipmentId, status, note, phone } = req.body as z.infer<typeof whatsappAlertSchema>;
 
     const [item] = await db
       .select()
       .from(equipment)
-      .where(and(eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
       .limit(1);
 
     if (!item) {
@@ -105,6 +106,7 @@ router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateB
 
     await db.insert(whatsappAlerts).values({
       id: randomUUID(),
+      clinicId,
       equipmentId,
       equipmentName,
       status,

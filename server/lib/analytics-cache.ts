@@ -6,28 +6,33 @@ interface CacheEntry<T> {
 }
 
 class TtlCache<T> {
-  private entry: CacheEntry<T> | null = null;
+  private entries = new Map<string, CacheEntry<T>>();
 
-  get(): T | null {
-    if (!this.entry) return null;
-    if (Date.now() > this.entry.expiresAt) {
-      this.entry = null;
+  get(key: string): T | null {
+    const entry = this.entries.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.entries.delete(key);
       return null;
     }
-    return this.entry.value;
+    return entry.value;
   }
 
-  set(value: T): void {
-    this.entry = { value, expiresAt: Date.now() + TTL_MS };
+  set(key: string, value: T): void {
+    this.entries.set(key, { value, expiresAt: Date.now() + TTL_MS });
   }
 
-  invalidate(): void {
-    this.entry = null;
+  invalidate(key?: string): void {
+    if (key) {
+      this.entries.delete(key);
+      return;
+    }
+    this.entries.clear();
   }
 }
 
 export const analyticsCache = new TtlCache<unknown>();
 
-export function invalidateAnalyticsCache(): void {
-  analyticsCache.invalidate();
+export function invalidateAnalyticsCache(clinicId?: string): void {
+  analyticsCache.invalidate(clinicId);
 }

@@ -41,6 +41,7 @@ const patchTicketSchema = z.object({
 router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res) => {
   try {
     if (!req.authUser) return res.status(401).json({ error: "לא מורשה" });
+    const clinicId = req.clinicId!;
 
     const { title, description, severity, pageUrl, deviceInfo, appVersion } = req.body as z.infer<typeof createTicketSchema>;
 
@@ -48,6 +49,7 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
       .insert(supportTickets)
       .values({
         id: randomUUID(),
+        clinicId,
         title,
         description,
         severity,
@@ -61,7 +63,7 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
       })
       .returning();
 
-    sendPushToAll({
+    sendPushToAll(clinicId, {
       title: "New Support Ticket",
       body: `${req.authUser.email}: ${title}`,
       tag: `support-ticket-${ticket.id}`,
@@ -77,9 +79,11 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const tickets = await db
       .select()
       .from(supportTickets)
+      .where(eq(supportTickets.clinicId, clinicId))
       .orderBy(desc(supportTickets.createdAt));
 
     res.json(tickets);
@@ -91,10 +95,11 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 
 router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const tickets = await db
       .select({ id: supportTickets.id })
       .from(supportTickets)
-      .where(ne(supportTickets.status, "resolved"));
+      .where(and(eq(supportTickets.clinicId, clinicId), ne(supportTickets.status, "resolved")));
 
     res.json({ count: tickets.length });
   } catch (err) {
@@ -105,6 +110,7 @@ router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
 
 router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchTicketSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { status, adminNote } = req.body as z.infer<typeof patchTicketSchema>;
 
     const updateData: Record<string, unknown> = {
@@ -117,7 +123,7 @@ router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody
     const [ticket] = await db
       .update(supportTickets)
       .set(updateData)
-      .where(eq(supportTickets.id, req.params.id))
+      .where(and(eq(supportTickets.id, req.params.id), eq(supportTickets.clinicId, clinicId)))
       .returning();
 
     if (!ticket) return res.status(404).json({ error: "הפניה לא נמצאה" });

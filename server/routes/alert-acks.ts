@@ -82,7 +82,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
 
     const key = `ack:${equipmentId}:${alertType}`;
     if (!checkDedupe(equipmentId, key)) {
-      sendPushToOthers(req.authUser!.id, {
+      sendPushToOthers(clinicId, req.authUser!.id, {
         title: "Alert Acknowledged",
         body: `${req.authUser!.email} is handling the ${alertType.replace(/_/g, " ")} alert`,
         tag: `ack:${equipmentId}:${alertType}`,

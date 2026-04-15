@@ -20,6 +20,7 @@ const PAGE_SIZE = 30;
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const rawCursor = typeof req.query.cursor === "string" ? req.query.cursor : "";
     let cursorDate: Date | null = null;
     if (rawCursor) {
@@ -45,8 +46,8 @@ router.get("/", requireAuth, async (req, res) => {
         toFolder: sql<string>`null::text`,
       })
       .from(scanLogs)
-      .leftJoin(equipment, eq(scanLogs.equipmentId, equipment.id))
-      .where(cursorDate ? lt(scanLogs.timestamp, cursorDate) : undefined)
+      .leftJoin(equipment, and(eq(scanLogs.equipmentId, equipment.id), eq(equipment.clinicId, clinicId)))
+      .where(and(eq(scanLogs.clinicId, clinicId), cursorDate ? lt(scanLogs.timestamp, cursorDate) : undefined))
       .orderBy(desc(scanLogs.timestamp))
       .limit(PAGE_SIZE + 1);
 
@@ -66,9 +67,9 @@ router.get("/", requireAuth, async (req, res) => {
         toFolder: transferLogs.toFolderName,
       })
       .from(transferLogs)
-      .leftJoin(equipment, eq(transferLogs.equipmentId, equipment.id))
-      .leftJoin(users, eq(transferLogs.userId, users.id))
-      .where(cursorDate ? lt(transferLogs.timestamp, cursorDate) : undefined)
+      .leftJoin(equipment, and(eq(transferLogs.equipmentId, equipment.id), eq(equipment.clinicId, clinicId)))
+      .leftJoin(users, and(eq(transferLogs.userId, users.id), eq(users.clinicId, clinicId)))
+      .where(and(eq(transferLogs.clinicId, clinicId), cursorDate ? lt(transferLogs.timestamp, cursorDate) : undefined))
       .orderBy(desc(transferLogs.timestamp))
       .limit(PAGE_SIZE + 1);
 
@@ -117,10 +118,11 @@ router.get("/", requireAuth, async (req, res) => {
 // GET /api/activity/my-scan-count — reliable check for onboarding eligibility
 router.get("/my-scan-count", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const [row] = await db
       .select({ scanCount: count() })
       .from(scanLogs)
-      .where(eq(scanLogs.userId, req.authUser!.id));
+      .where(and(eq(scanLogs.clinicId, clinicId), eq(scanLogs.userId, req.authUser!.id)));
     res.json({ count: row?.scanCount ?? 0 });
   } catch (err) {
     console.error(err);
