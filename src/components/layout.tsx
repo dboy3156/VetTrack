@@ -183,7 +183,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       icon: <PackageOpen className="w-5 h-5" />,
       badgeCount: myCount,
     },
-    { href: "/appointments", label: "Appointments", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
+    { href: "/appointments", label: "Tasks", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
     { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
     { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
     { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },

@@ -3,6 +3,9 @@ import { z } from "zod";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { db, shifts, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { toServiceTask, type AppointmentLike } from "../domain/service-task.adapter.js";
+import { isServiceTaskModeForUser } from "../lib/feature-flags.js";
+import { logServiceChange } from "../lib/service-change-log.js";
 import {
   AppointmentServiceError,
   cancelAppointment,
@@ -16,6 +19,8 @@ import {
 const router = Router();
 
 const statusSchema = z.enum(["scheduled", "arrived", "in_progress", "completed", "cancelled", "no_show"]);
+const prioritySchema = z.enum(["critical", "high", "normal"]);
+const taskTypeSchema = z.enum(["maintenance", "repair", "inspection"]);
 
 const createAppointmentSchema = z.object({
   animalId: z.string().trim().min(1).optional().nullable(),
@@ -27,6 +32,8 @@ const createAppointmentSchema = z.object({
   conflictOverride: z.boolean().optional(),
   overrideReason: z.string().max(4000).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
+  priority: prioritySchema.optional(),
+  taskType: taskTypeSchema.optional().nullable(),
 });
 
 const updateAppointmentSchema = z
@@ -40,6 +47,8 @@ const updateAppointmentSchema = z
     conflictOverride: z.boolean().optional(),
     overrideReason: z.string().max(4000).optional().nullable(),
     notes: z.string().max(4000).optional().nullable(),
+    priority: prioritySchema.optional(),
+    taskType: taskTypeSchema.optional().nullable(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field must be provided",
@@ -97,6 +106,15 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
 
   try {
     const appointment = await createAppointment(req.clinicId!, parsed.data);
+    const uid = req.authUser?.id;
+    if (uid && isServiceTaskModeForUser(uid)) {
+      logServiceChange("appointment_created", {
+        userId: uid,
+        clinicId: req.clinicId,
+        appointmentId: appointment.id,
+        serviceTask: toServiceTask(appointment as AppointmentLike),
+      });
+    }
     return res.status(201).json({ appointment });
   } catch (err) {
     if (sendServiceError(res, err)) return;
@@ -217,6 +235,15 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
 
   try {
     const appointment = await updateAppointment(req.clinicId!, req.params.id, parsed.data);
+    const uid = req.authUser?.id;
+    if (uid && isServiceTaskModeForUser(uid)) {
+      logServiceChange("appointment_updated", {
+        userId: uid,
+        clinicId: req.clinicId,
+        appointmentId: appointment.id,
+        serviceTask: toServiceTask(appointment as AppointmentLike),
+      });
+    }
     return res.json({ appointment });
   } catch (err) {
     if (sendServiceError(res, err)) return;
@@ -244,6 +271,15 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
 
   try {
     const appointment = await cancelAppointment(req.clinicId!, req.params.id, parsed.data.reason);
+    const uid = req.authUser?.id;
+    if (uid && isServiceTaskModeForUser(uid)) {
+      logServiceChange("appointment_cancelled", {
+        userId: uid,
+        clinicId: req.clinicId,
+        appointmentId: appointment.id,
+        serviceTask: toServiceTask(appointment as AppointmentLike),
+      });
+    }
     return res.json({ appointment });
   } catch (err) {
     if (sendServiceError(res, err)) return;
