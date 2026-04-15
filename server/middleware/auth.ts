@@ -146,10 +146,6 @@ export async function requireAuth(
       })
       .returning();
 
-    // #region agent log
-    fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'053da8'},body:JSON.stringify({sessionId:'053da8',location:'auth.ts:requireAuth-upsert',message:'User upsert result',data:{userId:user.id,email:user.email,name:user.name,displayName:user.displayName,clerkEmail,clerkName,status:user.status},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     // Auto-promote users whose email is in ADMIN_EMAILS
     if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
       if (user.role !== "admin") {
