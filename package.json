@@ -14,7 +14,9 @@
     "validate:prod": "tsx scripts/validate-prod.ts",
     "test": "node tests/basic.test.js && node tests/route-registration.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js && node tests/pwa.system.test.js",
     "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "demo:hospital:seed": "tsx server/demo-production-safe/simulate-hospital-demo.ts",
+    "demo:hospital:rollback": "tsx server/demo-production-safe/rollback-hospital-demo.ts"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.0.0",
