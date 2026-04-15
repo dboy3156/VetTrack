@@ -12,7 +12,7 @@
     "build": "vite build",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "validate:prod": "tsx scripts/validate-prod.ts",
-    "test": "node tests/basic.test.js && node tests/route-registration.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js && node tests/pwa.system.test.js && tsx tests/i18n-hardening.test.ts && tsx tests/auth-hardening.test.ts && node tests/multi-tenancy-hardening.test.js && node tests/no-hardcoded-ui-strings.test.js",
+    "test": "node tests/basic.test.js && node tests/route-registration.test.js && node tests/concurrency.test.js && node tests/offline.test.js && node tests/conflict.test.js && node tests/pwa.system.test.js && tsx tests/i18n-hardening.test.ts && tsx tests/auth-hardening.test.ts && node tests/multi-tenancy-hardening.test.js && node tests/data-integrity-hardening.test.js && node tests/no-hardcoded-ui-strings.test.js",
     "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list",
     "db:migrate": "drizzle-kit migrate",
     "demo:hospital:seed": "tsx server/demo-production-safe/simulate-hospital-demo.ts",

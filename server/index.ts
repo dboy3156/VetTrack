@@ -231,6 +231,7 @@ app.use("/api/shifts", shiftsRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/demo-seed", demoSeedRoutes);
 app.use("/api/health/ready", healthRoutes);
+app.use("/health", healthRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));
@@ -270,6 +271,7 @@ runMigrations()
     startCleanupScheduler();
     startScheduledNotificationProcessor();
     startSmartRoleNotificationScheduler();
+    console.log("✅ Background schedulers started");
   })
   .catch((err) => {
     console.error("💥 Migration failed, aborting scheduler start", err);
