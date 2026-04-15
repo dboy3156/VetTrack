@@ -12,24 +12,6 @@ import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import type { ShiftImportPreview } from "@/types";
 
-function debugLog(runId: string, hypothesisId: string, location: string, message: string, data: Record<string, unknown>) {
-  // #region agent log
-  fetch("http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fabc13" },
-    body: JSON.stringify({
-      sessionId: "fabc13",
-      runId,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-}
-
 export default function AdminShiftsPage() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -46,22 +28,10 @@ export default function AdminShiftsPage() {
   const previewMut = useMutation({
     mutationFn: (file: File) => api.shifts.previewImport(file),
     onSuccess: (data) => {
-      // #region agent log
-      debugLog("baseline", "H2", "admin-shifts.tsx:onPreviewSuccess", "Preview succeeded", {
-        totalRows: data.summary.totalRows,
-        validRows: data.summary.validRows,
-        skippedRows: data.summary.skippedRows,
-      });
-      // #endregion
       setPreview(data);
       toast.success(t.adminShiftsPage.previewReady);
     },
     onError: (error: Error) => {
-      // #region agent log
-      debugLog("baseline", "H2", "admin-shifts.tsx:onPreviewError", "Preview failed", {
-        error: error.message,
-      });
-      // #endregion
       setPreview(null);
       toast.error(error.message || t.adminShiftsPage.previewFailed);
     },
@@ -70,13 +40,6 @@ export default function AdminShiftsPage() {
   const confirmMut = useMutation({
     mutationFn: (file: File) => api.shifts.confirmImport(file),
     onSuccess: (result) => {
-      // #region agent log
-      debugLog("baseline", "H3", "admin-shifts.tsx:onConfirmSuccess", "Confirm succeeded", {
-        filename: result.filename,
-        insertedRows: result.insertedRows,
-        skippedRows: result.skippedRows,
-      });
-      // #endregion
       toast.success(t.adminShiftsPage.importSuccess);
       queryClient.invalidateQueries({ queryKey: ["/api/shifts/imports"] });
       queryClient.invalidateQueries({ queryKey: ["/api/shifts"] });
@@ -87,11 +50,6 @@ export default function AdminShiftsPage() {
       );
     },
     onError: (error: Error) => {
-      // #region agent log
-      debugLog("baseline", "H3", "admin-shifts.tsx:onConfirmError", "Confirm failed", {
-        error: error.message,
-      });
-      // #endregion
       toast.error(error.message || t.adminShiftsPage.importFailed);
     },
   });
@@ -135,14 +93,6 @@ export default function AdminShiftsPage() {
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null;
-                // #region agent log
-                debugLog("baseline", "H1", "admin-shifts.tsx:onFileSelect", "File selected", {
-                  hasFile: Boolean(file),
-                  name: file?.name ?? null,
-                  type: file?.type ?? null,
-                  size: file?.size ?? null,
-                });
-                // #endregion
                 if (file && !file.name.toLowerCase().endsWith(".csv")) {
                   toast.error("Please choose a .csv file");
                   setSelectedFile(null);
@@ -170,12 +120,6 @@ export default function AdminShiftsPage() {
                 disabled={!canPreview}
                 onClick={() => {
                   if (selectedFile) previewMut.mutate(selectedFile);
-                  // #region agent log
-                  debugLog("baseline", "H2", "admin-shifts.tsx:onPreviewClick", "Preview clicked", {
-                    hasSelectedFile: Boolean(selectedFile),
-                    selectedFileName: selectedFile?.name ?? null,
-                  });
-                  // #endregion
                 }}
               >
                 {t.adminShiftsPage.previewButton}
@@ -187,13 +131,6 @@ export default function AdminShiftsPage() {
                 disabled={!canImport}
                 onClick={() => {
                   if (selectedFile) confirmMut.mutate(selectedFile);
-                  // #region agent log
-                  debugLog("baseline", "H3", "admin-shifts.tsx:onConfirmClick", "Confirm clicked", {
-                    hasSelectedFile: Boolean(selectedFile),
-                    hasPreview: Boolean(preview),
-                    validRows: preview?.summary.validRows ?? null,
-                  });
-                  // #endregion
                 }}
               >
                 {confirmMut.isPending ? t.adminShiftsPage.confirmImporting : t.adminShiftsPage.confirmImportButton}
