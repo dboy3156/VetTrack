@@ -222,6 +222,9 @@ export interface ShiftImportResult {
 
 export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
 
+export type TaskPriority = "critical" | "high" | "normal";
+export type TaskType = "maintenance" | "repair" | "inspection";
+
 export interface Appointment {
   id: string;
   clinicId: string;
@@ -234,6 +237,8 @@ export interface Appointment {
   conflictOverride: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -248,6 +253,8 @@ export interface CreateAppointmentRequest {
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
 }
 
 export interface UpdateAppointmentRequest {
@@ -260,6 +267,8 @@ export interface UpdateAppointmentRequest {
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
 }
 
 export interface VetShiftWindow {

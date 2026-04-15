@@ -69,6 +69,8 @@ export const appointments = pgTable("vt_appointments", {
   conflictOverride: boolean("conflict_override").notNull().default(false),
   overrideReason: text("override_reason"),
   notes: text("notes"),
+  priority: varchar("priority", { length: 20 }).notNull().default("normal"),
+  taskType: varchar("task_type", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

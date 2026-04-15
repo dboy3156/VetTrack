@@ -69,8 +69,8 @@ function statusActions(status: AppointmentStatus): AppointmentStatus[] {
 }
 
 function toErrorMessage(err: Error): string {
-  if (err.message === "APPOINTMENT_CONFLICT") return "This vet already has an overlapping appointment.";
-  if (err.message === "OUTSIDE_SHIFT") return "Selected time is outside the vet shift.";
+  if (err.message === "APPOINTMENT_CONFLICT") return "This technician already has an overlapping task.";
+  if (err.message === "OUTSIDE_SHIFT") return "Selected time is outside the technician shift.";
   if (err.message === "OVERRIDE_REASON_REQUIRED") return "Conflict override requires a reason.";
   if (err.message === "TIMEZONE_REQUIRED") return "Time input must include timezone information.";
   return err.message;
@@ -128,7 +128,7 @@ export default function AppointmentsPage() {
   const createMutation = useMutation({
     mutationFn: (payload: CreateAppointmentRequest) => api.appointments.create(payload),
     onSuccess: () => {
-      toast.success("Appointment created");
+      toast.success("Task created");
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       setBookingOpen(false);
       setFormNotes("");
@@ -245,12 +245,12 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <Layout title="Appointments">
+    <Layout title="Tasks">
       <div className="flex flex-col gap-4 pb-24">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="w-6 h-6" />
-            Appointments
+            Tasks
           </h1>
           <p className="text-sm text-muted-foreground">Calendar workflow with shift-aware, conflict-safe booking.</p>
         </div>
@@ -268,13 +268,13 @@ export default function AppointmentsPage() {
               <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Vet</label>
+              <label className="text-xs text-muted-foreground">Technician</label>
               <select
                 value={selectedVetId}
                 onChange={(e) => setSelectedVetId(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
-                <option value="">All vets</option>
+                <option value="">All technicians</option>
                 {(metaQuery.data?.vets ?? []).map((vet) => (
                   <option key={vet.id} value={vet.id}>
                     {vet.displayName || vet.name || vet.id}
@@ -318,7 +318,7 @@ export default function AppointmentsPage() {
               </div>
             ) : null}
             {listQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading appointments...</p>
+              <p className="text-sm text-muted-foreground">Loading tasks...</p>
             ) : (
               <div className="relative border rounded-xl overflow-hidden">
                 <div className="max-h-[70vh] overflow-auto">
@@ -369,7 +369,7 @@ export default function AppointmentsPage() {
                           </Badge>
                         </div>
                         <div className="text-[11px] mt-1 truncate">
-                          Animal: {appointment.animalId ?? "N/A"} | Vet: {appointment.vetId}
+                          Animal: {appointment.animalId ?? "N/A"} | Technician: {appointment.vetId}
                         </div>
                         {appointment.conflictOverride ? (
                           <div className="text-[10px] mt-1 font-medium">Conflict override</div>
@@ -393,7 +393,7 @@ export default function AppointmentsPage() {
 
                     {appointmentBlocks.length === 0 ? (
                       <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                        No appointments for this day.
+                        No tasks for this day.
                       </div>
                     ) : null}
                   </div>
@@ -412,13 +412,13 @@ export default function AppointmentsPage() {
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">Vet (required)</label>
+              <label className="text-xs text-muted-foreground">Technician (required)</label>
               <select
                 value={formVetId}
                 onChange={(e) => setFormVetId(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
-                <option value="">Select vet</option>
+                <option value="">Select technician</option>
                 {(metaQuery.data?.vets ?? []).map((vet) => (
                   <option key={vet.id} value={vet.id}>
                     {vet.displayName || vet.name || vet.id}
@@ -490,7 +490,7 @@ export default function AppointmentsPage() {
           <DialogHeader>
             <DialogTitle>Conflict detected</DialogTitle>
             <DialogDescription>
-              Another appointment overlaps this slot. You can still override with a required reason.
+              Another task overlaps this slot. You can still override with a required reason.
             </DialogDescription>
           </DialogHeader>
           <div>

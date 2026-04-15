@@ -1,10 +1,16 @@
 import { randomUUID } from "crypto";
 import { and, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, db, owners, shifts, users } from "../db.js";
 
 export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
 
+export type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
+
 type AppointmentRecord = typeof appointments.$inferSelect;
+
+const PRIORITIES: TaskPriority[] = ["critical", "high", "normal"];
+const TASK_TYPES: TaskType[] = ["maintenance", "repair", "inspection"];
 
 export interface AppointmentInput {
   animalId?: string | null;
@@ -16,6 +22,8 @@ export interface AppointmentInput {
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
 }
 
 export interface AppointmentUpdateInput {
@@ -28,6 +36,8 @@ export interface AppointmentUpdateInput {
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
 }
 
 export class AppointmentServiceError extends Error {
@@ -103,6 +113,22 @@ function normalizeStatus(status: AppointmentStatus | undefined): AppointmentStat
   return status;
 }
 
+function normalizePriority(priority: TaskPriority | undefined): TaskPriority {
+  if (priority === undefined) return "normal";
+  if (!PRIORITIES.includes(priority)) {
+    throw new AppointmentServiceError("INVALID_PRIORITY", 400, "Invalid priority", { priority });
+  }
+  return priority;
+}
+
+function normalizeTaskType(taskType: TaskType | null | undefined): TaskType | null {
+  if (taskType === undefined || taskType === null) return null;
+  if (!TASK_TYPES.includes(taskType)) {
+    throw new AppointmentServiceError("INVALID_TASK_TYPE", 400, "Invalid taskType", { taskType });
+  }
+  return taskType;
+}
+
 function ensureTimeWindow(startTime: Date, endTime: Date): void {
   if (endTime.getTime() <= startTime.getTime()) {
     throw new AppointmentServiceError("INVALID_TIME_WINDOW", 400, "endTime must be greater than startTime");
@@ -160,15 +186,13 @@ async function assertAnimalInClinic(clinicId: string, animalId: string): Promise
   return { ownerId: animal.ownerId };
 }
 
-async function assertNoVetConflict(args: {
+async function findActiveVetConflict(args: {
   clinicId: string;
   vetId: string;
   startTime: Date;
   endTime: Date;
-  conflictOverride: boolean;
-  overrideReason: string | null;
   excludeAppointmentId?: string;
-}): Promise<void> {
+}): Promise<{ id: string; startTime: Date; endTime: Date } | null> {
   const whereBase = and(
     eq(appointments.clinicId, args.clinicId),
     eq(appointments.vetId, args.vetId),
@@ -187,6 +211,30 @@ async function assertNoVetConflict(args: {
     .from(appointments)
     .where(whereBase)
     .limit(1);
+
+  return conflict ?? null;
+}
+
+async function assertNoVetConflict(args: {
+  clinicId: string;
+  vetId: string;
+  startTime: Date;
+  endTime: Date;
+  conflictOverride: boolean;
+  overrideReason: string | null;
+  excludeAppointmentId?: string;
+  existingConflict?: { id: string; startTime: Date; endTime: Date } | null;
+}): Promise<void> {
+  const conflict =
+    args.existingConflict !== undefined
+      ? args.existingConflict
+      : await findActiveVetConflict({
+          clinicId: args.clinicId,
+          vetId: args.vetId,
+          startTime: args.startTime,
+          endTime: args.endTime,
+          excludeAppointmentId: args.excludeAppointmentId,
+        });
 
   if (conflict) {
     if (!args.conflictOverride) {
@@ -311,6 +359,8 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
   const notes = normalizeNotes(payload.notes);
   const conflictOverride = payload.conflictOverride === true;
   const overrideReason = normalizeNotes(payload.overrideReason);
+  const priority = normalizePriority(payload.priority);
+  const taskType = normalizeTaskType(payload.taskType);
   const ownerId = payload.ownerId?.trim() || null;
   const animalId = payload.animalId?.trim() || null;
   const vetId = payload.vetId.trim();
@@ -327,9 +377,35 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       throw new AppointmentServiceError("ANIMAL_OWNER_MISMATCH", 400, "animalId does not belong to ownerId");
     }
   }
+  let finalConflictOverride = conflictOverride;
+  let finalOverrideReason = overrideReason;
+
   if (status !== "cancelled" && status !== "no_show") {
     await assertWithinVetShift({ clinicId, vetId, startTime, endTime });
-    await assertNoVetConflict({ clinicId, vetId, startTime, endTime, conflictOverride, overrideReason });
+    const conflict = await findActiveVetConflict({ clinicId, vetId, startTime, endTime });
+    if (conflict && priority === "critical") {
+      console.log(
+        JSON.stringify({
+          event: "PRIORITY_CRITICAL_OVERLAP",
+          clinicId,
+          vetId,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          conflictAppointmentId: conflict.id,
+        }),
+      );
+      finalConflictOverride = true;
+      finalOverrideReason = "AUTO_CRITICAL";
+    }
+    await assertNoVetConflict({
+      clinicId,
+      vetId,
+      startTime,
+      endTime,
+      conflictOverride: finalConflictOverride,
+      overrideReason: finalOverrideReason,
+      existingConflict: conflict,
+    });
   } else if (conflictOverride && !overrideReason) {
     throw new AppointmentServiceError("OVERRIDE_REASON_REQUIRED", 400, "overrideReason is required when conflictOverride is true");
   }
@@ -346,9 +422,11 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       startTime,
       endTime,
       status,
-      conflictOverride,
-      overrideReason,
+      conflictOverride: finalConflictOverride,
+      overrideReason: finalOverrideReason,
       notes,
+      priority,
+      taskType,
       createdAt: now,
       updatedAt: now,
     })
@@ -380,6 +458,14 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
   const nextOwnerId = payload.ownerId === undefined ? existing.ownerId : (payload.ownerId?.trim() || null);
   const nextAnimalId = payload.animalId === undefined ? existing.animalId : (payload.animalId?.trim() || null);
   const nextNotes = payload.notes === undefined ? existing.notes : normalizeNotes(payload.notes);
+  const nextPriority =
+    payload.priority !== undefined
+      ? normalizePriority(payload.priority)
+      : normalizePriority((existing as { priority?: TaskPriority }).priority);
+  const nextTaskType =
+    payload.taskType !== undefined
+      ? normalizeTaskType(payload.taskType)
+      : normalizeTaskType((existing as { taskType?: TaskType | null }).taskType);
 
   ensureTimeWindow(nextStartTime, nextEndTime);
   ensureStatusTransition(existing.status as AppointmentStatus, nextStatus);
@@ -392,16 +478,42 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
     }
   }
 
+  let finalConflictOverride = nextConflictOverride;
+  let finalOverrideReason = nextOverrideReason;
+
   if (nextStatus !== "cancelled" && nextStatus !== "no_show") {
     await assertWithinVetShift({ clinicId, vetId: nextVetId, startTime: nextStartTime, endTime: nextEndTime });
+    const conflict = await findActiveVetConflict({
+      clinicId,
+      vetId: nextVetId,
+      startTime: nextStartTime,
+      endTime: nextEndTime,
+      excludeAppointmentId: appointmentId,
+    });
+    if (conflict && nextPriority === "critical") {
+      console.log(
+        JSON.stringify({
+          event: "PRIORITY_CRITICAL_OVERLAP",
+          clinicId,
+          vetId: nextVetId,
+          startTime: nextStartTime.toISOString(),
+          endTime: nextEndTime.toISOString(),
+          conflictAppointmentId: conflict.id,
+          appointmentId,
+        }),
+      );
+      finalConflictOverride = true;
+      finalOverrideReason = "AUTO_CRITICAL";
+    }
     await assertNoVetConflict({
       clinicId,
       vetId: nextVetId,
       startTime: nextStartTime,
       endTime: nextEndTime,
-      conflictOverride: nextConflictOverride,
-      overrideReason: nextOverrideReason,
+      conflictOverride: finalConflictOverride,
+      overrideReason: finalOverrideReason,
       excludeAppointmentId: appointmentId,
+      existingConflict: conflict,
     });
   } else if (nextConflictOverride && !nextOverrideReason) {
     throw new AppointmentServiceError("OVERRIDE_REASON_REQUIRED", 400, "overrideReason is required when conflictOverride is true");
@@ -416,9 +528,11 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
       startTime: nextStartTime,
       endTime: nextEndTime,
       status: nextStatus,
-      conflictOverride: nextConflictOverride,
-      overrideReason: nextOverrideReason,
+      conflictOverride: finalConflictOverride,
+      overrideReason: finalOverrideReason,
       notes: nextNotes,
+      priority: nextPriority,
+      taskType: nextTaskType,
       updatedAt: new Date(),
     })
     .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))

@@ -38,6 +38,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
 
   const accessDeniedReasonText: Record<Exclude<AccessDeniedReason, null>, string> = {
     MISSING_CLINIC_ID: t.auth.guard.reasons.missingClinicId,
+    DB_FALLBACK_DISABLED: t.auth.guard.reasons.dbFallbackDisabled,
     TENANT_CONTEXT_MISSING: t.auth.guard.reasons.missingClinicContext,
     TENANT_MISMATCH: t.auth.guard.reasons.tenantMismatch,
     INSUFFICIENT_ROLE: t.auth.guard.reasons.insufficientRole,

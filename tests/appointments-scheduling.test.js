@@ -29,7 +29,9 @@ function overlaps(existing, incoming) {
 const repoRoot = path.resolve(__dirname, "..");
 const migration026 = fs.readFileSync(path.join(repoRoot, "migrations", "026_appointments_scheduling.sql"), "utf8");
 const migration027 = fs.readFileSync(path.join(repoRoot, "migrations", "027_appointments_product_polish.sql"), "utf8");
+const migration028 = fs.readFileSync(path.join(repoRoot, "migrations", "028_appointments_service_task_fields.sql"), "utf8");
 const serviceFile = fs.readFileSync(path.join(repoRoot, "server", "services", "appointments.service.ts"), "utf8");
+const authFile = fs.readFileSync(path.join(repoRoot, "server", "middleware", "auth.ts"), "utf8");
 const routeFile = fs.readFileSync(path.join(repoRoot, "server", "routes", "appointments.ts"), "utf8");
 const serverIndex = fs.readFileSync(path.join(repoRoot, "server", "index.ts"), "utf8");
 const appointmentsPage = fs.readFileSync(path.join(repoRoot, "src", "pages", "appointments.tsx"), "utf8");
@@ -55,6 +57,14 @@ assert(
 );
 
 assert(
+  migration028.includes("priority") &&
+    migration028.includes("task_type") &&
+    migration028.includes("maintenance"),
+  "Service-task fields migration adds priority and task_type",
+  "Expected migration 028 to add CMMS-oriented columns"
+);
+
+assert(
   migration026.includes("vt_appointments_vet_time_idx") &&
     migration026.includes("vt_appointments_clinic_id_idx") &&
     migration026.includes("vt_appointments_start_time_idx"),
@@ -64,10 +74,17 @@ assert(
 
 assert(
   serviceFile.includes("assertNoVetConflict") &&
+    serviceFile.includes("findActiveVetConflict") &&
     serviceFile.includes("lt(appointments.startTime, args.endTime)") &&
     serviceFile.includes("gt(appointments.endTime, args.startTime)"),
   "Service enforces overlap rule at backend layer",
   "Expected service to apply overlap predicate in DB query"
+);
+
+assert(
+  serviceFile.includes("PRIORITY_CRITICAL_OVERLAP") && serviceFile.includes("AUTO_CRITICAL"),
+  "Critical priority persists automatic conflict override",
+  "Expected critical overlap logging and AUTO_CRITICAL reason"
 );
 
 assert(
@@ -110,9 +127,18 @@ assert(
 assert(
   routeFile.includes("requireEffectiveRole(\"technician\")") &&
     routeFile.includes("error: \"VALIDATION_FAILED\"") &&
-    routeFile.includes("router.get(\"/meta\""),
+    routeFile.includes("router.get(\"/meta\"") &&
+    routeFile.includes("logServiceChange"),
   "Routes require auth + structured validation errors",
   "Expected appointments route to enforce auth, expose metadata, and return structured errors"
+);
+
+assert(
+  authFile.includes("clerkClient.users.getUser") &&
+    authFile.includes("DB_FALLBACK_DISABLED") &&
+    authFile.includes("CRITICAL_MISSING_CLINIC"),
+  "Auth uses Clerk backend client correctly and hardens clinic resolution",
+  "Expected fixed clerkClient usage and security logs"
 );
 
 assert(
