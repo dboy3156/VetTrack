@@ -1,9 +1,37 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { db, equipment, pushSubscriptions, shifts, users } from "../db.js";
+import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { db, equipment, pushSubscriptions, scheduledNotifications, shifts, supportTickets, users } from "../db.js";
 import { resolveCurrentRole, type PermanentVetTrackRole } from "./role-resolution.js";
 import { sendPushToUser } from "./push.js";
 
-const scheduledReminderTimers = new Map<string, NodeJS.Timeout>();
+function parseScheduledNotificationPayload(raw: unknown): Record<string, unknown> {
+  if (raw == null) return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      /* invalid JSON → empty */
+    }
+  }
+  return {};
+}
+
+function getAttemptsFromPayload(payload: Record<string, unknown>): number {
+  const a = payload.attempts;
+  if (typeof a === "number" && Number.isFinite(a) && a >= 0) return Math.floor(a);
+  return 0;
+}
+
+/** After a failure, `attempts` has been incremented to this value. */
+function backoffMsAfterFailure(attempts: number): number {
+  if (attempts === 1) return 60_000;
+  if (attempts === 2) return 5 * 60_000;
+  if (attempts === 3) return 15 * 60_000;
+  return 0;
+}
 
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -39,19 +67,6 @@ async function userAllowsReminder(
   return Boolean(row?.enabled);
 }
 
-function parseDateTime(dateText: string, timeText: string): Date {
-  return new Date(`${dateText}T${timeText}`);
-}
-
-function inferShiftWindow(shiftDate: string, startTime: string, endTime: string): { start: Date; end: Date } {
-  const start = parseDateTime(shiftDate, startTime);
-  let end = parseDateTime(shiftDate, endTime);
-  if (end <= start) {
-    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
-  }
-  return { start, end };
-}
-
 function isEquipmentOverdue(
   checkedOutAt: Date | string | null,
   expectedReturnMinutes: number | null,
@@ -67,12 +82,31 @@ function buildReminderMessage(equipmentName: string): string {
   return `תזכורת: החזר ${equipmentName} למקומו`;
 }
 
-function buildTeamOverdueMessage(equipmentName: string, userName: string): string {
-  return `ציוד לא הוחזר: ${equipmentName} על ידי ${userName}`;
-}
-
 function buildAdminSummaryMessage(count: number): string {
   return `${count} פריטים לא הוחזרו במשמרת הנוכחית`;
+}
+
+function buildSeniorTeamHourlyMessage(
+  overdue: Array<{ name: string; holderName: string }>,
+  openIssues: Array<{ id: string; title: string }>
+): string {
+  const lines: string[] = [];
+  if (overdue.length > 0) {
+    lines.push(`צוות: ${overdue.length} פריטים באיחור`);
+    for (const row of overdue.slice(0, 5)) {
+      lines.push(`• ${row.name} — ${row.holderName}`);
+    }
+    if (overdue.length > 5) lines.push(`… +${overdue.length - 5}`);
+  }
+  if (openIssues.length > 0) {
+    lines.push(`פניות פתוחות: ${openIssues.length}`);
+    const titles = openIssues
+      .slice(0, 5)
+      .map((t) => (t.title.length > 50 ? `${t.title.slice(0, 47)}…` : t.title));
+    for (const t of titles) lines.push(`• ${t}`);
+    if (openIssues.length > 5) lines.push(`… +${openIssues.length - 5}`);
+  }
+  return lines.join("\n");
 }
 
 async function sendTechnicianReminder(
@@ -107,6 +141,65 @@ async function sendSeniorOwnReminder(
   });
 }
 
+async function processReturnReminderNotification(
+  row: typeof scheduledNotifications.$inferSelect
+): Promise<void> {
+  if (!row.equipmentId) return;
+  const equipmentId = row.equipmentId;
+  const userId = row.userId;
+  const payload = parseScheduledNotificationPayload(row.payload);
+  const nameFromPayload =
+    typeof payload.equipmentName === "string" ? payload.equipmentName : undefined;
+
+  const [item] = await db
+    .select({
+      id: equipment.id,
+      name: equipment.name,
+      checkedOutById: equipment.checkedOutById,
+      checkedOutAt: equipment.checkedOutAt,
+      expectedReturnMinutes: equipment.expectedReturnMinutes,
+    })
+    .from(equipment)
+    .where(and(eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
+    .limit(1);
+
+  if (!item) return;
+  if (item.checkedOutById !== userId) return;
+  if (!isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, new Date())) return;
+
+  const [userRow] = await db
+    .select({ name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const userName = userRow?.name ?? "";
+  const fallbackRole = (userRow?.role as PermanentVetTrackRole | undefined) ?? "technician";
+  const roleResolution = await resolveCurrentRole({
+    userName,
+    fallbackRole,
+  });
+
+  console.log("Notification role:", {
+    userId,
+    effectiveRole: roleResolution.effectiveRole,
+    source: roleResolution.source,
+  });
+
+  if (roleResolution.effectiveRole === "admin") {
+    return;
+  }
+
+  const displayName = item.name || nameFromPayload || "ציוד";
+
+  if (roleResolution.effectiveRole === "senior_technician") {
+    await sendSeniorOwnReminder(userId, equipmentId, displayName);
+    return;
+  }
+
+  await sendTechnicianReminder(userId, equipmentId, displayName);
+}
+
 export async function scheduleSmartReturnReminder(params: {
   equipmentId: string;
   equipmentName: string;
@@ -121,71 +214,135 @@ export async function scheduleSmartReturnReminder(params: {
   if (Number.isNaN(checkoutDate.getTime())) return;
 
   const reminderAt = checkoutDate.getTime() + params.expectedReturnMinutes * 60_000;
-  const delayMs = reminderAt - Date.now();
-  if (delayMs <= 0) return;
+  if (reminderAt <= Date.now()) return;
 
-  const timerKey = `${params.equipmentId}:${params.userId}`;
-  const existingTimer = scheduledReminderTimers.get(timerKey);
-  if (existingTimer) clearTimeout(existingTimer);
+  await db
+    .delete(scheduledNotifications)
+    .where(
+      and(
+        eq(scheduledNotifications.type, "return_reminder"),
+        eq(scheduledNotifications.userId, params.userId),
+        eq(scheduledNotifications.equipmentId, params.equipmentId),
+        isNull(scheduledNotifications.sentAt)
+      )
+    );
 
-  const timeoutHandle = setTimeout(async () => {
-    scheduledReminderTimers.delete(timerKey);
+  await db.insert(scheduledNotifications).values({
+    type: "return_reminder",
+    userId: params.userId,
+    equipmentId: params.equipmentId,
+    scheduledAt: new Date(reminderAt),
+    payload: { equipmentName: params.equipmentName },
+  });
+}
+
+export async function cancelSmartReturnReminder(
+  equipmentId: string,
+  userId: string | null | undefined
+): Promise<void> {
+  if (!userId) return;
+  await db
+    .delete(scheduledNotifications)
+    .where(
+      and(
+        eq(scheduledNotifications.type, "return_reminder"),
+        eq(scheduledNotifications.userId, userId),
+        eq(scheduledNotifications.equipmentId, equipmentId),
+        isNull(scheduledNotifications.sentAt)
+      )
+    );
+}
+
+export async function runScheduledNotifications(): Promise<void> {
+  const due = await db
+    .select()
+    .from(scheduledNotifications)
+    .where(
+      and(
+        eq(scheduledNotifications.type, "return_reminder"),
+        isNull(scheduledNotifications.sentAt),
+        lte(scheduledNotifications.scheduledAt, sql`now()`)
+      )
+    )
+    .orderBy(asc(scheduledNotifications.scheduledAt))
+    .limit(100);
+
+  for (const row of due) {
+    console.log("Processing scheduled notification:", {
+      id: row.id,
+      type: row.type,
+      userId: row.userId,
+    });
+
     try {
-      const [item] = await db
-        .select({
-          id: equipment.id,
-          name: equipment.name,
-          checkedOutById: equipment.checkedOutById,
-          checkedOutAt: equipment.checkedOutAt,
-          expectedReturnMinutes: equipment.expectedReturnMinutes,
-        })
-        .from(equipment)
-        .where(and(eq(equipment.id, params.equipmentId), isNull(equipment.deletedAt)))
-        .limit(1);
+      await processReturnReminderNotification(row);
+      await db
+        .update(scheduledNotifications)
+        .set({ sentAt: new Date() })
+        .where(
+          and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+        );
+      console.log("Notification sent:", {
+        id: row.id,
+        userId: row.userId,
+      });
+    } catch (error) {
+      const payloadObj = parseScheduledNotificationPayload(row.payload);
+      const prevAttempts = getAttemptsFromPayload(payloadObj);
+      const attempts = prevAttempts + 1;
 
-      if (!item) return;
-      if (item.checkedOutById !== params.userId) return;
-      if (!isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, new Date())) return;
-
-      const [userRow] = await db
-        .select({ name: users.name, role: users.role })
-        .from(users)
-        .where(eq(users.id, params.userId))
-        .limit(1);
-
-      const userName = userRow?.name ?? "";
-      const fallbackRole = (userRow?.role as PermanentVetTrackRole | undefined) ?? "technician";
-      const roleResolution = await resolveCurrentRole({
-        userName,
-        fallbackRole,
+      console.error("Notification failed:", {
+        id: row.id,
+        userId: row.userId,
+        attempts,
+        error,
       });
 
-      if (roleResolution.effectiveRole === "technician") {
-        await sendTechnicianReminder(params.userId, params.equipmentId, item.name);
-        return;
+      if (attempts >= 4) {
+        console.warn("Notification abandoned:", { id: row.id, attempts });
+        await db
+          .update(scheduledNotifications)
+          .set({ sentAt: new Date() })
+          .where(
+            and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+          );
+      } else {
+        const delayMs = backoffMsAfterFailure(attempts);
+        await db
+          .update(scheduledNotifications)
+          .set({
+            scheduledAt: new Date(Date.now() + delayMs),
+            payload: { ...payloadObj, attempts },
+          })
+          .where(
+            and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+          );
       }
-
-      if (roleResolution.effectiveRole === "senior_technician") {
-        await sendSeniorOwnReminder(params.userId, params.equipmentId, item.name);
-      }
-    } catch (error) {
-      console.error("Failed to process scheduled smart reminder", error);
     }
-  }, delayMs);
-
-  scheduledReminderTimers.set(timerKey, timeoutHandle);
+  }
 }
 
-export function cancelSmartReturnReminder(equipmentId: string, userId: string | null | undefined): void {
-  if (!userId) return;
-  const key = `${equipmentId}:${userId}`;
-  const timer = scheduledReminderTimers.get(key);
-  if (!timer) return;
-  clearTimeout(timer);
-  scheduledReminderTimers.delete(key);
+let scheduledNotificationProcessorStarted = false;
+
+export function startScheduledNotificationProcessor(): void {
+  if (scheduledNotificationProcessorStarted) return;
+  scheduledNotificationProcessorStarted = true;
+  void runScheduledNotifications().catch((e) => console.error("runScheduledNotifications", e));
+  setInterval(() => {
+    runScheduledNotifications().catch((e) => console.error("runScheduledNotifications", e));
+  }, 60_000);
 }
 
-async function getActiveShifts(now: Date): Promise<Array<{ employeeName: string; role: "technician" | "senior_technician" | "admin" }>> {
+type ActiveShiftRow = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  employeeName: string;
+  role: "technician" | "senior_technician" | "admin";
+};
+
+async function getActiveShiftRows(now: Date): Promise<ActiveShiftRow[]> {
   const currentTime = toTimeString(now);
   const currentDate = toDateString(now);
   const previousDate = new Date(now);
@@ -194,6 +351,10 @@ async function getActiveShifts(now: Date): Promise<Array<{ employeeName: string;
 
   return db
     .select({
+      id: shifts.id,
+      date: shifts.date,
+      startTime: shifts.startTime,
+      endTime: shifts.endTime,
       employeeName: shifts.employeeName,
       role: shifts.role,
     })
@@ -213,66 +374,115 @@ async function getActiveShifts(now: Date): Promise<Array<{ employeeName: string;
     );
 }
 
+function sameShiftSlot(a: ActiveShiftRow, b: ActiveShiftRow): boolean {
+  return a.date === b.date && a.startTime === b.startTime && a.endTime === b.endTime;
+}
+
 async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
-  const activeShifts = await getActiveShifts(now);
+  const activeShifts = await getActiveShiftRows(now);
   if (activeShifts.length === 0) return;
 
-  const activeSeniorShifts = activeShifts.filter((shift) => shift.role === "senior_technician");
-  if (activeSeniorShifts.length === 0) return;
+  const seniorSlots = activeShifts.filter((shift) => shift.role === "senior_technician");
+  if (seniorSlots.length === 0) return;
 
   const allUsers = await db
     .select({ id: users.id, name: users.name, role: users.role })
     .from(users)
     .where(isNull(users.deletedAt));
 
-  const activeShiftNames = activeShifts.map((shift) => normalizeName(shift.employeeName));
-  const teamUsers = allUsers
-    .filter((user) => activeShiftNames.includes(normalizeName(user.name)))
-    .map((user) => ({ id: user.id, name: user.name }));
+  const userByNormalizedName = new Map<string, (typeof allUsers)[number]>();
+  for (const user of allUsers) {
+    userByNormalizedName.set(normalizeName(user.name), user);
+  }
 
-  if (teamUsers.length === 0) return;
-  const teamUserIds = teamUsers.map((user) => user.id);
+  const seenSeniorSlot = new Set<string>();
 
-  const overdueItems = await db
-    .select({
-      id: equipment.id,
-      name: equipment.name,
-      checkedOutById: equipment.checkedOutById,
-      checkedOutAt: equipment.checkedOutAt,
-      expectedReturnMinutes: equipment.expectedReturnMinutes,
-    })
-    .from(equipment)
-    .where(
-      and(
-        inArray(equipment.checkedOutById, teamUserIds),
-        isNotNull(equipment.checkedOutById),
-        isNull(equipment.deletedAt)
-      )
+  for (const seniorShift of seniorSlots) {
+    const seniorUser = userByNormalizedName.get(normalizeName(seniorShift.employeeName));
+    if (!seniorUser) continue;
+
+    const seniorDedupeKey = `${seniorUser.id}::${seniorShift.id}`;
+    if (seenSeniorSlot.has(seniorDedupeKey)) continue;
+    seenSeniorSlot.add(seniorDedupeKey);
+
+    const teamInSlot = activeShifts.filter((s) => sameShiftSlot(s, seniorShift));
+    const teamUsers = teamInSlot
+      .map((s) => userByNormalizedName.get(normalizeName(s.employeeName)))
+      .filter((u): u is NonNullable<typeof u> => Boolean(u));
+
+    if (teamUsers.length === 0) continue;
+    const teamUserIds = teamUsers.map((u) => u.id);
+
+    const overdueRows = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+        checkedOutById: equipment.checkedOutById,
+        checkedOutAt: equipment.checkedOutAt,
+        expectedReturnMinutes: equipment.expectedReturnMinutes,
+      })
+      .from(equipment)
+      .where(
+        and(
+          inArray(equipment.checkedOutById, teamUserIds),
+          isNotNull(equipment.checkedOutById),
+          isNull(equipment.deletedAt)
+        )
+      );
+
+    const currentlyOverdue = overdueRows.filter((item) =>
+      isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, now)
     );
 
-  const currentlyOverdue = overdueItems.filter((item) =>
-    isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, now)
-  );
+    // userId = ticket author; only tickets opened by users on this shift slot.
+    const openIssues = await db
+      .select({
+        id: supportTickets.id,
+        title: supportTickets.title,
+        userId: supportTickets.userId,
+      })
+      .from(supportTickets)
+      .where(and(eq(supportTickets.status, "open"), inArray(supportTickets.userId, teamUserIds)));
 
-  if (currentlyOverdue.length === 0) return;
+    if (currentlyOverdue.length === 0 && openIssues.length === 0) continue;
 
-  for (const seniorShift of activeSeniorShifts) {
-    const seniorUser = allUsers.find((user) => normalizeName(user.name) === normalizeName(seniorShift.employeeName));
-    if (!seniorUser) continue;
+    const fallbackRole = (seniorUser.role as PermanentVetTrackRole) ?? "technician";
+    const seniorRole = await resolveCurrentRole({
+      userName: seniorUser.name,
+      fallbackRole,
+    });
+
+    console.log("Notification role:", {
+      userId: seniorUser.id,
+      effectiveRole: seniorRole.effectiveRole,
+      source: seniorRole.source,
+    });
+
+    if (seniorRole.effectiveRole !== "senior_technician") continue;
+
     const seniorEnabled = await userAllowsReminder(seniorUser.id, "senior_team_overdue_alerts_enabled");
     if (!seniorEnabled) continue;
 
-    for (const item of currentlyOverdue) {
-      if (!item.checkedOutById) continue;
-      const holder = teamUsers.find((user) => user.id === item.checkedOutById);
-      const holderName = holder?.name ?? "Unknown";
-      await sendPushToUser(seniorUser.id, {
-        title: "VetTrack",
-        body: buildTeamOverdueMessage(item.name, holderName),
-        tag: `smart-team-overdue:${item.id}:${getMinuteBucket(now)}`,
-        url: `/equipment/${item.id}`,
-      });
-    }
+    const overdueLines = currentlyOverdue
+      .map((item) => {
+        if (!item.checkedOutById) return null;
+        const holder = teamUsers.find((u) => u.id === item.checkedOutById);
+        return {
+          name: item.name,
+          holderName: holder?.name ?? "לא ידוע",
+        };
+      })
+      .filter((row): row is { name: string; holderName: string } => row !== null);
+
+    const body = buildSeniorTeamHourlyMessage(overdueLines, openIssues);
+    const tag = `smart-team-hourly:${seniorShift.date}:${seniorShift.startTime}:${seniorShift.endTime}:${seniorUser.id}:${getMinuteBucket(now)}`;
+
+    await sendPushToUser(seniorUser.id, {
+      title: "VetTrack",
+      body,
+      tag,
+      url: "/my-equipment",
+    });
   }
 }
 
@@ -290,9 +500,9 @@ async function runAdminHourlySummary(now: Date): Promise<void> {
   if (overdueCount <= 0) return;
 
   const admins = await db
-    .select({ id: users.id, role: users.role })
+    .select({ id: users.id })
     .from(users)
-    .where(eq(users.role, "admin"));
+    .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
 
   for (const admin of admins) {
     const enabled = await userAllowsReminder(admin.id, "admin_hourly_summary_enabled");
@@ -324,4 +534,3 @@ export function startSmartRoleNotificationScheduler(): void {
     });
   }, 60_000);
 }
-
