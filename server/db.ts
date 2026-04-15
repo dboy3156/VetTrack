@@ -39,6 +39,42 @@ export const users = pgTable("vt_users", {
   deletedBy: text("deleted_by"),
 });
 
+export const owners = pgTable("vt_owners", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  fullName: text("full_name").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const animals = pgTable("vt_animals", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
+  name: text("name").notNull().default(""),
+  species: text("species"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const appointments = pgTable("vt_appointments", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
+  ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
+  vetId: text("vet_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("scheduled"),
+  conflictOverride: boolean("conflict_override").notNull().default(false),
+  overrideReason: text("override_reason"),
+  notes: text("notes"),
+  priority: varchar("priority", { length: 20 }).notNull().default("normal"),
+  taskType: varchar("task_type", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const folders = pgTable("vt_folders", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),

@@ -31,6 +31,7 @@ import whatsappRoutes from "./routes/whatsapp.js";
 import auditLogsRoutes from "./routes/audit-logs.js";
 import storageRoutes from "./routes/storage.js";
 import shiftsRoutes from "./routes/shifts.js";
+import appointmentsRoutes from "./routes/appointments.js";
 import testRoutes from "./routes/test.js";
 import demoSeedRoutes from "./routes/demo-seed.js";
 import healthRoutes from "./routes/health.js";
@@ -41,6 +42,8 @@ import {
   startScheduledNotificationProcessor,
   startSmartRoleNotificationScheduler,
 } from "./lib/role-notification-scheduler.js";
+import { startAccessDeniedMetricsWindowScheduler } from "./lib/access-denied.js";
+import { startSystemWatchdog } from "./lib/system-watchdog.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
@@ -228,6 +231,7 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/audit-logs", auditLogsRoutes);
 app.use("/api/storage", storageRoutes);
 app.use("/api/shifts", shiftsRoutes);
+app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/demo-seed", demoSeedRoutes);
 app.use("/api/health/ready", healthRoutes);
@@ -269,8 +273,10 @@ runMigrations()
       console.error("Failed to initialize push notifications", err);
     });
     startCleanupScheduler();
+    startAccessDeniedMetricsWindowScheduler();
     startScheduledNotificationProcessor();
     startSmartRoleNotificationScheduler();
+    startSystemWatchdog();
     console.log("✅ Background schedulers started");
   })
   .catch((err) => {

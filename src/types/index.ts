@@ -220,6 +220,73 @@ export interface ShiftImportResult {
   issues: ShiftCsvIssue[];
 }
 
+export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
+
+export type TaskPriority = "critical" | "high" | "normal";
+export type TaskType = "maintenance" | "repair" | "inspection";
+
+export interface Appointment {
+  id: string;
+  clinicId: string;
+  animalId?: string | null;
+  ownerId?: string | null;
+  vetId: string;
+  startTime: string;
+  endTime: string;
+  status: AppointmentStatus;
+  conflictOverride: boolean;
+  overrideReason?: string | null;
+  notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAppointmentRequest {
+  animalId?: string | null;
+  ownerId?: string | null;
+  vetId: string;
+  startTime: string;
+  endTime: string;
+  status?: AppointmentStatus;
+  conflictOverride?: boolean;
+  overrideReason?: string | null;
+  notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
+}
+
+export interface UpdateAppointmentRequest {
+  animalId?: string | null;
+  ownerId?: string | null;
+  vetId?: string;
+  startTime?: string;
+  endTime?: string;
+  status?: AppointmentStatus;
+  conflictOverride?: boolean;
+  overrideReason?: string | null;
+  notes?: string | null;
+  priority?: TaskPriority;
+  taskType?: TaskType | null;
+}
+
+export interface VetShiftWindow {
+  id: string;
+  employeeName: string;
+  startTime: string;
+  endTime: string;
+  role: ShiftRole;
+}
+
+export interface AppointmentVetMeta {
+  id: string;
+  name: string;
+  displayName: string;
+  role: UserRole;
+  shifts: VetShiftWindow[];
+}
+
 export interface ScanEquipmentRequest {
   status: EquipmentStatus;
   note?: string;

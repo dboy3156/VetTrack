@@ -9,6 +9,7 @@ import { setAuthStateRef, clearHaltQueue, processQueue } from "@/lib/sync-engine
 export type UserStatus = "pending" | "active" | "blocked" | null;
 export type AccessDeniedReason =
   | "MISSING_CLINIC_ID"
+  | "DB_FALLBACK_DISABLED"
   | "TENANT_CONTEXT_MISSING"
   | "TENANT_MISMATCH"
   | "INSUFFICIENT_ROLE"
