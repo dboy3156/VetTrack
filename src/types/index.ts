@@ -220,6 +220,42 @@ export interface ShiftImportResult {
   issues: ShiftCsvIssue[];
 }
 
+export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+
+export interface Appointment {
+  id: string;
+  clinicId: string;
+  animalId?: string | null;
+  ownerId?: string | null;
+  vetId: string;
+  startTime: string;
+  endTime: string;
+  status: AppointmentStatus;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAppointmentRequest {
+  animalId?: string | null;
+  ownerId?: string | null;
+  vetId: string;
+  startTime: string;
+  endTime: string;
+  status?: AppointmentStatus;
+  notes?: string | null;
+}
+
+export interface UpdateAppointmentRequest {
+  animalId?: string | null;
+  ownerId?: string | null;
+  vetId?: string;
+  startTime?: string;
+  endTime?: string;
+  status?: AppointmentStatus;
+  notes?: string | null;
+}
+
 export interface ScanEquipmentRequest {
   status: EquipmentStatus;
   note?: string;

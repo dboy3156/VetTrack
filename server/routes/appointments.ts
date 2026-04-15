@@ -1,0 +1,183 @@
+import { Router, type Response } from "express";
+import { z } from "zod";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import {
+  AppointmentServiceError,
+  cancelAppointment,
+  createAppointment,
+  getAppointmentsByDay,
+  getAppointmentsByVet,
+  listAppointmentsByRange,
+  updateAppointment,
+} from "../services/appointments.service.js";
+
+const router = Router();
+
+const statusSchema = z.enum(["scheduled", "completed", "cancelled", "no_show"]);
+
+const createAppointmentSchema = z.object({
+  animalId: z.string().trim().min(1).optional().nullable(),
+  ownerId: z.string().trim().min(1).optional().nullable(),
+  vetId: z.string().trim().min(1, "vetId is required"),
+  startTime: z.string().trim().min(1, "startTime is required"),
+  endTime: z.string().trim().min(1, "endTime is required"),
+  status: statusSchema.optional(),
+  notes: z.string().max(4000).optional().nullable(),
+});
+
+const updateAppointmentSchema = z
+  .object({
+    animalId: z.string().trim().min(1).optional().nullable(),
+    ownerId: z.string().trim().min(1).optional().nullable(),
+    vetId: z.string().trim().min(1).optional(),
+    startTime: z.string().trim().min(1).optional(),
+    endTime: z.string().trim().min(1).optional(),
+    status: statusSchema.optional(),
+    notes: z.string().max(4000).optional().nullable(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field must be provided",
+  });
+
+const deleteAppointmentSchema = z.object({
+  reason: z.string().max(4000).optional(),
+});
+
+const listQuerySchema = z
+  .object({
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    start: z.string().optional(),
+    end: z.string().optional(),
+    vetId: z.string().trim().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.day) return;
+    if (!data.start || !data.end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide either day=YYYY-MM-DD or both start/end in UTC format",
+      });
+    }
+  });
+
+function sendServiceError(res: Response, err: unknown) {
+  if (err instanceof AppointmentServiceError) {
+    res.status(err.status).json({
+      error: err.code,
+      message: err.message,
+      details: err.details ?? null,
+    });
+    return true;
+  }
+  return false;
+}
+
+router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const parsed = createAppointmentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "VALIDATION_FAILED",
+      message: "Invalid request body",
+      details: parsed.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  try {
+    const appointment = await createAppointment(req.clinicId!, parsed.data);
+    return res.status(201).json({ appointment });
+  } catch (err) {
+    if (sendServiceError(res, err)) return;
+    console.error("appointments:create", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to create appointment" });
+  }
+});
+
+router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const parsed = listQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "VALIDATION_FAILED",
+      message: "Invalid query params",
+      details: parsed.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  try {
+    const clinicId = req.clinicId!;
+    const { day, start, end, vetId } = parsed.data;
+
+    const appointments = day
+      ? await getAppointmentsByDay(clinicId, day)
+      : vetId
+        ? await getAppointmentsByVet(clinicId, vetId, start!, end!)
+        : await listAppointmentsByRange(clinicId, start!, end!);
+
+    return res.json({ appointments });
+  } catch (err) {
+    if (sendServiceError(res, err)) return;
+    console.error("appointments:list", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to list appointments" });
+  }
+});
+
+router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!req.params.id || !req.params.id.trim()) {
+    return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+  }
+
+  const parsed = updateAppointmentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "VALIDATION_FAILED",
+      message: "Invalid request body",
+      details: parsed.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  try {
+    const appointment = await updateAppointment(req.clinicId!, req.params.id, parsed.data);
+    return res.json({ appointment });
+  } catch (err) {
+    if (sendServiceError(res, err)) return;
+    console.error("appointments:update", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to update appointment" });
+  }
+});
+
+router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!req.params.id || !req.params.id.trim()) {
+    return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+  }
+
+  const parsed = deleteAppointmentSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "VALIDATION_FAILED",
+      message: "Invalid request body",
+      details: parsed.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  try {
+    const appointment = await cancelAppointment(req.clinicId!, req.params.id, parsed.data.reason);
+    return res.json({ appointment });
+  } catch (err) {
+    if (sendServiceError(res, err)) return;
+    console.error("appointments:cancel", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to cancel appointment" });
+  }
+});
+
+export default router;

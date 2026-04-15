@@ -26,6 +26,7 @@ const SettingsPage = lazy(() => import("@/pages/settings"));
 const HelpPage = lazy(() => import("@/pages/help"));
 const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const AdminShiftsPage = lazy(() => import("@/pages/admin-shifts"));
+const AppointmentsPage = lazy(() => import("@/pages/appointments"));
 const DemoGuidePage = lazy(() => import("@/pages/demo-guide"));
 const WhatsNewPage = lazy(() => import("@/pages/whats-new"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
@@ -139,6 +140,7 @@ export default function App() {
         <Route path="/print"><AuthGuard><QrPrintPage /></AuthGuard></Route>
         <Route path="/admin"><AuthGuard><AdminPage /></AuthGuard></Route>
         <Route path="/admin/shifts"><AuthGuard><AdminShiftsPage /></AuthGuard></Route>
+        <Route path="/appointments"><AuthGuard><AppointmentsPage /></AuthGuard></Route>
         <Route path="/stability"><AuthGuard><StabilityDashboardPage /></AuthGuard></Route>
         <Route path="/settings"><AuthGuard><SettingsPage /></AuthGuard></Route>
         <Route path="/help"><AuthGuard><HelpPage /></AuthGuard></Route>

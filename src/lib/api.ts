@@ -29,6 +29,9 @@ import type {
   ShiftImport,
   ShiftImportPreview,
   ShiftImportResult,
+  Appointment,
+  CreateAppointmentRequest,
+  UpdateAppointmentRequest,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -720,6 +723,31 @@ export const api = {
       }
       return res.json() as Promise<ShiftImportResult>;
     },
+  },
+  appointments: {
+    list: (params: { day?: string; start?: string; end?: string; vetId?: string }) => {
+      const qs = new URLSearchParams();
+      if (params.day) qs.set("day", params.day);
+      if (params.start) qs.set("start", params.start);
+      if (params.end) qs.set("end", params.end);
+      if (params.vetId) qs.set("vetId", params.vetId);
+      return request<{ appointments: Appointment[] }>(`/api/appointments?${qs.toString()}`).then((r) => r.appointments);
+    },
+    create: (data: CreateAppointmentRequest) =>
+      request<{ appointment: Appointment }>(
+        "/api/appointments",
+        { method: "POST", body: JSON.stringify(data) }
+      ).then((r) => r.appointment),
+    update: (id: string, data: UpdateAppointmentRequest) =>
+      request<{ appointment: Appointment }>(
+        `/api/appointments/${id}`,
+        { method: "PATCH", body: JSON.stringify(data) }
+      ).then((r) => r.appointment),
+    cancel: (id: string, reason?: string) =>
+      request<{ appointment: Appointment }>(
+        `/api/appointments/${id}`,
+        { method: "DELETE", body: JSON.stringify(reason ? { reason } : {}) }
+      ).then((r) => r.appointment),
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),
