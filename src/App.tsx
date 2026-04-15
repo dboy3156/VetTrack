@@ -32,19 +32,43 @@ const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 function AuthGuard({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
   const { isLoaded, isSignedIn, status, signOut } = useAuth();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted || !isLoaded) {
+  useEffect(() => {
+    if (isLoaded) {
+      setLoadTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setLoadTimedOut(true);
+    }, 12000);
+    return () => window.clearTimeout(timer);
+  }, [isLoaded]);
+
+  if (!mounted) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="animate-spin" />
       </div>
     );
   }
+
+  if (!isLoaded) {
+    if (!loadTimedOut) {
+      return (
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="animate-spin" />
+        </div>
+      );
+    }
+    return <Redirect to="/signin" />;
+  }
+
   if (!isSignedIn) return <Redirect to="/signin" />;
 
   if (status === "pending") return (

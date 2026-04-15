@@ -61,7 +61,7 @@ const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
 };
 
 const isProduction = process.env.NODE_ENV === "production";
-const isDevelopment = process.env.NODE_ENV === "development";
+const isDevelopment = process.env.NODE_ENV !== "production";
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
 
 if (isProduction && !hasClerkSecret) {

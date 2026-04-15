@@ -9,6 +9,67 @@ interface PushState {
   error: string | null;
 }
 
+function getPushSupportBlocker(): string | null {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes("cursor")) {
+    return "Push notifications are not supported in Cursor's built-in browser. Open VetTrack in Chrome or Edge.";
+  }
+  return null;
+}
+
+async function requestNotificationPermissionWithTimeout(timeoutMs = 8000): Promise<NotificationPermission> {
+  if (!("Notification" in window) || typeof Notification.requestPermission !== "function") {
+    return "denied";
+  }
+
+  if (Notification.permission === "granted" || Notification.permission === "denied") {
+    return Notification.permission;
+  }
+
+  return Promise.race<NotificationPermission>([
+    Notification.requestPermission(),
+    new Promise<NotificationPermission>((resolve) => {
+      window.setTimeout(() => resolve("denied"), timeoutMs);
+    }),
+  ]);
+}
+
+function waitForActivation(
+  worker: ServiceWorker | null | undefined,
+  timeoutMs: number
+): Promise<void> {
+  if (!worker) return Promise.resolve();
+  if (worker.state === "activated") return Promise.resolve();
+
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("Service worker initialization timed out")), timeoutMs);
+    const onStateChange = () => {
+      if (worker.state === "activated") {
+        window.clearTimeout(timer);
+        worker.removeEventListener("statechange", onStateChange);
+        resolve();
+      }
+    };
+    worker.addEventListener("statechange", onStateChange);
+  });
+}
+
+async function waitForServiceWorkerReady(timeoutMs = 8000): Promise<ServiceWorkerRegistration> {
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("Service worker is not supported");
+  }
+
+  const existing = await navigator.serviceWorker.getRegistration();
+  const registration = existing ?? (await navigator.serviceWorker.register("/sw.js"));
+
+  if (registration.active) {
+    return registration;
+  }
+
+  await waitForActivation(registration.installing ?? registration.waiting, timeoutMs);
+  return registration;
+}
+
 function buildHeaders(): Record<string, string> {
   return {
     "Content-Type": "application/json",
@@ -91,11 +152,17 @@ export function usePushNotifications() {
     setState((s) => ({ ...s, loading: true, error: null }));
 
     try {
+      const blocker = getPushSupportBlocker();
+      if (blocker) {
+        setState((s) => ({ ...s, loading: false, error: blocker }));
+        return false;
+      }
+
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
         throw new Error("Push not supported");
       }
 
-      const permission = await Notification.requestPermission();
+      const permission = await requestNotificationPermissionWithTimeout();
       setState((s) => ({ ...s, permission }));
 
       if (permission !== "granted") {
@@ -104,7 +171,7 @@ export function usePushNotifications() {
       }
 
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || await getVapidPublicKey();
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await waitForServiceWorkerReady();
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -201,7 +268,17 @@ export function usePushNotifications() {
         method: "POST",
         headers: buildHeaders(),
       });
-      if (!res.ok) throw new Error("Failed to send test notification");
+      const data = (await res.json().catch(() => ({}))) as { error?: string; success?: boolean };
+      if (!res.ok) {
+        const msg =
+          data.error ||
+          (res.status === 503
+            ? "Push not configured on server"
+            : res.status === 409
+              ? "No subscription on server — re-enable device notifications in Settings"
+              : `Test failed (${res.status})`);
+        throw new Error(msg);
+      }
       setState((s) => ({ ...s, loading: false }));
       return true;
     } catch (err) {

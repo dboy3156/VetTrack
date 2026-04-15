@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db, pushSubscriptions } from "../db.js";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { authSensitiveLimiter, pushTestLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToUser, getVapidPublicKey, isVapidReady } from "../lib/push.js";
@@ -186,7 +186,26 @@ router.delete("/subscribe", requireAuth, validateBody(deleteSubscribeSchema), as
 
 router.post("/test", requireAuth, pushTestLimiter, async (req, res) => {
   try {
-    await sendPushToUser(req.authUser!.id, {
+    if (!isVapidReady()) {
+      return res.status(503).json({
+        error: "Push is not configured on the server (VAPID keys missing or init failed).",
+      });
+    }
+
+    const userId = req.authUser!.id;
+    const subscriptions = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId));
+
+    if (subscriptions.length === 0) {
+      return res.status(409).json({
+        error:
+          "No push subscription saved for your account. Turn device notifications off and on again in Settings.",
+      });
+    }
+
+    await sendPushToUser(userId, {
       title: "VetTrack Test",
       body: "Push notifications are working correctly on this device!",
       tag: "test",
@@ -195,7 +214,8 @@ router.post("/test", requireAuth, pushTestLimiter, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to send test notification" });
+    const message = err instanceof Error ? err.message : "Failed to send test notification";
+    res.status(500).json({ error: message });
   }
 });
 

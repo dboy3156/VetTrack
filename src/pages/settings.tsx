@@ -125,7 +125,6 @@ export default function SettingsPage() {
     }
     if (isAdminContext) {
       void syncRoleNotificationSettings({
-        technicianReturnRemindersEnabled: false,
         seniorOwnReturnRemindersEnabled: false,
         seniorTeamOverdueAlertsEnabled: false,
       });
@@ -190,7 +189,7 @@ export default function SettingsPage() {
                   size="sm"
                   className="h-11 text-xs"
                   variant={push.subscribed ? "outline" : "default"}
-                  disabled={push.loading || push.permission === "denied"}
+                  disabled={push.loading}
                   data-testid="push-toggle-btn"
                   onClick={async () => {
                     if (push.subscribed) {
@@ -247,7 +246,7 @@ export default function SettingsPage() {
                     {t.settingsPage.roleNotificationPreferences}
                   </p>
 
-                  {!isSeniorContext && !isAdminContext && (
+                  {!isSeniorContext && (isTechnicianContext || isAdminContext) && (
                     <SettingsToggle
                       icon={<BellRing className="w-5 h-5" />}
                       label={t.settingsPage.techReturnReminders}

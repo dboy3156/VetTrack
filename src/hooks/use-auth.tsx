@@ -139,17 +139,20 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`
       };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       try {
         // 1. Try fetching the existing user
-        let res = await fetch("/api/users/me", { headers });
+        let res = await fetch("/api/users/me", { headers, signal: controller.signal });
         
         // 2. If the user does not exist (404/401), sync/provision user
         if (!res.ok && res.status !== 403) {
           res = await fetch("/api/users/sync", {
             method: "POST",
             headers,
-            body: JSON.stringify({ clerkId, email, name })
+            body: JSON.stringify({ clerkId, email, name }),
+            signal: controller.signal,
           });
         }
 
@@ -218,7 +221,15 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error("Auth Sync Error:", err);
-        setState(s => ({ ...s, isLoaded: true }));
+        clearHaltQueue();
+        setAuthState({ userId: "", email: "", name: "", bearerToken: null });
+        setState({
+          userId: null, email: null, name: null, role: "technician",
+          effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null,
+          isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+        });
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 

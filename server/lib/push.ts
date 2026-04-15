@@ -260,6 +260,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   if (subs.length === 0) return;
 
   const expired: string[] = [];
+  let deliveredCount = 0;
+  let failedCount = 0;
 
   await Promise.all(
     subs.map(async (sub) => {
@@ -273,11 +275,17 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
       });
 
       const result = await dispatchToSub(sub, notificationPayload);
+      if (result === "ok") deliveredCount += 1;
+      if (result === "error") failedCount += 1;
       if (result === "expired") expired.push(sub.endpoint);
     })
   );
 
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
+
+  if (deliveredCount === 0 && failedCount > 0) {
+    throw new Error(`Push delivery failed for user ${userId}`);
+  }
 }
 
 const PUSH_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
