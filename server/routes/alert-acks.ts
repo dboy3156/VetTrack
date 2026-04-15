@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, alertAcks } from "../db.js";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { sendPushToOthers, checkDedupe } from "../lib/push.js";
 import { logAudit } from "../lib/audit.js";
 
@@ -29,7 +29,7 @@ router.get("/", requireAuth, async (_req, res) => {
 });
 
 // POST /api/alert-acks — claim an alert ("I'm handling this") — technician+ only
-router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
+router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   try {
     const { equipmentId, alertType } = req.body;
     if (!equipmentId || !alertType) {
@@ -88,7 +88,7 @@ router.post("/", requireAuth, requireRole("technician"), async (req, res) => {
 });
 
 // DELETE /api/alert-acks?equipmentId=...&alertType=... — remove acknowledgment — technician+
-router.delete("/", requireAuth, requireRole("technician"), async (req, res) => {
+router.delete("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   try {
     const equipmentId = req.query.equipmentId as string | undefined;
     const alertType = req.query.alertType as string | undefined;

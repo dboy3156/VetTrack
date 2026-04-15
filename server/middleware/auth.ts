@@ -5,6 +5,7 @@ import { db, users } from "../db.js";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { STABILITY_TOKEN } from "../lib/stability-token.js";
+import { resolveCurrentRole } from "../lib/role-resolution.js";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -26,13 +27,18 @@ declare global {
   namespace Express {
     interface Request {
       authUser?: AuthUser;
+      effectiveRole?: string;
+      roleSource?: string;
+      activeShift?: unknown;
     }
   }
 }
 
-const ROLE_HIERARCHY: Record<UserRole, number> = {
+/** Single hierarchy for permanent roles and effective roles from resolveCurrentRole (incl. shift roles). */
+const ROLE_HIERARCHY: Record<string, number> = {
   admin: 40,
   vet: 30,
+  senior_technician: 25,
   technician: 20,
   viewer: 10,
 };
@@ -319,5 +325,42 @@ export function requireRole(minRole: UserRole) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
     next();
+  };
+}
+
+export function requireEffectiveRole(minRole: UserRole) {
+  return async function (req: Request, res: Response, next: NextFunction) {
+    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const { effectiveRole, source, activeShift } = await resolveCurrentRole({
+        userName: req.authUser.name,
+        fallbackRole: req.authUser.role,
+      });
+      req.effectiveRole = effectiveRole;
+      req.roleSource = source;
+      req.activeShift = activeShift;
+
+      console.log("Role check:", {
+        user: req.authUser.name,
+        dbRole: req.authUser.role,
+        effectiveRole,
+        source,
+      });
+
+      if (req.authUser.role === "admin") {
+        return next();
+      }
+
+      const userLevel = ROLE_HIERARCHY[effectiveRole] ?? 0;
+      const requiredLevel = ROLE_HIERARCHY[minRole] ?? 0;
+      if (userLevel < requiredLevel) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+
+      next();
+    } catch (err) {
+      console.error("requireEffectiveRole:", err);
+      return res.status(500).json({ error: "Role resolution failed" });
+    }
   };
 }

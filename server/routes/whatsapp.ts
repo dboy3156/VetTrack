@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db, whatsappAlerts, equipment } from "../db.js";
 import { and, eq, isNull } from "drizzle-orm";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { format } from "date-fns";
 
@@ -73,7 +73,7 @@ const whatsappAlertSchema = z.object({
   phone: z.string().max(30).optional(),
 });
 
-router.post("/alert", requireAuth, requireRole("technician"), validateBody(whatsappAlertSchema), async (req, res) => {
+router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateBody(whatsappAlertSchema), async (req, res) => {
   try {
     const { equipmentId, status, note, phone } = req.body as z.infer<typeof whatsappAlertSchema>;
 

@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { db, rooms, equipment, scanLogs, users } from "../db.js";
 import { eq, and, isNull, isNotNull, sql, desc, gt } from "drizzle-orm";
-import { requireAuth, requireAdmin, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { logAudit } from "../lib/audit.js";
 
@@ -163,7 +163,7 @@ router.get("/:id/activity", requireAuth, async (req, res) => {
 });
 
 // POST /api/rooms — create room
-router.post("/", requireAuth, requireRole("technician"), validateBody(createRoomSchema), async (req, res) => {
+router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(createRoomSchema), async (req, res) => {
   try {
     const { name, floor, masterNfcTagId } = req.body as z.infer<typeof createRoomSchema>;
 

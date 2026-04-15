@@ -1151,7 +1151,7 @@ async function testAlertAcks() {
       "Viewer denied on POST /api/alert-acks",
       "HIGH",
       `Expected 403 for viewer, got ${viewerAckRes.status}`,
-      "Add requireRole('technician') middleware to POST /api/alert-acks"
+      "Add requireEffectiveRole('technician') middleware to POST /api/alert-acks"
     );
   }
 
@@ -1329,7 +1329,7 @@ async function testRbacEnforcement() {
   }
 
   // 5.8 Viewer cannot scan equipment (requires vet+).
-  // Note: scan route order is requireAuth → scanLimiter → requireRole("vet").
+  // Note: scan route order is requireAuth → scanLimiter → requireEffectiveRole("vet").
   // A 429 means the rate limiter ran BEFORE the role check — RBAC was not exercised.
   // We must ensure scan budget headroom before this check so the role check is reached.
   const tempEquipId = await createTestEquipment("RBAC-Scan-Test");
@@ -1354,7 +1354,7 @@ async function testRbacEnforcement() {
         "Viewer denied on POST /api/equipment/:id/scan",
         "HIGH",
         `Expected 403 for viewer, got ${viewerScanRes.status}`,
-        "Ensure requireRole('vet') is applied to scan endpoint"
+        "Ensure requireEffectiveRole('vet') is applied to scan endpoint"
       );
     }
     await deleteTestEquipment(tempEquipId);
