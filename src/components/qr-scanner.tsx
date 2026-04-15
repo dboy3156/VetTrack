@@ -450,7 +450,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 bg-black flex flex-col" data-testid="qr-scanner-overlay">
+    <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 bg-black flex flex-col animate-fade-in" data-testid="qr-scanner-overlay">
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-black/80" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
         <span className="text-white font-semibold text-lg">{t.qrScanner.title}</span>

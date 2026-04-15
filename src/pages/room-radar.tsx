@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
-  DoorOpen,
   Package,
   ChevronRight,
   ChevronDown,
@@ -31,13 +30,16 @@ import {
   Radar,
   Activity,
   User,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { STATUS_LABELS } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Equipment, Room, RoomActivityEntry } from "@/types";
+import { useAuth } from "@/hooks/use-auth";
+import type { Equipment, Room, RoomActivityEntry, EquipmentStatus } from "@/types";
 
 function toInitials(name: string | null | undefined): string {
   if (!name?.trim()) return "?";
@@ -79,20 +81,12 @@ function SyncBadge({ status }: { status: string }) {
   );
 }
 
-function AvailabilityPill({ checkedOut }: { checkedOut: boolean }) {
-  if (checkedOut) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border rounded-full px-2 py-0.5">
-        In Use
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-full px-2 py-0.5">
-      Available
-    </span>
-  );
-}
+const STATUS_BAR_COLORS: Record<EquipmentStatus, string> = {
+  ok: "border-s-emerald-500",
+  issue: "border-s-red-500",
+  maintenance: "border-s-amber-500",
+  sterilized: "border-s-blue-500",
+};
 
 interface RadarEquipmentCardProps {
   equipment: Equipment;
@@ -101,9 +95,55 @@ interface RadarEquipmentCardProps {
 
 function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardProps) {
   const [moveOpen, setMoveOpen] = useState(false);
+  const [tapped, setTapped] = useState(false);
+  const busyRef = useRef(false);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
+  const { userId, isAdmin } = useAuth();
   const isCheckedOut = !!eq.checkedOutById;
+  const checkedOutByMe = eq.checkedOutById === userId;
   const statusVariant = statusToBadgeVariant(eq.status);
+
+  useEffect(() => {
+    return () => { if (tapTimerRef.current) clearTimeout(tapTimerRef.current); };
+  }, []);
+
+  const checkoutMut = useMutation({
+    mutationFn: () => api.equipment.checkout(eq.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      toast.success(`Checked out — ${eq.name}`);
+    },
+    onError: () => toast.error("Checkout failed"),
+    onSettled: () => { busyRef.current = false; },
+  });
+
+  const returnMut = useMutation({
+    mutationFn: () => api.equipment.return(eq.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
+      toast.success(`Returned — ${eq.name}`);
+    },
+    onError: () => toast.error("Return failed"),
+    onSettled: () => { busyRef.current = false; },
+  });
+
+  const quickAction = !isCheckedOut && eq.status === "ok"
+    ? { label: "Take", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, cls: "text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" }
+    : isCheckedOut && (checkedOutByMe || isAdmin) && eq.status === "ok"
+    ? { label: "Return", icon: LogOut, action: () => returnMut.mutate(), pending: returnMut.isPending, cls: "text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40" }
+    : null;
+
+  const handleQuickAction = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!quickAction || quickAction.pending || busyRef.current) return;
+    busyRef.current = true;
+    setTapped(true);
+    tapTimerRef.current = setTimeout(() => setTapped(false), 300);
+    try { quickAction.action(); } catch { busyRef.current = false; toast.error("Action failed"); }
+  };
 
   const verifierInitials = justVerified ? null : toInitials(eq.lastVerifiedByName);
   const verifiedLabel = justVerified
@@ -112,76 +152,119 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
     ? `Verified ${formatRelativeTime(eq.lastVerifiedAt)}${verifierInitials ? ` · ${verifierInitials}` : ""}`
     : null;
 
+  const holderLabel = isCheckedOut
+    ? eq.checkedOutByEmail?.split("@")[0] ?? "Someone"
+    : null;
+  const locationLabel = eq.checkedOutLocation || eq.location || eq.roomName || null;
+
   return (
     <>
       <Card
         className={cn(
-          "border-border/60 shadow-sm transition-all",
-          justVerified && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20"
+          "border-border/60 shadow-sm transition-all overflow-hidden",
+          justVerified && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20",
+          tapped && "scale-[0.98]"
         )}
         data-testid={`radar-item-${eq.id}`}
       >
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            {/* Icon */}
-            {eq.imageUrl ? (
-              <img
-                src={eq.imageUrl}
-                alt={eq.name}
-                className="w-10 h-10 rounded-lg object-cover shrink-0"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                <Package className="w-5 h-5 text-muted-foreground" />
-              </div>
-            )}
+        <div className={cn("flex border-s-[6px]", STATUS_BAR_COLORS[eq.status] ?? "border-s-gray-400")}>
+          <CardContent className="p-3 flex-1 min-w-0">
+            {/* Row 1: icon + name + badges */}
+            <div className="flex items-center gap-3">
+              {eq.imageUrl ? (
+                <img
+                  src={eq.imageUrl}
+                  alt={eq.name}
+                  className="w-10 h-10 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <Package className="w-5 h-5 text-muted-foreground" />
+                </div>
+              )}
 
-            {/* Main info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex-1 min-w-0">
                 <Link href={`/equipment/${eq.id}`}>
-                  <p className="font-bold text-sm truncate leading-snug hover:text-primary transition-colors">
+                  <p className="font-bold text-base truncate leading-snug hover:text-primary transition-colors">
                     {eq.name}
                   </p>
                 </Link>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <Badge variant={statusVariant} className="text-[10px] py-0 px-2 h-5">
+                    {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] ?? eq.status}
+                  </Badge>
+                  {isCheckedOut ? (
+                    <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">In Use</span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Available</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <AvailabilityPill checkedOut={isCheckedOut} />
-                <Badge variant={statusVariant} className="text-[10px] py-0 px-2 h-5">
-                  {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] ?? eq.status}
-                </Badge>
-              </div>
+            </div>
+
+            {/* Row 2: holder + location + verified */}
+            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+              {holderLabel && (
+                <span className="flex items-center gap-1 truncate">
+                  <User className="w-3 h-3 shrink-0" />
+                  {holderLabel}
+                </span>
+              )}
+              {locationLabel && (
+                <span className="flex items-center gap-1 truncate">
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  {locationLabel}
+                </span>
+              )}
               {verifiedLabel ? (
-                <p className={cn(
-                  "text-[10px] mt-1 flex items-center gap-1",
-                  justVerified ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"
+                <span className={cn(
+                  "flex items-center gap-1",
+                  justVerified ? "text-emerald-600 dark:text-emerald-400 font-semibold" : ""
                 )}>
                   {justVerified && <CheckCircle2 className="w-2.5 h-2.5" />}
                   {verifiedLabel}
-                </p>
+                </span>
               ) : (
-                <p className="text-[10px] text-muted-foreground/60 mt-1">Not yet verified</p>
+                <span className="text-muted-foreground/60">Not verified</span>
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Row 3: actions */}
+            <div className="flex items-center gap-2 mt-2.5">
+              {quickAction && (
+                <button
+                  onClick={handleQuickAction}
+                  disabled={quickAction.pending}
+                  className={cn(
+                    "flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs font-bold transition-all min-h-[44px] active:scale-[0.97]",
+                    quickAction.cls
+                  )}
+                  data-testid={`quick-action-${eq.id}`}
+                >
+                  {quickAction.pending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <quickAction.icon className="w-3.5 h-3.5" />
+                  )}
+                  {quickAction.label}
+                </button>
+              )}
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMoveOpen(true); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors min-h-[36px]"
-                title={`Move ${eq.name} to a different room`}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-border text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors min-h-[44px]"
+                title={`Move ${eq.name}`}
               >
                 <MoveRight className="w-3 h-3" />
                 Move
               </button>
-              <Link href={`/equipment/${eq.id}`}>
+              <Link href={`/equipment/${eq.id}`} className="ml-auto">
                 <div className="p-2 rounded-lg hover:bg-muted transition-colors">
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
               </Link>
             </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        </div>
       </Card>
 
       <MoveRoomSheet
