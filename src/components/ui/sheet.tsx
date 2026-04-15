@@ -47,12 +47,6 @@ const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
 >(({ side = "right", className, children, ...props }, ref) => {
-  React.useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a1f84a'},body:JSON.stringify({sessionId:'a1f84a',runId:'rtl-audit-run1',hypothesisId:'H4',location:'src/components/ui/sheet.tsx:53',message:'Sheet render direction snapshot',data:{docDir:document.documentElement.getAttribute("dir"),requestedSide:side,resolvedClass:sheetVariants({ side })},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }, [side]);
-
   return (
     <SheetPortal>
       <SheetOverlay />

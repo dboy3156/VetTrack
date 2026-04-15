@@ -27,12 +27,6 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  React.useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a1f84a'},body:JSON.stringify({sessionId:'a1f84a',runId:'rtl-audit-run1',hypothesisId:'H5',location:'src/components/ui/dialog.tsx:33',message:'Dialog render direction snapshot',data:{docDir:document.documentElement.getAttribute("dir"),className,classPreset:"fixed left-[50%] ... slide-in-from-left-1/2 ... right-4"},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }, [className]);
-
   return (
     <DialogPortal>
       <DialogOverlay />
