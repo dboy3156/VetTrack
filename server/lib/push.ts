@@ -1,6 +1,6 @@
 import webpush from "web-push";
 import { db, pool, pushSubscriptions, serverConfig, users } from "../db.js";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
 
 let vapidReady = false;
@@ -151,10 +151,13 @@ async function cleanupExpiredEndpoints(endpoints: string[]): Promise<void> {
   }
 }
 
-export async function sendPushToAll(payload: PushPayload): Promise<void> {
+export async function sendPushToAll(clinicId: string, payload: PushPayload): Promise<void> {
   if (!vapidReady) return;
 
-  const subs = await db.select().from(pushSubscriptions);
+  const subs = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.clinicId, clinicId));
   if (subs.length === 0) return;
 
   const expired: string[] = [];
@@ -180,7 +183,7 @@ export async function sendPushToAll(payload: PushPayload): Promise<void> {
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
 }
 
-export async function sendPushToRole(role: string, payload: PushPayload): Promise<void> {
+export async function sendPushToRole(clinicId: string, role: string, payload: PushPayload): Promise<void> {
 
   const allSubs = await db.select({
     endpoint: pushSubscriptions.endpoint,
@@ -189,11 +192,14 @@ export async function sendPushToRole(role: string, payload: PushPayload): Promis
     alertsEnabled: pushSubscriptions.alertsEnabled,
     soundEnabled: pushSubscriptions.soundEnabled,
     userId: pushSubscriptions.userId,
-  }).from(pushSubscriptions);
+  }).from(pushSubscriptions).where(eq(pushSubscriptions.clinicId, clinicId));
 
   if (allSubs.length === 0) return;
 
-  const userRows = await db.select({ id: users.id, role: users.role }).from(users);
+  const userRows = await db
+    .select({ id: users.id, role: users.role })
+    .from(users)
+    .where(and(eq(users.clinicId, clinicId), isNull(users.deletedAt)));
   const roleMap = new Map(userRows.map((u) => [u.id, u.role]));
 
   const subs = allSubs.filter((s) => roleMap.get(s.userId) === role);
@@ -219,10 +225,13 @@ export async function sendPushToRole(role: string, payload: PushPayload): Promis
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
 }
 
-export async function sendPushToOthers(excludeUserId: string, payload: PushPayload): Promise<void> {
+export async function sendPushToOthers(clinicId: string, excludeUserId: string, payload: PushPayload): Promise<void> {
   if (!vapidReady) return;
 
-  const allSubs = await db.select().from(pushSubscriptions);
+  const allSubs = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.clinicId, clinicId));
   const subs = allSubs.filter((s) => s.userId !== excludeUserId);
   if (subs.length === 0) return;
 
@@ -249,13 +258,13 @@ export async function sendPushToOthers(excludeUserId: string, payload: PushPaylo
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
 }
 
-export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
+export async function sendPushToUser(clinicId: string, userId: string, payload: PushPayload): Promise<void> {
   if (!vapidReady) return;
 
   const subs = await db
     .select()
     .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.userId, userId));
+    .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.userId, userId)));
 
   if (subs.length === 0) return;
 

@@ -20,13 +20,17 @@ const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const cached = analyticsCache.get();
+    const clinicId = req.clinicId!;
+    const cached = analyticsCache.get(clinicId);
     if (cached) {
       res.setHeader("X-Analytics-Cache", "HIT");
       return res.json(cached);
     }
 
-    const allEquipment = await db.select().from(equipment).where(isNull(equipment.deletedAt));
+    const allEquipment = await db
+      .select()
+      .from(equipment)
+      .where(and(eq(equipment.clinicId, clinicId), isNull(equipment.deletedAt)));
     const total = allEquipment.length;
 
     const statusBreakdown = {
@@ -86,7 +90,7 @@ router.get("/", requireAuth, async (req, res) => {
     const recentScans = await db
       .select()
       .from(scanLogs)
-      .where(gte(scanLogs.timestamp, thirtyDaysAgo))
+      .where(and(eq(scanLogs.clinicId, clinicId), gte(scanLogs.timestamp, thirtyDaysAgo)))
       .orderBy(desc(scanLogs.timestamp));
 
     const scanActivity = computeUsageTrends(recentScans);
@@ -99,8 +103,14 @@ router.get("/", requireAuth, async (req, res) => {
         issueCount: sql<number>`count(*)::int`,
       })
       .from(scanLogs)
-      .leftJoin(equipment, eq(scanLogs.equipmentId, equipment.id))
-      .where(and(gte(scanLogs.timestamp, thirtyDaysAgo), eq(scanLogs.status, "issue")))
+      .leftJoin(equipment, and(eq(scanLogs.equipmentId, equipment.id), eq(equipment.clinicId, clinicId)))
+      .where(
+        and(
+          eq(scanLogs.clinicId, clinicId),
+          gte(scanLogs.timestamp, thirtyDaysAgo),
+          eq(scanLogs.status, "issue")
+        )
+      )
       // Keep deleted equipment in history; no deletedAt filter by design.
       .groupBy(scanLogs.equipmentId, equipment.name)
       .orderBy(desc(sql`count(*)`))
@@ -115,7 +125,7 @@ router.get("/", requireAuth, async (req, res) => {
       topProblemEquipment,
     };
 
-    analyticsCache.set(payload);
+    analyticsCache.set(clinicId, payload);
     res.setHeader("X-Analytics-Cache", "MISS");
     res.json(payload);
   } catch (err) {

@@ -138,6 +138,7 @@ export async function cleanExpiredUndoTokens(): Promise<void> {
 async function insertUndoToken(
   tx: Tx,
   params: {
+    clinicId: string;
     equipmentId: string;
     actorId: string;
     scanLogId: string;
@@ -148,6 +149,7 @@ async function insertUndoToken(
   const expiresAt = new Date(Date.now() + UNDO_TTL_MS);
   await tx.insert(undoTokens).values({
     id: tokenId,
+    clinicId: params.clinicId,
     equipmentId: params.equipmentId,
     actorId: params.actorId,
     scanLogId: params.scanLogId,
@@ -158,6 +160,7 @@ async function insertUndoToken(
 }
 
 async function consumeUndoToken(
+  clinicId: string,
   tokenId: string,
   equipmentId: string,
   actorId: string
@@ -167,6 +170,7 @@ async function consumeUndoToken(
     .set({ consumed: true } as Partial<typeof undoTokens.$inferInsert>)
     .where(
       and(
+        eq(undoTokens.clinicId, clinicId),
         eq(undoTokens.id, tokenId),
         eq(undoTokens.equipmentId, equipmentId),
         eq(undoTokens.actorId, actorId),
@@ -209,6 +213,7 @@ class CheckoutConflictError extends Error {
 // GET /api/equipment/my
 router.get("/my", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const items = await db
       .select({
         id: equipment.id,
@@ -241,10 +246,10 @@ router.get("/my", requireAuth, async (req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
-      .leftJoin(rooms, eq(equipment.roomId, rooms.id))
-      .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
-      .where(and(eq(equipment.checkedOutById, req.authUser!.id), isNull(equipment.deletedAt)))
+      .leftJoin(folders, and(eq(equipment.folderId, folders.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
+      .leftJoin(rooms, and(eq(equipment.roomId, rooms.id), eq(rooms.clinicId, clinicId)))
+      .leftJoin(users, and(eq(equipment.lastVerifiedById, users.id), eq(users.clinicId, clinicId)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.checkedOutById, req.authUser!.id), isNull(equipment.deletedAt)))
       .orderBy(desc(equipment.checkedOutAt));
     res.json(items);
   } catch (err) {
@@ -258,6 +263,7 @@ const EQUIPMENT_MAX_PAGE_SIZE = 1000;
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -271,7 +277,7 @@ router.get("/", requireAuth, async (req, res) => {
     const page = (!isNaN(rawPage) && rawPage > 1) ? rawPage : 1;
     const offset = (page - 1) * limit;
 
-    const whereClauses = [isNull(equipment.deletedAt)];
+    const whereClauses = [eq(equipment.clinicId, clinicId), isNull(equipment.deletedAt)];
 
     if (q) {
       const pattern = `%${q}%`;
@@ -339,9 +345,9 @@ router.get("/", requireAuth, async (req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
-      .leftJoin(rooms, eq(equipment.roomId, rooms.id))
-      .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
+      .leftJoin(folders, and(eq(equipment.folderId, folders.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
+      .leftJoin(rooms, and(eq(equipment.roomId, rooms.id), eq(rooms.clinicId, clinicId)))
+      .leftJoin(users, and(eq(equipment.lastVerifiedById, users.id), eq(users.clinicId, clinicId)))
       .where(whereClause)
       // Stable sort key for pagination so pages do not duplicate/drop rows on equal createdAt.
       .orderBy(desc(equipment.createdAt), desc(equipment.id));
@@ -361,6 +367,7 @@ router.get("/", requireAuth, async (req, res) => {
 // GET /api/equipment/deleted — admin only, list soft-deleted equipment
 router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const items = await db
       .select({
         id: equipment.id,
@@ -374,7 +381,7 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .where(isNotNull(equipment.deletedAt))
+      .where(and(eq(equipment.clinicId, clinicId), isNotNull(equipment.deletedAt)))
       .orderBy(desc(equipment.deletedAt));
     res.json(items);
   } catch (err) {
@@ -385,6 +392,7 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
 
 router.get("/:id", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const [item] = await db
       .select({
         id: equipment.id,
@@ -417,10 +425,10 @@ router.get("/:id", requireAuth, async (req, res) => {
         createdAt: equipment.createdAt,
       })
       .from(equipment)
-      .leftJoin(folders, and(eq(equipment.folderId, folders.id), isNull(folders.deletedAt)))
-      .leftJoin(rooms, eq(equipment.roomId, rooms.id))
-      .leftJoin(users, eq(equipment.lastVerifiedById, users.id))
-      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+      .leftJoin(folders, and(eq(equipment.folderId, folders.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
+      .leftJoin(rooms, and(eq(equipment.roomId, rooms.id), eq(rooms.clinicId, clinicId)))
+      .leftJoin(users, and(eq(equipment.lastVerifiedById, users.id), eq(users.clinicId, clinicId)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
     if (!item) return res.status(404).json({ error: "Equipment not found" });
     res.json(item);
@@ -432,6 +440,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const {
       name,
       serialNumber,
@@ -455,6 +464,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
       .insert(equipment)
       .values({
         id: randomUUID(),
+        clinicId,
         name: name.trim(),
         serialNumber: serialNumber ?? null,
         model: model ?? null,
@@ -472,6 +482,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "equipment_created",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -480,7 +491,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
       metadata: { name: item.name, serialNumber: item.serialNumber },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.status(201).json(item);
   } catch (err) {
     console.error("Validation error:", err);
@@ -491,6 +502,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
 
 router.patch("/:id", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
 try {
+    const clinicId = req.clinicId!;
     const {
       name,
       serialNumber,
@@ -517,7 +529,7 @@ try {
       const [oldItem] = await tx
         .select()
         .from(equipment)
-        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       const [item] = await tx
@@ -537,7 +549,7 @@ try {
           ...(imageUrl !== undefined && { imageUrl }),
           ...(status !== undefined && { status }),
         })
-        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .returning();
 
       if (!item) return;
@@ -545,14 +557,15 @@ try {
 
       if (folderId !== undefined && oldItem && oldItem.folderId !== (folderId ?? null)) {
         const [oldFolder] = oldItem.folderId
-          ? await tx.select().from(folders).where(eq(folders.id, oldItem.folderId)).limit(1)
+          ? await tx.select().from(folders).where(and(eq(folders.clinicId, clinicId), eq(folders.id, oldItem.folderId))).limit(1)
           : [null];
         const targetFolderId = folderId ?? null;
         const [newFolder] = targetFolderId
-          ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
+          ? await tx.select().from(folders).where(and(eq(folders.clinicId, clinicId), eq(folders.id, targetFolderId))).limit(1)
           : [null];
         await tx.insert(transferLogs).values({
           id: randomUUID(),
+          clinicId,
           equipmentId: req.params.id,
           fromFolderId: oldItem.folderId ?? null,
           fromFolderName: oldFolder?.name ?? null,
@@ -564,7 +577,7 @@ try {
         const itemName = result?.name ?? oldItem.name;
         if (!checkDedupe(req.params.id, "transfer")) {
           const toLabel = newFolder?.name ?? "unassigned";
-          sendPushToAll({
+          sendPushToAll(clinicId, {
             title: "Equipment Transferred",
             body: `${itemName} moved to ${toLabel}`,
             tag: `transfer:${req.params.id}`,
@@ -577,6 +590,7 @@ try {
     if (!result) return res.status(404).json({ error: "Equipment not found" });
 
     logAudit({
+      clinicId,
       actionType: "equipment_updated",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -585,7 +599,7 @@ try {
       metadata: { name: (result as EquipmentRow).name, changes: req.body },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -595,10 +609,11 @@ try {
 
 router.delete("/:id", requireAuth, writeLimiter, requireAdmin, validateUuid("id"), async (req, res) => {
 try {
+    const clinicId = req.clinicId!;
     const [existing] = await db
       .select()
       .from(equipment)
-      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "Equipment not found" });
@@ -606,9 +621,10 @@ try {
     await db
       .update(equipment)
       .set({ deletedAt: new Date(), deletedBy: req.authUser!.id })
-      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)));
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)));
 
     logAudit({
+      clinicId,
       actionType: "equipment_deleted",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -616,7 +632,7 @@ try {
       targetType: "equipment",
       metadata: { name: existing.name, serialNumber: existing.serialNumber },
     });
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -627,10 +643,11 @@ try {
 // POST /api/equipment/:id/restore — admin only, restore a soft-deleted equipment record
 router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const [existing] = await db
       .select()
       .from(equipment)
-      .where(and(eq(equipment.id, req.params.id), isNotNull(equipment.deletedAt)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNotNull(equipment.deletedAt)))
       .limit(1);
 
     if (!existing) return res.status(404).json({ error: "Equipment not found or not deleted" });
@@ -638,10 +655,10 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
     const [restored] = await db
       .update(equipment)
       .set({ deletedAt: null, deletedBy: null })
-      .where(eq(equipment.id, req.params.id))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id)))
       .returning();
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.json(restored);
   } catch (err) {
     console.error(err);
@@ -652,6 +669,7 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
 // POST /api/equipment/:id/checkout
 router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { location } = req.body as z.infer<typeof checkoutSchema>;
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
@@ -663,7 +681,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
       const [existing] = await tx
         .select()
         .from(equipment)
-        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!existing) return;
@@ -689,7 +707,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
           lastSeen: checkoutTime,
           lastStatus: existing.status,
         })
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id)))
         .returning();
 
       updated = updatedRow;
@@ -697,6 +715,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
 
       await tx.insert(scanLogs).values({
         id: checkoutLogId,
+        clinicId,
         equipmentId: req.params.id,
         userId: req.authUser!.id,
         userEmail: req.authUser!.email,
@@ -706,6 +725,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
       });
 
       undoToken = await insertUndoToken(tx, {
+        clinicId,
         equipmentId: req.params.id,
         actorId: req.authUser!.id,
         scanLogId: checkoutLogId,
@@ -718,6 +738,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
     const u = updated as EquipmentRow;
 
     logAudit({
+      clinicId,
       actionType: "equipment_checked_out",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -726,11 +747,12 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
       metadata: { name: u.name, location: req.body?.location ?? null },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
     void scheduleSmartReturnReminder({
+      clinicId,
       equipmentId: u.id,
       equipmentName: u.name,
       expectedReturnMinutes: u.expectedReturnMinutes,
@@ -739,7 +761,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
     });
 
     if (!checkDedupe(u.id, "checkout")) {
-      sendPushToAll({
+      sendPushToAll(clinicId, {
         title: "Equipment Checked Out",
         body: `${u.name} checked out${req.body?.location ? ` — ${req.body.location}` : ""}`,
         tag: `checkout:${u.id}`,
@@ -763,6 +785,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
 // POST /api/equipment/:id/return
 router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
 
     let updated: EquipmentRow | null = null;
@@ -773,7 +796,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
       const [existing] = await tx
         .select()
         .from(equipment)
-        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!existing) return;
@@ -799,7 +822,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
           lastSeen: returnTime,
           lastStatus: "ok",
         })
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id)))
         .returning();
 
       updated = updatedRow;
@@ -807,6 +830,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
 
       await tx.insert(scanLogs).values({
         id: returnLogId,
+        clinicId,
         equipmentId: req.params.id,
         userId: req.authUser!.id,
         userEmail: req.authUser!.email,
@@ -816,6 +840,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
       });
 
       undoToken = await insertUndoToken(tx, {
+        clinicId,
         equipmentId: req.params.id,
         actorId: req.authUser!.id,
         scanLogId: returnLogId,
@@ -829,6 +854,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
     const u = updated as EquipmentRow;
 
     logAudit({
+      clinicId,
       actionType: "equipment_returned",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -837,14 +863,14 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
       metadata: { name: u.name },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     trackSyncSuccess();
     res.json({ equipment: updated, undoToken });
 
-    await cancelSmartReturnReminder(u.id, req.authUser!.id);
+    await cancelSmartReturnReminder(clinicId, u.id, req.authUser!.id);
 
     if (!checkDedupe(u.id, "return")) {
-      sendPushToAll({
+      sendPushToAll(clinicId, {
         title: "Equipment Returned",
         body: `${u.name} has been returned and is available`,
         tag: `return:${u.id}`,
@@ -861,6 +887,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
 // POST /api/equipment/:id/scan
 router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { status, note, photoUrl } = req.body as z.infer<typeof scanSchema>;
     if (status === "issue" && !note?.trim()) {
       return res.status(400).json({ error: "Note is required when reporting an issue" });
@@ -877,7 +904,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
       const [existing] = await tx
         .select()
         .from(equipment)
-        .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
         .limit(1);
 
       if (!existing) return;
@@ -897,7 +924,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
         const [result] = await tx
           .update(equipment)
           .set(updates)
-          .where(eq(equipment.id, req.params.id))
+          .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id)))
           .returning();
         updatedEquipment = result;
       } else {
@@ -908,6 +935,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
         .insert(scanLogs)
         .values({
           id: randomUUID(),
+          clinicId,
           equipmentId: req.params.id,
           userId: req.authUser!.id,
           userEmail: req.authUser!.email,
@@ -921,6 +949,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
       scanLog = log;
 
       undoToken = await insertUndoToken(tx, {
+        clinicId,
         equipmentId: req.params.id,
         actorId: req.authUser!.id,
         scanLogId: log.id,
@@ -933,6 +962,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
     const eq2 = updatedEquipment as EquipmentRow;
 
     logAudit({
+      clinicId,
       actionType: "equipment_scanned",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -941,11 +971,11 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
       metadata: { name: eq2.name, status, note: note ?? null },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     trackSyncSuccess();
     res.json({ equipment: updatedEquipment, scanLog, undoToken });
     if (status === "issue" && !checkDedupe(eq2.id, "issue")) {
-      sendPushToAll({
+      sendPushToAll(clinicId, {
         title: "Equipment Issue Reported",
         body: `${eq2.name} needs attention${note ? ` — ${note}` : ""}`,
         tag: `issue:${eq2.id}`,
@@ -963,7 +993,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
       dueDate.setDate(dueDate.getDate() + eq2.maintenanceIntervalDays);
       if (now > dueDate) {
         const daysOverdue = Math.ceil((now.getTime() - dueDate.getTime()) / 86_400_000);
-        sendPushToAll({
+        sendPushToAll(clinicId, {
           title: "Maintenance Overdue",
           body: `${eq2.name} is ${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue for maintenance`,
           tag: `overdue:${eq2.id}`,
@@ -975,7 +1005,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
     if (eq2.lastSterilizationDate && !checkDedupe(eq2.id, "sterilization_due")) {
       const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
       if (new Date(eq2.lastSterilizationDate) < sevenDaysAgo) {
-        sendPushToAll({
+        sendPushToAll(clinicId, {
           title: "Sterilization Due",
           body: `${eq2.name} has not been sterilized in 7+ days`,
           tag: `sterilization_due:${eq2.id}`,
@@ -993,17 +1023,18 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
 // POST /api/equipment/:id/revert
 router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), validateBody(revertSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { undoToken: tokenId } = req.body as z.infer<typeof revertSchema>;
 
     const [existingItem] = await db
       .select()
       .from(equipment)
-      .where(and(eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
+      .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
 
     if (!existingItem) return res.status(404).json({ error: "Equipment not found" });
 
-    const token = await consumeUndoToken(tokenId, req.params.id, req.authUser!.id);
+    const token = await consumeUndoToken(clinicId, tokenId, req.params.id, req.authUser!.id);
     if (!token) {
       return res.status(409).json({ error: "Undo window expired or token invalid" });
     }
@@ -1026,17 +1057,18 @@ router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUui
           checkedOutAt: prev.checkedOutAt ? new Date(prev.checkedOutAt) : null,
           checkedOutLocation: prev.checkedOutLocation,
         })
-        .where(eq(equipment.id, req.params.id))
+        .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id)))
         .returning();
 
       updated = result;
 
       await tx
         .delete(scanLogs)
-        .where(and(eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
+        .where(and(eq(scanLogs.clinicId, clinicId), eq(scanLogs.id, token.scanLogId), eq(scanLogs.equipmentId, req.params.id)));
     });
 
     logAudit({
+      clinicId,
       actionType: "equipment_reverted",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -1045,7 +1077,7 @@ router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUui
       metadata: { name: (updated as EquipmentRow | null)?.name ?? null },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -1058,6 +1090,7 @@ const LOGS_MAX_PAGE_SIZE = 200;
 
 router.get("/:id/logs", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const rawLimit = parseInt(req.query.limit as string, 10);
     const rawPage = parseInt(req.query.page as string, 10);
     const limit = (!isNaN(rawLimit) && rawLimit > 0)
@@ -1069,12 +1102,12 @@ router.get("/:id/logs", requireAuth, async (req, res) => {
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(scanLogs)
-      .where(eq(scanLogs.equipmentId, req.params.id));
+      .where(and(eq(scanLogs.clinicId, clinicId), eq(scanLogs.equipmentId, req.params.id)));
 
     const items = await db
       .select()
       .from(scanLogs)
-      .where(eq(scanLogs.equipmentId, req.params.id))
+      .where(and(eq(scanLogs.clinicId, clinicId), eq(scanLogs.equipmentId, req.params.id)))
       .orderBy(desc(scanLogs.timestamp))
       .limit(limit)
       .offset(offset);
@@ -1088,10 +1121,11 @@ router.get("/:id/logs", requireAuth, async (req, res) => {
 
 router.get("/:id/transfers", requireAuth, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const transfers = await db
       .select()
       .from(transferLogs)
-      .where(eq(transferLogs.equipmentId, req.params.id))
+      .where(and(eq(transferLogs.clinicId, clinicId), eq(transferLogs.equipmentId, req.params.id)))
       .orderBy(desc(transferLogs.timestamp));
     res.json(transfers);
   } catch (err) {
@@ -1157,6 +1191,7 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
 // or JSON body with a "csv" string field (backwards-compatible)
 router.post("/import", requireAuth, writeLimiter, requireAdmin, upload.single("file"), async (req, res) => {
 try {
+    const clinicId = req.clinicId!;
     let csv: string;
     if (req.file) {
       // Multipart upload
@@ -1188,14 +1223,14 @@ try {
 
     // Load existing serial numbers to detect duplicates against DB (exclude soft-deleted)
     const existingSerials = new Set<string>(
-      (await db.select({ s: equipment.serialNumber }).from(equipment).where(isNull(equipment.deletedAt)))
+      (await db.select({ s: equipment.serialNumber }).from(equipment).where(and(eq(equipment.clinicId, clinicId), isNull(equipment.deletedAt))))
         .map((r) => r.s)
         .filter((s): s is string => !!s)
         .map((s) => s.toLowerCase())
     );
 
     // Load folders by name for lookup (exclude soft-deleted)
-    const allFolders = await db.select().from(folders).where(isNull(folders.deletedAt));
+    const allFolders = await db.select().from(folders).where(and(eq(folders.clinicId, clinicId), isNull(folders.deletedAt)));
     const folderByName = new Map<string, string>(
       allFolders.map((f) => [f.name.toLowerCase(), f.id])
     );
@@ -1205,6 +1240,7 @@ try {
 
     type InsertRow = {
       id: string;
+      clinicId: string;
       name: string;
       serialNumber: string | null;
       status: string;
@@ -1277,6 +1313,7 @@ try {
 
       toInsert.push({
         id: randomUUID(),
+        clinicId,
         name: name.trim(),
         serialNumber: serial || null,
         status,
@@ -1299,6 +1336,7 @@ try {
     });
 
     logAudit({
+      clinicId,
       actionType: "equipment_imported",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -1307,7 +1345,7 @@ try {
       metadata: { inserted: toInsert.length, skipped: skipped.length },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.json({ inserted: toInsert.length, skipped });
   } catch (err) {
     console.error(err);
@@ -1317,6 +1355,7 @@ try {
 
 router.post("/bulk-delete", requireAuth, writeLimiter, requireAdmin, validateBody(bulkIdsSchema), async (req, res) => {
 try {
+    const clinicId = req.clinicId!;
     const { ids: typedIds } = req.body as z.infer<typeof bulkIdsSchema>;
     const actorName = req.authUser!.name || req.authUser!.email;
 
@@ -1324,13 +1363,14 @@ try {
       const items = await tx
         .select({ id: equipment.id, name: equipment.name, status: equipment.status })
         .from(equipment)
-        .where(and(inArray(equipment.id, typedIds), isNull(equipment.deletedAt)));
+        .where(and(eq(equipment.clinicId, clinicId), inArray(equipment.id, typedIds), isNull(equipment.deletedAt)));
 
       const now = new Date();
       if (items.length > 0) {
         await tx.insert(scanLogs).values(
           items.map((item) => ({
             id: randomUUID(),
+            clinicId,
             equipmentId: item.id,
             userId: req.authUser!.id,
             userEmail: req.authUser!.email,
@@ -1343,10 +1383,11 @@ try {
         await tx
           .update(equipment)
           .set({ deletedAt: now, deletedBy: req.authUser!.id })
-          .where(inArray(equipment.id, items.map((i) => i.id)));
+          .where(and(eq(equipment.clinicId, clinicId), inArray(equipment.id, items.map((i) => i.id))));
       }
 
       logAudit({
+        clinicId,
         actionType: "equipment_bulk_deleted",
         performedBy: req.authUser!.id,
         performedByEmail: req.authUser!.email,
@@ -1356,7 +1397,7 @@ try {
       });
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.json({ affected: typedIds.length });
   } catch (err) {
     console.error(err);
@@ -1366,6 +1407,7 @@ try {
 
 router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { ids: typedIds, folderId } = req.body as z.infer<typeof bulkMoveSchema>;
     const targetFolderId = folderId ?? null;
 
@@ -1373,7 +1415,7 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("techn
 
     await db.transaction(async (tx) => {
       const [targetFolder] = targetFolderId
-        ? await tx.select().from(folders).where(eq(folders.id, targetFolderId)).limit(1)
+        ? await tx.select().from(folders).where(and(eq(folders.clinicId, clinicId), eq(folders.id, targetFolderId))).limit(1)
         : [null];
       targetFolderName = targetFolder?.name ?? null;
       const moveNote = `Bulk moved to ${targetFolderName ?? "Unassigned"} (${typedIds.length} item${typedIds.length !== 1 ? "s" : ""})`;
@@ -1382,21 +1424,22 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("techn
         const [item] = await tx
           .select()
           .from(equipment)
-          .where(and(eq(equipment.id, id), isNull(equipment.deletedAt)))
+          .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, id), isNull(equipment.deletedAt)))
           .limit(1);
         if (!item) continue;
 
         const [oldFolder] = item.folderId
-          ? await tx.select().from(folders).where(eq(folders.id, item.folderId)).limit(1)
+          ? await tx.select().from(folders).where(and(eq(folders.clinicId, clinicId), eq(folders.id, item.folderId))).limit(1)
           : [null];
 
         await tx
           .update(equipment)
           .set({ folderId: targetFolderId })
-          .where(eq(equipment.id, id));
+          .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, id)));
 
         await tx.insert(transferLogs).values({
           id: randomUUID(),
+          clinicId,
           equipmentId: id,
           fromFolderId: item.folderId ?? null,
           fromFolderName: oldFolder?.name ?? null,
@@ -1409,6 +1452,7 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("techn
     });
 
     logAudit({
+      clinicId,
       actionType: "equipment_bulk_moved",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -1417,11 +1461,11 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("techn
       metadata: { ids: typedIds, count: typedIds.length, targetFolderName },
     });
 
-    invalidateAnalyticsCache();
+    invalidateAnalyticsCache(clinicId);
     res.json({ affected: typedIds.length });
 
     const toLabel = targetFolderName ?? "Unassigned";
-    sendPushToAll({
+    sendPushToAll(clinicId, {
       title: "Bulk Transfer",
       body: `${typedIds.length} item${typedIds.length !== 1 ? "s" : ""} moved to ${toLabel}`,
       tag: `bulk-move:${Date.now()}`,
@@ -1442,6 +1486,7 @@ router.post(
   validateBody(bulkVerifyRoomSchema),
   async (req, res) => {
     try {
+      const clinicId = req.clinicId!;
       const { roomId: targetRoomId } = req.body as z.infer<typeof bulkVerifyRoomSchema>;
 
       let affected = 0;
@@ -1452,7 +1497,7 @@ router.post(
         const [room] = await tx
           .select()
           .from(rooms)
-          .where(eq(rooms.id, targetRoomId))
+          .where(and(eq(rooms.clinicId, clinicId), eq(rooms.id, targetRoomId)))
           .limit(1);
 
         if (!room) {
@@ -1464,14 +1509,14 @@ router.post(
         const items = await tx
           .select({ id: equipment.id, name: equipment.name, status: equipment.status })
           .from(equipment)
-          .where(and(eq(equipment.roomId, targetRoomId), isNull(equipment.deletedAt)));
+          .where(and(eq(equipment.clinicId, clinicId), eq(equipment.roomId, targetRoomId), isNull(equipment.deletedAt)));
 
         if (items.length === 0) {
           // Nothing to verify — still mark room synced
           await tx
             .update(rooms)
             .set({ syncStatus: "synced", lastAuditAt: new Date(), updatedAt: new Date() })
-            .where(eq(rooms.id, targetRoomId));
+            .where(and(eq(rooms.clinicId, clinicId), eq(rooms.id, targetRoomId)));
           return;
         }
 
@@ -1486,12 +1531,13 @@ router.post(
             lastVerifiedById: req.authUser!.id,
             lastSeen: now,
           })
-          .where(inArray(equipment.id, itemIds));
+          .where(and(eq(equipment.clinicId, clinicId), inArray(equipment.id, itemIds)));
 
         // 4. Insert a scan log entry per item for audit trail
         await tx.insert(scanLogs).values(
           items.map((item) => ({
             id: randomUUID(),
+            clinicId,
             equipmentId: item.id,
             userId: req.authUser!.id,
             userEmail: req.authUser!.email,
@@ -1505,12 +1551,13 @@ router.post(
         await tx
           .update(rooms)
           .set({ syncStatus: "synced", lastAuditAt: now, updatedAt: now })
-          .where(eq(rooms.id, targetRoomId));
+          .where(and(eq(rooms.clinicId, clinicId), eq(rooms.id, targetRoomId)));
 
         affected = items.length;
       });
 
       logAudit({
+        clinicId,
         actionType: "room_bulk_verified",
         performedBy: req.authUser!.id,
         performedByEmail: req.authUser!.email,

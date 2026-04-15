@@ -344,6 +344,7 @@ function resolveCsvFromRequest(req: { file?: Express.Multer.File; body: Record<s
 
 router.get("/imports", requireAuth, requireAdmin, async (_req, res) => {
   try {
+    const clinicId = _req.clinicId!;
     const rows = await db
       .select({
         id: shiftImports.id,
@@ -355,7 +356,8 @@ router.get("/imports", requireAuth, requireAdmin, async (_req, res) => {
         rowCount: shiftImports.rowCount,
       })
       .from(shiftImports)
-      .leftJoin(users, eq(shiftImports.importedBy, users.id))
+      .leftJoin(users, and(eq(shiftImports.importedBy, users.id), eq(users.clinicId, clinicId)))
+      .where(eq(shiftImports.clinicId, clinicId))
       .orderBy(desc(shiftImports.importedAt))
       .limit(100);
 
@@ -395,6 +397,7 @@ router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (
     if (!req.authUser) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+    const clinicId = req.clinicId!;
 
     const { csv, filename } = resolveCsvFromRequest(req as { file?: Express.Multer.File; body: Record<string, unknown> });
     if (!csv.trim()) {
@@ -421,6 +424,7 @@ router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (
           role: row.role,
         }),
         date: row.date,
+        clinicId,
         startTime: row.startTime,
         endTime: row.endTime,
         employeeName: row.employeeName,
@@ -437,12 +441,13 @@ router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (
       const importingUser = await tx
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.id, req.authUser!.id))
+        .where(and(eq(users.id, req.authUser!.id), eq(users.clinicId, clinicId)))
         .limit(1);
 
       if (importingUser.length > 0) {
         await tx.insert(shiftImports).values({
           id: importId,
+          clinicId,
           importedBy: req.authUser!.id,
           filename: parsed.filename,
           rowCount: parsed.validRows.length,
@@ -465,6 +470,7 @@ router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (
 
 router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     if (!req.file) {
       return res.status(400).json({ error: "CSV file is required (multipart field: file)" });
     }
@@ -490,6 +496,7 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
 
     const values: Array<{
       id: string;
+      clinicId: string;
       employeeName: string;
       role: ShiftRole;
       date: string;
@@ -520,6 +527,7 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
 
       values.push({
         id: randomUUID(),
+        clinicId,
         employeeName,
         role,
         date,
@@ -548,6 +556,7 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const dateFilter = typeof req.query.date === "string" ? req.query.date : "";
     const rows = await db
       .select({
@@ -559,7 +568,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
         role: shifts.role,
       })
       .from(shifts)
-      .where(dateFilter ? and(eq(shifts.date, dateFilter)) : undefined)
+      .where(dateFilter ? and(eq(shifts.clinicId, clinicId), eq(shifts.date, dateFilter)) : eq(shifts.clinicId, clinicId))
       .orderBy(desc(shifts.date), shifts.startTime, shifts.employeeName)
       .limit(500);
 

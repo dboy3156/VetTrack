@@ -67,6 +67,7 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
   }
 
   const body = req.body as z.infer<typeof subscribeSchema>;
+  const clinicId = req.clinicId!;
   const {
     endpoint,
     keys,
@@ -90,7 +91,9 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
 
   // Insert targets Drizzle columns (server/db.ts pushSubscriptions) — migration 023 aligns DB if needed.
   try {
-    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    await db
+      .delete(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.endpoint, endpoint)));
   } catch (err) {
     console.error("SUBSCRIBE DB delete failed:", err);
     return res.status(500).json({ error: "Failed to save subscription" });
@@ -101,6 +104,7 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
       .insert(pushSubscriptions)
       .values({
         id: randomUUID(),
+        clinicId,
         userId: req.authUser.id,
         endpoint,
         p256dh: keys.p256dh,
@@ -128,6 +132,7 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
 
 router.patch("/subscribe", requireAuth, validateBody(patchSubscribeSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const {
       endpoint,
       soundEnabled,
@@ -150,6 +155,7 @@ router.patch("/subscribe", requireAuth, validateBody(patchSubscribeSchema), asyn
       })
       .where(
         and(
+          eq(pushSubscriptions.clinicId, clinicId),
           eq(pushSubscriptions.endpoint, endpoint),
           eq(pushSubscriptions.userId, req.authUser!.id)
         )
@@ -164,12 +170,14 @@ router.patch("/subscribe", requireAuth, validateBody(patchSubscribeSchema), asyn
 
 router.delete("/subscribe", requireAuth, validateBody(deleteSubscribeSchema), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { endpoint } = req.body as z.infer<typeof deleteSubscribeSchema>;
 
     await db
       .delete(pushSubscriptions)
       .where(
         and(
+          eq(pushSubscriptions.clinicId, clinicId),
           eq(pushSubscriptions.endpoint, endpoint),
           eq(pushSubscriptions.userId, req.authUser!.id)
         )
@@ -191,10 +199,11 @@ router.post("/test", requireAuth, pushTestLimiter, async (req, res) => {
     }
 
     const userId = req.authUser!.id;
+    const clinicId = req.clinicId!;
     const subscriptions = await db
       .select({ id: pushSubscriptions.id })
       .from(pushSubscriptions)
-      .where(eq(pushSubscriptions.userId, userId));
+      .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.userId, userId)));
 
     if (subscriptions.length === 0) {
       return res.status(409).json({
@@ -203,7 +212,7 @@ router.post("/test", requireAuth, pushTestLimiter, async (req, res) => {
       });
     }
 
-    await sendPushToUser(userId, {
+    await sendPushToUser(clinicId, userId, {
       title: "VetTrack Test",
       body: "Push notifications are working correctly on this device!",
       tag: "test",

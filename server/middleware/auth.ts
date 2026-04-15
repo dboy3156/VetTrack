@@ -74,6 +74,7 @@ async function ensureDevUserRecord(devUser: AuthUser): Promise<AuthUser> {
     .insert(users)
     .values({
       id: devUser.id,
+      clinicId: devUser.clinicId,
       clerkId: devUser.clerkId,
       email: devUser.email,
       name: devUser.name,
@@ -84,6 +85,7 @@ async function ensureDevUserRecord(devUser: AuthUser): Promise<AuthUser> {
     .onConflictDoUpdate({
       target: users.clerkId,
       set: {
+        clinicId: devUser.clinicId,
         email: devUser.email,
         name: devUser.name,
         displayName: devUser.name || devUser.email,
@@ -187,6 +189,7 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     .insert(users)
     .values({
       id: randomUUID(),
+      clinicId: clerkOrgId,
       clerkId: clerkUserId,
       email: clerkEmail,
       name: clerkName,

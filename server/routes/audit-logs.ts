@@ -9,12 +9,13 @@ const PAGE_SIZE = 50;
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { actionType, performedBy, from, to, page } = req.query as Record<string, string | undefined>;
 
     const pageNum = Math.max(1, parseInt(page || "1", 10));
     const offset = (pageNum - 1) * PAGE_SIZE;
 
-    const conditions = [];
+    const conditions = [eq(auditLogs.clinicId, clinicId)];
 
     if (actionType) {
       conditions.push(eq(auditLogs.actionType, actionType));
