@@ -132,6 +132,7 @@ export async function requireAuth(
         clerkId: clerkUserId,
         email: clerkEmail,
         name: clerkName,
+        displayName: clerkName || clerkEmail,
         role: defaultRole,
         status: defaultStatus,
       })
@@ -140,11 +141,14 @@ export async function requireAuth(
         set: {
           email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
           name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
-          // NOTE: `role` is intentionally NOT updated here — the DB value is
-          // always authoritative, ensuring role changes take effect immediately.
+          displayName: sql`CASE WHEN ${users.displayName} = '' AND EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE ${users.displayName} END`,
         },
       })
       .returning();
+
+    // #region agent log
+    fetch('http://127.0.0.1:7766/ingest/898d28b0-9bf3-4dfa-99f8-55f3c787e881',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'053da8'},body:JSON.stringify({sessionId:'053da8',location:'auth.ts:requireAuth-upsert',message:'User upsert result',data:{userId:user.id,email:user.email,name:user.name,displayName:user.displayName,clerkEmail,clerkName,status:user.status},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Auto-promote users whose email is in ADMIN_EMAILS
     if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
@@ -252,6 +256,7 @@ export async function requireAuthAny(
         clerkId: clerkUserId,
         email: clerkEmail,
         name: clerkName,
+        displayName: clerkName || clerkEmail,
         role: defaultRole,
         status: defaultStatus,
       })
@@ -260,7 +265,7 @@ export async function requireAuthAny(
         set: {
           email: sql`CASE WHEN EXCLUDED.email = '' THEN ${users.email} ELSE EXCLUDED.email END`,
           name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
-          // NOTE: `role` is intentionally NOT updated here.
+          displayName: sql`CASE WHEN ${users.displayName} = '' AND EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE ${users.displayName} END`,
         },
       })
       .returning();
