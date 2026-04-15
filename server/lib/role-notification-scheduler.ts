@@ -55,6 +55,7 @@ function toTimeString(date: Date): string {
 
 async function userAllowsReminder(
   userId: string,
+  clinicId: string,
   settingField:
     | "technician_return_reminders_enabled"
     | "senior_own_return_reminders_enabled"
@@ -66,7 +67,7 @@ async function userAllowsReminder(
       enabled: sql<boolean>`COALESCE(bool_or(${sql.raw(settingField)}), false)`,
     })
     .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.userId, userId));
+    .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.userId, userId)));
 
   return Boolean(row?.enabled);
 }
@@ -125,11 +126,12 @@ function buildSeniorTeamHourlyMessage(
 
 /** Checkout return reminder — same for every role; only the person who checked out receives it. */
 async function sendScheduledCheckoutReturnReminder(
+  clinicId: string,
   userId: string,
   equipmentId: string,
   equipmentName: string
 ): Promise<void> {
-  await sendPushToUser(userId, {
+  await sendPushToUser(clinicId, userId, {
     title: "VetTrack",
     body: buildReminderMessage(equipmentName),
     tag: `smart-reminder:${equipmentId}`,
@@ -154,7 +156,7 @@ async function processReturnReminderNotification(
       checkedOutById: equipment.checkedOutById,
     })
     .from(equipment)
-    .where(and(eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
+    .where(and(eq(equipment.clinicId, row.clinicId), eq(equipment.id, equipmentId), isNull(equipment.deletedAt)))
     .limit(1);
 
   if (!item) return;
@@ -164,10 +166,11 @@ async function processReturnReminderNotification(
   if (scheduledAt.getTime() > Date.now()) return;
 
   const displayName = item.name || nameFromPayload || "ציוד";
-  await sendScheduledCheckoutReturnReminder(userId, equipmentId, displayName);
+  await sendScheduledCheckoutReturnReminder(row.clinicId, userId, equipmentId, displayName);
 }
 
 export async function scheduleSmartReturnReminder(params: {
+  clinicId: string;
   equipmentId: string;
   equipmentName: string;
   expectedReturnMinutes: number | null;
@@ -188,6 +191,7 @@ export async function scheduleSmartReturnReminder(params: {
     .delete(scheduledNotifications)
     .where(
       and(
+        eq(scheduledNotifications.clinicId, params.clinicId),
         eq(scheduledNotifications.type, "return_reminder"),
         eq(scheduledNotifications.userId, params.userId),
         eq(scheduledNotifications.equipmentId, params.equipmentId),
@@ -196,6 +200,7 @@ export async function scheduleSmartReturnReminder(params: {
     );
 
   await db.insert(scheduledNotifications).values({
+    clinicId: params.clinicId,
     type: "return_reminder",
     userId: params.userId,
     equipmentId: params.equipmentId,
@@ -205,6 +210,7 @@ export async function scheduleSmartReturnReminder(params: {
 }
 
 export async function cancelSmartReturnReminder(
+  clinicId: string,
   equipmentId: string,
   userId: string | null | undefined
 ): Promise<void> {
@@ -213,6 +219,7 @@ export async function cancelSmartReturnReminder(
     .delete(scheduledNotifications)
     .where(
       and(
+        eq(scheduledNotifications.clinicId, clinicId),
         eq(scheduledNotifications.type, "return_reminder"),
         eq(scheduledNotifications.userId, userId),
         eq(scheduledNotifications.equipmentId, equipmentId),
@@ -252,7 +259,11 @@ export async function runScheduledNotifications(): Promise<void> {
         .update(scheduledNotifications)
         .set({ sentAt: new Date() })
         .where(
-          and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+          and(
+            eq(scheduledNotifications.clinicId, row.clinicId),
+            eq(scheduledNotifications.id, row.id),
+            isNull(scheduledNotifications.sentAt)
+          )
         );
       if (isDevLog) {
         console.log("Notification sent:", {
@@ -278,7 +289,11 @@ export async function runScheduledNotifications(): Promise<void> {
           .update(scheduledNotifications)
           .set({ sentAt: new Date() })
           .where(
-            and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+            and(
+              eq(scheduledNotifications.clinicId, row.clinicId),
+              eq(scheduledNotifications.id, row.id),
+              isNull(scheduledNotifications.sentAt)
+            )
           );
       } else {
         const delayMs = backoffMsAfterFailure(attempts);
@@ -289,7 +304,11 @@ export async function runScheduledNotifications(): Promise<void> {
             payload: { ...payloadObj, attempts },
           })
           .where(
-            and(eq(scheduledNotifications.id, row.id), isNull(scheduledNotifications.sentAt))
+            and(
+              eq(scheduledNotifications.clinicId, row.clinicId),
+              eq(scheduledNotifications.id, row.id),
+              isNull(scheduledNotifications.sentAt)
+            )
           );
       }
     }
@@ -310,6 +329,7 @@ export function startScheduledNotificationProcessor(): void {
 
 type ActiveShiftRow = {
   id: string;
+  clinicId: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -327,6 +347,7 @@ async function getActiveShiftRows(now: Date): Promise<ActiveShiftRow[]> {
   return db
     .select({
       id: shifts.id,
+      clinicId: shifts.clinicId,
       date: shifts.date,
       startTime: shifts.startTime,
       endTime: shifts.endTime,
@@ -360,19 +381,18 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
   const seniorSlots = activeShifts.filter((shift) => shift.role === "senior_technician");
   if (seniorSlots.length === 0) return;
 
-  const allUsers = await db
-    .select({ id: users.id, name: users.name, role: users.role })
-    .from(users)
-    .where(isNull(users.deletedAt));
-
-  const userByNormalizedName = new Map<string, (typeof allUsers)[number]>();
-  for (const user of allUsers) {
-    userByNormalizedName.set(normalizeName(user.name), user);
-  }
-
   const seenSeniorSlot = new Set<string>();
 
   for (const seniorShift of seniorSlots) {
+    const clinicUsers = await db
+      .select({ id: users.id, name: users.name, role: users.role })
+      .from(users)
+      .where(and(eq(users.clinicId, seniorShift.clinicId), isNull(users.deletedAt)));
+    const userByNormalizedName = new Map<string, (typeof clinicUsers)[number]>();
+    for (const user of clinicUsers) {
+      userByNormalizedName.set(normalizeName(user.name), user);
+    }
+
     const seniorUser = userByNormalizedName.get(normalizeName(seniorShift.employeeName));
     if (!seniorUser) continue;
 
@@ -399,6 +419,7 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
       .from(equipment)
       .where(
         and(
+          eq(equipment.clinicId, seniorShift.clinicId),
           inArray(equipment.checkedOutById, teamUserIds),
           isNotNull(equipment.checkedOutById),
           isNull(equipment.deletedAt)
@@ -417,12 +438,13 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
         userId: supportTickets.userId,
       })
       .from(supportTickets)
-      .where(and(eq(supportTickets.status, "open"), inArray(supportTickets.userId, teamUserIds)));
+      .where(and(eq(supportTickets.clinicId, seniorShift.clinicId), eq(supportTickets.status, "open"), inArray(supportTickets.userId, teamUserIds)));
 
     if (currentlyOverdue.length === 0 && openIssues.length === 0) continue;
 
     const fallbackRole = (seniorUser.role as PermanentVetTrackRole) ?? "technician";
     const seniorRole = await resolveCurrentRole({
+      clinicId: seniorShift.clinicId,
       userName: seniorUser.name,
       fallbackRole,
     });
@@ -437,7 +459,7 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
 
     if (seniorRole.effectiveRole !== "senior_technician") continue;
 
-    const seniorEnabled = await userAllowsReminder(seniorUser.id, "senior_team_overdue_alerts_enabled");
+    const seniorEnabled = await userAllowsReminder(seniorUser.id, seniorShift.clinicId, "senior_team_overdue_alerts_enabled");
     if (!seniorEnabled) continue;
 
     const overdueLines = currentlyOverdue
@@ -454,7 +476,7 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
     const body = buildSeniorTeamHourlyMessage(overdueLines, openIssues);
     const tag = `smart-team-hourly:${seniorShift.date}:${seniorShift.startTime}:${seniorShift.endTime}:${seniorUser.id}:${getMinuteBucket(now)}`;
 
-    await sendPushToUser(seniorUser.id, {
+    await sendPushToUser(seniorShift.clinicId, seniorUser.id, {
       title: "VetTrack",
       body,
       tag,
@@ -466,6 +488,7 @@ async function runSeniorHourlyTeamChecks(now: Date): Promise<void> {
 async function runAdminHourlySummary(now: Date): Promise<void> {
   const items = await db
     .select({
+      clinicId: equipment.clinicId,
       id: equipment.id,
       checkedOutAt: equipment.checkedOutAt,
       expectedReturnMinutes: equipment.expectedReturnMinutes,
@@ -473,23 +496,29 @@ async function runAdminHourlySummary(now: Date): Promise<void> {
     .from(equipment)
     .where(and(isNotNull(equipment.checkedOutById), isNull(equipment.deletedAt)));
 
-  const overdueCount = items.filter((item) => isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, now)).length;
-  if (overdueCount <= 0) return;
+  const overdueByClinic = new Map<string, number>();
+  for (const item of items) {
+    if (!isEquipmentOverdue(item.checkedOutAt, item.expectedReturnMinutes, now)) continue;
+    overdueByClinic.set(item.clinicId, (overdueByClinic.get(item.clinicId) ?? 0) + 1);
+  }
 
-  const admins = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.role, "admin"), isNull(users.deletedAt)));
+  for (const [clinicId, overdueCount] of overdueByClinic.entries()) {
+    if (overdueCount <= 0) continue;
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.clinicId, clinicId), eq(users.role, "admin"), isNull(users.deletedAt)));
 
-  for (const admin of admins) {
-    const enabled = await userAllowsReminder(admin.id, "admin_hourly_summary_enabled");
-    if (!enabled) continue;
-    await sendPushToUser(admin.id, {
-      title: "VetTrack",
-      body: buildAdminSummaryMessage(overdueCount),
-      tag: `smart-admin-summary:${getMinuteBucket(now)}`,
-      url: "/my-equipment",
-    });
+    for (const admin of admins) {
+      const enabled = await userAllowsReminder(admin.id, clinicId, "admin_hourly_summary_enabled");
+      if (!enabled) continue;
+      await sendPushToUser(clinicId, admin.id, {
+        title: "VetTrack",
+        body: buildAdminSummaryMessage(overdueCount),
+        tag: `smart-admin-summary:${getMinuteBucket(now)}`,
+        url: "/my-equipment",
+      });
+    }
   }
 }
 
