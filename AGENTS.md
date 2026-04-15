@@ -2,6 +2,9 @@
 
 ## Cursor Cloud specific instructions
 
+### Cloud agent starter skill
+Use `docs/cloud-agent-starter-skill.md` as the default quickstart runbook for environment setup, auth/login modes, and test workflows by code area.
+
 ### Architecture
 VetTrack is a single full-stack app: React 18 + Vite frontend (port 5000) and Express + TypeScript backend (port 3001), backed by PostgreSQL. See `replit.md` for full architecture details.
 
