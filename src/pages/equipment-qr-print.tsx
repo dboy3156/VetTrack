@@ -2,10 +2,12 @@ import { useEffect } from 'react';
 import { useParams } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
+import { generateQrUrl } from '@/lib/utils';
+import { t } from '@/lib/i18n';
 
 export default function EquipmentQRPrint() {
   const { id } = useParams<{ id: string }>();
-  const url = `https://vettrack.uk/equipment/${id}`;
+  const url = generateQrUrl(id!);
 
   const { data: equipment, isSuccess } = useQuery({
     queryKey: ['/api/equipment', id],
@@ -22,7 +24,7 @@ export default function EquipmentQRPrint() {
   if (!equipment) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <p>טוען...</p>
+        <p>{t.common.loading}</p>
       </div>
     );
   }

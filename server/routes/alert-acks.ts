@@ -18,9 +18,10 @@ import { logAudit } from "../lib/audit.js";
 const router = Router();
 
 // GET /api/alert-acks — return all current acknowledgments
-router.get("/", requireAuth, async (_req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
-    const acks = await db.select().from(alertAcks);
+    const clinicId = req.clinicId!;
+    const acks = await db.select().from(alertAcks).where(eq(alertAcks.clinicId, clinicId));
     res.json(acks);
   } catch (err) {
     console.error(err);
@@ -31,6 +32,7 @@ router.get("/", requireAuth, async (_req, res) => {
 // POST /api/alert-acks — claim an alert ("I'm handling this") — technician+ only
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const { equipmentId, alertType } = req.body;
     if (!equipmentId || !alertType) {
       return res.status(400).json({ error: "equipmentId and alertType required" });
@@ -40,7 +42,11 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
     await db
       .delete(alertAcks)
       .where(
-        and(eq(alertAcks.equipmentId, equipmentId), eq(alertAcks.alertType, alertType))
+        and(
+          eq(alertAcks.clinicId, clinicId),
+          eq(alertAcks.equipmentId, equipmentId),
+          eq(alertAcks.alertType, alertType)
+        )
       );
 
     const REMINDER_DELAY_MS = Number(process.env.ALERT_REMINDER_DELAY_MS) || 30 * 60 * 1000;
@@ -53,6 +59,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
       .insert(alertAcks)
       .values({
         id: randomUUID(),
+        clinicId,
         equipmentId,
         alertType,
         acknowledgedById: req.authUser!.id,
@@ -62,6 +69,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
       .returning();
 
     logAudit({
+      clinicId,
       actionType: "alert_acknowledged",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,
@@ -90,6 +98,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
 // DELETE /api/alert-acks?equipmentId=...&alertType=... — remove acknowledgment — technician+
 router.delete("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   try {
+    const clinicId = req.clinicId!;
     const equipmentId = req.query.equipmentId as string | undefined;
     const alertType = req.query.alertType as string | undefined;
     if (!equipmentId || !alertType) {
@@ -98,10 +107,15 @@ router.delete("/", requireAuth, requireEffectiveRole("technician"), async (req, 
     await db
       .delete(alertAcks)
       .where(
-        and(eq(alertAcks.equipmentId, equipmentId), eq(alertAcks.alertType, alertType))
+        and(
+          eq(alertAcks.clinicId, clinicId),
+          eq(alertAcks.equipmentId, equipmentId),
+          eq(alertAcks.alertType, alertType)
+        )
       );
 
     logAudit({
+      clinicId,
       actionType: "alert_acknowledgment_removed",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email,

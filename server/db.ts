@@ -27,6 +27,7 @@ export const db = drizzle(pool);
 
 export const users = pgTable("vt_users", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   clerkId: text("clerk_id").unique().notNull(),
   email: text("email").notNull(),
   name: text("name").notNull().default(""),
@@ -40,6 +41,7 @@ export const users = pgTable("vt_users", {
 
 export const folders = pgTable("vt_folders", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   name: text("name").notNull(),
   type: varchar("type", { length: 20 }).notNull().default("manual"),
   color: text("color"),
@@ -50,6 +52,7 @@ export const folders = pgTable("vt_folders", {
 
 export const rooms = pgTable("vt_rooms", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   name: text("name").notNull().unique(),
   floor: text("floor"),
   masterNfcTagId: text("master_nfc_tag_id").unique(),
@@ -61,6 +64,7 @@ export const rooms = pgTable("vt_rooms", {
 
 export const equipment = pgTable("vt_equipment", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   name: text("name").notNull(),
   serialNumber: text("serial_number"),
   model: text("model"),
@@ -95,6 +99,7 @@ export const shiftRole = pgEnum("vt_shift_role", ["technician", "senior_technici
 
 export const shifts = pgTable("vt_shifts", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   date: date("date", { mode: "string" }).notNull(),
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
@@ -104,6 +109,7 @@ export const shifts = pgTable("vt_shifts", {
 
 export const shiftImports = pgTable("vt_shift_imports", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   importedAt: timestamp("imported_at").defaultNow().notNull(),
   importedBy: text("imported_by").notNull().references(() => users.id, { onDelete: "restrict" }),
   filename: text("filename").notNull(),
@@ -112,6 +118,7 @@ export const shiftImports = pgTable("vt_shift_imports", {
 
 export const scanLogs = pgTable("vt_scan_logs", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   equipmentId: text("equipment_id"),
   userId: text("user_id").notNull(),
   userEmail: text("user_email").notNull(),
@@ -123,6 +130,7 @@ export const scanLogs = pgTable("vt_scan_logs", {
 
 export const transferLogs = pgTable("vt_transfer_logs", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   equipmentId: text("equipment_id"),
   fromFolderId: text("from_folder_id"),
   fromFolderName: text("from_folder_name"),
@@ -135,6 +143,7 @@ export const transferLogs = pgTable("vt_transfer_logs", {
 
 export const whatsappAlerts = pgTable("vt_whatsapp_alerts", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   equipmentId: text("equipment_id").notNull(),
   equipmentName: text("equipment_name").notNull(),
   status: varchar("status", { length: 20 }).notNull(),
@@ -147,6 +156,7 @@ export const whatsappAlerts = pgTable("vt_whatsapp_alerts", {
 
 export const alertAcks = pgTable("vt_alert_acks", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   equipmentId: text("equipment_id").notNull(),
   alertType: varchar("alert_type", { length: 30 }).notNull(),
   acknowledgedById: text("acknowledged_by_id").notNull(),
@@ -158,6 +168,7 @@ export const alertAcks = pgTable("vt_alert_acks", {
 
 export const undoTokens = pgTable("vt_undo_tokens", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   equipmentId: text("equipment_id").notNull(),
   actorId: text("actor_id").notNull(),
   scanLogId: text("scan_log_id").notNull(),
@@ -174,6 +185,7 @@ export const serverConfig = pgTable("vt_server_config", {
 
 export const pushSubscriptions = pgTable("vt_push_subscriptions", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   userId: text("user_id").notNull(),
   endpoint: text("endpoint").notNull().unique(),
   p256dh: text("p256dh").notNull(),
@@ -189,6 +201,7 @@ export const pushSubscriptions = pgTable("vt_push_subscriptions", {
 
 export const scheduledNotifications = pgTable("vt_scheduled_notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
+  clinicId: text("clinic_id").notNull(),
   type: text("type").notNull(),
   userId: text("user_id").notNull(),
   equipmentId: text("equipment_id"),
@@ -199,6 +212,7 @@ export const scheduledNotifications = pgTable("vt_scheduled_notifications", {
 
 export const supportTickets = pgTable("vt_support_tickets", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   title: text("title").notNull(),
   description: text("description").notNull(),
   severity: varchar("severity", { length: 10 }).notNull().default("medium"),
@@ -215,6 +229,7 @@ export const supportTickets = pgTable("vt_support_tickets", {
 
 export const bulkAuditLog = pgTable("vt_bulk_audit_log", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   eventType: varchar("event_type", { length: 30 }).notNull(),
   equipmentId: text("equipment_id").notNull(),
   equipmentName: text("equipment_name").notNull(),
@@ -227,6 +242,7 @@ export const bulkAuditLog = pgTable("vt_bulk_audit_log", {
 
 export const auditLogs = pgTable("vt_audit_logs", {
   id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
   actionType: varchar("action_type", { length: 50 }).notNull(),
   performedBy: text("performed_by").notNull(),
   performedByEmail: text("performed_by_email").notNull(),

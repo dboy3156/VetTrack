@@ -43,6 +43,7 @@ import {
 } from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
+import { tenantContext } from "./middleware/tenant-context.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
@@ -210,6 +211,7 @@ app.use(async (req, res, next) => {
 // Global API limiter runs before route-specific limiters.
 app.use("/api", globalApiLimiter);
 app.use("/api", i18nMiddleware);
+app.use("/api", tenantContext);
 
 app.use("/api/users", userRoutes);
 app.use("/api/equipment", equipmentRoutes);

@@ -3,6 +3,7 @@ import { X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
+import { t } from "@/lib/i18n";
 
 const STORAGE_KEY = "vettrack-last-seen-version";
 
@@ -52,13 +53,13 @@ export function UpdateBanner() {
       <div className="flex items-center gap-2 text-sm font-medium">
         <Sparkles className="w-4 h-4 flex-shrink-0" />
         <span>
-          VetTrack v{bannerVersion} is here &mdash;{" "}
+          {t.updateBanner.newVersion(bannerVersion)}
           <Link
             href="/whats-new"
             className="underline underline-offset-2 hover:opacity-80"
             data-testid="update-banner-link"
           >
-            see what&apos;s new
+            {t.updateBanner.seeWhatsNew}
           </Link>
         </span>
       </div>
@@ -67,7 +68,7 @@ export function UpdateBanner() {
         size="icon"
         className="h-6 w-6 shrink-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
         onClick={dismiss}
-        aria-label="Dismiss update notification"
+        aria-label={t.updateBanner.dismissAria}
         data-testid="update-banner-dismiss"
       >
         <X className="w-4 h-4" />

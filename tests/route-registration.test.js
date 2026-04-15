@@ -42,6 +42,8 @@ const requiredPrefixes = [
   "/api/audit-logs",
   "/api/storage",
   "/api/test",
+  "/api/demo-seed",
+  "/api/health/ready",
 ];
 
 console.log("\n── Route Registration Smoke Test");
