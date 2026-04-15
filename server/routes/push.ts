@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { authSensitiveLimiter, pushTestLimiter } from "../middleware/rate-limiters.js";
-import { sendPushToUser, getVapidPublicKey } from "../lib/push.js";
+import { sendPushToUser, getVapidPublicKey, isVapidReady } from "../lib/push.js";
 
 /*
  * PERMISSIONS MATRIX — /api/push
@@ -56,27 +56,54 @@ router.get("/vapid-public-key", async (_req, res) => {
 });
 
 router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscribeSchema), async (req, res) => {
+  console.log("SUBSCRIBE REQUEST:", req.body);
+
+  if (!req.authUser?.id) {
+    console.error("SUBSCRIBE: missing req.authUser.id");
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  if (!isVapidReady()) {
+    console.error("SUBSCRIBE: VAPID not initialized (keys missing or init failed)");
+    return res.status(503).json({ error: "Push notifications not configured" });
+  }
+
+  const body = req.body as z.infer<typeof subscribeSchema>;
+  const {
+    endpoint,
+    keys,
+    soundEnabled,
+    alertsEnabled,
+    technicianReturnRemindersEnabled,
+    seniorOwnReturnRemindersEnabled,
+    seniorTeamOverdueAlertsEnabled,
+    adminHourlySummaryEnabled,
+  } = body;
+
+  if (!endpoint || typeof endpoint !== "string") {
+    return res.status(400).json({ error: "endpoint is required" });
+  }
+  if (!keys?.p256dh || typeof keys.p256dh !== "string" || !keys.p256dh.trim()) {
+    return res.status(400).json({ error: "keys.p256dh is required" });
+  }
+  if (!keys?.auth || typeof keys.auth !== "string" || !keys.auth.trim()) {
+    return res.status(400).json({ error: "keys.auth is required" });
+  }
+
+  // Insert targets Drizzle columns (server/db.ts pushSubscriptions) — migration 023 aligns DB if needed.
   try {
-    const {
-      endpoint,
-      keys,
-      soundEnabled,
-      alertsEnabled,
-      technicianReturnRemindersEnabled,
-      seniorOwnReturnRemindersEnabled,
-      seniorTeamOverdueAlertsEnabled,
-      adminHourlySummaryEnabled,
-    } = req.body as z.infer<typeof subscribeSchema>;
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+  } catch (err) {
+    console.error("SUBSCRIBE DB delete failed:", err);
+    return res.status(500).json({ error: "Failed to save subscription" });
+  }
 
-    await db
-      .delete(pushSubscriptions)
-      .where(eq(pushSubscriptions.endpoint, endpoint));
-
+  try {
     const [sub] = await db
       .insert(pushSubscriptions)
       .values({
         id: randomUUID(),
-        userId: req.authUser!.id,
+        userId: req.authUser.id,
         endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,
@@ -89,10 +116,15 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
       })
       .returning();
 
-    res.status(201).json({ success: true, id: sub.id });
+    if (!sub) {
+      console.error("SUBSCRIBE DB insert returned no row");
+      return res.status(500).json({ error: "Failed to save subscription" });
+    }
+
+    return res.json({ success: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to save subscription" });
+    console.error("SUBSCRIBE DB insert failed:", err);
+    return res.status(500).json({ error: "Failed to save subscription" });
   }
 });
 

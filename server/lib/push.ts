@@ -5,6 +5,11 @@ import * as Sentry from "@sentry/node";
 
 let vapidReady = false;
 
+/** True when public + private VAPID keys are loaded and web-push is configured. */
+export function isVapidReady(): boolean {
+  return vapidReady;
+}
+
 export async function initVapid(): Promise<void> {
   try {
     let publicKey = process.env.VAPID_PUBLIC_KEY ?? "";
