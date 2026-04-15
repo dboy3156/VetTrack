@@ -31,7 +31,10 @@ import shiftsRoutes from "./routes/shifts.js";
 import { runMigrations } from "./migrate.js";
 import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
 import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
-import { startSmartRoleNotificationScheduler } from "./lib/role-notification-scheduler.js";
+import {
+  startScheduledNotificationProcessor,
+  startSmartRoleNotificationScheduler,
+} from "./lib/role-notification-scheduler.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -246,6 +249,7 @@ runMigrations()
       console.error("Failed to initialize push notifications", err);
     });
     startCleanupScheduler();
+    startScheduledNotificationProcessor();
     startSmartRoleNotificationScheduler();
   })
   .catch((err) => {
