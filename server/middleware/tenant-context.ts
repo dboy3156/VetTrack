@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
+import { and, eq, isNull } from "drizzle-orm";
+import { db, users } from "../db.js";
 import { buildAccessDeniedBody, recordAccessDenied } from "../lib/access-denied.js";
 
 export interface AuthenticatedRequest extends Request {
@@ -14,7 +16,7 @@ declare global {
   }
 }
 
-export function tenantContext(req: Request, res: Response, next: NextFunction): void {
+export async function tenantContext(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (
     req.path === "/push/vapid-public-key" ||
     req.path === "/health/ready"
@@ -29,15 +31,35 @@ export function tenantContext(req: Request, res: Response, next: NextFunction): 
     : undefined;
   const fromDevDefault = process.env.DEV_DEFAULT_CLINIC_ID;
   const fromImplicitDevDefault = process.env.NODE_ENV !== "production" ? "dev-clinic-default" : undefined;
+  let clerkUserId: string | undefined;
   const fromClerk = (() => {
     try {
-      return getAuth(req).orgId ?? undefined;
+      const auth = getAuth(req);
+      clerkUserId = auth.userId ?? undefined;
+      return auth.orgId ?? undefined;
     } catch {
       return undefined;
     }
   })();
 
-  const clinicId = (fromAuthUser ?? fromClerk ?? fromDevHeader ?? fromDevDefault ?? fromImplicitDevDefault)?.trim();
+  let inferredFromDb: string | undefined;
+  if (!fromAuthUser && !fromClerk && clerkUserId) {
+    try {
+      const [existingUser] = await db
+        .select({ clinicId: users.clinicId })
+        .from(users)
+        .where(and(eq(users.clerkId, clerkUserId), isNull(users.deletedAt)))
+        .limit(1);
+      inferredFromDb = existingUser?.clinicId ?? undefined;
+    } catch (error) {
+      console.warn("[tenant-context] Failed to infer clinic from DB user", {
+        clerkUserId,
+        error,
+      });
+    }
+  }
+
+  const clinicId = (fromAuthUser ?? fromClerk ?? inferredFromDb ?? fromDevHeader ?? fromDevDefault ?? fromImplicitDevDefault)?.trim();
   if (!clinicId) {
     recordAccessDenied({
       req,
