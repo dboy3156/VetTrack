@@ -67,6 +67,7 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
 const LEGACY_CLINIC_ID = "legacy-clinic";
 
+/** Dev-only: when NODE_ENV is not production, allows resolving clinic from DB if Clerk session has no org id. Never enabled in production. */
 function allowDbClinicFallback(): boolean {
   if (isProduction) return false;
   return process.env.ALLOW_DB_CLINIC_FALLBACK?.trim() === "true";
