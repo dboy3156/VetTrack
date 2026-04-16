@@ -120,7 +120,7 @@ function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIME
     controller.signal.addEventListener("abort", () => outer.removeEventListener("abort", onAbort), { once: true });
   }
 
-  return fetch(url, { ...init, signal: controller.signal })
+  return fetch(url, { credentials: "include", ...init, signal: controller.signal })
     .finally(() => clearTimeout(timer))
     .catch((err) => {
       if (timedOut && err instanceof DOMException && err.name === "AbortError") {

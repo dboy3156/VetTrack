@@ -46,9 +46,10 @@ assert(
 );
 
 assert(
-  tenantMiddleware.includes('buildAccessDeniedBody("TENANT_CONTEXT_MISSING"'),
-  "Tenant context denial is structured",
-  "Expected tenant middleware to emit ACCESS_DENIED + TENANT_CONTEXT_MISSING reason"
+  tenantMiddleware.includes("Best-effort clinic hint") &&
+    accessDeniedLib.includes("TENANT_CONTEXT_MISSING"),
+  "Tenant is non-blocking; ACCESS_DENIED reasons remain centralized",
+  "Expected tenant-context to defer enforcement to requireAuth; access-denied lib keeps reason codes"
 );
 
 assert(

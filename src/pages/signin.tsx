@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
-import { QrCode } from "lucide-react";
-import { SignIn } from "@clerk/clerk-react";
+import { Loader2, QrCode } from "lucide-react";
+import { ClerkFailed, ClerkLoaded, ClerkLoading, SignIn } from "@clerk/clerk-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PhoneSignIn } from "@/components/phone-sign-in";
 
@@ -56,17 +56,32 @@ export default function SignInPage() {
                 </>
               ) : (
                 <>
-                  <SignIn
-                    routing="hash"
-                    fallbackRedirectUrl="/"
-                    appearance={{
-                      variables: {
-                        colorPrimary: "#2563EB",
-                        colorBackground: "#ffffff",
-                        borderRadius: "1rem",
-                      },
-                    }}
-                  />
+                  <ClerkLoading>
+                    <div className="flex w-full min-h-[12rem] justify-center items-center" aria-busy>
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    </div>
+                  </ClerkLoading>
+                  <ClerkFailed>
+                    <p className="text-sm text-center text-red-600 px-2">
+                      Sign-in could not load. Check your connection, then refresh. If this persists, confirm Clerk is configured for this domain and that the publishable key matches this deployment.
+                    </p>
+                  </ClerkFailed>
+                  <ClerkLoaded>
+                    <div className="w-full min-h-[24rem] flex flex-col items-center justify-start">
+                      <SignIn
+                        routing="hash"
+                        signUpUrl="/signup"
+                        fallbackRedirectUrl="/"
+                        appearance={{
+                          variables: {
+                            colorPrimary: "#2563EB",
+                            colorBackground: "#ffffff",
+                            borderRadius: "1rem",
+                          },
+                        }}
+                      />
+                    </div>
+                  </ClerkLoaded>
                   <p className="text-xs text-gray-400 text-center max-w-xs">
                     Signing in with an Israeli number (+972)?{" "}
                     <button

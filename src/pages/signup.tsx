@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
-import { QrCode } from "lucide-react";
-import { SignUp } from "@clerk/clerk-react";
+import { Loader2, QrCode } from "lucide-react";
+import { ClerkFailed, ClerkLoaded, ClerkLoading, SignUp } from "@clerk/clerk-react";
 import { useAuth } from "@/hooks/use-auth";
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
@@ -40,18 +40,33 @@ export default function SignUpPage() {
           </div>
 
           {CLERK_PUBLISHABLE_KEY ? (
-            <div className="flex flex-col items-center gap-4">
-              <SignUp
-                routing="hash"
-                fallbackRedirectUrl="/"
-                appearance={{
-                  variables: {
-                    colorPrimary: "#2563EB",
-                    colorBackground: "#ffffff",
-                    borderRadius: "1rem",
-                  },
-                }}
-              />
+            <div className="flex flex-col items-center gap-4 w-full">
+              <ClerkLoading>
+                <div className="flex w-full min-h-[12rem] justify-center items-center" aria-busy>
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                </div>
+              </ClerkLoading>
+              <ClerkFailed>
+                <p className="text-sm text-center text-red-600 px-2">
+                  Sign-up could not load. Check your connection, then refresh. If this persists, confirm Clerk is configured for this domain and that the publishable key matches this deployment.
+                </p>
+              </ClerkFailed>
+              <ClerkLoaded>
+                <div className="w-full min-h-[24rem] flex flex-col items-center justify-start">
+                  <SignUp
+                    routing="hash"
+                    signInUrl="/signin"
+                    fallbackRedirectUrl="/"
+                    appearance={{
+                      variables: {
+                        colorPrimary: "#2563EB",
+                        colorBackground: "#ffffff",
+                        borderRadius: "1rem",
+                      },
+                    }}
+                  />
+                </div>
+              </ClerkLoaded>
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm text-center">

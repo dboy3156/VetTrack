@@ -157,8 +157,12 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
 
       try {
         // 1. Try fetching the existing user
-        let res = await fetch("/api/users/me", { headers, signal: controller.signal });
-        
+        let res = await fetch("/api/users/me", {
+          headers,
+          signal: controller.signal,
+          credentials: "include",
+        });
+
         // 2. Sync/provision only when user is missing/unauthorized.
         // Avoid calling /sync on transient failures such as 429.
         if (!res.ok && (res.status === 401 || res.status === 404)) {
@@ -167,6 +171,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
             headers,
             body: JSON.stringify({ clerkId, email, name }),
             signal: controller.signal,
+            credentials: "include",
           });
         }
 

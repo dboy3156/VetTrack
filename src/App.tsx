@@ -1,9 +1,39 @@
 import { Switch, Route, Redirect } from "wouter";
 import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
+import { useAuth as useClerkAuth, useOrganizationList } from "@clerk/clerk-react";
 import { Loader2, ShieldAlert, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type AccessDeniedReason, useAuth } from "@/hooks/use-auth";
 import { t } from "@/lib/i18n";
+
+/** Silent: set active Clerk org when session has no org_id so backend receives clinic context (first membership). */
+function AutoSelectOrg() {
+  const { isSignedIn, isLoaded, orgId } = useClerkAuth();
+  const { isLoaded: membershipsReady, userMemberships, setActive } = useOrganizationList({
+    userMemberships: true,
+  });
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) return;
+    if (!membershipsReady) return;
+    if (userMemberships?.isLoading) return;
+    if (orgId) return;
+
+    const memberships = userMemberships?.data;
+    if (!memberships?.length || !setActive) return;
+
+    const firstOrgId = memberships[0]?.organization?.id;
+    if (!firstOrgId) return;
+
+    void setActive({ organization: firstOrgId }).catch((err: unknown) => {
+      console.error("[AutoSelectOrg] setActive failed", err);
+    });
+  }, [isLoaded, isSignedIn, membershipsReady, orgId, userMemberships?.data, userMemberships?.isLoading, setActive]);
+
+  return null;
+}
+
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -119,11 +149,14 @@ function AuthGuard({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="p-10 text-center">{t.auth.guard.loadingApp}</div>}>
+    <>
+      <AutoSelectOrg />
+      <Suspense fallback={<div className="p-10 text-center">{t.auth.guard.loadingApp}</div>}>
       <Switch>
         <Route path="/landing" component={LandingPage} />
-        <Route path="/signin" component={SignInPage} />
-        <Route path="/signup" component={SignUpPage} />
+        {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
+        <Route path="/signin/*?" component={SignInPage} />
+        <Route path="/signup/*?" component={SignUpPage} />
         <Route path="/demo-guide" component={DemoGuidePage} />
 
         <Route path="/"><AuthGuard><HomePage /></AuthGuard></Route>
@@ -149,6 +182,7 @@ export default function App() {
         <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
-    </Suspense>
+      </Suspense>
+    </>
   );
 }

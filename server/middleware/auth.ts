@@ -67,9 +67,30 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
 const LEGACY_CLINIC_ID = "legacy-clinic";
 
+/**
+ * When Clerk omits org_id (common without Clerk Organizations), resolve clinic from the existing
+ * DB user row. Enabled by default; set DB_CLINIC_FALLBACK=false to require org in the session.
+ * ALLOW_DB_CLINIC_FALLBACK is accepted as an alias for DB_CLINIC_FALLBACK (same semantics).
+ */
 function allowDbClinicFallback(): boolean {
-  if (isProduction) return false;
-  return process.env.ALLOW_DB_CLINIC_FALLBACK?.trim() === "true";
+  const a = process.env.DB_CLINIC_FALLBACK?.trim().toLowerCase();
+  const b = process.env.ALLOW_DB_CLINIC_FALLBACK?.trim().toLowerCase();
+  return a !== "false" && b !== "false";
+}
+
+function authDebug(payload: Record<string, unknown>): void {
+  const on = process.env.AUTH_DEBUG?.trim() === "1" || process.env.AUTH_DEBUG?.toLowerCase() === "true";
+  if (!on) return;
+  console.log(JSON.stringify({ event: "AUTH_DEBUG", ts: new Date().toISOString(), ...payload }));
+}
+
+/** Log-safe metadata only (no cookie values). */
+function authRequestDebugCookieMeta(req: Request): { cookieHeaderLength: number; likelyClerkSessionCookie: boolean } {
+  const raw = req.headers.cookie ?? "";
+  return {
+    cookieHeaderLength: raw.length,
+    likelyClerkSessionCookie: /\b(__session|__clerk|__client)(=|;|$)/.test(raw),
+  };
 }
 
 function isForbiddenProductionClinicId(clinicId: string | null | undefined): boolean {
@@ -167,11 +188,22 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     return { ok: false, status: 401, body: { error: "UNAUTHORIZED", reason: "INVALID_AUTH_TOKEN", message: "Invalid authentication token" } };
   }
 
+  const fallbackAllowed = allowDbClinicFallback();
+  const authz = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+  authDebug({
+    step: "session_claims",
+    clerkUserId: clerkUserId ?? null,
+    clerkOrgId: clerkOrgId ?? null,
+    dbClinicFallbackEnabled: fallbackAllowed,
+    ...authRequestDebugCookieMeta(req),
+    authorizationBearerPresent: Boolean(authz && /^Bearer\s+\S+/i.test(authz)),
+  });
+
   if (!clerkUserId) {
     return { ok: false, status: 401, body: { error: "UNAUTHORIZED", reason: "MISSING_AUTH_USER", message: "Unauthorized" } };
   }
   if (!clerkOrgId) {
-    if (!allowDbClinicFallback()) {
+    if (!fallbackAllowed) {
       console.error(
         JSON.stringify({
           event: "DB_FALLBACK_DISABLED",
@@ -197,6 +229,14 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
       .from(users)
       .where(and(eq(users.clerkId, clerkUserId), isNull(users.deletedAt)))
       .limit(1);
+
+    authDebug({
+      step: "db_fallback_no_org",
+      clerkUserId,
+      found: Boolean(existingUser),
+      dbUserId: existingUser?.id ?? null,
+      dbClinicId: existingUser?.clinicId ?? null,
+    });
 
     if (existingUser?.clinicId) {
       clerkOrgId = existingUser.clinicId;
@@ -314,12 +354,36 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   }
 
   if (user.clinicId !== clerkOrgId) {
-    return {
-      ok: false,
-      status: 403,
-      body: buildAccessDeniedBody("TENANT_MISMATCH", "Authenticated clinic does not match user clinic assignment"),
-    };
+    if (fallbackAllowed) {
+      // Without Clerk Organizations, sessions may still carry an org/clinic claim that does not
+      // match the DB row; upsert does not overwrite clinicId on conflict, so DB remains authoritative.
+      console.warn("[auth] Session org/clinic differs from DB; using DB clinic (DB_CLINIC_FALLBACK enabled)", {
+        clerkUserId,
+        sessionClinicOrOrg: clerkOrgId,
+        dbClinicId: user.clinicId,
+      });
+    } else {
+      authDebug({
+        step: "tenant_mismatch",
+        clerkUserId,
+        sessionClinicOrOrg: clerkOrgId,
+        dbClinicId: user.clinicId,
+      });
+      return {
+        ok: false,
+        status: 403,
+        body: buildAccessDeniedBody("TENANT_MISMATCH", "Authenticated clinic does not match user clinic assignment"),
+      };
+    }
   }
+
+  authDebug({
+    step: "resolve_ok",
+    clerkUserId,
+    resolvedClinicId: user.clinicId,
+    userStatus: user.status,
+    userId: user.id,
+  });
 
   return {
     ok: true,
@@ -330,7 +394,7 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
       name: user.name,
       role: user.role as UserRole,
       status: user.status,
-      clinicId: clerkOrgId,
+      clinicId: user.clinicId,
       locale: clerkLocale,
     },
   };
@@ -380,6 +444,18 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
           userId: result.user.id,
           message: "Account pending approval",
         });
+        if (process.env.AUTH_DEBUG?.trim() === "1" || process.env.AUTH_DEBUG?.toLowerCase() === "true") {
+          console.log(
+            JSON.stringify({
+              event: "AUTH_DEBUG",
+              ts: new Date().toISOString(),
+              step: "requireAuth_pending_block",
+              userId: result.user.id,
+              clerkId: result.user.clerkId,
+              clinicId: result.user.clinicId,
+            }),
+          );
+        }
         return res.status(403).json(
           buildAccessDeniedBody("ACCOUNT_PENDING_APPROVAL", "Account pending approval")
         );

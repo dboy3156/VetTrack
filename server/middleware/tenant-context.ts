@@ -2,7 +2,6 @@ import type { NextFunction, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, users } from "../db.js";
-import { buildAccessDeniedBody, recordAccessDenied } from "../lib/access-denied.js";
 
 export interface AuthenticatedRequest extends Request {
   clinicId: string;
@@ -16,15 +15,13 @@ declare global {
   }
 }
 
+/**
+ * Best-effort clinic hint for downstream middleware. Does not reject requests:
+ * parallel client fetches often run before the SPA attaches `Authorization`, so
+ * `getAuth` may not see a user id even when `requireAuth` will succeed. Route
+ * handlers use `requireAuth`, which always sets `req.clinicId` from the session.
+ */
 export async function tenantContext(req: Request, res: Response, next: NextFunction): Promise<void> {
-  if (
-    req.path === "/push/vapid-public-key" ||
-    req.path === "/health/ready"
-  ) {
-    next();
-    return;
-  }
-
   const fromAuthUser = req.authUser?.clinicId;
   const fromDevHeader = typeof req.headers["x-dev-clinic-id-override"] === "string"
     ? req.headers["x-dev-clinic-id-override"]
@@ -60,21 +57,9 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
   }
 
   const clinicId = (fromAuthUser ?? fromClerk ?? inferredFromDb ?? fromDevHeader ?? fromDevDefault ?? fromImplicitDevDefault)?.trim();
-  if (!clinicId) {
-    recordAccessDenied({
-      req,
-      source: "tenant-context",
-      statusCode: 403,
-      reason: "TENANT_CONTEXT_MISSING",
-      message: "Clinic context missing",
-    });
-    res.status(403).json(
-      buildAccessDeniedBody("TENANT_CONTEXT_MISSING", "Clinic context missing")
-    );
-    return;
+  if (clinicId) {
+    req.clinicId = clinicId;
   }
-
-  req.clinicId = clinicId;
   next();
 }
 
