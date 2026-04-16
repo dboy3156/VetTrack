@@ -220,7 +220,15 @@ export interface ShiftImportResult {
   issues: ShiftCsvIssue[];
 }
 
-export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
+export type AppointmentStatus =
+  | "pending"
+  | "assigned"
+  | "scheduled"
+  | "arrived"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show";
 
 export type TaskPriority = "critical" | "high" | "normal";
 export type TaskType = "maintenance" | "repair" | "inspection";
@@ -230,7 +238,7 @@ export interface Appointment {
   clinicId: string;
   animalId?: string | null;
   ownerId?: string | null;
-  vetId: string;
+  vetId: string | null;
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
@@ -246,7 +254,7 @@ export interface Appointment {
 export interface CreateAppointmentRequest {
   animalId?: string | null;
   ownerId?: string | null;
-  vetId: string;
+  vetId?: string | null;
   startTime: string;
   endTime: string;
   status?: AppointmentStatus;
@@ -260,7 +268,7 @@ export interface CreateAppointmentRequest {
 export interface UpdateAppointmentRequest {
   animalId?: string | null;
   ownerId?: string | null;
-  vetId?: string;
+  vetId?: string | null;
   startTime?: string;
   endTime?: string;
   status?: AppointmentStatus;

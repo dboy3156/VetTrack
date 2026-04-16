@@ -18,14 +18,23 @@ import {
 
 const router = Router();
 
-const statusSchema = z.enum(["scheduled", "arrived", "in_progress", "completed", "cancelled", "no_show"]);
+const statusSchema = z.enum([
+  "pending",
+  "assigned",
+  "scheduled",
+  "arrived",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "no_show",
+]);
 const prioritySchema = z.enum(["critical", "high", "normal"]);
 const taskTypeSchema = z.enum(["maintenance", "repair", "inspection"]);
 
 const createAppointmentSchema = z.object({
   animalId: z.string().trim().min(1).optional().nullable(),
   ownerId: z.string().trim().min(1).optional().nullable(),
-  vetId: z.string().trim().min(1, "vetId is required"),
+  vetId: z.string().trim().optional().nullable(),
   startTime: z.string().trim().min(1, "startTime is required"),
   endTime: z.string().trim().min(1, "endTime is required"),
   status: statusSchema.optional(),
@@ -40,7 +49,7 @@ const updateAppointmentSchema = z
   .object({
     animalId: z.string().trim().min(1).optional().nullable(),
     ownerId: z.string().trim().min(1).optional().nullable(),
-    vetId: z.string().trim().min(1).optional(),
+    vetId: z.string().trim().optional().nullable(),
     startTime: z.string().trim().min(1).optional(),
     endTime: z.string().trim().min(1).optional(),
     status: statusSchema.optional(),
@@ -105,7 +114,11 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   }
 
   try {
-    const appointment = await createAppointment(req.clinicId!, parsed.data);
+    const appointment = await createAppointment(
+      req.clinicId!,
+      parsed.data,
+      req.authUser ? { userId: req.authUser.id, email: req.authUser.email } : undefined,
+    );
     const uid = req.authUser?.id;
     if (uid && isServiceTaskModeForUser(uid)) {
       logServiceChange("appointment_created", {
@@ -234,7 +247,12 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
   }
 
   try {
-    const appointment = await updateAppointment(req.clinicId!, req.params.id, parsed.data);
+    const appointment = await updateAppointment(
+      req.clinicId!,
+      req.params.id,
+      parsed.data,
+      req.authUser ? { userId: req.authUser.id, email: req.authUser.email } : undefined,
+    );
     const uid = req.authUser?.id;
     if (uid && isServiceTaskModeForUser(uid)) {
       logServiceChange("appointment_updated", {
@@ -270,7 +288,12 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
   }
 
   try {
-    const appointment = await cancelAppointment(req.clinicId!, req.params.id, parsed.data.reason);
+    const appointment = await cancelAppointment(
+      req.clinicId!,
+      req.params.id,
+      parsed.data.reason,
+      req.authUser ? { userId: req.authUser.id, email: req.authUser.email } : undefined,
+    );
     const uid = req.authUser?.id;
     if (uid && isServiceTaskModeForUser(uid)) {
       logServiceChange("appointment_cancelled", {

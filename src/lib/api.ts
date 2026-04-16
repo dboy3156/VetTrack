@@ -752,6 +752,14 @@ export const api = {
     meta: (day: string) =>
       request<{ day: string; vets: AppointmentVetMeta[] }>(`/api/appointments/meta?day=${encodeURIComponent(day)}`),
   },
+  tasks: {
+    me: () => request<{ tasks: Appointment[] }>("/api/tasks/me").then((r) => r.tasks),
+    active: () => request<{ tasks: Appointment[] }>("/api/tasks/active").then((r) => r.tasks),
+    start: (id: string) =>
+      request<{ task: Appointment }>(`/api/tasks/${id}/start`, { method: "POST" }).then((r) => r.task),
+    complete: (id: string) =>
+      request<{ task: Appointment }>(`/api/tasks/${id}/complete`, { method: "POST" }).then((r) => r.task),
+  },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),
   },

@@ -27,7 +27,13 @@ export type AuditActionType =
   | "room_created"
   | "room_updated"
   | "room_deleted"
-  | "room_bulk_verified";
+  | "room_bulk_verified"
+  | "task_created"
+  | "task_updated"
+  | "task_started"
+  | "task_completed"
+  | "task_cancelled"
+  | "CRITICAL_TASK_EXECUTED";
 
 export interface LogAuditParams {
   clinicId: string;

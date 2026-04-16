@@ -62,7 +62,7 @@ export const appointments = pgTable("vt_appointments", {
   clinicId: text("clinic_id").notNull(),
   animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
   ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
-  vetId: text("vet_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  vetId: text("vet_id").references(() => users.id, { onDelete: "restrict" }),
   startTime: timestamp("start_time", { withTimezone: true }).notNull(),
   endTime: timestamp("end_time", { withTimezone: true }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("scheduled"),
