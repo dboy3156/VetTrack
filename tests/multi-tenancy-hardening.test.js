@@ -33,9 +33,10 @@ const authMiddleware = fs.readFileSync(authMiddlewarePath, "utf8");
 console.log("\n── Multi-Tenancy Hardening Smoke Test");
 
 assert(
-  tenantMiddleware.includes('buildAccessDeniedBody("TENANT_CONTEXT_MISSING", "Clinic context missing")'),
-  "Missing clinic context is rejected with 403",
-  "tenant-context middleware must fail closed when clinic context is absent"
+  tenantMiddleware.includes("req.clinicId = clinicId") &&
+    tenantMiddleware.includes("Best-effort clinic hint"),
+  "Tenant middleware sets clinic when inferrable and always continues",
+  "tenant-context must attach req.clinicId when possible; requireAuth enforces access"
 );
 
 assert(
