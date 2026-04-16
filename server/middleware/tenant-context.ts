@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, users } from "../db.js";
 import { buildAccessDeniedBody, recordAccessDenied } from "../lib/access-denied.js";
+import { STABILITY_TOKEN } from "../lib/stability-token.js";
 
 export interface AuthenticatedRequest extends Request {
   clinicId: string;
@@ -17,9 +18,21 @@ declare global {
 }
 
 export async function tenantContext(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // CORS preflight has no Clerk session; route handlers are never reached.
+  if (req.method === "OPTIONS") {
+    next();
+    return;
+  }
+
+  // Mounted under `/api`: req.path is e.g. `/users/me`, not `/api/users/me`.
+  // These routes use `requireAuth`, which resolves the clinic and sets `req.clinicId`.
+  // Running tenant resolution here first fails closed for new sessions (no org_id yet, no DB row)
+  // and blocks the auth bootstrap path entirely.
   if (
     req.path === "/push/vapid-public-key" ||
-    req.path === "/health/ready"
+    req.path === "/health/ready" ||
+    req.path === "/users/me" ||
+    req.path === "/users/sync"
   ) {
     next();
     return;
@@ -61,6 +74,15 @@ export async function tenantContext(req: Request, res: Response, next: NextFunct
 
   const clinicId = (fromAuthUser ?? fromClerk ?? inferredFromDb ?? fromDevHeader ?? fromDevDefault ?? fromImplicitDevDefault)?.trim();
   if (!clinicId) {
+    // Same signals as `resolveAuthUser`: let route middleware attach `req.clinicId`.
+    if (clerkUserId) {
+      next();
+      return;
+    }
+    if (req.headers["x-stability-token"] === STABILITY_TOKEN) {
+      next();
+      return;
+    }
     recordAccessDenied({
       req,
       source: "tenant-context",

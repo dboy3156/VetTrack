@@ -65,6 +65,19 @@ const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
 const isProduction = process.env.NODE_ENV === "production";
 const isDevelopment = process.env.NODE_ENV !== "production";
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
+const LEGACY_CLINIC_ID = "legacy-clinic";
+
+/** Dev-only: when NODE_ENV is not production, allows resolving clinic from DB if Clerk session has no org id. Never enabled in production. */
+function allowDbClinicFallback(): boolean {
+  if (isProduction) return false;
+  return process.env.ALLOW_DB_CLINIC_FALLBACK?.trim() === "true";
+}
+
+function isForbiddenProductionClinicId(clinicId: string | null | undefined): boolean {
+  const c = clinicId?.trim() ?? "";
+  if (!c) return true;
+  return c === LEGACY_CLINIC_ID;
+}
 
 if (isProduction && !hasClerkSecret) {
   throw new Error("CLERK_SECRET_KEY is required in production. Refusing to start with dev auth bypass.");
@@ -159,6 +172,24 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     return { ok: false, status: 401, body: { error: "UNAUTHORIZED", reason: "MISSING_AUTH_USER", message: "Unauthorized" } };
   }
   if (!clerkOrgId) {
+    if (!allowDbClinicFallback()) {
+      console.error(
+        JSON.stringify({
+          event: "DB_FALLBACK_DISABLED",
+          clerkUserId,
+          production: isProduction,
+        }),
+      );
+      return {
+        ok: false,
+        status: 403,
+        body: buildAccessDeniedBody(
+          "DB_FALLBACK_DISABLED",
+          "Clinic context is required; database clinic fallback is not enabled for this environment",
+        ),
+      };
+    }
+
     const [existingUser] = await db
       .select({
         clinicId: users.clinicId,
@@ -184,6 +215,22 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     }
   }
 
+  if (isProduction && isForbiddenProductionClinicId(clerkOrgId)) {
+    console.error(
+      JSON.stringify({
+        event: "CRITICAL_MISSING_CLINIC",
+        clerkUserId,
+        resolvedClinicId: clerkOrgId ?? null,
+        reason: "legacy_or_empty",
+      }),
+    );
+    return {
+      ok: false,
+      status: 403,
+      body: buildAccessDeniedBody("MISSING_CLINIC_ID", "User is not assigned to a valid clinic"),
+    };
+  }
+
   let clerkEmail = (sessionClaims?.email as string | undefined) ?? "";
   let clerkName = (sessionClaims?.name as string | undefined) ?? "";
   const clerkLocaleClaim =
@@ -192,7 +239,7 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   const clerkLocale = normalizeLocale(clerkLocaleClaim);
   if (!clerkEmail) {
     try {
-      const clerkUser = await clerkClient().users.getUser(clerkUserId);
+      const clerkUser = await clerkClient.users.getUser(clerkUserId);
       clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
       clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
     } catch (err) {
@@ -250,6 +297,23 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     return { ok: false, status: 403, body: { error: "ACCESS_DENIED", reason: "ACCOUNT_DELETED", message: "Your account has been removed." } };
   }
 
+  if (isProduction && isForbiddenProductionClinicId(user.clinicId)) {
+    console.error(
+      JSON.stringify({
+        event: "CRITICAL_MISSING_CLINIC",
+        clerkUserId,
+        userId: user.id,
+        resolvedClinicId: user.clinicId,
+        reason: "legacy_or_empty_db_user",
+      }),
+    );
+    return {
+      ok: false,
+      status: 403,
+      body: buildAccessDeniedBody("MISSING_CLINIC_ID", "User is not assigned to a valid clinic"),
+    };
+  }
+
   if (user.clinicId !== clerkOrgId) {
     return {
       ok: false,
@@ -282,6 +346,7 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
           const reason = result.body.reason;
           if (
             reason === "MISSING_CLINIC_ID" ||
+            reason === "DB_FALLBACK_DISABLED" ||
             reason === "TENANT_MISMATCH" ||
             reason === "ACCOUNT_PENDING_APPROVAL" ||
             reason === "ACCOUNT_BLOCKED" ||
@@ -357,6 +422,7 @@ export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
           const reason = result.body.reason;
           if (
             reason === "MISSING_CLINIC_ID" ||
+            reason === "DB_FALLBACK_DISABLED" ||
             reason === "TENANT_MISMATCH" ||
             reason === "ACCOUNT_PENDING_APPROVAL" ||
             reason === "ACCOUNT_BLOCKED" ||

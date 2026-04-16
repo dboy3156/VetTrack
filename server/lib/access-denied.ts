@@ -3,6 +3,7 @@ import { createLogLimiter } from "./log-safety.js";
 
 export type AccessDeniedReason =
   | "MISSING_CLINIC_ID"
+  | "DB_FALLBACK_DISABLED"
   | "TENANT_CONTEXT_MISSING"
   | "TENANT_MISMATCH"
   | "INSUFFICIENT_ROLE"
@@ -23,6 +24,7 @@ const accessDeniedLogLimiter = createLogLimiter({
 
 const accessDeniedMetrics: AccessDeniedMetricMap = {
   MISSING_CLINIC_ID: 0,
+  DB_FALLBACK_DISABLED: 0,
   TENANT_CONTEXT_MISSING: 0,
   TENANT_MISMATCH: 0,
   INSUFFICIENT_ROLE: 0,
@@ -33,6 +35,7 @@ const accessDeniedMetrics: AccessDeniedMetricMap = {
 
 const emptyAccessDeniedMetrics = (): AccessDeniedMetricMap => ({
   MISSING_CLINIC_ID: 0,
+  DB_FALLBACK_DISABLED: 0,
   TENANT_CONTEXT_MISSING: 0,
   TENANT_MISMATCH: 0,
   INSUFFICIENT_ROLE: 0,

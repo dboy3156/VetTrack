@@ -259,6 +259,7 @@
       "loadingApp": "Loading system...",
       "reasons": {
         "missingClinicId": "User is not assigned to a clinic. Sign out and sign in again, then contact admin if this continues.",
+        "dbFallbackDisabled": "Clinic context is required. Ensure your Clerk session has an organization, or contact your administrator.",
         "missingClinicContext": "Clinic context is missing in this request. Try again.",
         "tenantMismatch": "Your account clinic does not match the active tenant.",
         "insufficientRole": "You do not have permission to access this area.",

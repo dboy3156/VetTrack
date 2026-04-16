@@ -30,6 +30,7 @@ import type {
   ShiftImportPreview,
   ShiftImportResult,
   Appointment,
+  AppointmentVetMeta,
   CreateAppointmentRequest,
   UpdateAppointmentRequest,
 } from "@/types";
@@ -748,6 +749,8 @@ export const api = {
         `/api/appointments/${id}`,
         { method: "DELETE", body: JSON.stringify(reason ? { reason } : {}) }
       ).then((r) => r.appointment),
+    meta: (day: string) =>
+      request<{ day: string; vets: AppointmentVetMeta[] }>(`/api/appointments/meta?day=${encodeURIComponent(day)}`),
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),

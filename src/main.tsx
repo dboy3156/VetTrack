@@ -42,7 +42,11 @@ if (!rootEl) {
 } else {
   createRoot(rootEl).render(
     <HelmetProvider>
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      <ClerkProvider
+        publishableKey={PUBLISHABLE_KEY}
+        // @ts-expect-error Clerk v5 typings omit optional navigate; forwarded to clerk-js for SPA redirects.
+        navigate={(to) => window.location.href = to}
+      >
         <QueryClientProvider client={queryClient}>
           <SettingsProvider>
             <ClerkAuthProviderInner>

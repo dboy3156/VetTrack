@@ -1,6 +1,11 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { db, shifts, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { toServiceTask, type AppointmentLike } from "../domain/service-task.adapter.js";
+import { isServiceTaskModeForUser } from "../lib/feature-flags.js";
+import { logServiceChange } from "../lib/service-change-log.js";
 import {
   AppointmentServiceError,
   cancelAppointment,
@@ -13,7 +18,9 @@ import {
 
 const router = Router();
 
-const statusSchema = z.enum(["scheduled", "completed", "cancelled", "no_show"]);
+const statusSchema = z.enum(["scheduled", "arrived", "in_progress", "completed", "cancelled", "no_show"]);
+const prioritySchema = z.enum(["critical", "high", "normal"]);
+const taskTypeSchema = z.enum(["maintenance", "repair", "inspection"]);
 
 const createAppointmentSchema = z.object({
   animalId: z.string().trim().min(1).optional().nullable(),
@@ -22,7 +29,11 @@ const createAppointmentSchema = z.object({
   startTime: z.string().trim().min(1, "startTime is required"),
   endTime: z.string().trim().min(1, "endTime is required"),
   status: statusSchema.optional(),
+  conflictOverride: z.boolean().optional(),
+  overrideReason: z.string().max(4000).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
+  priority: prioritySchema.optional(),
+  taskType: taskTypeSchema.optional().nullable(),
 });
 
 const updateAppointmentSchema = z
@@ -33,7 +44,11 @@ const updateAppointmentSchema = z
     startTime: z.string().trim().min(1).optional(),
     endTime: z.string().trim().min(1).optional(),
     status: statusSchema.optional(),
+    conflictOverride: z.boolean().optional(),
+    overrideReason: z.string().max(4000).optional().nullable(),
     notes: z.string().max(4000).optional().nullable(),
+    priority: prioritySchema.optional(),
+    taskType: taskTypeSchema.optional().nullable(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field must be provided",
@@ -59,6 +74,10 @@ const listQuerySchema = z
       });
     }
   });
+
+const metaQuerySchema = z.object({
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
 function sendServiceError(res: Response, err: unknown) {
   if (err instanceof AppointmentServiceError) {
@@ -87,6 +106,15 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
 
   try {
     const appointment = await createAppointment(req.clinicId!, parsed.data);
+    const uid = req.authUser?.id;
+    if (uid && isServiceTaskModeForUser(uid)) {
+      logServiceChange("appointment_created", {
+        userId: uid,
+        clinicId: req.clinicId,
+        appointmentId: appointment.id,
+        serviceTask: toServiceTask(appointment as AppointmentLike),
+      });
+    }
     return res.status(201).json({ appointment });
   } catch (err) {
     if (sendServiceError(res, err)) return;
@@ -126,6 +154,68 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
   }
 });
 
+router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const parsed = metaQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "VALIDATION_FAILED",
+      message: "Invalid query params",
+      details: parsed.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+  }
+
+  try {
+    const clinicId = req.clinicId!;
+    const day = parsed.data.day;
+
+    const clinicVets = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        displayName: users.displayName,
+        role: users.role,
+      })
+      .from(users)
+      .where(
+        and(
+          eq(users.clinicId, clinicId),
+          isNull(users.deletedAt),
+          or(eq(users.role, "vet"), eq(users.role, "admin")),
+        ),
+      )
+      .orderBy(users.displayName, users.name);
+
+    const dayShifts = await db
+      .select({
+        id: shifts.id,
+        employeeName: shifts.employeeName,
+        startTime: shifts.startTime,
+        endTime: shifts.endTime,
+        role: shifts.role,
+      })
+      .from(shifts)
+      .where(and(eq(shifts.clinicId, clinicId), eq(shifts.date, day)))
+      .orderBy(shifts.startTime, shifts.employeeName);
+
+    const vets = clinicVets.map((vet) => {
+      const names = [vet.displayName?.trim() ?? "", vet.name?.trim() ?? ""].filter(Boolean);
+      const vetShifts = dayShifts.filter((shift) => names.includes(shift.employeeName));
+      return {
+        ...vet,
+        shifts: vetShifts,
+      };
+    });
+
+    return res.json({ day, vets });
+  } catch (err) {
+    console.error("appointments:meta", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load scheduling metadata" });
+  }
+});
+
 router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   if (!req.params.id || !req.params.id.trim()) {
     return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
@@ -145,6 +235,15 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
 
   try {
     const appointment = await updateAppointment(req.clinicId!, req.params.id, parsed.data);
+    const uid = req.authUser?.id;
+    if (uid && isServiceTaskModeForUser(uid)) {
+      logServiceChange("appointment_updated", {
+        userId: uid,
+        clinicId: req.clinicId,
+        appointmentId: appointment.id,
+        serviceTask: toServiceTask(appointment as AppointmentLike),
+      });
+    }
     return res.json({ appointment });
   } catch (err) {
     if (sendServiceError(res, err)) return;
@@ -172,6 +271,15 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
 
   try {
     const appointment = await cancelAppointment(req.clinicId!, req.params.id, parsed.data.reason);
+    const uid = req.authUser?.id;
+    if (uid && isServiceTaskModeForUser(uid)) {
+      logServiceChange("appointment_cancelled", {
+        userId: uid,
+        clinicId: req.clinicId,
+        appointmentId: appointment.id,
+        serviceTask: toServiceTask(appointment as AppointmentLike),
+      });
+    }
     return res.json({ appointment });
   } catch (err) {
     if (sendServiceError(res, err)) return;
