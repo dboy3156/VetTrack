@@ -9,6 +9,7 @@ import {
 } from "../services/appointments.service.js";
 import { getTaskRecommendations } from "../services/task-intelligence.service.js";
 import { getTaskDashboard } from "../services/task-recall.service.js";
+import { canPerformTaskAction, type TaskAction } from "../lib/task-rbac.js";
 
 const router = Router();
 
@@ -24,7 +25,24 @@ function sendServiceError(res: Response, err: unknown) {
   return false;
 }
 
+function resolveTaskAuthRole(req: { authUser?: { role?: string }; effectiveRole?: string }): string {
+  if (req.authUser?.role === "admin") return "admin";
+  return req.effectiveRole ?? req.authUser?.role ?? "";
+}
+
+function requireTaskActionPermission(
+  req: { authUser?: { role?: string }; effectiveRole?: string },
+  res: Response,
+  action: TaskAction,
+): boolean {
+  const role = resolveTaskAuthRole(req);
+  if (canPerformTaskAction(role, action)) return true;
+  res.status(403).json({ error: "INSUFFICIENT_ROLE", message: "Insufficient task permissions" });
+  return false;
+}
+
 router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.read")) return;
   if (!req.authUser) {
     return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
   }
@@ -42,6 +60,7 @@ router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async 
 });
 
 router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.start")) return;
   if (!req.params.id?.trim()) {
     return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
   }
@@ -62,6 +81,7 @@ router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async
 });
 
 router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.complete")) return;
   if (!req.params.id?.trim()) {
     return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
   }
@@ -82,6 +102,7 @@ router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), as
 });
 
 router.get("/me", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.read")) return;
   if (!req.authUser) {
     return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
   }
@@ -96,6 +117,7 @@ router.get("/me", requireAuth, requireEffectiveRole("technician"), async (req, r
 });
 
 router.get("/active", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.read")) return;
   try {
     const tasks = await getActiveTasks(req.clinicId!);
     return res.json({ tasks });
@@ -107,6 +129,7 @@ router.get("/active", requireAuth, requireEffectiveRole("technician"), async (re
 });
 
 router.get("/recommendations", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.read")) return;
   if (!req.authUser) {
     return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
   }

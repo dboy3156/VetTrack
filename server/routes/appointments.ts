@@ -6,6 +6,7 @@ import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { toServiceTask, type AppointmentLike } from "../domain/service-task.adapter.js";
 import { isServiceTaskModeForUser } from "../lib/feature-flags.js";
 import { logServiceChange } from "../lib/service-change-log.js";
+import { canPerformTaskAction, type TaskAction } from "../lib/task-rbac.js";
 import {
   AppointmentServiceError,
   cancelAppointment,
@@ -100,7 +101,26 @@ function sendServiceError(res: Response, err: unknown) {
   return false;
 }
 
+function resolveTaskAuthRole(req: { authUser?: { role?: string }; effectiveRole?: string }): string {
+  if (req.authUser?.role === "admin") return "admin";
+  return req.effectiveRole ?? req.authUser?.role ?? "";
+}
+
+function requireTaskActionPermission(
+  req: { authUser?: { role?: string }; effectiveRole?: string },
+  res: Response,
+  action: TaskAction,
+): boolean {
+  const role = resolveTaskAuthRole(req);
+  if (canPerformTaskAction(role, action)) return true;
+  res.status(403).json({ error: "INSUFFICIENT_ROLE", message: "Insufficient task permissions" });
+  return false;
+}
+
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.create")) {
+    return;
+  }
   const parsed = createAppointmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -111,6 +131,10 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
         message: issue.message,
       })),
     });
+  }
+
+  if (parsed.data.vetId?.trim() && !requireTaskActionPermission(req, res, "task.assign")) {
+    return;
   }
 
   try {
@@ -137,6 +161,9 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
 });
 
 router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.read")) {
+    return;
+  }
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({
@@ -168,6 +195,9 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
 });
 
 router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!requireTaskActionPermission(req, res, "task.read")) {
+    return;
+  }
   const parsed = metaQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({
@@ -196,7 +226,11 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
         and(
           eq(users.clinicId, clinicId),
           isNull(users.deletedAt),
-          or(eq(users.role, "vet"), eq(users.role, "admin")),
+          or(
+            eq(users.role, "vet"),
+            eq(users.role, "technician"),
+            eq(users.role, "admin"),
+          ),
         ),
       )
       .orderBy(users.displayName, users.name);
@@ -234,6 +268,10 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
     return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
   }
 
+  if (!requireTaskActionPermission(req, res, "task.create")) {
+    return;
+  }
+
   const parsed = updateAppointmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -244,6 +282,14 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
         message: issue.message,
       })),
     });
+  }
+
+  if (parsed.data.vetId !== undefined && !requireTaskActionPermission(req, res, "task.reassign")) {
+    return;
+  }
+
+  if (parsed.data.status === "cancelled" && !requireTaskActionPermission(req, res, "task.cancel")) {
+    return;
   }
 
   try {
@@ -273,6 +319,10 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
 router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   if (!req.params.id || !req.params.id.trim()) {
     return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+  }
+
+  if (!requireTaskActionPermission(req, res, "task.cancel")) {
+    return;
   }
 
   const parsed = deleteAppointmentSchema.safeParse(req.body ?? {});
