@@ -1,6 +1,7 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
 import { and, eq, isNull, or } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db, shifts, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { toServiceTask, type AppointmentLike } from "../domain/service-task.adapter.js";
@@ -18,6 +19,34 @@ import {
 } from "../services/appointments.service.js";
 
 const router = Router();
+
+function resolveRequestId(res: Response, incomingHeader: unknown): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  details?: unknown;
+}) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+    ...(params.details !== undefined ? { details: params.details } : {}),
+  };
+}
 
 const statusSchema = z.enum([
   "pending",
@@ -89,11 +118,14 @@ const metaQuerySchema = z.object({
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
-function sendServiceError(res: Response, err: unknown) {
+function sendServiceError(res: Response, err: unknown, requestId: string) {
   if (err instanceof AppointmentServiceError) {
     res.status(err.status).json({
+      code: err.code,
       error: err.code,
+      reason: err.code,
       message: err.message,
+      requestId,
       details: err.details ?? null,
     });
     return true;
@@ -113,19 +145,31 @@ function requireTaskActionPermission(
 ): boolean {
   const role = resolveTaskAuthRole(req);
   if (canPerformTaskAction(role, action)) return true;
-  res.status(403).json({ error: "INSUFFICIENT_ROLE", message: "Insufficient task permissions" });
+  const requestId = resolveRequestId(res, null);
+  res.status(403).json(
+    apiError({
+      code: "INSUFFICIENT_ROLE",
+      reason: "INSUFFICIENT_ROLE",
+      message: "Insufficient task permissions",
+      requestId,
+    }),
+  );
   return false;
 }
 
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.create")) {
     return;
   }
   const parsed = createAppointmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
+      code: "VALIDATION_FAILED",
       error: "VALIDATION_FAILED",
+      reason: "INVALID_REQUEST_BODY",
       message: "Invalid request body",
+      requestId,
       details: parsed.error.issues.map((issue) => ({
         field: issue.path.join("."),
         message: issue.message,
@@ -154,21 +198,32 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
     }
     return res.status(201).json({ appointment });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("appointments:create", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to create appointment" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "APPOINTMENT_CREATE_FAILED",
+        message: "Failed to create appointment",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) {
     return;
   }
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({
+      code: "VALIDATION_FAILED",
       error: "VALIDATION_FAILED",
+      reason: "INVALID_QUERY_PARAMS",
       message: "Invalid query params",
+      requestId,
       details: parsed.error.issues.map((issue) => ({
         field: issue.path.join("."),
         message: issue.message,
@@ -188,21 +243,32 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
 
     return res.json({ appointments });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("appointments:list", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to list appointments" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "APPOINTMENTS_LIST_FAILED",
+        message: "Failed to list appointments",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) {
     return;
   }
   const parsed = metaQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({
+      code: "VALIDATION_FAILED",
       error: "VALIDATION_FAILED",
+      reason: "INVALID_QUERY_PARAMS",
       message: "Invalid query params",
+      requestId,
       details: parsed.error.issues.map((issue) => ({
         field: issue.path.join("."),
         message: issue.message,
@@ -259,13 +325,28 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
     return res.json({ day, vets });
   } catch (err) {
     console.error("appointments:meta", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load scheduling metadata" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "APPOINTMENTS_META_FAILED",
+        message: "Failed to load scheduling metadata",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!req.params.id || !req.params.id.trim()) {
-    return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_ID_PARAM",
+        message: "id param is required",
+        requestId,
+      }),
+    );
   }
 
   if (!requireTaskActionPermission(req, res, "task.create")) {
@@ -275,8 +356,11 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
   const parsed = updateAppointmentSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
+      code: "VALIDATION_FAILED",
       error: "VALIDATION_FAILED",
+      reason: "INVALID_REQUEST_BODY",
       message: "Invalid request body",
+      requestId,
       details: parsed.error.issues.map((issue) => ({
         field: issue.path.join("."),
         message: issue.message,
@@ -310,15 +394,30 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
     }
     return res.json({ appointment });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("appointments:update", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to update appointment" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "APPOINTMENT_UPDATE_FAILED",
+        message: "Failed to update appointment",
+        requestId,
+      }),
+    );
   }
 });
 
 router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!req.params.id || !req.params.id.trim()) {
-    return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_ID_PARAM",
+        message: "id param is required",
+        requestId,
+      }),
+    );
   }
 
   if (!requireTaskActionPermission(req, res, "task.cancel")) {
@@ -328,8 +427,11 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
   const parsed = deleteAppointmentSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     return res.status(400).json({
+      code: "VALIDATION_FAILED",
       error: "VALIDATION_FAILED",
+      reason: "INVALID_REQUEST_BODY",
       message: "Invalid request body",
+      requestId,
       details: parsed.error.issues.map((issue) => ({
         field: issue.path.join("."),
         message: issue.message,
@@ -355,9 +457,16 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
     }
     return res.json({ appointment });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("appointments:cancel", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to cancel appointment" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "APPOINTMENT_CANCEL_FAILED",
+        message: "Failed to cancel appointment",
+        requestId,
+      }),
+    );
   }
 });
 

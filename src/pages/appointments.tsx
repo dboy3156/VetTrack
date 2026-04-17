@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, Plus, User, Zap } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorCard } from "@/components/ui/error-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
@@ -23,10 +25,11 @@ const HOUR_ROW_HEIGHT = 60;
 const DASHBOARD_REFETCH_MS = 45_000;
 
 const DURATION_PRESETS = [
-  { key: "checkup", label: "Checkup (20m)", minutes: 20 },
-  { key: "vaccination", label: "Vaccination (15m)", minutes: 15 },
-  { key: "surgery", label: "Surgery (60m)", minutes: 60 },
-  { key: "consult", label: "Consult (30m)", minutes: 30 },
+  { key: "quick-inspection", label: "Quick inspection (10m)", minutes: 10 },
+  { key: "urgent-response", label: "Urgent response (20m)", minutes: 20 },
+  { key: "preventive-maintenance", label: "Preventive maintenance (30m)", minutes: 30 },
+  { key: "repair-visit", label: "Repair visit (45m)", minutes: 45 },
+  { key: "calibration", label: "Calibration (60m)", minutes: 60 },
 ] as const;
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
@@ -41,8 +44,8 @@ const STATUS_COLORS: Record<AppointmentStatus, string> = {
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
-  critical: "bg-red-600 text-white border-transparent",
-  high: "bg-orange-500 text-white border-transparent",
+  critical: "bg-destructive text-destructive-foreground border-transparent",
+  high: "bg-accent text-accent-foreground border-transparent",
   normal: "bg-muted text-foreground border-border",
 };
 
@@ -53,10 +56,15 @@ const SUGGESTION_SEVERITY_STYLES: Record<"high" | "medium" | "low", string> = {
 };
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  critical: "bg-orange-100 text-orange-900 border-orange-300",
-  high: "bg-yellow-100 text-yellow-900 border-yellow-300",
-  normal: "bg-zinc-100 text-zinc-800 border-zinc-300",
+  critical: "bg-destructive/10 text-destructive border-destructive/30",
+  high: "bg-accent text-accent-foreground border-border",
+  normal: "bg-muted text-foreground border-border",
 };
+
+const URGENT_BADGE_STYLES = {
+  overdue: "text-[10px] bg-red-100 text-red-900 border-red-300",
+  critical: "text-[10px] bg-orange-100 text-orange-900 border-orange-300",
+} as const;
 
 const TASK_CARD_STYLES = {
   overdue: "border-red-300 bg-red-50/70",
@@ -106,6 +114,9 @@ function toErrorMessage(err: Error): string {
   if (err.message === "OUTSIDE_SHIFT") return "Selected time is outside the technician shift.";
   if (err.message === "OVERRIDE_REASON_REQUIRED") return "Conflict override requires a reason.";
   if (err.message === "TIMEZONE_REQUIRED") return "Time input must include timezone information.";
+  if (err.message === "UNAUTHORIZED" || err.message === "Session expired") return "Your session expired. Please sign in again.";
+  if (err.message === "INSUFFICIENT_ROLE") return "You do not have permission to create or assign this task.";
+  if (err.message === "VALIDATION_FAILED") return "Please review required fields and time values.";
   if (err.message === "TASK_NOT_OWNED_BY_TECH") return "Only the assigned technician can perform this action.";
   if (err.message === "TASK_NOT_ASSIGNED") return "Assign a technician before starting.";
   return err.message;
@@ -223,9 +234,9 @@ export default function AppointmentsPage() {
     queryKey: ["/api/tasks/dashboard", meQuery.data?.id],
     queryFn: () => api.tasks.dashboard(),
     enabled: !!meQuery.data?.id,
-    refetchInterval: DASHBOARD_REFETCH_MS,
-    refetchOnWindowFocus: true,
-    staleTime: 15_000,
+    refetchInterval: 90_000,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
     placeholderData: (prev) => prev,
   });
   const recommendationsQuery = useTaskRecommendations(Boolean(meQuery.data?.id));
@@ -247,8 +258,8 @@ export default function AppointmentsPage() {
     mutationFn: (payload: CreateAppointmentRequest) => api.appointments.create(payload),
     onSuccess: () => {
       toast.success("Task created");
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
       setBookingOpen(false);
       setFormNotes("");
       setFormAnimalId("");
@@ -278,8 +289,8 @@ export default function AppointmentsPage() {
     mutationFn: ({ id, status }: { id: string; status: AppointmentStatus }) =>
       api.appointments.update(id, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
     },
     onError: (error: Error) => {
       toast.error(toErrorMessage(error));
@@ -289,8 +300,8 @@ export default function AppointmentsPage() {
   const startTaskMutation = useMutation({
     mutationFn: (id: string) => api.tasks.start(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
       toast.success("Task started");
     },
     onError: (error: Error) => {
@@ -301,8 +312,8 @@ export default function AppointmentsPage() {
   const completeTaskMutation = useMutation({
     mutationFn: (id: string) => api.tasks.complete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
       toast.success("Task completed");
     },
     onError: (error: Error) => {
@@ -317,19 +328,19 @@ export default function AppointmentsPage() {
       event.type === "TASK_COMPLETED" ||
       event.type === "TASK_UPDATED"
     ) {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
       return;
     }
     if (event.type === "AUTOMATION_TRIGGERED") {
       toast.info("Task auto-updated by automation rule");
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
       return;
     }
     if (event.type === "NOTIFICATION_SENT") return;
-  }, [queryClient]);
+  }, [day, meQuery.data?.id, queryClient]);
 
   useRealtime(handleRealtimeEvent);
 
@@ -397,12 +408,32 @@ export default function AppointmentsPage() {
   }
 
   function submitCreate(conflictOverride = false, overrideReason?: string) {
+    if (!formVetId.trim()) {
+      toast.error("Select a technician before creating a task.");
+      return;
+    }
+    if (!formAnimalId.trim()) {
+      toast.error("Device / Asset is required.");
+      return;
+    }
+
+    const start = new Date(formStartLocal);
+    const end = new Date(formEndLocal);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      toast.error("Please enter valid start and end times.");
+      return;
+    }
+    if (end.getTime() <= start.getTime()) {
+      toast.error("Expected end time must be after scheduled time.");
+      return;
+    }
+
     const payload: CreateAppointmentRequest = {
       vetId: formVetId.trim(),
       animalId: formAnimalId.trim() || null,
       ownerId: formOwnerId.trim() || null,
-      startTime: new Date(formStartLocal).toISOString(),
-      endTime: new Date(formEndLocal).toISOString(),
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
       notes: formNotes.trim() || null,
       status: "scheduled",
       conflictOverride,
@@ -429,13 +460,33 @@ export default function AppointmentsPage() {
             <CardTitle className="text-base font-semibold">What should I do now?</CardTitle>
           </CardHeader>
           <CardContent>
-            {recommendationsQuery.isLoading && !recommendationsQuery.data ? (
+            {recommendationsQuery.isError ? (
+              <ErrorCard
+                message="Unable to load recommendations."
+                onRetry={() => recommendationsQuery.refetch()}
+              />
+            ) : recommendationsQuery.isLoading && !recommendationsQuery.data ? (
               <div className="space-y-3">
                 <Skeleton className="h-8 w-40" />
                 <Skeleton className="h-24 w-full" />
               </div>
             ) : !recommendationsQuery.data?.nextBestTask ? (
-              <p className="text-sm text-muted-foreground">You're all caught up 🎉</p>
+              <EmptyState
+                icon={CheckCircle2}
+                message="You're all caught up"
+                subMessage="No next best task is pending right now."
+                action={(
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                    onClick={() => openQuickBooking(new Date())}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Create task
+                  </Button>
+                )}
+              />
             ) : (() => {
               const nbt = recommendationsQuery.data.nextBestTask;
               const timeRange = `${formatTimeHHMM(new Date(nbt.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(nbt.endTime))}`;
@@ -500,7 +551,12 @@ export default function AppointmentsPage() {
             <CardTitle className="text-sm font-semibold">Urgent</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {dashboardQuery.isLoading && !dashboardQuery.data ? (
+            {dashboardQuery.isError ? (
+              <ErrorCard
+                message="Unable to load urgent tasks."
+                onRetry={() => dashboardQuery.refetch()}
+              />
+            ) : dashboardQuery.isLoading && !dashboardQuery.data ? (
               <div className="space-y-2">
                 <Skeleton className="h-14 w-full" />
                 <Skeleton className="h-14 w-full" />
@@ -512,7 +568,7 @@ export default function AppointmentsPage() {
                     <li key={t.id} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.overdue}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold">{formatDevice(t.animalId)}</span>
-                        <Badge variant="outline" className="text-[10px] bg-red-100 text-red-900 border-red-300">
+                        <Badge variant="outline" className={URGENT_BADGE_STYLES.overdue}>
                           overdue
                         </Badge>
                       </div>
@@ -529,7 +585,7 @@ export default function AppointmentsPage() {
                     <li key={`urgent-${t.id}`} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.critical}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold">{formatDevice(t.animalId)}</span>
-                        <Badge variant="outline" className="text-[10px] bg-orange-100 text-orange-900 border-orange-300">
+                        <Badge variant="outline" className={URGENT_BADGE_STYLES.critical}>
                           critical
                         </Badge>
                       </div>
@@ -544,7 +600,21 @@ export default function AppointmentsPage() {
                   ))}
                 </ul>
                 {(dashboardQuery.data?.overdue.length ?? 0) === 0 && (recommendationsQuery.data?.urgentTasks.length ?? 0) === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nothing urgent right now — you're on track</p>
+                  <EmptyState
+                    icon={CheckCircle2}
+                    message="Nothing urgent right now"
+                    subMessage="Everything is currently on track."
+                  action={(
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => myTasksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    >
+                      View my tasks
+                    </Button>
+                  )}
+                  />
                 ) : null}
               </>
             )}
@@ -554,7 +624,7 @@ export default function AppointmentsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="bg-card border-border/60 shadow-sm">
             <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-              <Zap className="w-4 h-4 text-yellow-600 shrink-0" aria-hidden />
+              <Zap className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
               <CardTitle className="text-sm font-semibold">
                 Today
                 {dashboardQuery.data ? (
@@ -563,13 +633,33 @@ export default function AppointmentsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 max-h-[min(320px,45vh)] overflow-y-auto">
-              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+              {dashboardQuery.isError ? (
+                <ErrorCard
+                  message="Unable to load today's tasks."
+                  onRetry={() => dashboardQuery.refetch()}
+                />
+              ) : dashboardQuery.isLoading && !dashboardQuery.data ? (
                 <div className="space-y-2">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
               ) : (dashboardQuery.data?.today.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">You're all caught up 🎉</p>
+                <EmptyState
+                  icon={CheckCircle2}
+                  message="You're all caught up"
+                  subMessage="No tasks are due today."
+                  action={(
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => openQuickBooking(new Date())}
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Create task
+                    </Button>
+                  )}
+                />
               ) : (
                 <ul className="space-y-2">
                   {dashboardQuery.data!.today.map((t) => (
@@ -632,13 +722,32 @@ export default function AppointmentsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 max-h-[min(320px,45vh)] overflow-y-auto">
-              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+              {dashboardQuery.isError ? (
+                <ErrorCard
+                  message="Unable to load assigned tasks."
+                  onRetry={() => dashboardQuery.refetch()}
+                />
+              ) : dashboardQuery.isLoading && !dashboardQuery.data ? (
                 <div className="space-y-2">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
               ) : (dashboardQuery.data?.myTasks.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">No tasks assigned — pick from queue</p>
+                <EmptyState
+                  icon={CheckCircle2}
+                  message="No tasks assigned"
+                  subMessage="Pick a task from the queue when ready."
+                  action={(
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => urgentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    >
+                      Review urgent
+                    </Button>
+                  )}
+                />
               ) : (
                 <ul className="space-y-2">
                   {dashboardQuery.data!.myTasks.map((t) => (
@@ -697,7 +806,22 @@ export default function AppointmentsPage() {
           </CardHeader>
           <CardContent>
             {(recommendationsQuery.data?.suggestions.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">No suggestions — everything looks good</p>
+              <EmptyState
+                icon={CheckCircle2}
+                message="No suggestions"
+                subMessage="Everything looks good right now."
+                action={(
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                    onClick={() => openQuickBooking(new Date())}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Create task
+                  </Button>
+                )}
+              />
             ) : (
               <ul className="space-y-2">
                 {recommendationsQuery.data?.suggestions.map((suggestion, idx) => (
@@ -805,8 +929,19 @@ export default function AppointmentsPage() {
                   : "No shift imported for this day"}
               </div>
             ) : null}
-            {listQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading tasks...</p>
+            {listQuery.isError ? (
+              <ErrorCard
+                message="Unable to load the day view."
+                onRetry={() => {
+                  void listQuery.refetch();
+                  void metaQuery.refetch();
+                }}
+              />
+            ) : listQuery.isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-64 w-full" />
+              </div>
             ) : (
               <div className="relative border rounded-xl overflow-hidden">
                 <div className="max-h-[70vh] overflow-auto">
@@ -914,8 +1049,14 @@ export default function AppointmentsPage() {
                     ))}
 
                     {appointmentBlocks.length === 0 ? (
-                      <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                        No tasks scheduled — tap a slot to create one
+                      <div className="absolute inset-0 flex items-center justify-center px-4">
+                        <div className="w-full max-w-md">
+                          <EmptyState
+                            icon={CheckCircle2}
+                            message="No tasks scheduled"
+                            subMessage="Tap a slot to create one."
+                          />
+                        </div>
                       </div>
                     ) : null}
                   </div>

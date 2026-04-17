@@ -79,6 +79,16 @@
     scroll-behavior: smooth;
     overscroll-behavior: none;
   }
+  html[dir="rtl"] body {
+    text-align: right;
+  }
+  html[dir="rtl"] input,
+  html[dir="rtl"] textarea {
+    text-align: right;
+  }
+  html[dir="rtl"] .rtl-mirror {
+    transform: scaleX(-1);
+  }
 }
 
 @layer utilities {

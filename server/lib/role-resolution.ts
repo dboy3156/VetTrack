@@ -1,5 +1,5 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { db, shifts } from "../db.js";
+import { db, shifts, users } from "../db.js";
 
 export type PermanentVetTrackRole = "admin" | "vet" | "technician" | "viewer";
 export type ShiftRole = "technician" | "senior_technician" | "admin";
@@ -7,6 +7,7 @@ export type EffectiveRole = PermanentVetTrackRole | ShiftRole;
 
 export interface RoleResolutionInput {
   clinicId: string;
+  userId?: string;
   userName: string;
   fallbackRole: PermanentVetTrackRole;
   now?: Date;
@@ -49,7 +50,16 @@ function normalizeName(name: string): string {
 
 export async function resolveCurrentRole(input: RoleResolutionInput): Promise<RoleResolutionResult> {
   const now = input.now ?? new Date();
-  const normalizedName = normalizeName(input.userName);
+  let normalizedName = normalizeName(input.userName);
+  if (input.userId?.trim()) {
+    const [userRow] = await db
+      .select({ name: users.name, displayName: users.displayName })
+      .from(users)
+      .where(and(eq(users.id, input.userId.trim()), eq(users.clinicId, input.clinicId)))
+      .limit(1);
+    const canonical = normalizeName(userRow?.displayName || userRow?.name || "");
+    if (canonical) normalizedName = canonical;
+  }
 
   if (!normalizedName) {
     return {

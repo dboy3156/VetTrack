@@ -72,6 +72,14 @@ interface OfflineOptions {
   optimisticResult?: unknown;
 }
 
+interface ApiErrorPayload {
+  code?: string;
+  error?: string;
+  reason?: string;
+  message?: string;
+  requestId?: string;
+}
+
 class TimeoutError extends Error {
   constructor(ms: number) {
     super(`Request timed out after ${ms}ms`);
@@ -106,6 +114,14 @@ function isNetworkError(err: unknown): boolean {
 
 const FETCH_TIMEOUT_MS = 30_000;
 let authRedirectInProgress = false;
+
+function toApiErrorMessage(status: number, payload: ApiErrorPayload | null): string {
+  const base = payload?.message || payload?.error || `HTTP ${status}`;
+  if (payload?.requestId) {
+    return `${base} (requestId: ${payload.requestId})`;
+  }
+  return base;
+}
 
 function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const outer = init.signal as AbortSignal | undefined | null;
@@ -143,25 +159,30 @@ export async function request<T>(
   try {
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (res.status === 401) {
-      // Token expired/invalid. Avoid reload loops; route to sign-in once.
-      if (!authRedirectInProgress) {
-        authRedirectInProgress = true;
-        toast.error(t.api.sessionExpired);
+      const method = String(init.method ?? "GET").toUpperCase();
+      if (method === "GET") {
+        // Token expired/invalid. Avoid reload loops; route to sign-in once.
+        if (!authRedirectInProgress) {
+          authRedirectInProgress = true;
+          toast.error(t.api.sessionExpired);
+        }
+        if (typeof window !== "undefined" && window.location.pathname !== "/signin" && authRedirectInProgress) {
+          window.location.assign("/signin");
+        }
+        throw new Error("Session expired");
       }
-      if (typeof window !== "undefined" && window.location.pathname !== "/signin" && authRedirectInProgress) {
-        window.location.assign("/signin");
-      }
-      throw new Error("Session expired");
+      // For mutations, do not force a hard navigation from inside the request helper.
+      throw new Error("UNAUTHORIZED");
     }
     if (!res.ok) {
       if (!silent && res.status >= 500) {
         toast.error(t.api.serverError);
       }
-      const error = await res.json().catch(() => ({ error: "Request failed" }));
+      const error = await res.json().catch(() => ({ error: "Request failed" })) as ApiErrorPayload;
       if (isOfflineResponse(res.status, error)) {
         throw new OfflineResponseError();
       }
-      throw new Error(error.error || `HTTP ${res.status}`);
+      throw new Error(toApiErrorMessage(res.status, error));
     }
     if (res.status === 204) return undefined as T;
     return res.json();
@@ -209,11 +230,11 @@ async function requestWithOfflineFallback<T>(
   try {
     const res = await fetchWithTimeout(url, { ...init, headers });
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ error: "Request failed" }));
+      const error = await res.json().catch(() => ({ error: "Request failed" })) as ApiErrorPayload;
       if (isOfflineResponse(res.status, error)) {
         throw new OfflineResponseError();
       }
-      throw new Error(error.error || `HTTP ${res.status}`);
+      throw new Error(toApiErrorMessage(res.status, error));
     }
     return res.json();
   } catch (err) {

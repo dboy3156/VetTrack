@@ -42,10 +42,20 @@ export function setStoredLocale(locale: string): Locale {
   try {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, resolved);
+      window.dispatchEvent(new CustomEvent("vettrack:locale-changed", { detail: resolved }));
     }
   } catch {
   }
   return resolved;
+}
+
+export function getCurrentLocale(): Locale {
+  return getStoredLocale();
+}
+
+export function formatDateTimeByLocale(date: Date, options?: Intl.DateTimeFormatOptions): string {
+  const locale = getStoredLocale();
+  return date.toLocaleString(locale, options);
 }
 
 export function applyLocaleDocumentAttributes(locale: string | null | undefined): void {

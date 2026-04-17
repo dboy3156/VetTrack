@@ -20,6 +20,30 @@ import { sendPushToAll } from "../lib/push.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 const VALID_SEVERITIES = ["low", "medium", "high"] as const;
 const VALID_TICKET_STATUSES = ["open", "in_progress", "resolved"] as const;
 
@@ -40,8 +64,18 @@ const patchTicketSchema = z.object({
 });
 
 router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    if (!req.authUser) return res.status(401).json({ error: "לא מורשה" });
+    if (!req.authUser) {
+      return res.status(401).json(
+        apiError({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "לא מורשה",
+          requestId,
+        }),
+      );
+    }
     const clinicId = requireClinicId(req);
 
     const { title, description, severity, pageUrl, deviceInfo, appVersion } = req.body as z.infer<typeof createTicketSchema>;
@@ -74,11 +108,19 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
     res.status(201).json(ticket);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "יצירת הפניה נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SUPPORT_TICKET_CREATE_FAILED",
+        message: "יצירת הפניה נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = requireClinicId(req);
     const tickets = await db
@@ -90,11 +132,19 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     res.json(tickets);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "טעינת הפניות נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SUPPORT_TICKETS_LIST_FAILED",
+        message: "טעינת הפניות נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = requireClinicId(req);
     const tickets = await db
@@ -105,11 +155,19 @@ router.get("/unresolved-count", requireAuth, requireAdmin, async (req, res) => {
     res.json({ count: tickets.length });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "ספירת הפניות נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SUPPORT_TICKETS_COUNT_FAILED",
+        message: "ספירת הפניות נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchTicketSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = requireClinicId(req);
     const { status, adminNote } = req.body as z.infer<typeof patchTicketSchema>;
@@ -127,12 +185,28 @@ router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody
       .where(and(eq(supportTickets.id, req.params.id), eq(supportTickets.clinicId, clinicId)))
       .returning();
 
-    if (!ticket) return res.status(404).json({ error: "הפניה לא נמצאה" });
+    if (!ticket) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "SUPPORT_TICKET_NOT_FOUND",
+          message: "הפניה לא נמצאה",
+          requestId,
+        }),
+      );
+    }
 
     res.json(ticket);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "עדכון הפניה נכשל" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SUPPORT_TICKET_UPDATE_FAILED",
+        message: "עדכון הפניה נכשל",
+        requestId,
+      }),
+    );
   }
 });
 

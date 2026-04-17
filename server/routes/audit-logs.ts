@@ -1,13 +1,38 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { db, auditLogs } from "../db.js";
 import { desc, eq, and, gte, lte, ilike } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
 
 const PAGE_SIZE = 50;
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { actionType, performedBy, from, to, page } = req.query as Record<string, string | undefined>;
@@ -63,7 +88,14 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch audit logs" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "AUDIT_LOGS_FETCH_FAILED",
+        message: "Failed to fetch audit logs",
+        requestId,
+      }),
+    );
   }
 });
 

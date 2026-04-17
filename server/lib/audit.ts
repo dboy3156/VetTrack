@@ -37,7 +37,8 @@ export type AuditActionType =
   | "CRITICAL_NOTIFICATION_SENT"
   | "TASK_ESCALATED"
   | "TASK_AUTO_ASSIGNED"
-  | "TASK_STUCK_NOTIFIED";
+  | "TASK_STUCK_NOTIFIED"
+  | "users_backfilled_from_clerk";
 
 export interface LogAuditParams {
   clinicId: string;

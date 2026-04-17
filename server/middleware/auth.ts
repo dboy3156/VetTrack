@@ -146,6 +146,30 @@ export type ResolveResult =
 
 export type AuthResolver = (req: Request) => Promise<ResolveResult>;
 
+function resolveRequestId(req: Request, res: Response): string {
+  const incoming = typeof req.headers["x-request-id"] === "string" ? req.headers["x-request-id"].trim() : "";
+  const requestId = incoming || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function buildApiErrorBody(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+}): Record<string, string> {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 function isLikelyInvalidTokenError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const msg = err.message.toLowerCase();
@@ -402,9 +426,11 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
 
 export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
   return async function requireAuthHandler(req: Request, res: Response, next: NextFunction) {
+    const requestId = resolveRequestId(req, res);
     try {
       const result = await resolver(req);
       if (!result.ok) {
+        const bodyWithRequestId = { ...result.body, requestId };
         if (result.status === 403 && typeof result.body.reason === "string") {
           const reason = result.body.reason;
           if (
@@ -426,7 +452,7 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
             });
           }
         }
-        return res.status(result.status).json(result.body);
+        return res.status(result.status).json(bodyWithRequestId);
       }
 
       req.authUser = result.user;
@@ -456,9 +482,10 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
             }),
           );
         }
-        return res.status(403).json(
-          buildAccessDeniedBody("ACCOUNT_PENDING_APPROVAL", "Account pending approval")
-        );
+        return res.status(403).json({
+          ...buildAccessDeniedBody("ACCOUNT_PENDING_APPROVAL", "Account pending approval"),
+          requestId,
+        });
       }
 
       if (result.user.status === "blocked") {
@@ -471,9 +498,10 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
           userId: result.user.id,
           message: "Your account has been suspended.",
         });
-        return res.status(403).json(
-          buildAccessDeniedBody("ACCOUNT_BLOCKED", "Your account has been suspended.")
-        );
+        return res.status(403).json({
+          ...buildAccessDeniedBody("ACCOUNT_BLOCKED", "Your account has been suspended."),
+          requestId,
+        });
       }
 
       next();
@@ -481,7 +509,14 @@ export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
       const status = isLikelyInvalidTokenError(err) ? 401 : 500;
       const message = status === 401 ? "Invalid authentication token" : "Auth failed";
       console.error("[auth] requireAuth error", err);
-      return res.status(status).json({ error: message });
+      return res.status(status).json(
+        buildApiErrorBody({
+          code: status === 401 ? "UNAUTHORIZED" : "AUTH_FAILED",
+          reason: status === 401 ? "INVALID_AUTH_TOKEN" : "AUTH_HANDLER_ERROR",
+          message,
+          requestId,
+        }),
+      );
     }
   };
 }
@@ -490,9 +525,11 @@ export const requireAuth = createRequireAuth();
 
 export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
   return async function requireAuthAnyHandler(req: Request, res: Response, next: NextFunction) {
+    const requestId = resolveRequestId(req, res);
     try {
       const result = await resolver(req);
       if (!result.ok) {
+        const bodyWithRequestId = { ...result.body, requestId };
         if (result.status === 403 && typeof result.body.reason === "string") {
           const reason = result.body.reason;
           if (
@@ -514,7 +551,7 @@ export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
             });
           }
         }
-        return res.status(result.status).json(result.body);
+        return res.status(result.status).json(bodyWithRequestId);
       }
 
       req.authUser = result.user;
@@ -526,7 +563,14 @@ export function createRequireAuthAny(resolver: AuthResolver = resolveAuthUser) {
       const status = isLikelyInvalidTokenError(err) ? 401 : 500;
       const message = status === 401 ? "Invalid authentication token" : "Auth failed";
       console.error("[auth] requireAuthAny error", err);
-      return res.status(status).json({ error: message });
+      return res.status(status).json(
+        buildApiErrorBody({
+          code: status === 401 ? "UNAUTHORIZED" : "AUTH_FAILED",
+          reason: status === 401 ? "INVALID_AUTH_TOKEN" : "AUTH_HANDLER_ERROR",
+          message,
+          requestId,
+        }),
+      );
     }
   };
 }
@@ -538,7 +582,17 @@ export function requireAdmin(
   res: Response,
   next: NextFunction
 ) {
-  if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+  const requestId = resolveRequestId(req, res);
+  if (!req.authUser) {
+    return res.status(401).json(
+      buildApiErrorBody({
+        code: "UNAUTHORIZED",
+        reason: "MISSING_AUTH_USER",
+        message: "Unauthorized",
+        requestId,
+      }),
+    );
+  }
   if (req.authUser.role !== "admin") {
     recordAccessDenied({
       req,
@@ -547,16 +601,27 @@ export function requireAdmin(
       reason: "INSUFFICIENT_ROLE",
       message: "Admin access required",
     });
-    return res.status(403).json(
-      buildAccessDeniedBody("INSUFFICIENT_ROLE", "Admin access required")
-    );
+    return res.status(403).json({
+      ...buildAccessDeniedBody("INSUFFICIENT_ROLE", "Admin access required"),
+      requestId,
+    });
   }
   next();
 }
 
 export function requireRole(minRole: UserRole) {
   return function (req: Request, res: Response, next: NextFunction) {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    const requestId = resolveRequestId(req, res);
+    if (!req.authUser) {
+      return res.status(401).json(
+        buildApiErrorBody({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
+    }
     const userLevel = ROLE_HIERARCHY[req.authUser.role] ?? 0;
     const requiredLevel = ROLE_HIERARCHY[minRole] ?? 0;
     if (userLevel < requiredLevel) {
@@ -567,9 +632,10 @@ export function requireRole(minRole: UserRole) {
         reason: "INSUFFICIENT_ROLE",
         message: "Insufficient permissions",
       });
-      return res.status(403).json(
-        buildAccessDeniedBody("INSUFFICIENT_ROLE", "Insufficient permissions")
-      );
+      return res.status(403).json({
+        ...buildAccessDeniedBody("INSUFFICIENT_ROLE", "Insufficient permissions"),
+        requestId,
+      });
     }
     next();
   };
@@ -577,10 +643,21 @@ export function requireRole(minRole: UserRole) {
 
 export function requireEffectiveRole(minRole: UserRole) {
   return async function (req: Request, res: Response, next: NextFunction) {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    const requestId = resolveRequestId(req, res);
+    if (!req.authUser) {
+      return res.status(401).json(
+        buildApiErrorBody({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
+    }
     try {
       const { effectiveRole, source, activeShift } = await resolveCurrentRole({
         clinicId: req.clinicId!,
+        userId: req.authUser.id,
         userName: req.authUser.name,
         fallbackRole: req.authUser.role,
       });
@@ -611,15 +688,23 @@ export function requireEffectiveRole(minRole: UserRole) {
           reason: "INSUFFICIENT_ROLE",
           message: "Insufficient permissions",
         });
-        return res.status(403).json(
-          buildAccessDeniedBody("INSUFFICIENT_ROLE", "Insufficient permissions")
-        );
+        return res.status(403).json({
+          ...buildAccessDeniedBody("INSUFFICIENT_ROLE", "Insufficient permissions"),
+          requestId,
+        });
       }
 
       next();
     } catch (err) {
       console.error("requireEffectiveRole:", err);
-      return res.status(500).json({ error: "Role resolution failed" });
+      return res.status(500).json(
+        buildApiErrorBody({
+          code: "INTERNAL_ERROR",
+          reason: "ROLE_RESOLUTION_FAILED",
+          message: "Role resolution failed",
+          requestId,
+        }),
+      );
     }
   };
 }

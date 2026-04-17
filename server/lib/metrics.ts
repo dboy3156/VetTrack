@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+
 type MetricName =
   | "tasks_created"
   | "tasks_started"
@@ -91,6 +94,39 @@ const DEFAULT_COUNTERS: MetricBuckets = {
 
 const metrics: MetricBuckets = { ...DEFAULT_COUNTERS };
 const minuteWindow = new Map<string, number>();
+const METRICS_STATE_FILE = path.resolve(process.cwd(), process.env.METRICS_STATE_FILE ?? ".vettrack-metrics.json");
+let persistWriteScheduled = false;
+
+function loadPersistedMetrics(): void {
+  try {
+    if (!fs.existsSync(METRICS_STATE_FILE)) return;
+    const raw = fs.readFileSync(METRICS_STATE_FILE, "utf8");
+    const parsed = JSON.parse(raw) as Partial<Record<MetricName, number>>;
+    for (const key of Object.keys(DEFAULT_COUNTERS) as MetricName[]) {
+      const value = parsed[key];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+        metrics[key] = Math.floor(value);
+      }
+    }
+  } catch (error) {
+    console.warn("[metrics] failed to load persisted metrics state", error);
+  }
+}
+
+function schedulePersist(): void {
+  if (persistWriteScheduled) return;
+  persistWriteScheduled = true;
+  setTimeout(() => {
+    persistWriteScheduled = false;
+    try {
+      fs.writeFileSync(METRICS_STATE_FILE, JSON.stringify(metrics), "utf8");
+    } catch (error) {
+      console.warn("[metrics] failed to persist metrics state", error);
+    }
+  }, 250);
+}
+
+loadPersistedMetrics();
 
 function minuteKey(name: string): string {
   return `${name}:${Math.floor(Date.now() / 60000)}`;
@@ -116,6 +152,7 @@ export function incrementMetric(name: string, value: number = 1): void {
     if (name in metrics) {
       const typed = name as MetricName;
       metrics[typed] += amount;
+      schedulePersist();
     }
 
     const key = minuteKey(name);
@@ -198,6 +235,7 @@ export function resetMetrics(): void {
       metrics[key] = 0;
     }
     minuteWindow.clear();
+    schedulePersist();
   } catch {
     // Best-effort reset for tests.
   }

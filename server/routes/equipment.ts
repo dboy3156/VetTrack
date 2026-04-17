@@ -108,6 +108,30 @@ const upload = multer({
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 const _parsedUndoTtl = parseInt(process.env.UNDO_TTL_MS ?? "", 10);
 const UNDO_TTL_MS = Number.isFinite(_parsedUndoTtl) && _parsedUndoTtl > 0 ? _parsedUndoTtl : 90_000;
 const FIELD_MAX_LENGTH = 500;
@@ -212,6 +236,7 @@ class CheckoutConflictError extends Error {
 
 // GET /api/equipment/my
 router.get("/my", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const items = await db
@@ -254,7 +279,14 @@ router.get("/my", requireAuth, async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch my equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "MY_EQUIPMENT_FETCH_FAILED",
+        message: "Failed to fetch my equipment",
+        requestId,
+      }),
+    );
   }
 });
 
@@ -262,6 +294,7 @@ const EQUIPMENT_DEFAULT_PAGE_SIZE = 100;
 const EQUIPMENT_MAX_PAGE_SIZE = 1000;
 
 router.get("/", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const rawLimit = parseInt(req.query.limit as string, 10);
@@ -360,12 +393,20 @@ router.get("/", requireAuth, async (req, res) => {
     res.json({ items, total, page, pageSize: limit, hasMore: offset + items.length < total });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_LIST_FAILED",
+        message: "Failed to list equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 // GET /api/equipment/deleted — admin only, list soft-deleted equipment
 router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const items = await db
@@ -386,11 +427,19 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list deleted equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "DELETED_EQUIPMENT_LIST_FAILED",
+        message: "Failed to list deleted equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/:id", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const [item] = await db
@@ -430,15 +479,32 @@ router.get("/:id", requireAuth, async (req, res) => {
       .leftJoin(users, and(eq(equipment.lastVerifiedById, users.id), eq(users.clinicId, clinicId)))
       .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
-    if (!item) return res.status(404).json({ error: "Equipment not found" });
+    if (!item) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
     res.json(item);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to get equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_FETCH_FAILED",
+        message: "Failed to get equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateBody(createEquipmentSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const {
@@ -457,7 +523,14 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
     } = req.body as z.infer<typeof createEquipmentSchema>;
 
     if (expectedReturnMinutes !== undefined && req.authUser?.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can set expected return minutes" });
+      return res.status(403).json(
+        apiError({
+          code: "FORBIDDEN",
+          reason: "EXPECTED_RETURN_MINUTES_ADMIN_ONLY",
+          message: "Only admins can set expected return minutes",
+          requestId,
+        }),
+      );
     }
 
     const [item] = await db
@@ -496,11 +569,19 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
   } catch (err) {
     console.error("Validation error:", err);
     console.error(err);
-    res.status(500).json({ error: "Failed to create equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_CREATE_FAILED",
+        message: "Failed to create equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(patchEquipmentSchema), async (req, res) => {
+const requestId = resolveRequestId(res, req.headers["x-request-id"]);
 try {
     const clinicId = req.clinicId!;
     const {
@@ -520,7 +601,14 @@ try {
     } = req.body as z.infer<typeof patchEquipmentSchema>;
 
     if (expectedReturnMinutes !== undefined && req.authUser?.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can set expected return minutes" });
+      return res.status(403).json(
+        apiError({
+          code: "FORBIDDEN",
+          reason: "EXPECTED_RETURN_MINUTES_ADMIN_ONLY",
+          message: "Only admins can set expected return minutes",
+          requestId,
+        }),
+      );
     }
 
     let result: EquipmentRow | null = null;
@@ -587,7 +675,16 @@ try {
       }
     });
 
-    if (!result) return res.status(404).json({ error: "Equipment not found" });
+    if (!result) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
 
     logAudit({
       clinicId,
@@ -603,11 +700,19 @@ try {
     res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_UPDATE_FAILED",
+        message: "Failed to update equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 router.delete("/:id", requireAuth, writeLimiter, requireAdmin, validateUuid("id"), async (req, res) => {
+const requestId = resolveRequestId(res, req.headers["x-request-id"]);
 try {
     const clinicId = req.clinicId!;
     const [existing] = await db
@@ -616,7 +721,16 @@ try {
       .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "Equipment not found" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
 
     await db
       .update(equipment)
@@ -636,12 +750,20 @@ try {
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_DELETE_FAILED",
+        message: "Failed to delete equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/equipment/:id/restore — admin only, restore a soft-deleted equipment record
 router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const [existing] = await db
@@ -650,7 +772,16 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
       .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNotNull(equipment.deletedAt)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "Equipment not found or not deleted" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND_OR_NOT_DELETED",
+          message: "Equipment not found or not deleted",
+          requestId,
+        }),
+      );
+    }
 
     const [restored] = await db
       .update(equipment)
@@ -662,12 +793,20 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
     res.json(restored);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to restore equipment" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_RESTORE_FAILED",
+        message: "Failed to restore equipment",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/equipment/:id/checkout
 router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { location } = req.body as z.infer<typeof checkoutSchema>;
@@ -733,7 +872,16 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
       });
     });
 
-    if (!updated) return res.status(404).json({ error: "Equipment not found" });
+    if (!updated) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
 
     const u = updated as EquipmentRow;
 
@@ -771,19 +919,32 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
   } catch (err) {
     if (err instanceof CheckoutConflictError) {
       return res.status(409).json({
-        error: "Already checked out",
+        ...apiError({
+          code: "CONFLICT",
+          reason: "EQUIPMENT_ALREADY_CHECKED_OUT",
+          message: "Already checked out",
+          requestId,
+        }),
         checkedOutByEmail: err.checkedOutByEmail,
         conflictInfo: `Checked out by ${err.checkedOutByEmail}`,
       });
     }
     console.error(err);
     trackSyncFail();
-    res.status(500).json({ error: "Checkout failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_CHECKOUT_FAILED",
+        message: "Checkout failed",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/equipment/:id/return
 router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
@@ -848,7 +1009,16 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
       });
     });
 
-    if (!updated) return res.status(404).json({ error: "Equipment not found" });
+    if (!updated) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
     if (alreadyReturned) return res.json(updated);
 
     const u = updated as EquipmentRow;
@@ -880,17 +1050,32 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
   } catch (err) {
     console.error(err);
     trackSyncFail();
-    res.status(500).json({ error: "Return failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_RETURN_FAILED",
+        message: "Return failed",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/equipment/:id/scan
 router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { status, note, photoUrl } = req.body as z.infer<typeof scanSchema>;
     if (status === "issue" && !note?.trim()) {
-      return res.status(400).json({ error: "Note is required when reporting an issue" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "ISSUE_NOTE_REQUIRED",
+          message: "Note is required when reporting an issue",
+          requestId,
+        }),
+      );
     }
 
     const clientTimestamp = parseInt(req.headers["x-client-timestamp"] as string || "0", 10);
@@ -957,7 +1142,16 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
       });
     });
 
-    if (!updatedEquipment) return res.status(404).json({ error: "Equipment not found" });
+    if (!updatedEquipment) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
 
     const eq2 = updatedEquipment as EquipmentRow;
 
@@ -1016,12 +1210,20 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), 
   } catch (err) {
     console.error(err);
     trackSyncFail();
-    res.status(500).json({ error: "Scan failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_SCAN_FAILED",
+        message: "Scan failed",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/equipment/:id/revert
 router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), validateBody(revertSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { undoToken: tokenId } = req.body as z.infer<typeof revertSchema>;
@@ -1032,11 +1234,27 @@ router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUui
       .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)))
       .limit(1);
 
-    if (!existingItem) return res.status(404).json({ error: "Equipment not found" });
+    if (!existingItem) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
+    }
 
     const token = await consumeUndoToken(clinicId, tokenId, req.params.id, req.authUser!.id);
     if (!token) {
-      return res.status(409).json({ error: "Undo window expired or token invalid" });
+      return res.status(409).json(
+        apiError({
+          code: "CONFLICT",
+          reason: "UNDO_TOKEN_INVALID_OR_EXPIRED",
+          message: "Undo window expired or token invalid",
+          requestId,
+        }),
+      );
     }
 
     const prev = token.previousState;
@@ -1081,7 +1299,14 @@ router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUui
     res.json(updated);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Revert failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_REVERT_FAILED",
+        message: "Revert failed",
+        requestId,
+      }),
+    );
   }
 });
 
@@ -1089,6 +1314,7 @@ const LOGS_DEFAULT_PAGE_SIZE = 50;
 const LOGS_MAX_PAGE_SIZE = 200;
 
 router.get("/:id/logs", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const rawLimit = parseInt(req.query.limit as string, 10);
@@ -1115,11 +1341,19 @@ router.get("/:id/logs", requireAuth, async (req, res) => {
     res.json({ items, total, page, pageSize: limit, hasMore: offset + items.length < total });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to get logs" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_LOGS_FETCH_FAILED",
+        message: "Failed to get logs",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/:id/transfers", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const transfers = await db
@@ -1130,7 +1364,14 @@ router.get("/:id/transfers", requireAuth, async (req, res) => {
     res.json(transfers);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to get transfers" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_TRANSFERS_FETCH_FAILED",
+        message: "Failed to get transfers",
+        requestId,
+      }),
+    );
   }
 });
 
@@ -1190,6 +1431,7 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
 // POST /api/equipment/import — accepts multipart/form-data with a "file" field
 // or JSON body with a "csv" string field (backwards-compatible)
 router.post("/import", requireAuth, writeLimiter, requireAdmin, upload.single("file"), async (req, res) => {
+const requestId = resolveRequestId(res, req.headers["x-request-id"]);
 try {
     const clinicId = req.clinicId!;
     let csv: string;
@@ -1199,7 +1441,14 @@ try {
     } else {
       const body = req.body as { csv?: string };
       if (!body.csv || typeof body.csv !== "string") {
-        return res.status(400).json({ error: "Provide a CSV file upload (multipart field 'file') or JSON body with 'csv' string" });
+        return res.status(400).json(
+          apiError({
+            code: "VALIDATION_FAILED",
+            reason: "CSV_INPUT_REQUIRED",
+            message: "Provide a CSV file upload (multipart field 'file') or JSON body with 'csv' string",
+            requestId,
+          }),
+        );
       }
       csv = body.csv;
     }
@@ -1214,11 +1463,25 @@ try {
     const maintIdx = headers.indexOf("maintenanceintervaldays");
 
     if (nameIdx === -1) {
-      return res.status(400).json({ error: "CSV must have a 'name' column" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "CSV_NAME_COLUMN_REQUIRED",
+          message: "CSV must have a 'name' column",
+          requestId,
+        }),
+      );
     }
 
     if (rows.length > CSV_MAX_ROWS) {
-      return res.status(400).json({ error: `CSV exceeds max ${CSV_MAX_ROWS} rows` });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "CSV_ROW_LIMIT_EXCEEDED",
+          message: `CSV exceeds max ${CSV_MAX_ROWS} rows`,
+          requestId,
+        }),
+      );
     }
 
     // Load existing serial numbers to detect duplicates against DB (exclude soft-deleted)
@@ -1349,11 +1612,19 @@ try {
     res.json({ inserted: toInsert.length, skipped });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Import failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_IMPORT_FAILED",
+        message: "Import failed",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/bulk-delete", requireAuth, writeLimiter, requireAdmin, validateBody(bulkIdsSchema), async (req, res) => {
+const requestId = resolveRequestId(res, req.headers["x-request-id"]);
 try {
     const clinicId = req.clinicId!;
     const { ids: typedIds } = req.body as z.infer<typeof bulkIdsSchema>;
@@ -1401,11 +1672,19 @@ try {
     res.json({ affected: typedIds.length });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Bulk delete failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_BULK_DELETE_FAILED",
+        message: "Bulk delete failed",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("technician"), validateBody(bulkMoveSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { ids: typedIds, folderId } = req.body as z.infer<typeof bulkMoveSchema>;
@@ -1473,7 +1752,14 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("techn
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Bulk move failed" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EQUIPMENT_BULK_MOVE_FAILED",
+        message: "Bulk move failed",
+        requestId,
+      }),
+    );
   }
 });
 
@@ -1485,6 +1771,7 @@ router.post(
   requireEffectiveRole("technician"),
   validateBody(bulkVerifyRoomSchema),
   async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
     try {
       const clinicId = req.clinicId!;
       const { roomId: targetRoomId } = req.body as z.infer<typeof bulkVerifyRoomSchema>;
@@ -1569,10 +1856,24 @@ router.post(
       res.json({ affected, roomName });
     } catch (err: unknown) {
       if (err instanceof Error && (err as Error & { status?: number }).status === 404) {
-        return res.status(404).json({ error: "Room not found" });
+        return res.status(404).json(
+          apiError({
+            code: "NOT_FOUND",
+            reason: "ROOM_NOT_FOUND",
+            message: "Room not found",
+            requestId,
+          }),
+        );
       }
       console.error(err);
-      res.status(500).json({ error: "Bulk verify failed" });
+      res.status(500).json(
+        apiError({
+          code: "INTERNAL_ERROR",
+          reason: "EQUIPMENT_BULK_VERIFY_FAILED",
+          message: "Bulk verify failed",
+          requestId,
+        }),
+      );
     }
   }
 );

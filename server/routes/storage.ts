@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
@@ -12,6 +13,37 @@ import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  hint?: string;
+}) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+    ...(params.hint ? { hint: params.hint } : {}),
+  };
+}
+
 const uploadUrlSchema = z.object({
   name: z.string().min(1, "name is required").max(500),
   size: z.number().positive("size must be a positive number"),
@@ -19,17 +51,29 @@ const uploadUrlSchema = z.object({
 });
 
 router.post("/upload-url", requireAuth, requireEffectiveRole("technician"), validateBody(uploadUrlSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!process.env.REPLIT_OBJECT_STORAGE_BUCKET) {
-    return res.status(501).json({
-      error: "Image uploads are not available in this environment. To enable uploads, configure the REPLIT_OBJECT_STORAGE_BUCKET environment variable and implement the signed URL generation in server/routes/storage.ts.",
-      hint: "In development, images can be hosted externally and referenced by URL instead.",
-    });
+    return res.status(501).json(
+      apiError({
+        code: "NOT_IMPLEMENTED",
+        reason: "OBJECT_STORAGE_NOT_CONFIGURED",
+        message:
+          "Image uploads are not available in this environment. To enable uploads, configure the REPLIT_OBJECT_STORAGE_BUCKET environment variable and implement the signed URL generation in server/routes/storage.ts.",
+        requestId,
+        hint: "In development, images can be hosted externally and referenced by URL instead.",
+      }),
+    );
   }
 
-  res.status(501).json({
-    error: "Object storage is configured but signed URL generation is not yet implemented.",
-    hint: "Implement the upload URL generation in server/routes/storage.ts using your storage provider's SDK.",
-  });
+  res.status(501).json(
+    apiError({
+      code: "NOT_IMPLEMENTED",
+      reason: "SIGNED_UPLOAD_URL_NOT_IMPLEMENTED",
+      message: "Object storage is configured but signed URL generation is not yet implemented.",
+      requestId,
+      hint: "Implement the upload URL generation in server/routes/storage.ts using your storage provider's SDK.",
+    }),
+  );
 });
 
 export default router;

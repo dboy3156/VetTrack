@@ -4,9 +4,11 @@ const INSECURE_FALLBACKS: Record<string, string[]> = {
 
 const REQUIRED_IN_PRODUCTION: string[] = [
   "DATABASE_URL",
+  "REDIS_URL",
   "SESSION_SECRET",
   "CLERK_SECRET_KEY",
   "VITE_CLERK_PUBLISHABLE_KEY",
+  "ALLOWED_ORIGIN",
 ];
 
 function validateClerkKeyPair(): void {

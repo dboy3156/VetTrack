@@ -211,6 +211,27 @@ async function main(): Promise<void> {
     console.error("DLQ_JOB_FAILED", { jobId: job?.id, err });
   });
 
+  let shuttingDown = false;
+  async function shutdown(signal: string): Promise<void> {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[worker] shutdown requested (${signal})`);
+    try {
+      await dlqWorker.close();
+      await worker.close();
+      await queue.close();
+      await dlq.close();
+      await connection.quit();
+      console.log("[worker] graceful shutdown complete");
+      process.exit(0);
+    } catch (err) {
+      console.error("[worker] graceful shutdown failed", err);
+      process.exit(1);
+    }
+  }
+  process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
+  process.on("SIGINT", () => { void shutdown("SIGINT"); });
+
   console.log("NOTIFICATION_WORKER_STARTED");
   console.log(
     `[worker] notification worker listening (${NOTIFICATION_QUEUE_NAME}), overdue scan every ${OVERDUE_SCAN_MS / 60000} min, automation tick every ${AUTOMATION_TICK_MS / 1000}s`,

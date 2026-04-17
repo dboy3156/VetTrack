@@ -542,12 +542,10 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
       {/* Bottom nav (mobile) — 4 primary items + Scan in center */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background"
         style={{
           height: "calc(72px + env(safe-area-inset-bottom))",
           paddingBottom: "env(safe-area-inset-bottom)",
-          background: "#ffffff",
-          borderTopColor: "#F1F5F9",
           willChange: "transform",
           WebkitTransform: "translateZ(0)",
           transform: "translateZ(0)",
@@ -567,7 +565,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 {item.icon}
                 <span className="text-[11px] font-medium">{item.label}</span>
                 {item.badgeCount ? (
-                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-destructive text-destructive-foreground text-[9px] rounded-full flex items-center justify-center font-bold">
                     {item.badgeCount > 9 ? "9+" : item.badgeCount}
                   </span>
                 ) : null}
@@ -591,7 +589,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 {item.icon}
                 <span className="text-[11px] font-medium">{item.label}</span>
                 {item.badgeCount ? (
-                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-destructive text-destructive-foreground text-[9px] rounded-full flex items-center justify-center font-bold">
                     {item.badgeCount > 9 ? "9+" : item.badgeCount}
                   </span>
                 ) : null}
@@ -604,8 +602,8 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       {/* ScanFAB — opens camera QR scanner */}
       <button
         onClick={openScanner}
-        className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
-        style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
+        className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
+        style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 40 }}
         aria-label={lh.scanQrAria}
         data-testid="bottom-nav-scan"
       >

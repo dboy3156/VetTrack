@@ -31,6 +31,11 @@ export const queueMetrics = {
   circuitQueueBroken: 0,
 };
 
+function markQueueFailure(): void {
+  queueMetrics.circuitQueueBroken++;
+  incrementMetric("circuit_breaker_opened");
+}
+
 let notificationsQueue: Queue | null = null;
 let notificationsDlq: Queue | null = null;
 let queueInitFailed = false;
@@ -63,7 +68,7 @@ export function getNotificationsQueue(): Queue | null {
     });
     notificationsQueue.on("error", (err) => {
       console.error("[queue] notifications queue error:", err.message);
-      queueMetrics.circuitQueueBroken++;
+      markQueueFailure();
     });
     console.log("[queue] notifications queue ready");
   } catch (err) {
@@ -96,7 +101,7 @@ export function getNotificationsDlq(): Queue | null {
     });
     notificationsDlq.on("error", (err) => {
       console.error("[queue] notifications DLQ error:", err.message);
-      queueMetrics.circuitQueueBroken++;
+      markQueueFailure();
     });
     console.log("[queue] notifications DLQ ready");
   } catch (err) {
@@ -231,7 +236,7 @@ export async function enqueueNotificationJob(data: NotificationJobData): Promise
     queueMetrics.enqueued++;
     incrementMetric("queue_jobs_enqueued");
   } catch (err) {
-    queueMetrics.circuitQueueBroken++;
+    markQueueFailure();
     console.error("[queue] add failed:", (err as Error).message);
   }
 }
@@ -286,7 +291,7 @@ export async function enqueueAutomationExecuteJob(payload: AutomationExecutePayl
     queueMetrics.enqueued++;
     incrementMetric("queue_jobs_enqueued");
   } catch (err) {
-    queueMetrics.circuitQueueBroken++;
+    markQueueFailure();
     console.error("[queue] automation_execute add failed:", (err as Error).message);
   }
 }
@@ -382,7 +387,7 @@ export async function enqueueDeadLetterJob(payload: {
       }),
     );
   } catch (err) {
-    queueMetrics.circuitQueueBroken++;
+    markQueueFailure();
     console.error("[queue] DLQ add failed:", (err as Error).message);
   }
 }

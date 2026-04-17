@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
-const RECOMMENDATIONS_REFETCH_MS = 45_000;
+const RECOMMENDATIONS_REFETCH_MS = 90_000;
 
 export function useTaskRecommendations(enabled: boolean = true) {
   return useQuery({
@@ -9,8 +9,8 @@ export function useTaskRecommendations(enabled: boolean = true) {
     queryFn: () => api.tasks.recommendations(),
     enabled,
     refetchInterval: RECOMMENDATIONS_REFETCH_MS,
-    refetchOnWindowFocus: true,
-    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
     placeholderData: (previous) => previous,
   });
 }

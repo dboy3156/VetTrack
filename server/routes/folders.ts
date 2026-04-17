@@ -8,7 +8,32 @@ import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 router.get("/", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const allFolders = await db
@@ -43,15 +68,32 @@ router.get("/", requireAuth, async (req, res) => {
     res.json([...smartFolders, ...allFolders]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "טעינת התיקיות נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "FOLDERS_LIST_FAILED",
+        message: "טעינת התיקיות נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "שם הוא שדה חובה" });
+    if (!name?.trim()) {
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "FOLDER_NAME_REQUIRED",
+          message: "שם הוא שדה חובה",
+          requestId,
+        }),
+      );
+    }
 
     const [folder] = await db
       .insert(folders)
@@ -71,15 +113,32 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
     res.status(201).json(folder);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "יצירת התיקייה נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "FOLDER_CREATE_FAILED",
+        message: "יצירת התיקייה נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "שם הוא שדה חובה" });
+    if (!name?.trim()) {
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "FOLDER_NAME_REQUIRED",
+          message: "שם הוא שדה חובה",
+          requestId,
+        }),
+      );
+    }
 
     const [existing] = await db
       .select()
@@ -93,7 +152,16 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
       .where(and(eq(folders.id, req.params.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
       .returning();
 
-    if (!folder) return res.status(404).json({ error: "Folder not found" });
+    if (!folder) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "FOLDER_NOT_FOUND",
+          message: "Folder not found",
+          requestId,
+        }),
+      );
+    }
 
     logAudit({
       clinicId,
@@ -108,11 +176,19 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
     res.json(folder);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update folder" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "FOLDER_UPDATE_FAILED",
+        message: "Failed to update folder",
+        requestId,
+      }),
+    );
   }
 });
 
 router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const [existing] = await db
@@ -127,7 +203,16 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
       .where(and(eq(folders.id, req.params.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
       .returning({ id: folders.id });
 
-    if (!deleted) return res.status(404).json({ error: "Folder not found" });
+    if (!deleted) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "FOLDER_NOT_FOUND",
+          message: "Folder not found",
+          requestId,
+        }),
+      );
+    }
 
     logAudit({
       clinicId,
@@ -141,7 +226,14 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete folder" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "FOLDER_DELETE_FAILED",
+        message: "Failed to delete folder",
+        requestId,
+      }),
+    );
   }
 });
 

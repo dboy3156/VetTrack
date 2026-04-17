@@ -15,6 +15,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCard } from "@/components/ui/error-card";
 import {
   Moon,
   Volume2,
@@ -38,7 +40,7 @@ import { useEffect } from "react";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
-  const { name, email, signOut, effectiveRole, role } = useAuth();
+  const { name, email, signOut, effectiveRole, role, isLoaded, isSignedIn } = useAuth();
   const push = usePushNotifications();
   const roleContext = ((effectiveRole ?? role) as UserRole | ShiftRole | undefined) ?? "technician";
   const isSeniorContext = roleContext === "senior_technician";
@@ -131,6 +133,32 @@ export default function SettingsPage() {
     }
   }, [isTechnicianContext, isSeniorContext, isAdminContext]);
 
+  if (!isLoaded) {
+    return (
+      <Layout title={t.settingsPage.title}>
+        <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <Layout title={t.settingsPage.title}>
+        <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
+          <ErrorCard
+            message="Unable to load settings for this session."
+            onRetry={() => window.location.reload()}
+          />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title={t.settingsPage.title}>
       <div className="w-full max-w-full overflow-x-hidden space-y-6 pb-8 animate-fade-in">
@@ -162,6 +190,18 @@ export default function SettingsPage() {
               ]}
               onValueChange={(v) => update({ density: v as "comfortable" | "compact" })}
               data-testid="settings-density"
+            />
+            <SettingsSelect
+              icon={<AlignJustify className="w-5 h-5" />}
+              label="Language"
+              description="Choose app language and text direction"
+              value={settings.locale}
+              options={[
+                { value: "en", label: "English" },
+                { value: "he", label: "Hebrew" },
+              ]}
+              onValueChange={(v) => update({ locale: v as "en" | "he" })}
+              data-testid="settings-locale"
             />
           </div>
         </section>

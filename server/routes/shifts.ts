@@ -32,6 +32,37 @@ interface ShiftParseResult {
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  details?: unknown;
+}) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+    ...(params.details !== undefined ? { details: params.details } : {}),
+  };
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -50,8 +81,16 @@ function uploadCsvFile(req: Request, res: Response, next: NextFunction) {
       next();
       return;
     }
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
     const message = err instanceof Error ? err.message : "Invalid CSV upload";
-    res.status(400).json({ error: message });
+    res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "INVALID_CSV_UPLOAD",
+        message,
+        requestId,
+      }),
+    );
   });
 }
 
@@ -343,6 +382,7 @@ function resolveCsvFromRequest(req: { file?: Express.Multer.File; body: Record<s
 }
 
 router.get("/imports", requireAuth, requireAdmin, async (_req, res) => {
+  const requestId = resolveRequestId(res, _req.headers["x-request-id"]);
   try {
     const clinicId = _req.clinicId!;
     const rows = await db
@@ -364,15 +404,30 @@ router.get("/imports", requireAuth, requireAdmin, async (_req, res) => {
     res.json(rows);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch shift imports" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFT_IMPORTS_FETCH_FAILED",
+        message: "Failed to fetch shift imports",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/import/preview", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const { csv, filename } = resolveCsvFromRequest(req as { file?: Express.Multer.File; body: Record<string, unknown> });
     if (!csv.trim()) {
-      return res.status(400).json({ error: "Provide a CSV file upload or `csv` string in request body" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "MISSING_CSV_INPUT",
+          message: "Provide a CSV file upload or `csv` string in request body",
+          requestId,
+        }),
+      );
     }
 
     const parsed = parseShiftsCsvContent(csv, filename);
@@ -388,26 +443,53 @@ router.post("/import/preview", requireAuth, requireAdmin, uploadCsvFile, async (
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Failed to preview shifts CSV" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFT_CSV_PREVIEW_FAILED",
+        message: "Failed to preview shifts CSV",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     if (!req.authUser) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json(
+        apiError({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
     }
     const clinicId = req.clinicId!;
 
     const { csv, filename } = resolveCsvFromRequest(req as { file?: Express.Multer.File; body: Record<string, unknown> });
     if (!csv.trim()) {
-      return res.status(400).json({ error: "Provide a CSV file upload or `csv` string in request body" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "MISSING_CSV_INPUT",
+          message: "Provide a CSV file upload or `csv` string in request body",
+          requestId,
+        }),
+      );
     }
 
     const parsed = parseShiftsCsvContent(csv, filename);
     if (parsed.validRows.length === 0) {
       return res.status(400).json({
-        error: "No valid shift rows found for import",
+        ...apiError({
+          code: "VALIDATION_FAILED",
+          reason: "NO_VALID_SHIFT_ROWS",
+          message: "No valid shift rows found for import",
+          requestId,
+        }),
         issues: parsed.issues,
       });
     }
@@ -464,15 +546,30 @@ router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Failed to import shifts CSV" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFT_CSV_IMPORT_CONFIRM_FAILED",
+        message: "Failed to import shifts CSV",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     if (!req.file) {
-      return res.status(400).json({ error: "CSV file is required (multipart field: file)" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "MISSING_CSV_FILE",
+          message: "CSV file is required (multipart field: file)",
+          requestId,
+        }),
+      );
     }
 
     const csvText = req.file.buffer.toString("utf-8");
@@ -480,7 +577,14 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
     const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
 
     if (nonEmptyLines.length === 0) {
-      return res.status(400).json({ error: "CSV file is empty" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "EMPTY_CSV_FILE",
+          message: "CSV file is empty",
+          requestId,
+        }),
+      );
     }
 
     const headers = nonEmptyLines[0].split(",").map((value) => value.trim().toLowerCase());
@@ -491,7 +595,14 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
     const endIdx = headers.indexOf("end");
 
     if (employeeIdx === -1 || shiftIdx === -1 || dateIdx === -1 || startIdx === -1 || endIdx === -1) {
-      return res.status(400).json({ error: "CSV must include: Employee, Shift, Date, Start, End" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "CSV_HEADERS_INVALID",
+          message: "CSV must include: Employee, Shift, Date, Start, End",
+          requestId,
+        }),
+      );
     }
 
     const values: Array<{
@@ -550,11 +661,19 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Failed to import shifts CSV" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFT_CSV_IMPORT_FAILED",
+        message: "Failed to import shifts CSV",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const dateFilter = typeof req.query.date === "string" ? req.query.date : "";
@@ -575,7 +694,14 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch shifts" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFTS_FETCH_FAILED",
+        message: "Failed to fetch shifts",
+        requestId,
+      }),
+    );
   }
 });
 

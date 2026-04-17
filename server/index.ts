@@ -52,6 +52,7 @@ import { tenantContext } from "./middleware/tenant-context.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
+const isProduction = process.env.NODE_ENV === "production";
 
 const app = express();
 // Deployment runs behind a reverse proxy that sets X-Forwarded-For.
@@ -97,17 +98,17 @@ app.use(
         scriptSrc: [
           "'self'",
           "'unsafe-inline'",
-          "'unsafe-eval'",
           "https://clerk.vettrack.uk",
           "https://*.clerk.accounts.dev",
           "https://static.cloudflareinsights.com",
+          ...(isProduction ? [] : ["'unsafe-eval'"]),
         ],
         scriptSrcElem: [
           "'self'",
           "'unsafe-inline'",
-          "'unsafe-eval'",
           "https://clerk.vettrack.uk",
           "https://static.cloudflareinsights.com",
+          ...(isProduction ? [] : ["'unsafe-eval'"]),
         ],
         connectSrc: [
           "'self'",
@@ -119,21 +120,21 @@ app.use(
         styleSrc: [
           "'self'",
           "'unsafe-inline'",
-          "'unsafe-eval'",
           "https://fonts.googleapis.com",
           "https://clerk.vettrack.uk",
+          ...(isProduction ? [] : ["'unsafe-eval'"]),
         ],
         styleSrcElem: [
           "'self'",
           "'unsafe-inline'",
-          "'unsafe-eval'",
           "https://fonts.googleapis.com",
           "https://clerk.vettrack.uk",
+          ...(isProduction ? [] : ["'unsafe-eval'"]),
         ],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         frameSrc: ["'self'", "https://clerk.vettrack.uk"],
         workerSrc: ["'self'", "blob:", "https://clerk.vettrack.uk"],
-        scriptSrcAttr: ["'unsafe-inline'", "'unsafe-eval'"],
+        scriptSrcAttr: isProduction ? ["'unsafe-inline'"] : ["'unsafe-inline'", "'unsafe-eval'"],
       },
     },
   }),
@@ -238,6 +239,7 @@ app.use("/api/shifts", shiftsRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/test", testRoutes);
+app.use("/api/health", healthRoutes);
 app.use("/api/health/ready", healthRoutes);
 app.use("/health", healthRoutes);
 
