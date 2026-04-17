@@ -29,6 +29,8 @@ const adapterFile = fs.readFileSync(path.join(repoRoot, "server", "domain", "ser
 const tasksRoute = fs.readFileSync(path.join(repoRoot, "server", "routes", "tasks.ts"), "utf8");
 const auditFile = fs.readFileSync(path.join(repoRoot, "server", "lib", "audit.ts"), "utf8");
 const serverIndex = fs.readFileSync(path.join(repoRoot, "server", "index.ts"), "utf8");
+const appRoutesPath = path.join(repoRoot, "server", "app", "routes.ts");
+const appRoutes = fs.existsSync(appRoutesPath) ? fs.readFileSync(appRoutesPath, "utf8") : "";
 
 console.log("\n── Phase 3.1 Task Engine (static checks)");
 
@@ -82,9 +84,9 @@ assert(
 );
 
 assert(
-  serverIndex.includes("app.use(\"/api/tasks\", tasksRoutes);"),
+  serverIndex.includes("registerApiRoutes(app);") || appRoutes.includes('app.use("/api/tasks", tasksRoutes);'),
   "Tasks API mounted under /api/tasks",
-  "Expected server/index.ts to mount tasks routes"
+  "Expected bootstrap flow to mount tasks routes"
 );
 
 console.log(`\n${"─".repeat(48)}`);

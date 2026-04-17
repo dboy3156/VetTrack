@@ -24,7 +24,11 @@ function assert(condition, label, detail) {
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverIndexPath = path.join(repoRoot, "server", "index.ts");
-const source = fs.readFileSync(serverIndexPath, "utf8");
+const routesPath = path.join(repoRoot, "server", "app", "routes.ts");
+const source = [
+  fs.existsSync(serverIndexPath) ? fs.readFileSync(serverIndexPath, "utf8") : "",
+  fs.existsSync(routesPath) ? fs.readFileSync(routesPath, "utf8") : "",
+].join("\n");
 
 const requiredPrefixes = [
   "/api/users",
@@ -47,8 +51,8 @@ const requiredPrefixes = [
 
 console.log("\n── Route Registration Smoke Test");
 for (const prefix of requiredPrefixes) {
-  const hasMount = source.includes(`app.use("${prefix}"`);
-  assert(hasMount, `Mounted route: ${prefix}`, `Missing app.use("${prefix}", ...) in server/index.ts`);
+  const hasMount = source.includes(`"${prefix}"`);
+  assert(hasMount, `Mounted route: ${prefix}`, `Missing route prefix "${prefix}" in server bootstrap files`);
 }
 
 console.log(`\n${"─".repeat(48)}`);

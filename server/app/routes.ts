@@ -1,0 +1,48 @@
+import type express from "express";
+import equipmentRoutes from "../routes/equipment.js";
+import analyticsRoutes from "../routes/analytics.js";
+import activityRoutes from "../routes/activity.js";
+import userRoutes from "../routes/users.js";
+import stabilityRoutes from "../routes/stability.js";
+import metricsRoutes from "../routes/metrics.js";
+import foldersRoutes from "../routes/folders.js";
+import alertAcksRoutes from "../routes/alert-acks.js";
+import roomsRoutes from "../routes/rooms.js";
+import supportRoutes from "../routes/support.js";
+import pushRoutes from "../routes/push.js";
+import whatsappRoutes from "../routes/whatsapp.js";
+import auditLogsRoutes from "../routes/audit-logs.js";
+import storageRoutes from "../routes/storage.js";
+import shiftsRoutes from "../routes/shifts.js";
+import appointmentsRoutes from "../routes/appointments.js";
+import tasksRoutes from "../routes/tasks.js";
+import testRoutes from "../routes/test.js";
+import healthRoutes from "../routes/health.js";
+import queueRoutes from "../routes/queue.js";
+import realtimeRoutes from "../routes/realtime.js";
+
+export function registerApiRoutes(app: express.Express) {
+  app.use("/api/users", userRoutes);
+  app.use("/api/equipment", equipmentRoutes);
+  app.use("/api/analytics", analyticsRoutes);
+  app.use("/api/activity", activityRoutes);
+  app.use("/api/metrics", metricsRoutes);
+  app.use("/api/realtime", realtimeRoutes);
+  app.use("/api/queue", queueRoutes);
+  app.use("/api/folders", foldersRoutes);
+  app.use("/api/stability", stabilityRoutes);
+  app.use("/api/alert-acks", alertAcksRoutes);
+  app.use("/api/rooms", roomsRoutes);
+  app.use("/api/support", supportRoutes);
+  app.use("/api/push", pushRoutes);
+  app.use("/api/whatsapp", whatsappRoutes);
+  app.use("/api/audit-logs", auditLogsRoutes);
+  app.use("/api/storage", storageRoutes);
+  app.use("/api/shifts", shiftsRoutes);
+  app.use("/api/appointments", appointmentsRoutes);
+  app.use("/api/tasks", tasksRoutes);
+  app.use("/api/test", testRoutes);
+  app.use("/api/health", healthRoutes);
+  app.use("/api/health/ready", healthRoutes);
+  app.use("/health", healthRoutes);
+}
