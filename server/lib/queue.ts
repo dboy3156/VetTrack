@@ -45,11 +45,11 @@ function defaultJobOptions() {
   };
 }
 
-export function getNotificationsQueue(): Queue | null {
+export async function getNotificationsQueue(): Promise<Queue | null> {
   if (queueInitFailed) return null;
   if (notificationsQueue) return notificationsQueue;
   if (!getRedisUrl()) return null;
-  const conn = createRedisConnection();
+  const conn = await createRedisConnection();
   if (!conn) {
     recordRedisFallback("queue.getNotificationsQueue");
     queueInitFailed = true;
@@ -74,11 +74,11 @@ export function getNotificationsQueue(): Queue | null {
   return notificationsQueue;
 }
 
-export function getNotificationsDlq(): Queue | null {
+export async function getNotificationsDlq(): Promise<Queue | null> {
   if (dlqInitFailed) return null;
   if (notificationsDlq) return notificationsDlq;
   if (!getRedisUrl()) return null;
-  const conn = createRedisConnection();
+  const conn = await createRedisConnection();
   if (!conn) {
     recordRedisFallback("queue.getNotificationsDlq");
     dlqInitFailed = true;
@@ -182,7 +182,7 @@ export async function enqueueNotificationJob(data: NotificationJobData): Promise
     queueMetrics.droppedNoRedis++;
     return;
   }
-  const q = getNotificationsQueue();
+  const q = await getNotificationsQueue();
   if (!q) {
     recordRedisFallback("queue.enqueueNotificationJob.queueUnavailable");
     queueMetrics.droppedNoRedis++;
@@ -252,7 +252,7 @@ export async function enqueueAutomationExecuteJob(payload: AutomationExecutePayl
     queueMetrics.droppedNoRedis++;
     return;
   }
-  const q = getNotificationsQueue();
+  const q = await getNotificationsQueue();
   if (!q) {
     recordRedisFallback("queue.enqueueAutomationExecuteJob.queueUnavailable");
     queueMetrics.droppedNoRedis++;
@@ -339,7 +339,7 @@ export async function enqueueAutomationNotificationJobs(args: AutomationNotifyAr
 }
 
 export async function getQueueJobCounts(): Promise<Record<string, number> | null> {
-  const q = getNotificationsQueue();
+  const q = await getNotificationsQueue();
   if (!q) return null;
   try {
     return await timedRedisOp("queue.getJobCounts", () =>
@@ -370,7 +370,7 @@ export async function enqueueDeadLetterJob(payload: {
     console.warn("[queue] circuit open; DLQ enqueue skipped");
     return;
   }
-  const dlq = getNotificationsDlq();
+  const dlq = await getNotificationsDlq();
   if (!dlq) return;
   try {
     await timedRedisOp("queue.add.dead_letter", () =>
