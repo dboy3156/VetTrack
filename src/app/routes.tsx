@@ -1,4 +1,4 @@
-import { Route } from "wouter";
+import { Route, Switch } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 
@@ -29,7 +29,7 @@ const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 export function AppRoutes() {
   return (
-    <>
+    <Switch>
       <Route path="/landing" component={LandingPage} />
       {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
       <Route path="/signin/*?" component={SignInPage} />
@@ -57,6 +57,6 @@ export function AppRoutes() {
       <Route path="/audit-log"><AuthGuard><AuditLogPage /></AuthGuard></Route>
       <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
       <Route component={NotFoundPage} />
-    </>
+    </Switch>
   );
 }
