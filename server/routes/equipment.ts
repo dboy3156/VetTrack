@@ -24,12 +24,22 @@ const EQUIPMENT_STATUS_VALUES = [
   "needs_attention",
 ] as const;
 
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const isoDateOnlySchema = z.string().refine((value) => {
+  if (!ISO_DATE_REGEX.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.toISOString().slice(0, 10) === value;
+}, "Date must be a valid ISO date string (YYYY-MM-DD)");
+
 const createEquipmentSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(500),
   serialNumber: z.string().max(500).optional(),
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
   purchaseDate: z.string().optional().nullable(),
+  expiryDate: isoDateOnlySchema.optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
@@ -45,6 +55,7 @@ const patchEquipmentSchema = z.object({
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
   purchaseDate: z.string().optional().nullable(),
+  expiryDate: isoDateOnlySchema.optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
@@ -257,6 +268,8 @@ router.get("/my", requireAuth, async (req, res) => {
         model: equipment.model,
         manufacturer: equipment.manufacturer,
         purchaseDate: equipment.purchaseDate,
+        expiryDate: equipment.expiryDate,
+        expiryNotifiedAt: equipment.expiryNotifiedAt,
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
@@ -364,6 +377,8 @@ router.get("/", requireAuth, async (req, res) => {
         model: equipment.model,
         manufacturer: equipment.manufacturer,
         purchaseDate: equipment.purchaseDate,
+        expiryDate: equipment.expiryDate,
+        expiryNotifiedAt: equipment.expiryNotifiedAt,
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
@@ -498,6 +513,8 @@ router.get("/:id", requireAuth, async (req, res) => {
         model: equipment.model,
         manufacturer: equipment.manufacturer,
         purchaseDate: equipment.purchaseDate,
+        expiryDate: equipment.expiryDate,
+        expiryNotifiedAt: equipment.expiryNotifiedAt,
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
@@ -561,6 +578,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
       model,
       manufacturer,
       purchaseDate,
+      expiryDate,
       location,
       folderId,
       roomId,
@@ -591,6 +609,8 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
         model: model ?? null,
         manufacturer: manufacturer ?? null,
         purchaseDate: purchaseDate ?? null,
+        expiryDate: expiryDate ?? null,
+        expiryNotifiedAt: null,
         location: location ?? null,
         folderId: folderId ?? null,
         roomId: roomId ?? null,
@@ -638,6 +658,7 @@ try {
       model,
       manufacturer,
       purchaseDate,
+      expiryDate,
       location,
       folderId,
       roomId,
@@ -676,6 +697,7 @@ try {
           ...(model !== undefined && { model }),
           ...(manufacturer !== undefined && { manufacturer }),
           ...(purchaseDate !== undefined && { purchaseDate }),
+          ...(expiryDate !== undefined && { expiryDate, expiryNotifiedAt: null }),
           ...(location !== undefined && { location }),
           ...(folderId !== undefined && { folderId: folderId ?? null }),
           ...(roomId !== undefined && { roomId: roomId ?? null }),

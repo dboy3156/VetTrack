@@ -60,6 +60,9 @@ import {
   Camera,
   Copy,
   MoveHorizontal,
+  CalendarX,
+  CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 import {
   formatDate,
@@ -68,6 +71,7 @@ import {
   buildWhatsAppUrl,
   isOverdue,
   isSterilizationDue,
+  getExpiryBadgeState,
 } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
@@ -921,6 +925,7 @@ export default function EquipmentDetailPage() {
                   { icon: Package, label: t.equipmentDetail.model, value: equipment.model },
                   { icon: Package, label: t.equipmentDetail.manufacturer, value: equipment.manufacturer },
                   { icon: Calendar, label: t.equipmentDetail.purchaseDate, value: formatDate(equipment.purchaseDate) },
+                  { icon: Calendar, label: "תאריך תפוגה", value: formatDate(equipment.expiryDate) },
                   { icon: MapPin, label: t.equipmentDetail.location, value: equipment.location },
                   {
                     icon: Clock,
@@ -950,6 +955,32 @@ export default function EquipmentDetailPage() {
                       </div>
                     </div>
                   ))}
+                {(() => {
+                  const expiryState = getExpiryBadgeState(equipment.expiryDate);
+                  if (!expiryState) return null;
+                  if (expiryState === "expired") {
+                    return (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
+                        <CalendarX className="w-3.5 h-3.5" />
+                        פג תוקף
+                      </div>
+                    );
+                  }
+                  if (expiryState === "expiring_soon") {
+                    return (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        פג בקרוב (עד 7 ימים)
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      בתוקף
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

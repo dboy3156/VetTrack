@@ -115,6 +115,8 @@ export interface Equipment {
   model?: string | null;
   manufacturer?: string | null;
   purchaseDate?: string | null;
+  expiryDate?: string | null;
+  expiryNotifiedAt?: string | null;
   location?: string | null;
   folderId?: string | null;
   folderName?: string | null;
@@ -158,6 +160,7 @@ export interface CreateEquipmentRequest {
   model?: string;
   manufacturer?: string;
   purchaseDate?: string | null;
+  expiryDate?: string | null;
   location?: string;
   folderId?: string;
   roomId?: string;
@@ -173,6 +176,7 @@ export interface UpdateEquipmentRequest {
   model?: string | null;
   manufacturer?: string | null;
   purchaseDate?: string | null;
+  expiryDate?: string | null;
   location?: string | null;
   folderId?: string | null;
   roomId?: string | null;

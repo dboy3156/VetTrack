@@ -111,6 +111,8 @@ export const equipment = pgTable("vt_equipment", {
   model: text("model"),
   manufacturer: text("manufacturer"),
   purchaseDate: text("purchase_date"),
+  expiryDate: date("expiry_date", { mode: "string" }),
+  expiryNotifiedAt: timestamp("expiry_notified_at"),
   location: text("location"),
   folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),

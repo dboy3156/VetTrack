@@ -11,6 +11,7 @@ import {
   runHourlySmartNotifications,
   runScheduledNotifications,
 } from "../lib/role-notification-scheduler.js";
+import { runExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
 
 const router = Router();
 
@@ -171,6 +172,25 @@ router.get("/notifications", requireAuth, requireTestMode, async (req, res) => {
     .limit(100);
 
   res.json({ notifications: rows });
+});
+
+/** POST /api/test/expiry-check/run — run expiry-check worker once. */
+router.post("/expiry-check/run", requireAuth, requireTestMode, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const notifiedCount = await runExpiryCheckWorker();
+    res.json({ success: true, notifiedCount });
+  } catch (error) {
+    console.error("[test] expiry-check run failed", error);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EXPIRY_CHECK_RUN_FAILED",
+        message: "Failed to run expiry check",
+        requestId,
+      }),
+    );
+  }
 });
 
 export default router;

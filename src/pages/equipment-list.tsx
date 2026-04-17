@@ -53,6 +53,9 @@ import {
   LogIn,
   LogOut,
   AlertTriangle,
+  CalendarX,
+  CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import {
@@ -61,7 +64,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getExpiryBadgeState } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QrScanner } from "@/components/qr-scanner";
@@ -767,6 +770,7 @@ function EquipmentItem({
   const statusVariant = statusToBadgeVariant(eq.status);
   const isCheckedOut = !!eq.checkedOutById;
   const checkedOutByMe = eq.checkedOutById === userId;
+  const expiryState = getExpiryBadgeState(eq.expiryDate);
 
   const checkoutMut = useMutation({
     mutationFn: () => api.equipment.checkout(eq.id),
@@ -869,6 +873,24 @@ function EquipmentItem({
                   <span className="text-xs text-muted-foreground">
                     {formatRelativeTime(eq.lastSeen?.toString())}
                   </span>
+                  {expiryState === "expired" && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-800">
+                      <CalendarX className="w-3 h-3" />
+                      פג תוקף
+                    </span>
+                  )}
+                  {expiryState === "expiring_soon" && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-orange-100 text-orange-800">
+                      <CalendarClock className="w-3 h-3" />
+                      פחות מ-7 ימים
+                    </span>
+                  )}
+                  {expiryState === "healthy" && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-green-100 text-green-800">
+                      <CalendarCheck className="w-3 h-3" />
+                      בתוקף
+                    </span>
+                  )}
                 </div>
               </div>
               {/* Trailing: compact in-card quick action or status badge + chevron.
