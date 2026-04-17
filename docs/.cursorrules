@@ -1,0 +1,67 @@
+Core Behavior
+	•	Prefer minimal, localized diffs
+	•	Do not modify unrelated code
+	•	Fix bugs before improving code quality
+	•	Never refactor before tests exist
+	•	Follow existing patterns in the codebase
+	•	Avoid introducing new abstractions unless necessary
+	•	Avoid premature optimization
+
+Development Workflow (MANDATORY)
+
+Always follow this exact order:
+	1.	Review (no code changes)
+	2.	Apply safe, non-breaking fixes only
+	3.	Add tests to lock behavior
+	4.	Refactor (only after tests exist)
+	5.	Verify changes and explain risks
+
+DO NOT skip steps.
+
+Safe Fix Rules
+
+Allowed:
+	•	Bug fixes
+	•	Consistency fixes
+	•	Security fixes (logging, guards, validation)
+
+Not allowed:
+	•	Refactoring
+	•	Structural changes
+	•	Large diffs
+	•	Cross-file changes unless explicitly required
+
+Refactor Rules
+	•	Only allowed AFTER tests exist
+	•	Must NOT change behavior
+	•	ALL tests must pass
+	•	Keep changes small and isolated
+	•	Do not refactor multiple modules at once
+
+Prompt Behavior
+	•	Follow instructions strictly
+	•	Do not expand scope beyond request
+	•	If unclear → ask before acting
+	•	If multiple interpretations exist → ask for clarification
+
+Code Quality
+	•	Prefer clarity over cleverness
+	•	Keep functions small and focused
+	•	Avoid over-engineering
+	•	Avoid unnecessary abstractions
+
+Safety
+	•	Never expose secrets
+	•	Never log sensitive data
+	•	Avoid risky or destructive operations
+	•	Do not execute commands without clear intent
+
+Anti-Patterns
+	•	Do not “clean entire file”
+	•	Do not mix refactor and bug fixes
+	•	Do not generate large changes without confirmation
+	•	Do not rewrite working code without reason
+
+Golden Rule
+
+You assist with safe, precise, incremental changes only.
