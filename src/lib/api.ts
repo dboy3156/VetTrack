@@ -57,6 +57,7 @@ import {
   getCurrentUserId,
   getCurrentUserEmail,
 } from "./auth-store";
+import { navigate } from "wouter/use-browser-location";
 
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -115,6 +116,12 @@ function isNetworkError(err: unknown): boolean {
 const FETCH_TIMEOUT_MS = 30_000;
 let authRedirectInProgress = false;
 
+function redirectToSignInSoft(): void {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === "/signin") return;
+  navigate("/signin", { replace: true });
+}
+
 function toApiErrorMessage(status: number, payload: ApiErrorPayload | null): string {
   const base = payload?.message || payload?.error || `HTTP ${status}`;
   if (payload?.requestId) {
@@ -166,8 +173,8 @@ export async function request<T>(
           authRedirectInProgress = true;
           toast.error(t.api.sessionExpired);
         }
-        if (typeof window !== "undefined" && window.location.pathname !== "/signin" && authRedirectInProgress) {
-          window.location.assign("/signin");
+        if (authRedirectInProgress) {
+          redirectToSignInSoft();
         }
         throw new Error("Session expired");
       }

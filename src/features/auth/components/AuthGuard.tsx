@@ -1,14 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { Loader2, ShieldAlert, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type AccessDeniedReason, useAuth } from "@/hooks/use-auth";
 import { t } from "@/lib/i18n";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const [mounted, setMounted] = useState(false);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
-  const { isLoaded, isSignedIn, status, accessDeniedReason, signOut } = useAuth();
+  const [location, navigate] = useLocation();
+  const { isLoaded, isSignedIn, status, accessDeniedReason, signOut, refreshAuth } = useAuth();
 
   const accessDeniedReasonText: Record<Exclude<AccessDeniedReason, null>, string> = {
     MISSING_CLINIC_ID: t.auth.guard.reasons.missingClinicId,
@@ -22,27 +22,15 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     if (isLoaded) {
       setLoadTimedOut(false);
       return;
     }
     const timer = window.setTimeout(() => {
       setLoadTimedOut(true);
-    }, 12000);
+    }, 30000);
     return () => window.clearTimeout(timer);
   }, [isLoaded]);
-
-  if (!mounted) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="animate-spin" />
-      </div>
-    );
-  }
 
   if (!isLoaded) {
     if (!loadTimedOut) {
@@ -52,7 +40,24 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         </div>
       );
     }
-    return <Redirect to="/signin" />;
+    return (
+      <div className="flex h-screen flex-col items-center justify-center text-center p-6">
+        <ShieldAlert className="h-16 w-16 text-amber-500 mb-4" />
+        <h1 className="text-2xl font-bold">{t.auth.guard.loadingApp}</h1>
+        <p>{t.api.networkUnavailable}</p>
+        <div className="mt-4 flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setLoadTimedOut(false);
+              refreshAuth();
+            }}
+          >
+            {t.auth.guard.retry}
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (!isSignedIn) return <Redirect to="/signin" />;
@@ -81,7 +86,18 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         <h1 className="text-2xl font-bold text-destructive">{t.auth.guard.accessDeniedTitle}</h1>
         <p>{accessDeniedReasonText[accessDeniedReason] ?? t.auth.guard.accessDeniedDescription}</p>
         <div className="mt-4 flex gap-3">
-          <Button variant="outline" onClick={() => window.location.reload()}>{t.auth.guard.retry}</Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setLoadTimedOut(false);
+              refreshAuth();
+              if (location === "/signin") {
+                navigate("/", { replace: true });
+              }
+            }}
+          >
+            {t.auth.guard.retry}
+          </Button>
           <Button onClick={signOut}>{t.auth.guard.signOut}</Button>
         </div>
       </div>
