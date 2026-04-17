@@ -55,9 +55,15 @@ export default function SettingsPage() {
       adminHourlySummaryEnabled: boolean;
     }>
   ) => {
-    update(patch);
+    const effectivePatch = Object.fromEntries(
+      Object.entries(patch).filter(([key, value]) => settings[key as keyof typeof settings] !== value)
+    ) as typeof patch;
+
+    if (Object.keys(effectivePatch).length === 0) return;
+
+    update(effectivePatch);
     if (push.subscribed) {
-      push.updateSettings(patch).catch(() => {});
+      push.updateSettings(effectivePatch).catch(() => {});
     }
   };
 
