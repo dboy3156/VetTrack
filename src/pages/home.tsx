@@ -38,10 +38,10 @@ const STATUS_ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLOR_MAP: Record<string, string> = {
-  ok: "text-emerald-500",
-  issue: "text-red-400",
-  maintenance: "text-amber-500",
-  sterilized: "text-teal-500",
+  ok: "text-primary",
+  issue: "text-destructive",
+  maintenance: "text-muted-foreground",
+  sterilized: "text-foreground",
 };
 
 export default function HomePage() {
@@ -138,7 +138,7 @@ export default function HomePage() {
 
           <Link href="/equipment?status=ok">
             <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-ok">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 mb-1.5" />
+              <CheckCircle2 className="w-4 h-4 text-primary mb-1.5" />
               {isLoading ? (
                 <Skeleton className="h-5 w-6" />
               ) : (
@@ -150,11 +150,11 @@ export default function HomePage() {
 
           <Link href="/equipment?status=issue">
             <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-issues">
-              <AlertTriangle className={`w-4 h-4 mb-1.5 ${issueCount > 0 ? "text-red-400" : "text-muted-foreground"}`} />
+              <AlertTriangle className={`w-4 h-4 mb-1.5 ${issueCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
               {isLoading ? (
                 <Skeleton className="h-5 w-6" />
               ) : (
-                <p className={`text-lg font-bold leading-none ${issueCount > 0 ? "text-red-500" : "text-foreground"}`}>{issueCount}</p>
+                <p className={`text-lg font-bold leading-none ${issueCount > 0 ? "text-destructive" : "text-foreground"}`}>{issueCount}</p>
               )}
               <p className="text-[10px] text-muted-foreground mt-1">{t.status.issue}</p>
             </div>
@@ -162,11 +162,11 @@ export default function HomePage() {
 
           <Link href="/equipment?status=maintenance">
             <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-maintenance">
-              <Wrench className={`w-4 h-4 mb-1.5 ${maintenanceCount > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
+              <Wrench className={`w-4 h-4 mb-1.5 ${maintenanceCount > 0 ? "text-foreground" : "text-muted-foreground"}`} />
               {isLoading ? (
                 <Skeleton className="h-5 w-6" />
               ) : (
-                <p className={`text-lg font-bold leading-none ${maintenanceCount > 0 ? "text-amber-600" : "text-foreground"}`}>{maintenanceCount}</p>
+                <p className="text-lg font-bold leading-none text-foreground">{maintenanceCount}</p>
               )}
               <p className="text-[10px] text-muted-foreground mt-1">{t.status.maintenance}</p>
             </div>
@@ -178,7 +178,7 @@ export default function HomePage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
+                <AlertTriangle className="w-4 h-4 text-destructive" />
                 {t.homePage.activeAlerts}
               </h2>
               <Link href="/alerts">

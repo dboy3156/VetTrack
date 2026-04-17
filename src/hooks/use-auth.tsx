@@ -119,7 +119,6 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     setAuthState({ userId: "", email: "", name: "", bearerToken: null });
     queryClient.clear();
     await clerkSignOut({ redirectUrl: "/landing" });
-    window.location.reload();
   }, [queryClient, clerkSignOut]);
 
   useEffect(() => {

@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
 import * as Sentry from "@sentry/react";
 import { useEffect } from "react";
+import { useState } from "react";
 import App from "./App";
 import "./index.css";
 
@@ -27,14 +28,20 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const rootEl = document.getElementById("root");
 
 function AppBootstrap() {
+  const [localeVersion, setLocaleVersion] = useState(0);
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch((err) => {
       console.error("VetTrack: service worker registration failed", err);
     });
   }, []);
+  useEffect(() => {
+    const handler = () => setLocaleVersion((v) => v + 1);
+    window.addEventListener("vettrack:locale-changed", handler as EventListener);
+    return () => window.removeEventListener("vettrack:locale-changed", handler as EventListener);
+  }, []);
 
-  return <App />;
+  return <App key={`locale-${localeVersion}`} />;
 }
 
 if (!rootEl) {
@@ -44,8 +51,6 @@ if (!rootEl) {
     <HelmetProvider>
       <ClerkProvider
         publishableKey={PUBLISHABLE_KEY}
-        // @ts-expect-error Clerk v5 typings omit optional navigate; forwarded to clerk-js for SPA redirects.
-        navigate={(to) => window.location.href = to}
       >
         <QueryClientProvider client={queryClient}>
           <SettingsProvider>

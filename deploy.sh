@@ -26,7 +26,7 @@ done
 echo "Running deployment pre-flight checks..."
 
 # Check required environment variables
-required_vars=("DATABASE_URL" "SESSION_SECRET" "CLERK_SECRET_KEY" "VITE_CLERK_PUBLISHABLE_KEY" "ALLOWED_ORIGIN")
+required_vars=("DATABASE_URL" "REDIS_URL" "SESSION_SECRET" "CLERK_SECRET_KEY" "VITE_CLERK_PUBLISHABLE_KEY" "ALLOWED_ORIGIN")
 
 for var in "${required_vars[@]}"; do
   if [ -z "${!var}" ]; then

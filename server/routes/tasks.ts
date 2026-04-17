@@ -1,4 +1,5 @@
 import { Router, type Response } from "express";
+import { randomUUID } from "crypto";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import {
   AppointmentServiceError,
@@ -13,11 +14,42 @@ import { canPerformTaskAction, type TaskAction } from "../lib/task-rbac.js";
 
 const router = Router();
 
-function sendServiceError(res: Response, err: unknown) {
+function resolveRequestId(res: Response, incomingHeader: unknown): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  details?: unknown;
+}) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+    ...(params.details !== undefined ? { details: params.details } : {}),
+  };
+}
+
+function sendServiceError(res: Response, err: unknown, requestId: string) {
   if (err instanceof AppointmentServiceError) {
     res.status(err.status).json({
+      code: err.code,
       error: err.code,
+      reason: err.code,
       message: err.message,
+      requestId,
       details: err.details ?? null,
     });
     return true;
@@ -37,35 +69,80 @@ function requireTaskActionPermission(
 ): boolean {
   const role = resolveTaskAuthRole(req);
   if (canPerformTaskAction(role, action)) return true;
-  res.status(403).json({ error: "INSUFFICIENT_ROLE", message: "Insufficient task permissions" });
+  const requestId = resolveRequestId(res, null);
+  res.status(403).json(
+    apiError({
+      code: "INSUFFICIENT_ROLE",
+      reason: "INSUFFICIENT_ROLE",
+      message: "Insufficient task permissions",
+      requestId,
+    }),
+  );
   return false;
 }
 
 router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) return;
   if (!req.authUser) {
-    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+    return res.status(401).json(
+      apiError({
+        code: "UNAUTHORIZED",
+        reason: "MISSING_AUTH_USER",
+        message: "Authentication required",
+        requestId,
+      }),
+    );
   }
   const clinicId = req.clinicId;
   if (!clinicId?.trim()) {
-    return res.status(400).json({ error: "VALIDATION_FAILED", message: "clinicId is required" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_CLINIC_ID",
+        message: "clinicId is required",
+        requestId,
+      }),
+    );
   }
   try {
     const dashboard = await getTaskDashboard(clinicId, req.authUser.id);
     return res.json(dashboard);
   } catch (err) {
     console.error("tasks:dashboard", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load task dashboard" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "TASK_DASHBOARD_FAILED",
+        message: "Failed to load task dashboard",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.start")) return;
   if (!req.params.id?.trim()) {
-    return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_ID_PARAM",
+        message: "id param is required",
+        requestId,
+      }),
+    );
   }
   if (!req.authUser) {
-    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+    return res.status(401).json(
+      apiError({
+        code: "UNAUTHORIZED",
+        reason: "MISSING_AUTH_USER",
+        message: "Authentication required",
+        requestId,
+      }),
+    );
   }
   try {
     const task = await startTask(req.clinicId!, req.params.id, {
@@ -74,19 +151,41 @@ router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async
     });
     return res.json({ task });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("tasks:start", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to start task" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "TASK_START_FAILED",
+        message: "Failed to start task",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.complete")) return;
   if (!req.params.id?.trim()) {
-    return res.status(400).json({ error: "VALIDATION_FAILED", message: "id param is required" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_ID_PARAM",
+        message: "id param is required",
+        requestId,
+      }),
+    );
   }
   if (!req.authUser) {
-    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+    return res.status(401).json(
+      apiError({
+        code: "UNAUTHORIZED",
+        reason: "MISSING_AUTH_USER",
+        message: "Authentication required",
+        requestId,
+      }),
+    );
   }
   try {
     const task = await completeTask(req.clinicId!, req.params.id, {
@@ -95,54 +194,106 @@ router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), as
     });
     return res.json({ task });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("tasks:complete", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to complete task" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "TASK_COMPLETE_FAILED",
+        message: "Failed to complete task",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/me", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) return;
   if (!req.authUser) {
-    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+    return res.status(401).json(
+      apiError({
+        code: "UNAUTHORIZED",
+        reason: "MISSING_AUTH_USER",
+        message: "Authentication required",
+        requestId,
+      }),
+    );
   }
   try {
     const tasks = await getTasksForTechnicianToday(req.clinicId!, req.authUser.id);
     return res.json({ tasks });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("tasks:me", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load tasks" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "TASKS_LOAD_FAILED",
+        message: "Failed to load tasks",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/active", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) return;
   try {
     const tasks = await getActiveTasks(req.clinicId!);
     return res.json({ tasks });
   } catch (err) {
-    if (sendServiceError(res, err)) return;
+    if (sendServiceError(res, err, requestId)) return;
     console.error("tasks:active", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load active tasks" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ACTIVE_TASKS_LOAD_FAILED",
+        message: "Failed to load active tasks",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/recommendations", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) return;
   if (!req.authUser) {
-    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+    return res.status(401).json(
+      apiError({
+        code: "UNAUTHORIZED",
+        reason: "MISSING_AUTH_USER",
+        message: "Authentication required",
+        requestId,
+      }),
+    );
   }
   const clinicId = req.clinicId;
   if (!clinicId?.trim()) {
-    return res.status(400).json({ error: "VALIDATION_FAILED", message: "clinicId is required" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_CLINIC_ID",
+        message: "clinicId is required",
+        requestId,
+      }),
+    );
   }
   try {
     const data = await getTaskRecommendations(clinicId, req.authUser.id);
     return res.json(data);
   } catch (err) {
     console.error("tasks:recommendations", err);
-    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load recommendations" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "TASK_RECOMMENDATIONS_FAILED",
+        message: "Failed to load recommendations",
+        requestId,
+      }),
+    );
   }
 });
 

@@ -109,6 +109,23 @@ function testMetricsReset(): void {
   assert.equal(afterReset.MISSING_CLINIC_ID, 0, "window metrics should reset to zero");
 }
 
+function testRecordAccessDeniedWithoutHeaders(): void {
+  resetAccessDeniedMetricsWindow();
+  const req = makeReq();
+  recordAccessDenied({
+    req: req as never,
+    reason: "TENANT_CONTEXT_MISSING",
+    statusCode: 403,
+    source: "test",
+  });
+  const snapshot = getAccessDeniedMetricsWindowSnapshot();
+  assert.equal(
+    snapshot.TENANT_CONTEXT_MISSING,
+    1,
+    "recordAccessDenied should handle requests without headers and still count metrics",
+  );
+}
+
 function testLogExplosionProtection(): void {
   const limiter = createLogLimiter({ dedupeWindowMs: 10_000, sampleRate: 1, maxEntries: 5 });
   let allowed = 0;
@@ -128,6 +145,7 @@ async function run(): Promise<void> {
   await testDataCorruptionAlert();
   await testWatchdogNoOverlap();
   testMetricsReset();
+  testRecordAccessDeniedWithoutHeaders();
   testLogExplosionProtection();
   stopSystemWatchdogForTests();
   console.log("✅ alerting-performance-guardrails.test.ts PASSED");

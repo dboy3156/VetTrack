@@ -1,8 +1,51 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import https from "https";
 
 const router = Router();
+
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
+router.get("/live", (_req, res) => {
+  res.status(200).json({ status: "ok", type: "liveness" });
+});
+
+router.get("/startup", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    type: "startup",
+    checks: {
+      nodeEnv: process.env.NODE_ENV ?? "development",
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
+      hasRedisUrl: Boolean(process.env.REDIS_URL?.trim()),
+      hasSessionSecret: Boolean(process.env.SESSION_SECRET?.trim()),
+      hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY?.trim()),
+    },
+  });
+});
 
 function clerkReachable(secretKey: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -125,17 +168,25 @@ router.get("/", async (_req, res) => {
   const status = allOk ? "ok" : "degraded";
   const httpStatus = allOk ? 200 : 503;
 
-  res.status(httpStatus).json({ status, checks });
+  res.status(httpStatus).json({ status, type: "readiness", checks });
 });
 
 router.get("/data-integrity", async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const expectedToken = process.env.DATA_INTEGRITY_HEALTH_TOKEN?.trim();
   const providedToken = typeof req.headers["x-health-token"] === "string"
     ? req.headers["x-health-token"].trim()
     : "";
 
   if (process.env.NODE_ENV === "production" && expectedToken && providedToken !== expectedToken) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json(
+      apiError({
+        code: "UNAUTHORIZED",
+        reason: "INVALID_HEALTH_TOKEN",
+        message: "Unauthorized",
+        requestId,
+      }),
+    );
   }
 
   try {
@@ -193,8 +244,12 @@ router.get("/data-integrity", async (req, res) => {
   } catch (error) {
     console.error("[health] data-integrity check failed", error);
     res.status(503).json({
+      code: "INTERNAL_ERROR",
       status: "error",
-      error: "Failed to evaluate data integrity checks",
+      error: "INTERNAL_ERROR",
+      reason: "DATA_INTEGRITY_HEALTH_FAILED",
+      message: "Failed to evaluate data integrity checks",
+      requestId,
     });
   }
 });

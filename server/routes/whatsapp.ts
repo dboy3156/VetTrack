@@ -40,6 +40,30 @@ function normalizePhoneNumber(phone: string): string {
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 const VALID_STATUSES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
 
 const RTL = "\u202B";
@@ -74,6 +98,7 @@ const whatsappAlertSchema = z.object({
 });
 
 router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateBody(whatsappAlertSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { equipmentId, status, note, phone } = req.body as z.infer<typeof whatsappAlertSchema>;
@@ -85,7 +110,14 @@ router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateB
       .limit(1);
 
     if (!item) {
-      return res.status(404).json({ error: "Equipment not found" });
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
     }
 
     const equipmentName = item.name;
@@ -119,7 +151,14 @@ router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateB
     res.json({ success: true, waUrl });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to create WhatsApp alert" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "WHATSAPP_ALERT_CREATE_FAILED",
+        message: "Failed to create WhatsApp alert",
+        requestId,
+      }),
+    );
   }
 });
 

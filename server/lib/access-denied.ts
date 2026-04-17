@@ -60,15 +60,33 @@ function pruneMinuteBuckets(nowMs = Date.now()): void {
   }
 }
 
-export function buildAccessDeniedBody(reason: AccessDeniedReason, message: string): {
+export function buildAccessDeniedBody(reason: AccessDeniedReason, message: string, requestId?: string): {
+  code: "ACCESS_DENIED";
   error: "ACCESS_DENIED";
   reason: AccessDeniedReason;
   message: string;
+  requestId?: string;
+} {
+  return buildAccessDeniedBodyWithRequestId(reason, message, requestId);
+}
+
+export function buildAccessDeniedBodyWithRequestId(
+  reason: AccessDeniedReason,
+  message: string,
+  requestId?: string,
+): {
+  code: "ACCESS_DENIED";
+  error: "ACCESS_DENIED";
+  reason: AccessDeniedReason;
+  message: string;
+  requestId?: string;
 } {
   return {
+    code: "ACCESS_DENIED",
     error: "ACCESS_DENIED",
     reason,
     message,
+    ...(requestId ? { requestId } : {}),
   };
 }
 
@@ -98,6 +116,10 @@ export function recordAccessDenied(params: {
     clinicId: params.clinicId ?? params.req.clinicId ?? null,
     userId: params.userId ?? params.req.authUser?.id ?? null,
     message: params.message ?? null,
+    requestId: (() => {
+      const headers = (params.req as Request & { headers?: Record<string, unknown> }).headers;
+      return typeof headers?.["x-request-id"] === "string" ? headers["x-request-id"] : null;
+    })(),
     ts: new Date().toISOString(),
   };
 

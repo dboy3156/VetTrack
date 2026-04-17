@@ -1,4 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
+import { randomUUID } from "crypto";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import {
   runAllTests,
@@ -13,9 +14,41 @@ import { getActionLogs, clearActionLogs, logAction } from "../lib/stability-log.
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 function requireNotProduction(_req: Request, res: Response, next: NextFunction) {
   if (process.env.NODE_ENV === "production") {
-    return res.status(403).json({ error: "Not available in production" });
+    const requestId = resolveRequestId(res, _req.headers["x-request-id"]);
+    return res.status(403).json(
+      apiError({
+        code: "FORBIDDEN",
+        reason: "NOT_AVAILABLE_IN_PRODUCTION",
+        message: "Not available in production",
+        requestId,
+      }),
+    );
   }
   next();
 }
@@ -36,8 +69,16 @@ router.get("/status", (_req, res) => {
 });
 
 router.post("/run", (_req, res) => {
+  const requestId = resolveRequestId(res, _req.headers["x-request-id"]);
   if (isTestRunning()) {
-    return res.status(409).json({ error: "A test run is already in progress" });
+    return res.status(409).json(
+      apiError({
+        code: "CONFLICT",
+        reason: "TEST_RUN_ALREADY_IN_PROGRESS",
+        message: "A test run is already in progress",
+        requestId,
+      }),
+    );
   }
   runAllTests().catch((err) =>
     logAction("error", "runner", "Test run failed", String(err))
@@ -62,19 +103,35 @@ router.delete("/logs", (_req, res) => {
 });
 
 router.post("/test-mode", requireNotProduction, (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const { enabled } = req.body as { enabled: boolean };
   if (typeof enabled !== "boolean") {
-    return res.status(400).json({ error: "enabled must be a boolean" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "INVALID_TEST_MODE_ENABLED",
+        message: "enabled must be a boolean",
+        requestId,
+      }),
+    );
   }
   setTestMode(enabled);
   res.json({ testModeEnabled: enabled });
 });
 
 router.post("/schedule", requireNotProduction, (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const { hours } = req.body as { hours: number };
   const h = Number(hours);
   if (!Number.isFinite(h) || h < 0) {
-    return res.status(400).json({ error: "hours must be a non-negative number" });
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "INVALID_SCHEDULE_HOURS",
+        message: "hours must be a non-negative number",
+        requestId,
+      }),
+    );
   }
   setSchedule(h);
   res.json({ scheduleHours: h, message: h > 0 ? `Tests scheduled every ${h} hour(s)` : "Schedule disabled" });

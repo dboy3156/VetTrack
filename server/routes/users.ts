@@ -24,6 +24,34 @@ import { resolveCurrentRole } from "../lib/role-resolution.js";
 
 const router = Router();
 
+function resolveRequestId(res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void }, incomingHeader: unknown): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  details?: unknown;
+}) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+    ...(params.details !== undefined ? { details: params.details } : {}),
+  };
+}
+
 const userFields = {
   id: users.id,
   email: users.email,
@@ -81,10 +109,21 @@ function serializeUser(user: typeof users.$inferSelect) {
 }
 
 router.get("/me", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.authUser) {
+      return res.status(401).json(
+        apiError({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
+    }
     const resolved = await resolveCurrentRole({
       clinicId: req.clinicId!,
+      userId: req.authUser.id,
       userName: req.authUser.name,
       fallbackRole: req.authUser.role,
     });
@@ -96,11 +135,19 @@ router.get("/me", requireAuth, async (req, res) => {
       resolvedAt: resolved.resolvedAt.toISOString(),
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to get user" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_ME_FAILED",
+        message: "Failed to get user",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const deletedUsers = await db
@@ -111,17 +158,32 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
     res.json(deletedUsers);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list deleted users" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USERS_LIST_DELETED_FAILED",
+        message: "Failed to list deleted users",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { status } = req.query;
     const validStatuses = ["pending", "active", "blocked"];
     if (status !== undefined && !validStatuses.includes(status as string)) {
-      return res.status(400).json({ error: "Invalid status filter. Must be one of: pending, active, blocked" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "INVALID_STATUS_FILTER",
+          message: "Invalid status filter. Must be one of: pending, active, blocked",
+          requestId,
+        }),
+      );
     }
 
     const rawLimit = parseInt(req.query.limit as string, 10);
@@ -148,11 +210,19 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     res.json({ items, total, page, pageSize: resolvedLimit, hasMore: resolvedOffset + items.length < total });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list users" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USERS_LIST_FAILED",
+        message: "Failed to list users",
+        requestId,
+      }),
+    );
   }
 });
 
 router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const pendingUsers = await db
@@ -163,11 +233,19 @@ router.get("/pending", requireAuth, requireAdmin, async (req, res) => {
     res.json(pendingUsers);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list pending users" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USERS_LIST_PENDING_FAILED",
+        message: "Failed to list pending users",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchRoleSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { role } = req.body as z.infer<typeof patchRoleSchema>;
@@ -178,7 +256,16 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
       .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
-    if (!target) return res.status(404).json({ error: "User not found" });
+    if (!target) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND",
+          message: "User not found",
+          requestId,
+        }),
+      );
+    }
 
     if (target.role === "admin" && role !== "admin") {
       const [{ count }] = await db
@@ -186,7 +273,14 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
         .from(users)
         .where(and(eq(users.clinicId, clinicId), eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
-        return res.status(409).json({ error: "Cannot demote the last admin. Promote another user to admin first." });
+        return res.status(409).json(
+          apiError({
+            code: "CONFLICT",
+            reason: "LAST_ADMIN_DEMOTION_BLOCKED",
+            message: "Cannot demote the last admin. Promote another user to admin first.",
+            requestId,
+          }),
+        );
       }
     }
 
@@ -209,11 +303,19 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
     res.json(user);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update role" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_ROLE_UPDATE_FAILED",
+        message: "Failed to update role",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchStatusSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { status } = req.body as z.infer<typeof patchStatusSchema>;
@@ -230,7 +332,16 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
       .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND",
+          message: "User not found",
+          requestId,
+        }),
+      );
+    }
 
     logAudit({
       clinicId,
@@ -245,20 +356,44 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
     res.json(user);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update status" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_STATUS_UPDATE_FAILED",
+        message: "Failed to update status",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBody(patchDisplayNameSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.authUser) {
+      return res.status(401).json(
+        apiError({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
+    }
     const clinicId = req.clinicId!;
 
     const { display_name } = req.body as z.infer<typeof patchDisplayNameSchema>;
     const actorId = req.authUser.id;
 
     if (actorId !== req.params.id && req.authUser.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json(
+        apiError({
+          code: "FORBIDDEN",
+          reason: "INSUFFICIENT_ROLE",
+          message: "Forbidden",
+          requestId,
+        }),
+      );
     }
 
     const [existing] = await db
@@ -267,7 +402,16 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
       .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "User not found" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND",
+          message: "User not found",
+          requestId,
+        }),
+      );
+    }
 
     const [updated] = await db
       .update(users)
@@ -292,13 +436,30 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
     res.json(updated);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update display name" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_DISPLAY_NAME_UPDATE_FAILED",
+        message: "Failed to update display name",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.authUser) {
+      return res.status(401).json(
+        apiError({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
+    }
     const clinicId = req.clinicId!;
 
     const [existing] = await db
@@ -307,13 +468,29 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
       .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "User not found" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND",
+          message: "User not found",
+          requestId,
+        }),
+      );
+    }
 
     const actorId = req.authUser.id;
     const isSelf = actorId === req.params.id;
     const isAdmin = req.authUser.role === "admin";
     if (!isSelf && !isAdmin) {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json(
+        apiError({
+          code: "FORBIDDEN",
+          reason: "INSUFFICIENT_ROLE",
+          message: "Forbidden",
+          requestId,
+        }),
+      );
     }
 
     if (existing.role === "admin" && isAdmin && !isSelf) {
@@ -322,7 +499,14 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
         .from(users)
         .where(and(eq(users.clinicId, clinicId), eq(users.role, "admin"), isNull(users.deletedAt)));
       if (count <= 1) {
-        return res.status(409).json({ error: "Cannot delete the last admin. Promote another user to admin first." });
+        return res.status(409).json(
+          apiError({
+            code: "CONFLICT",
+            reason: "LAST_ADMIN_DELETE_BLOCKED",
+            message: "Cannot delete the last admin. Promote another user to admin first.",
+            requestId,
+          }),
+        );
       }
     }
 
@@ -332,7 +516,16 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
       .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
       .returning();
 
-    if (!deleted) return res.status(404).json({ error: "User not found" });
+    if (!deleted) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND",
+          message: "User not found",
+          requestId,
+        }),
+      );
+    }
 
     logAudit({
       clinicId,
@@ -347,20 +540,44 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
     res.json(deleted);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete user" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_DELETE_FAILED",
+        message: "Failed to delete user",
+        requestId,
+      }),
+    );
   }
 });
 
 router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    if (!req.authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.authUser) {
+      return res.status(401).json(
+        apiError({
+          code: "UNAUTHORIZED",
+          reason: "MISSING_AUTH_USER",
+          message: "Unauthorized",
+          requestId,
+        }),
+      );
+    }
     const clinicId = req.clinicId!;
 
     const actorId = req.authUser.id;
     const isSelf = actorId === req.params.id;
     const isAdmin = req.authUser.role === "admin";
     if (!isSelf && !isAdmin) {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json(
+        apiError({
+          code: "FORBIDDEN",
+          reason: "INSUFFICIENT_ROLE",
+          message: "Forbidden",
+          requestId,
+        }),
+      );
     }
 
     const [existing] = await db
@@ -369,7 +586,16 @@ router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res
       .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNotNull(users.deletedAt)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "User not found or not deleted" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND_OR_NOT_DELETED",
+          message: "User not found or not deleted",
+          requestId,
+        }),
+      );
+    }
 
     const [restored] = await db
       .update(users)
@@ -390,30 +616,48 @@ router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res
     res.json(restored);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to restore user" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_RESTORE_FAILED",
+        message: "Failed to restore user",
+        requestId,
+      }),
+    );
   }
 });
 router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
-    const { clerkId, email, name } = req.body as z.infer<typeof syncUserSchema>;
+    const { clerkId, email } = req.body as z.infer<typeof syncUserSchema>;
+    const canonicalClerkId = req.authUser!.clerkId;
+    const canonicalEmail = req.authUser!.email;
+    const canonicalName = req.authUser!.name;
 
-    if (clerkId !== req.authUser!.clerkId) {
-      return res.status(403).json({ error: "Cannot sync a different user's data" });
+    if (clerkId !== canonicalClerkId || email.toLowerCase() !== canonicalEmail.toLowerCase()) {
+      return res.status(403).json(
+        apiError({
+          code: "FORBIDDEN",
+          reason: "SYNC_ID_MISMATCH",
+          message: "Cannot sync a different user's data",
+          requestId,
+        }),
+      );
     }
 
     const [existing] = await db
       .select()
       .from(users)
-      .where(and(eq(users.clinicId, clinicId), eq(users.clerkId, clerkId), isNull(users.deletedAt)))
+      .where(and(eq(users.clinicId, clinicId), eq(users.clerkId, canonicalClerkId), isNull(users.deletedAt)))
       .limit(1);
 
     if (existing) {
       const [updated] = await db
         .update(users)
         .set({
-          name: name || existing.name,
-          email: email || existing.email,
+          name: canonicalName || existing.name,
+          email: canonicalEmail || existing.email,
         })
         .where(and(eq(users.clinicId, clinicId), eq(users.id, existing.id)))
         .returning();
@@ -422,10 +666,10 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         clinicId,
         actionType: "user_login",
         performedBy: existing.id,
-        performedByEmail: email,
+        performedByEmail: canonicalEmail,
         targetId: existing.id,
         targetType: "user",
-        metadata: { name },
+        metadata: { name: canonicalName, source: "authoritative_auth_context" },
       });
 
       return res.json(serializeUser(updated));
@@ -440,10 +684,10 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         .values({
           id: insertedId,
           clinicId,
-          clerkId,
-          email,
-          name: name || "",
-          displayName: name || email,
+          clerkId: canonicalClerkId,
+          email: canonicalEmail,
+          name: canonicalName || "",
+          displayName: canonicalName || canonicalEmail,
           role: "technician",
         })
         .onConflictDoUpdate({
@@ -469,11 +713,11 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
     } catch (insertErr: unknown) {
       const pgErr = insertErr as { code?: string };
       if (pgErr?.code === "23505") {
-        console.warn("sync: duplicate clerkId race condition caught, fetching existing record", { clerkId });
+        console.warn("sync: duplicate clerkId race condition caught, fetching existing record", { clerkId: canonicalClerkId });
         const [race] = await db
           .select()
           .from(users)
-          .where(and(eq(users.clinicId, clinicId), eq(users.clerkId, clerkId), isNull(users.deletedAt)))
+          .where(and(eq(users.clinicId, clinicId), eq(users.clerkId, canonicalClerkId), isNull(users.deletedAt)))
           .limit(1);
         if (race) {
           return res.json({
@@ -489,31 +733,39 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         clinicId,
         actionType: "user_provisioned",
         performedBy: newUser.id,
-        performedByEmail: email,
+        performedByEmail: canonicalEmail,
         targetId: newUser.id,
         targetType: "user",
-        metadata: { name, role: "technician" },
+        metadata: { name: canonicalName, role: "technician", source: "authoritative_auth_context" },
       });
     } else {
       logAudit({
         clinicId,
         actionType: "user_login",
         performedBy: newUser.id,
-        performedByEmail: email,
+        performedByEmail: canonicalEmail,
         targetId: newUser.id,
         targetType: "user",
-        metadata: { name, recoveredFromRace: true },
+        metadata: { name: canonicalName, recoveredFromRace: true, source: "authoritative_auth_context" },
       });
     }
 
     res.status(wasCreated ? 201 : 200).json(serializeUser(newUser));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to sync user" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_SYNC_FAILED",
+        message: "Failed to sync user",
+        requestId,
+      }),
+    );
   }
 });
 
 router.post("/backfill-clerk", requireAuth, requireAdmin, authSensitiveLimiter, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const actor = req.authUser!;
@@ -623,7 +875,14 @@ router.post("/backfill-clerk", requireAuth, requireAdmin, authSensitiveLimiter, 
     });
   } catch (err) {
     console.error("users:backfill-clerk", err);
-    return res.status(500).json({ error: "Failed to backfill users from Clerk" });
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USERS_BACKFILL_CLERK_FAILED",
+        message: "Failed to backfill users from Clerk",
+        requestId,
+      }),
+    );
   }
 });
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { db, equipment, scanLogs } from "../db.js";
 import { gte, desc, eq, and, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
@@ -18,7 +19,32 @@ import { INACTIVE_THRESHOLD_DAYS } from "../../shared/constants.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 router.get("/", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const cached = analyticsCache.get(clinicId);
@@ -130,7 +156,14 @@ router.get("/", requireAuth, async (req, res) => {
     res.json(payload);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to get analytics" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ANALYTICS_FETCH_FAILED",
+        message: "Failed to get analytics",
+        requestId,
+      }),
+    );
   }
 });
 

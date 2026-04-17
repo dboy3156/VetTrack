@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { db, scanLogs, transferLogs, equipment, users } from "../db.js";
 import { and, desc, eq, count, lt } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
@@ -16,9 +17,34 @@ import { sql } from "drizzle-orm";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 const PAGE_SIZE = 30;
 
 router.get("/", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const rawCursor = typeof req.query.cursor === "string" ? req.query.cursor : "";
@@ -26,7 +52,14 @@ router.get("/", requireAuth, async (req, res) => {
     if (rawCursor) {
       const parsed = new Date(rawCursor);
       if (Number.isNaN(parsed.getTime())) {
-        return res.status(400).json({ error: "Invalid cursor" });
+        return res.status(400).json(
+          apiError({
+            code: "VALIDATION_FAILED",
+            reason: "INVALID_CURSOR",
+            message: "Invalid cursor",
+            requestId,
+          }),
+        );
       }
       cursorDate = parsed;
     }
@@ -111,12 +144,20 @@ router.get("/", requireAuth, async (req, res) => {
     res.json({ items, nextCursor });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "הבאת הפעילות נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ACTIVITY_FEED_FETCH_FAILED",
+        message: "הבאת הפעילות נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 // GET /api/activity/my-scan-count — reliable check for onboarding eligibility
 router.get("/my-scan-count", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const [row] = await db
@@ -126,7 +167,14 @@ router.get("/my-scan-count", requireAuth, async (req, res) => {
     res.json({ count: row?.scanCount ?? 0 });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "הבאת כמות הסריקות נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "MY_SCAN_COUNT_FETCH_FAILED",
+        message: "הבאת כמות הסריקות נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 

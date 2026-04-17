@@ -20,6 +20,37 @@ import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  details?: unknown;
+}) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+    ...(params.details !== undefined ? { details: params.details } : {}),
+  };
+}
+
 const createRoomSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
   floor: z.string().max(100).optional(),
@@ -35,6 +66,7 @@ const patchRoomSchema = z.object({
 
 // GET /api/rooms — list all rooms with per-room equipment counts
 router.get("/", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const allRooms = await db
@@ -82,12 +114,20 @@ router.get("/", requireAuth, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to list rooms" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ROOMS_LIST_FAILED",
+        message: "Failed to list rooms",
+        requestId,
+      }),
+    );
   }
 });
 
 // GET /api/rooms/:id — single room with counts
 router.get("/:id", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const [room] = await db
@@ -96,7 +136,16 @@ router.get("/:id", requireAuth, async (req, res) => {
       .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .limit(1);
 
-    if (!room) return res.status(404).json({ error: "Room not found" });
+    if (!room) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "ROOM_NOT_FOUND",
+          message: "Room not found",
+          requestId,
+        }),
+      );
+    }
 
     const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -125,12 +174,20 @@ router.get("/:id", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch room" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ROOM_FETCH_FAILED",
+        message: "Failed to fetch room",
+        requestId,
+      }),
+    );
   }
 });
 
 // GET /api/rooms/:id/activity — last 5 scan_log entries for equipment in this room
 router.get("/:id/activity", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const entries = await db
@@ -167,12 +224,20 @@ router.get("/:id/activity", requireAuth, async (req, res) => {
     );
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch room activity" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ROOM_ACTIVITY_FETCH_FAILED",
+        message: "Failed to fetch room activity",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/rooms — create room
 router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(createRoomSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { name, floor, masterNfcTagId } = req.body as z.infer<typeof createRoomSchema>;
@@ -184,7 +249,14 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(c
       .limit(1);
 
     if (existing) {
-      return res.status(409).json({ error: "A room with that name already exists" });
+      return res.status(409).json(
+        apiError({
+          code: "CONFLICT",
+          reason: "ROOM_NAME_CONFLICT",
+          message: "A room with that name already exists",
+          requestId,
+        }),
+      );
     }
 
     const now = new Date();
@@ -215,12 +287,20 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(c
     res.status(201).json(room);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to create room" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ROOM_CREATE_FAILED",
+        message: "Failed to create room",
+        requestId,
+      }),
+    );
   }
 });
 
 // PATCH /api/rooms/:id — update room metadata
 router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { name, floor, masterNfcTagId, syncStatus } = req.body as z.infer<typeof patchRoomSchema>;
@@ -231,7 +311,16 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
       .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "Room not found" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "ROOM_NOT_FOUND",
+          message: "Room not found",
+          requestId,
+        }),
+      );
+    }
 
     if (name !== undefined && name.trim() !== existing.name) {
       const [conflict] = await db
@@ -239,7 +328,16 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
         .from(rooms)
         .where(and(eq(rooms.clinicId, clinicId), eq(rooms.name, name.trim())))
         .limit(1);
-      if (conflict) return res.status(409).json({ error: "A room with that name already exists" });
+      if (conflict) {
+        return res.status(409).json(
+          apiError({
+            code: "CONFLICT",
+            reason: "ROOM_NAME_CONFLICT",
+            message: "A room with that name already exists",
+            requestId,
+          }),
+        );
+      }
     }
 
     const [updated] = await db
@@ -267,12 +365,20 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
     res.json(updated);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update room" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ROOM_UPDATE_FAILED",
+        message: "Failed to update room",
+        requestId,
+      }),
+    );
   }
 });
 
 // DELETE /api/rooms/:id — admin only, only if room has no equipment assigned
 router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const [existing] = await db
@@ -281,7 +387,16 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
       .where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)))
       .limit(1);
 
-    if (!existing) return res.status(404).json({ error: "Room not found" });
+    if (!existing) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "ROOM_NOT_FOUND",
+          message: "Room not found",
+          requestId,
+        }),
+      );
+    }
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -290,7 +405,12 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
 
     if (count > 0) {
       return res.status(409).json({
-        error: `Cannot delete room — ${count} item${count !== 1 ? "s" : ""} still assigned to it`,
+        ...apiError({
+          code: "CONFLICT",
+          reason: "ROOM_NOT_EMPTY",
+          message: `Cannot delete room — ${count} item${count !== 1 ? "s" : ""} still assigned to it`,
+          requestId,
+        }),
       });
     }
 
@@ -309,7 +429,14 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete room" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ROOM_DELETE_FAILED",
+        message: "Failed to delete room",
+        requestId,
+      }),
+    );
   }
 });
 

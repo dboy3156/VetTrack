@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db, equipment, scheduledNotifications } from "../db.js";
@@ -13,9 +14,41 @@ import {
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 function requireNotProduction(_req: Request, res: Response, next: NextFunction) {
   if (process.env.NODE_ENV === "production") {
-    return res.status(403).json({ error: "Not available in production" });
+    const requestId = resolveRequestId(res, _req.headers["x-request-id"]);
+    return res.status(403).json(
+      apiError({
+        code: "FORBIDDEN",
+        reason: "NOT_AVAILABLE_IN_PRODUCTION",
+        message: "Not available in production",
+        requestId,
+      }),
+    );
   }
   next();
 }
@@ -24,7 +57,15 @@ router.use(requireNotProduction);
 
 function requireTestMode(_req: Request, res: Response, next: NextFunction) {
   if (!isTestMode()) {
-    return res.status(404).json({ error: "Not found" });
+    const requestId = resolveRequestId(res, _req.headers["x-request-id"]);
+    return res.status(404).json(
+      apiError({
+        code: "NOT_FOUND",
+        reason: "TEST_MODE_DISABLED",
+        message: "Not found",
+        requestId,
+      }),
+    );
   }
   next();
 }
@@ -47,6 +88,7 @@ router.post(
   requireTestMode,
   validateBody(createScenarioSchema),
   async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
     const { equipmentId } = req.body as z.infer<typeof createScenarioSchema>;
     const clinicId = req.clinicId!;
     const userId = req.authUser!.id;
@@ -62,10 +104,24 @@ router.post(
       .limit(1);
 
     if (!item) {
-      return res.status(404).json({ error: "Equipment not found" });
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "EQUIPMENT_NOT_FOUND",
+          message: "Equipment not found",
+          requestId,
+        }),
+      );
     }
     if (item.checkedOutById !== userId) {
-      return res.status(409).json({ error: "Equipment must be checked out by you for this scenario" });
+      return res.status(409).json(
+        apiError({
+          code: "CONFLICT",
+          reason: "EQUIPMENT_NOT_CHECKED_OUT_BY_USER",
+          message: "Equipment must be checked out by you for this scenario",
+          requestId,
+        }),
+      );
     }
 
     await db

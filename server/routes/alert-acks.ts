@@ -17,25 +17,65 @@ import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 // GET /api/alert-acks — return all current acknowledgments
 router.get("/", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const acks = await db.select().from(alertAcks).where(eq(alertAcks.clinicId, clinicId));
     res.json(acks);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "הבאת אישורי ההתראות נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ALERT_ACKS_LIST_FAILED",
+        message: "הבאת אישורי ההתראות נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 
 // POST /api/alert-acks — claim an alert ("I'm handling this") — technician+ only
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { equipmentId, alertType } = req.body;
     if (!equipmentId || !alertType) {
-      return res.status(400).json({ error: "equipmentId and alertType required" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "MISSING_ALERT_ACK_FIELDS",
+          message: "equipmentId and alertType required",
+          requestId,
+        }),
+      );
     }
 
     // Upsert: delete existing + insert new
@@ -91,18 +131,33 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "אישור ההתראה נכשל" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ALERT_ACK_CREATE_FAILED",
+        message: "אישור ההתראה נכשל",
+        requestId,
+      }),
+    );
   }
 });
 
 // DELETE /api/alert-acks?equipmentId=...&alertType=... — remove acknowledgment — technician+
 router.delete("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const equipmentId = req.query.equipmentId as string | undefined;
     const alertType = req.query.alertType as string | undefined;
     if (!equipmentId || !alertType) {
-      return res.status(400).json({ error: "equipmentId and alertType query parameters required" });
+      return res.status(400).json(
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "MISSING_ALERT_ACK_QUERY_FIELDS",
+          message: "equipmentId and alertType query parameters required",
+          requestId,
+        }),
+      );
     }
     await db
       .delete(alertAcks)
@@ -127,7 +182,14 @@ router.delete("/", requireAuth, requireEffectiveRole("technician"), async (req, 
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "הסרת אישור ההתראה נכשלה" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ALERT_ACK_DELETE_FAILED",
+        message: "הסרת אישור ההתראה נכשלה",
+        requestId,
+      }),
+    );
   }
 });
 

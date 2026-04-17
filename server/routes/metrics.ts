@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { getSyncMetrics } from "../lib/sync-metrics.js";
@@ -13,7 +14,32 @@ import { getSystemWatchdogStatus } from "../lib/system-watchdog.js";
 
 const router = Router();
 
-router.get("/", requireAuth, requireAdmin, async (_req, res) => {
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
+router.get("/", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const uptimeSeconds = Math.floor(process.uptime());
     const memUsage = process.memoryUsage();
@@ -56,7 +82,14 @@ router.get("/", requireAuth, requireAdmin, async (_req, res) => {
     });
   } catch (err) {
     console.error("Metrics error:", err);
-    res.status(500).json({ error: "Failed to fetch metrics" });
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "METRICS_FETCH_FAILED",
+        message: "Failed to fetch metrics",
+        requestId,
+      }),
+    );
   }
 });
 

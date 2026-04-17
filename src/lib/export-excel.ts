@@ -1,7 +1,9 @@
 import * as XLSX from "xlsx";
 import type { Equipment } from "@/types";
+import { getCurrentLocale } from "@/lib/i18n";
 
 export function exportEquipmentToExcel(items: Equipment[], filename = "equipment.xlsx") {
+  const locale = getCurrentLocale();
   const rows = items.map((eq) => ({
     Name: eq.name,
     "Serial Number": eq.serialNumber ?? "",
@@ -11,12 +13,12 @@ export function exportEquipmentToExcel(items: Equipment[], filename = "equipment
     Folder: eq.folderName ?? "",
     Room: eq.roomName ?? "",
     Location: eq.location ?? "",
-    "Last Seen": eq.lastSeen ? new Date(eq.lastSeen).toLocaleString() : "",
-    "Last Maintenance": eq.lastMaintenanceDate ? new Date(eq.lastMaintenanceDate).toLocaleDateString() : "",
-    "Last Sterilization": eq.lastSterilizationDate ? new Date(eq.lastSterilizationDate).toLocaleDateString() : "",
+    "Last Seen": eq.lastSeen ? new Date(eq.lastSeen).toLocaleString(locale) : "",
+    "Last Maintenance": eq.lastMaintenanceDate ? new Date(eq.lastMaintenanceDate).toLocaleDateString(locale) : "",
+    "Last Sterilization": eq.lastSterilizationDate ? new Date(eq.lastSterilizationDate).toLocaleDateString(locale) : "",
     "Checked Out By": eq.checkedOutByEmail ?? "",
-    "Checked Out At": eq.checkedOutAt ? new Date(eq.checkedOutAt).toLocaleString() : "",
-    "Created At": eq.createdAt ? new Date(eq.createdAt).toLocaleDateString() : "",
+    "Checked Out At": eq.checkedOutAt ? new Date(eq.checkedOutAt).toLocaleString(locale) : "",
+    "Created At": eq.createdAt ? new Date(eq.createdAt).toLocaleDateString(locale) : "",
   }));
 
   const ws = XLSX.utils.json_to_sheet(rows);
