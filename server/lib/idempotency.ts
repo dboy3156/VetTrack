@@ -41,19 +41,18 @@ export function markIdempotent(key: string, ttlMs: number = DEFAULT_TTL_MS): voi
     const expiresAt = nowMs() + safeTtlMs;
     memoryStore.set(normalized, expiresAt);
 
-    const redis = getRedis();
-    if (!redis) {
-      recordRedisFallback("idempotency.mark");
-      return;
-    }
-
     const ttlSec = Math.max(1, Math.ceil(safeTtlMs / 1000));
     const keyName = redisKey("vettrack", "idempotency", normalized);
-    void timedRedisOp("idempotency.mark", () => redis.set(keyName, "1", "EX", ttlSec))
-      .catch((err: unknown) => {
-        redisMetric("error", { operation: "idempotency.mark" });
-        console.warn("[idempotency] redis mark failed", (err as Error).message);
-      });
+    void getRedis().then((redis) => {
+      if (!redis) {
+        recordRedisFallback("idempotency.mark");
+        return;
+      }
+      return timedRedisOp("idempotency.mark", () => redis.set(keyName, "1", "EX", ttlSec));
+    }).catch((err: unknown) => {
+      redisMetric("error", { operation: "idempotency.mark" });
+      console.warn("[idempotency] redis mark failed", (err as Error).message);
+    });
   } catch {
     // Best effort only.
   }
@@ -64,7 +63,7 @@ export async function checkIdempotentAsync(key: string): Promise<boolean> {
     if (checkIdempotent(key)) return true;
     const normalized = key.trim();
     if (!normalized) return true;
-    const redis = getRedis();
+    const redis = await getRedis();
     if (!redis) {
       recordRedisFallback("idempotency.check");
       return true;

@@ -17,6 +17,8 @@ let shared: Redis | null = null;
 let queueShared: Redis | null = null;
 let creationFailed = false;
 let redisDisabledWarned = false;
+let sharedReadyResolve: (() => void) | null = null;
+let queueReadyResolve: (() => void) | null = null;
 
 const DEFAULT_CACHE_TTL_SEC = 300;
 const DEFAULT_SCAN_MAX_KEYS = 2000;
@@ -143,6 +145,8 @@ function attachRedisObservers(client: Redis, source: "app" | "queue"): void {
   client.on("ready", () => {
     redisMetric("ready", { source });
     console.log(`[redis:${source}] ready`);
+    if (source === "app") sharedReadyResolve?.();
+    if (source === "queue") queueReadyResolve?.();
   });
   client.on("error", (err) => {
     recordFailure("redis");
@@ -162,11 +166,19 @@ function attachRedisObservers(client: Redis, source: "app" | "queue"): void {
 /**
  * Singleton IORedis client for general use (cache, rate limits).
  * Returns null if REDIS_URL is missing or client creation failed — never throws to callers.
+ * Waits up to 5 seconds for the client to be ready before returning (fail-open on timeout).
  */
-export function getRedis(): Redis | null {
+export async function getRedis(): Promise<Redis | null> {
   if (isCircuitOpen("redis")) return null;
   if (creationFailed) return null;
-  if (shared) return shared;
+  if (shared) {
+    if (shared.status === "ready") return shared;
+    await Promise.race([
+      new Promise<void>((resolve) => { sharedReadyResolve = resolve; }),
+      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+    ]).finally(() => { sharedReadyResolve = null; });
+    return shared;
+  }
   const url = getRedisUrl();
   if (!url) {
     if (!redisDisabledWarned) {
@@ -185,26 +197,52 @@ export function getRedis(): Redis | null {
     return null;
   }
   recordSuccess("redis");
+  if (shared.status !== "ready") {
+    await Promise.race([
+      new Promise<void>((resolve) => { sharedReadyResolve = resolve; }),
+      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+    ]).finally(() => { sharedReadyResolve = null; });
+    if (shared.status !== "ready") {
+      console.warn("[redis] client not ready after 5s timeout; proceeding anyway");
+    }
+  }
   return shared;
 }
 
 /**
  * Duplicate connection for BullMQ workers (separate from Queue producer if needed).
+ * Waits up to 5 seconds for the client to be ready before returning (fail-open on timeout).
  */
-export function createRedisConnection(): Redis | null {
+export async function createRedisConnection(): Promise<Redis | null> {
   if (isCircuitOpen("redis")) return null;
-  if (queueShared) return queueShared;
+  if (queueShared) {
+    if (queueShared.status === "ready") return queueShared;
+    await Promise.race([
+      new Promise<void>((resolve) => { queueReadyResolve = resolve; }),
+      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+    ]).finally(() => { queueReadyResolve = null; });
+    return queueShared;
+  }
   const url = getRedisUrl();
   if (!url) return null;
   try {
     queueShared = new Redis(url, redisOptions());
     attachRedisObservers(queueShared, "queue");
-    return queueShared;
   } catch (err) {
     recordFailure("redis");
     console.error("[redis] duplicate connection failed:", err);
     return null;
   }
+  if (queueShared.status !== "ready") {
+    await Promise.race([
+      new Promise<void>((resolve) => { queueReadyResolve = resolve; }),
+      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+    ]).finally(() => { queueReadyResolve = null; });
+    if (queueShared.status !== "ready") {
+      console.warn("[redis] queue client not ready after 5s timeout; proceeding anyway");
+    }
+  }
+  return queueShared;
 }
 
 export function redisKey(service: string, domain: string, id: string): string {
@@ -215,7 +253,7 @@ export function redisKey(service: string, domain: string, id: string): string {
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("cacheGet");
     return null;
@@ -234,7 +272,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
 }
 
 export async function cacheSet(key: string, value: unknown, ttlSec: number = DEFAULT_CACHE_TTL_SEC): Promise<boolean> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("cacheSet");
     return false;
@@ -253,7 +291,7 @@ export async function cacheSet(key: string, value: unknown, ttlSec: number = DEF
 }
 
 export async function cacheDel(key: string): Promise<void> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("cacheDel");
     return;
@@ -294,7 +332,7 @@ function assertSafeRedisCommandArgs(command: string, args: (string | number)[]):
 }
 
 export async function runRedisCommand(command: string, ...args: (string | number)[]): Promise<unknown> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("runRedisCommand");
     return null;
@@ -313,7 +351,7 @@ export async function runRedisCommand(command: string, ...args: (string | number
 }
 
 export async function scanKeys(matchPattern: string, count = 100): Promise<string[]> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("scanKeys");
     return [];
@@ -346,7 +384,7 @@ export async function scanKeys(matchPattern: string, count = 100): Promise<strin
 
 // Backwards-compatible wrappers while call sites are migrated.
 export async function safeRedisGet(key: string): Promise<string | null> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("safeRedisGet");
     return null;
@@ -363,7 +401,7 @@ export async function safeRedisGet(key: string): Promise<string | null> {
 }
 
 export async function safeRedisSetex(key: string, ttlSec: number, value: string): Promise<boolean> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("safeRedisSetex");
     return false;
@@ -390,7 +428,7 @@ export async function incrementRateLimit(
   ttlSec: number,
   max: number,
 ): Promise<boolean> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("incrementRateLimit");
     return true;
@@ -418,7 +456,7 @@ export async function cacheGetOrSet<T>(
   const cached = await cacheGet<T>(key);
   if (cached != null) return cached;
 
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("cacheGetOrSet");
     return await fetcher();
@@ -461,7 +499,7 @@ export async function cacheGetOrSet<T>(
 }
 
 export async function redisHealthCheck(): Promise<boolean> {
-  const r = getRedis();
+  const r = await getRedis();
   if (!r) {
     recordRedisFallback("redisHealthCheck");
     return false;
