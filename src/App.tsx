@@ -1,4 +1,3 @@
-import { Switch } from "wouter";
 import { Suspense } from "react";
 import { AppRoutes } from "@/app/routes";
 import { useAutoSelectOrg } from "@/features/auth/hooks/useAutoSelectOrg";
@@ -15,9 +14,7 @@ export default function App() {
     <>
       <AutoSelectOrg />
       <Suspense fallback={<div className="p-10 text-center">{t.auth.guard.loadingApp}</div>}>
-        <Switch>
-          <AppRoutes />
-        </Switch>
+        <AppRoutes />
       </Suspense>
     </>
   );
