@@ -5,7 +5,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, notInArray, sql } from "drizzle-orm";
 import { appointments, db } from "../db.js";
-import { safeRedisDel, safeRedisGet, safeRedisSetex } from "../lib/redis.js";
+import { cacheDel, redisKey, safeRedisGet, safeRedisSetex } from "../lib/redis.js";
 
 export const RECALL_LIMIT = 50;
 export const DASHBOARD_CACHE_TTL_MS = 20_000;
@@ -75,7 +75,7 @@ function assertClinicId(clinicId: string): string {
 }
 
 function dashboardRedisKey(clinicId: string, userId: string): string {
-  return `task_dashboard:${clinicId}:${userId}`;
+  return redisKey("vettrack", "task_dashboard:dashboard", `${clinicId}:${userId}`);
 }
 
 /**
@@ -219,15 +219,12 @@ export async function getTaskDashboard(clinicIdInput: string, userId: string): P
   }
 
   const cacheKey = dashboardRedisKey(clinicId, uid);
-  const cachedRaw = await safeRedisGet(cacheKey);
-  if (cachedRaw) {
+  const cached = await safeRedisGet(cacheKey);
+  if (cached) {
     try {
-      const parsed = JSON.parse(cachedRaw) as TaskDashboardPayload;
-      if (parsed?.counts && Array.isArray(parsed.today)) {
-        return parsed;
-      }
+      return JSON.parse(cached) as TaskDashboardPayload;
     } catch {
-      /* fall through */
+      // Ignore malformed cache payload and recompute from source of truth.
     }
   }
 
@@ -283,12 +280,11 @@ export async function getTaskDashboard(clinicIdInput: string, userId: string): P
   }
 
   await safeRedisSetex(cacheKey, DASHBOARD_CACHE_TTL_SEC, JSON.stringify(payload));
-
   return payload;
 }
 
 export async function invalidateTaskDashboardCache(clinicId: string, userId: string): Promise<void> {
-  await safeRedisDel(dashboardRedisKey(clinicId.trim(), userId.trim()));
+  await cacheDel(dashboardRedisKey(clinicId.trim(), userId.trim()));
 }
 
 /** @deprecated Use invalidateTaskDashboardCache */

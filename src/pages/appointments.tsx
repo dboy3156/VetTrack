@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, Flame, Plus, User, Zap } from "lucide-react";
+import { CalendarDays, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
+import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
 import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
 import { toast } from "sonner";
 
@@ -43,6 +45,27 @@ const PRIORITY_BADGE: Record<string, string> = {
   high: "bg-orange-500 text-white border-transparent",
   normal: "bg-muted text-foreground border-border",
 };
+
+const SUGGESTION_SEVERITY_STYLES: Record<"high" | "medium" | "low", string> = {
+  high: "border-red-300 bg-red-50 text-red-900",
+  medium: "border-amber-300 bg-amber-50 text-amber-900",
+  low: "border-zinc-300 bg-zinc-50 text-zinc-800",
+};
+
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  critical: "bg-orange-100 text-orange-900 border-orange-300",
+  high: "bg-yellow-100 text-yellow-900 border-yellow-300",
+  normal: "bg-zinc-100 text-zinc-800 border-zinc-300",
+};
+
+const TASK_CARD_STYLES = {
+  overdue: "border-red-300 bg-red-50/70",
+  critical: "border-orange-300 bg-orange-50/70",
+  soon: "border-yellow-300 bg-yellow-50/70",
+  normal: "border-border/70 bg-background/80",
+};
+
+const ACTION_BUTTON_BASE = "h-8 px-3 text-xs";
 
 function todayIsoDate(): string {
   const now = new Date();
@@ -98,8 +121,57 @@ function canCompleteTask(a: Appointment, meId: string | undefined): boolean {
   return a.status === "in_progress";
 }
 
+const STATUS_LABEL: Record<AppointmentStatus, string> = {
+  pending: "Pending",
+  assigned: "Assigned",
+  scheduled: "Scheduled",
+  arrived: "Arrived",
+  in_progress: "In progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  no_show: "No show",
+};
+
+function looksLikeUuid(s: string): boolean {
+  return s.includes("-") && s.length > 20;
+}
+
+function formatDevice(animalId: string | null | undefined): string {
+  if (!animalId) return "Unassigned device";
+  if (looksLikeUuid(animalId)) return `Device #${animalId.slice(0, 6)}`;
+  return animalId;
+}
+
+function formatLocation(ownerId: string | null | undefined): string | null {
+  if (!ownerId) return null;
+  if (looksLikeUuid(ownerId)) return `#${ownerId.slice(0, 6)}`;
+  return ownerId;
+}
+
+function compactMeta(...parts: (string | null | undefined)[]): string {
+  return parts.filter(Boolean).join(" \u2022 ");
+}
+
+function getTaskReasonBullets(scoreBreakdown: {
+  overdue: number;
+  critical: number;
+  startsSoon: number;
+  assigned: number;
+  inProgress: number;
+}): string[] {
+  const bullets: string[] = [];
+  if (scoreBreakdown.overdue > 0) bullets.push("Overdue");
+  if (scoreBreakdown.critical > 0) bullets.push("Critical priority");
+  if (scoreBreakdown.startsSoon > 0) bullets.push("Starting soon");
+  if (scoreBreakdown.assigned > 0) bullets.push("Assigned to you");
+  if (scoreBreakdown.inProgress > 0) bullets.push("Already in progress");
+  return bullets;
+}
+
 export default function AppointmentsPage() {
   const queryClient = useQueryClient();
+  const urgentRef = useRef<HTMLDivElement>(null);
+  const myTasksRef = useRef<HTMLDivElement>(null);
   const [day, setDay] = useState<string>(todayIsoDate());
   const [selectedVetId, setSelectedVetId] = useState<string>("");
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -156,6 +228,20 @@ export default function AppointmentsPage() {
     staleTime: 15_000,
     placeholderData: (prev) => prev,
   });
+  const recommendationsQuery = useTaskRecommendations(Boolean(meQuery.data?.id));
+
+  const vetNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const vet of metaQuery.data?.vets ?? []) {
+      map.set(vet.id, vet.displayName || vet.name);
+    }
+    return map;
+  }, [metaQuery.data?.vets]);
+
+  function resolveVet(vetId: string | null | undefined): string {
+    if (!vetId) return "Unassigned";
+    return vetNameMap.get(vetId) ?? vetId.slice(0, 8);
+  }
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateAppointmentRequest) => api.appointments.create(payload),
@@ -223,6 +309,29 @@ export default function AppointmentsPage() {
       toast.error(toErrorMessage(error));
     },
   });
+
+  const handleRealtimeEvent = useCallback((event: { type: string; payload: unknown }) => {
+    if (
+      event.type === "TASK_CREATED" ||
+      event.type === "TASK_STARTED" ||
+      event.type === "TASK_COMPLETED" ||
+      event.type === "TASK_UPDATED"
+    ) {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"] });
+      return;
+    }
+    if (event.type === "AUTOMATION_TRIGGERED") {
+      toast.info("Task auto-updated by automation rule");
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"] });
+      return;
+    }
+    if (event.type === "NOTIFICATION_SENT") return;
+  }, [queryClient]);
+
+  useRealtime(handleRealtimeEvent);
 
   const filteredAppointments = useMemo(() => {
     const all = [...(listQuery.data ?? [])].sort((a, b) => {
@@ -311,89 +420,141 @@ export default function AppointmentsPage() {
             Tasks
           </h1>
           <p className="text-sm text-muted-foreground">
-            Operational task board: execution, priority, and audit-backed workflow. Calendar view uses shift-aware booking.
+            Your tasks for today, prioritized by urgency and schedule.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card className="bg-card border-border/60 shadow-sm">
-            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-              <Flame className="w-4 h-4 text-orange-600 shrink-0" aria-hidden />
-              <CardTitle className="text-sm font-semibold">
-                Overdue
-                {dashboardQuery.data ? (
-                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.overdue})</span>
-                ) : null}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
-              {dashboardQuery.isLoading && !dashboardQuery.data ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                </div>
-              ) : (dashboardQuery.data?.overdue.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">Nothing overdue.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {dashboardQuery.data!.overdue.map((t) => (
-                    <li
-                      key={t.id}
-                      className="flex flex-col gap-2 rounded-lg border border-orange-200/80 bg-orange-50/40 dark:bg-orange-950/20 p-3 text-sm"
+        <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">What should I do now?</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recommendationsQuery.isLoading && !recommendationsQuery.data ? (
+              <div className="space-y-3">
+                <Skeleton className="h-8 w-40" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : !recommendationsQuery.data?.nextBestTask ? (
+              <p className="text-sm text-muted-foreground">You're all caught up 🎉</p>
+            ) : (() => {
+              const nbt = recommendationsQuery.data.nextBestTask;
+              const timeRange = `${formatTimeHHMM(new Date(nbt.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(nbt.endTime))}`;
+              return (
+                <div className="rounded-xl border border-border/70 p-4 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">{formatDevice(nbt.animalId)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {compactMeta(formatLocation(nbt.ownerId), resolveVet(nbt.vetId), timeRange)}
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${PRIORITY_COLORS[nbt.priority ?? "normal"]}`}
                     >
-                      <div className="flex flex-wrap items-center gap-2 justify-between">
-                        <span className="font-medium">
-                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
-                            {t.status}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
-                          >
-                            {(t.priority ?? "normal") as TaskPriority}
-                          </Badge>
-                        </div>
+                      {nbt.priority ?? "normal"}
+                    </Badge>
+                  </div>
+
+                  <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                    <div className="text-xs font-semibold text-foreground mb-2">Why this task?</div>
+                    <ul className="space-y-1 text-xs text-muted-foreground">
+                      {getTaskReasonBullets(nbt.scoreBreakdown).map((reason) => (
+                        <li key={reason}>{"\u2022"} {reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {canStartTask(nbt, meQuery.data?.id) ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className={ACTION_BUTTON_BASE}
+                        disabled={startTaskMutation.isPending}
+                        onClick={() => startTaskMutation.mutate(nbt.id)}
+                      >
+                        Start now
+                      </Button>
+                    ) : null}
+                    {canCompleteTask(nbt, meQuery.data?.id) ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className={ACTION_BUTTON_BASE}
+                        disabled={completeTaskMutation.isPending}
+                        onClick={() => completeTaskMutation.mutate(nbt.id)}
+                      >
+                        Mark complete
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        <Card ref={urgentRef} className="bg-card border-border/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Urgent</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {dashboardQuery.isLoading && !dashboardQuery.data ? (
+              <div className="space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : (
+              <>
+                <ul className="space-y-2">
+                  {(dashboardQuery.data?.overdue ?? []).map((t) => (
+                    <li key={t.id} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.overdue}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <Badge variant="outline" className="text-[10px] bg-red-100 text-red-900 border-red-300">
+                          overdue
+                        </Badge>
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {compactMeta(
+                          formatLocation(t.ownerId),
+                          resolveVet(t.vetId),
+                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                        )}
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {canStartTask(t, meQuery.data?.id) ? (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="h-7 text-xs"
-                            disabled={startTaskMutation.isPending}
-                            onClick={() => startTaskMutation.mutate(t.id)}
-                          >
-                            Start
-                          </Button>
-                        ) : null}
-                        {canCompleteTask(t, meQuery.data?.id) ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-7 text-xs"
-                            disabled={completeTaskMutation.isPending}
-                            onClick={() => completeTaskMutation.mutate(t.id)}
-                          >
-                            Complete
-                          </Button>
-                        ) : null}
+                    </li>
+                  ))}
+                  {(recommendationsQuery.data?.urgentTasks ?? []).map((t) => (
+                    <li key={`urgent-${t.id}`} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.critical}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <Badge variant="outline" className="text-[10px] bg-orange-100 text-orange-900 border-orange-300">
+                          critical
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {compactMeta(
+                          formatLocation(t.ownerId),
+                          resolveVet(t.vetId),
+                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                        )}
                       </div>
                     </li>
                   ))}
                 </ul>
-              )}
-            </CardContent>
-          </Card>
+                {(dashboardQuery.data?.overdue.length ?? 0) === 0 && (recommendationsQuery.data?.urgentTasks.length ?? 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nothing urgent right now — you're on track</p>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="bg-card border-border/60 shadow-sm">
             <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-              <Zap className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
+              <Zap className="w-4 h-4 text-yellow-600 shrink-0" aria-hidden />
               <CardTitle className="text-sm font-semibold">
                 Today
                 {dashboardQuery.data ? (
@@ -401,61 +562,55 @@ export default function AppointmentsPage() {
                 ) : null}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+            <CardContent className="space-y-2 max-h-[min(320px,45vh)] overflow-y-auto">
               {dashboardQuery.isLoading && !dashboardQuery.data ? (
                 <div className="space-y-2">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
               ) : (dashboardQuery.data?.today.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">No active tasks due today (UTC).</p>
+                <p className="text-sm text-muted-foreground">You're all caught up 🎉</p>
               ) : (
                 <ul className="space-y-2">
                   {dashboardQuery.data!.today.map((t) => (
-                    <li
-                      key={t.id}
-                      className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/80 p-3 text-sm"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 justify-between">
-                        <span className="font-medium">
-                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
-                            {t.status}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
-                          >
-                            {(t.priority ?? "normal") as TaskPriority}
-                          </Badge>
-                        </div>
+                    <li key={t.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.soon}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
+                        >
+                          {t.priority ?? "normal"}
+                        </Badge>
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      <div className="text-xs text-muted-foreground">
+                        {compactMeta(
+                          formatLocation(t.ownerId),
+                          resolveVet(t.vetId),
+                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                        )}
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-2 mt-1">
                         {canStartTask(t, meQuery.data?.id) ? (
                           <Button
                             size="sm"
                             variant="default"
-                            className="h-7 text-xs"
+                            className={ACTION_BUTTON_BASE}
                             disabled={startTaskMutation.isPending}
                             onClick={() => startTaskMutation.mutate(t.id)}
                           >
-                            Start
+                            Start this task
                           </Button>
                         ) : null}
                         {canCompleteTask(t, meQuery.data?.id) ? (
                           <Button
                             size="sm"
                             variant="secondary"
-                            className="h-7 text-xs"
+                            className={ACTION_BUTTON_BASE}
                             disabled={completeTaskMutation.isPending}
                             onClick={() => completeTaskMutation.mutate(t.id)}
                           >
-                            Complete
+                            Mark complete
                           </Button>
                         ) : null}
                       </div>
@@ -466,7 +621,7 @@ export default function AppointmentsPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border/60 shadow-sm">
+          <Card ref={myTasksRef} className="bg-card border-border/60 shadow-sm">
             <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
               <User className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
               <CardTitle className="text-sm font-semibold">
@@ -476,61 +631,55 @@ export default function AppointmentsPage() {
                 ) : null}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+            <CardContent className="space-y-2 max-h-[min(320px,45vh)] overflow-y-auto">
               {dashboardQuery.isLoading && !dashboardQuery.data ? (
                 <div className="space-y-2">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
               ) : (dashboardQuery.data?.myTasks.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">No tasks assigned to you in your active queue.</p>
+                <p className="text-sm text-muted-foreground">No tasks assigned — pick from queue</p>
               ) : (
                 <ul className="space-y-2">
                   {dashboardQuery.data!.myTasks.map((t) => (
-                    <li
-                      key={t.id}
-                      className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/80 p-3 text-sm"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 justify-between">
-                        <span className="font-medium">
-                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
-                            {t.status}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
-                          >
-                            {(t.priority ?? "normal") as TaskPriority}
-                          </Badge>
-                        </div>
+                    <li key={t.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.normal}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
+                        >
+                          {t.priority ?? "normal"}
+                        </Badge>
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      <div className="text-xs text-muted-foreground">
+                        {compactMeta(
+                          formatLocation(t.ownerId),
+                          resolveVet(t.vetId),
+                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                        )}
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-2 mt-1">
                         {canStartTask(t, meQuery.data?.id) ? (
                           <Button
                             size="sm"
                             variant="default"
-                            className="h-7 text-xs"
+                            className={ACTION_BUTTON_BASE}
                             disabled={startTaskMutation.isPending}
                             onClick={() => startTaskMutation.mutate(t.id)}
                           >
-                            Start
+                            Start this task
                           </Button>
                         ) : null}
                         {canCompleteTask(t, meQuery.data?.id) ? (
                           <Button
                             size="sm"
                             variant="secondary"
-                            className="h-7 text-xs"
+                            className={ACTION_BUTTON_BASE}
                             disabled={completeTaskMutation.isPending}
                             onClick={() => completeTaskMutation.mutate(t.id)}
                           >
-                            Complete
+                            Mark complete
                           </Button>
                         ) : null}
                       </div>
@@ -543,10 +692,62 @@ export default function AppointmentsPage() {
         </div>
 
         <Card className="bg-card border-border/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Suggestions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(recommendationsQuery.data?.suggestions.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">No suggestions — everything looks good</p>
+            ) : (
+              <ul className="space-y-2">
+                {recommendationsQuery.data?.suggestions.map((suggestion, idx) => (
+                  <li
+                    key={`${suggestion.type}-${idx}`}
+                    className={`rounded-md border p-3 text-sm ${SUGGESTION_SEVERITY_STYLES[suggestion.severity]}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {suggestion.type === "OVERDUE_WARNING"
+                          ? `${dashboardQuery.data?.counts.overdue ?? 0} overdue — review now`
+                          : suggestion.type === "START_NOW"
+                            ? "Next task is ready — start now"
+                            : suggestion.type === "OVERLOADED"
+                              ? "High workload — review urgent tasks"
+                              : "Queue is open — pick a task"}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className={ACTION_BUTTON_BASE}
+                        onClick={() => {
+                          if (suggestion.type === "START_NOW" && recommendationsQuery.data?.nextBestTask) {
+                            startTaskMutation.mutate(recommendationsQuery.data.nextBestTask.id);
+                          } else if (suggestion.type === "OVERDUE_WARNING" || suggestion.type === "OVERLOADED") {
+                            urgentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          } else if (suggestion.type === "PICK_FROM_QUEUE") {
+                            myTasksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }
+                        }}
+                      >
+                        {suggestion.type === "START_NOW"
+                          ? "Start now"
+                          : suggestion.type === "PICK_FROM_QUEUE"
+                            ? "View queue"
+                            : "Review urgent"}
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Plus className="w-4 h-4" />
-              Booking Controls
+                Task Controls
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
@@ -582,7 +783,7 @@ export default function AppointmentsPage() {
             <div>
               <Button className="w-full" onClick={() => openQuickBooking(new Date())}>
                 <Plus className="w-4 h-4 mr-1" />
-                Fast Book
+                Quick task
               </Button>
             </div>
           </CardContent>
@@ -636,7 +837,7 @@ export default function AppointmentsPage() {
                               : "bg-muted/40 cursor-not-allowed"
                           }`}
                           style={{ top, height: SLOT_MINUTES * PIXELS_PER_MINUTE }}
-                          aria-label={`Book ${formatTimeHHMM(slot)}`}
+                          aria-label={`Schedule task ${formatTimeHHMM(slot)}`}
                         />
                       );
                     })}
@@ -648,12 +849,12 @@ export default function AppointmentsPage() {
                         style={{ top: top + 1, height }}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-semibold">
-                            {formatTimeHHMM(start)} - {formatTimeHHMM(end)}
+                          <div className="text-xs font-semibold truncate">
+                            {formatDevice(appointment.animalId)}
                           </div>
                           <div className="flex gap-1">
                             <Badge variant="secondary" className="text-[10px]">
-                              {appointment.status}
+                              {STATUS_LABEL[appointment.status]}
                             </Badge>
                             <Badge
                               variant="outline"
@@ -663,33 +864,37 @@ export default function AppointmentsPage() {
                             </Badge>
                           </div>
                         </div>
-                        <div className="text-[11px] mt-1 truncate">
-                          Asset: {appointment.animalId ?? "N/A"} | Technician: {appointment.vetId ?? "—"}
+                        <div className="text-[11px] mt-1 truncate text-muted-foreground">
+                          {compactMeta(
+                            formatLocation(appointment.ownerId),
+                            resolveVet(appointment.vetId),
+                            `${formatTimeHHMM(start)}\u2009\u2013\u2009${formatTimeHHMM(end)}`,
+                          )}
                         </div>
                         {appointment.conflictOverride ? (
-                          <div className="text-[10px] mt-1 font-medium">Conflict override</div>
+                          <div className="text-[10px] mt-1 font-medium">Override applied</div>
                         ) : null}
                         <div className="flex gap-1 mt-2 flex-wrap">
                           {canStartTask(appointment, meQuery.data?.id) ? (
                             <Button
                               size="sm"
                               variant="default"
-                              className="h-6 text-[10px] px-2"
+                              className="h-7 text-[11px] px-2"
                               disabled={startTaskMutation.isPending}
                               onClick={() => startTaskMutation.mutate(appointment.id)}
                             >
-                              Start
+                              Start now
                             </Button>
                           ) : null}
                           {canCompleteTask(appointment, meQuery.data?.id) ? (
                             <Button
                               size="sm"
                               variant="secondary"
-                              className="h-6 text-[10px] px-2"
+                              className="h-7 text-[11px] px-2"
                               disabled={completeTaskMutation.isPending}
                               onClick={() => completeTaskMutation.mutate(appointment.id)}
                             >
-                              Complete
+                              Mark complete
                             </Button>
                           ) : null}
                           {statusActions(appointment.status).map((nextStatus) => (
@@ -697,11 +902,11 @@ export default function AppointmentsPage() {
                               key={`${appointment.id}-${nextStatus}`}
                               size="sm"
                               variant="outline"
-                              className="h-6 text-[10px] px-2"
+                              className="h-7 text-[11px] px-2"
                               onClick={() => updateStatusMutation.mutate({ id: appointment.id, status: nextStatus })}
                               disabled={updateStatusMutation.isPending}
                             >
-                              {nextStatus}
+                              {STATUS_LABEL[nextStatus]}
                             </Button>
                           ))}
                         </div>
@@ -710,7 +915,7 @@ export default function AppointmentsPage() {
 
                     {appointmentBlocks.length === 0 ? (
                       <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                        No tasks for this day.
+                        No tasks scheduled — tap a slot to create one
                       </div>
                     ) : null}
                   </div>
@@ -724,8 +929,8 @@ export default function AppointmentsPage() {
       <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Fast Booking</DialogTitle>
-            <DialogDescription>Clicking an empty slot prefills time and duration.</DialogDescription>
+            <DialogTitle>New Task</DialogTitle>
+            <DialogDescription>Assign a device and technician. Tap a slot to prefill the time.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -744,12 +949,12 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Animal ID (required)</label>
-              <Input value={formAnimalId} onChange={(e) => setFormAnimalId(e.target.value)} placeholder="animal id" />
+              <label className="text-xs text-muted-foreground">Device / Asset (required)</label>
+              <Input value={formAnimalId} onChange={(e) => setFormAnimalId(e.target.value)} placeholder="e.g. Ventilator, Autoclave" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Owner ID (optional)</label>
-              <Input value={formOwnerId} onChange={(e) => setFormOwnerId(e.target.value)} placeholder="owner id" />
+              <label className="text-xs text-muted-foreground">Location / Department (optional)</label>
+              <Input value={formOwnerId} onChange={(e) => setFormOwnerId(e.target.value)} placeholder="ICU / ER / Ward" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Duration preset</label>
@@ -769,11 +974,11 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Start time</label>
+              <label className="text-xs text-muted-foreground">Scheduled time</label>
               <Input type="datetime-local" value={formStartLocal} onChange={(e) => setFormStartLocal(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">End time (manual override allowed)</label>
+              <label className="text-xs text-muted-foreground">Expected end (manual override allowed)</label>
               <Input
                 type="datetime-local"
                 value={formEndLocal}
@@ -796,7 +1001,7 @@ export default function AppointmentsPage() {
               onClick={() => submitCreate(false)}
               disabled={createMutation.isPending || !formVetId.trim() || !formAnimalId.trim() || !formStartLocal || !formEndLocal}
             >
-              {createMutation.isPending ? "Saving..." : "Book Appointment"}
+              {createMutation.isPending ? "Saving..." : "Create Task"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -805,13 +1010,13 @@ export default function AppointmentsPage() {
       <Dialog open={conflictOpen} onOpenChange={setConflictOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Conflict detected</DialogTitle>
+            <DialogTitle>Scheduling conflict</DialogTitle>
             <DialogDescription>
-              Another task overlaps this slot. You can still override with a required reason.
+              This time overlaps an existing task. Provide a reason to override.
             </DialogDescription>
           </DialogHeader>
           <div>
-            <label className="text-xs text-muted-foreground">Override reason</label>
+              <label className="text-xs text-muted-foreground">Reason for override</label>
             <Textarea value={conflictReason} onChange={(e) => setConflictReason(e.target.value)} rows={3} />
           </div>
           <DialogFooter>

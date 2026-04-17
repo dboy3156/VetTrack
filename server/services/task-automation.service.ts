@@ -6,6 +6,9 @@
 import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, gte, notInArray, sql } from "drizzle-orm";
 import { appointments, db, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
+import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
+import { incrementMetric } from "../lib/metrics.js";
+import { broadcast } from "../lib/realtime.js";
 import {
   enqueueAutomationExecuteJob,
   enqueueAutomationNotificationJobs,
@@ -122,6 +125,11 @@ async function enqueueOverdueEscalations(): Promise<void> {
 
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "overdue_escalation", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
+    incrementMetric("automation_triggered");
+    broadcast(row.clinicId, {
+      type: "AUTOMATION_TRIGGERED",
+      payload: { rule: "overdue_escalation", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    });
     await enqueueAutomationExecuteJob({ kind: "escalate_overdue", taskId: row.id, clinicId: row.clinicId });
   }
 }
@@ -143,6 +151,11 @@ async function enqueueUnassignedAutoAssign(): Promise<void> {
 
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
+    incrementMetric("automation_triggered");
+    broadcast(row.clinicId, {
+      type: "AUTOMATION_TRIGGERED",
+      payload: { rule: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    });
     await enqueueAutomationExecuteJob({ kind: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId });
   }
 }
@@ -165,6 +178,11 @@ async function enqueueStuckRecovery(): Promise<void> {
 
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "stuck_recovery", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
+    incrementMetric("automation_triggered");
+    broadcast(row.clinicId, {
+      type: "AUTOMATION_TRIGGERED",
+      payload: { rule: "stuck_recovery", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    });
     await enqueueAutomationExecuteJob({ kind: "stuck_recovery", taskId: row.id, clinicId: row.clinicId });
   }
 }
@@ -189,13 +207,24 @@ async function enqueuePrestartReminders(): Promise<void> {
 
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "prestart_reminder", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
+    incrementMetric("automation_triggered");
+    broadcast(row.clinicId, {
+      type: "AUTOMATION_TRIGGERED",
+      payload: { rule: "prestart_reminder", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    });
     await enqueueAutomationExecuteJob({ kind: "prestart_reminder", taskId: row.id, clinicId: row.clinicId });
   }
 }
 
 /** Runs inside BullMQ worker — DB-atomic updates + audit + enqueue notifications. */
 export async function executeAutomationJob(payload: AutomationExecutePayload): Promise<void> {
+  incrementMetric("automation_executed");
   const { taskId, clinicId } = payload;
+  const idempotencyKey = `auto:${payload.kind}:${taskId}`;
+  if (await checkIdempotentAsync(idempotencyKey)) {
+    console.log("AUTOMATION_RULE_SKIPPED", { rule: payload.kind, taskId, clinicId, reason: "idempotent_duplicate" });
+    return;
+  }
   const c = clinicId.trim();
   if (!taskId?.trim() || !c) {
     console.log("AUTOMATION_ERROR", { rule: payload.kind, taskId, clinicId, reason: "invalid_payload" });
@@ -267,6 +296,7 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           tag: "automation-escalation",
           rateLimitAs: "escalation",
         });
+        await markIdempotentAsync(idempotencyKey);
         return;
       }
 
@@ -320,6 +350,7 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           tag: "automation-auto-assign",
           rateLimitAs: "default",
         });
+        await markIdempotentAsync(idempotencyKey);
         return;
       }
 
@@ -368,6 +399,7 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           tag: "automation-stuck",
           rateLimitAs: "default",
         });
+        await markIdempotentAsync(idempotencyKey);
         return;
       }
 
@@ -413,6 +445,7 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           tag: "automation-prestart",
           rateLimitAs: "default",
         });
+        await markIdempotentAsync(idempotencyKey);
         return;
       }
 

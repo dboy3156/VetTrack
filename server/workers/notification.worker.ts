@@ -7,15 +7,22 @@ import "dotenv/config";
 import { Worker } from "bullmq";
 import { dispatchTaskNotificationSync } from "../lib/task-notification.js";
 import {
+  NOTIFICATION_DLQ_NAME,
   NOTIFICATION_QUEUE_NAME,
+  enqueueDeadLetterJob,
   enqueueNotificationJob,
+  getNotificationsDlq,
   getNotificationsQueue,
   queueMetrics,
   type AutomationExecutePayload,
   type NotificationJobData,
 } from "../lib/queue.js";
-import { createRedisConnection, getRedisUrl } from "../lib/redis.js";
+import { createRedisConnection } from "../lib/redis.js";
+import { incrementMetric } from "../lib/metrics.js";
+import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
+import { isCircuitOpen } from "../lib/circuit-breaker.js";
 import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/push.js";
+import { withTimeout } from "../lib/timeout.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
 
@@ -47,36 +54,41 @@ async function scanOverdueAndEnqueue(): Promise<void> {
 }
 
 async function processSendNotification(data: NotificationJobData): Promise<void> {
+  if (isCircuitOpen("push")) {
+    incrementMetric("circuit_breaker_opened");
+    console.warn("[worker] push circuit open; skipping notification job");
+    return;
+  }
   if (data.type === "task_notification") {
-    await dispatchTaskNotificationSync(data.event, data.task, data.actor);
+    await withTimeout(dispatchTaskNotificationSync(data.event, data.task, data.actor), 5000, "task notification");
     return;
   }
   if (data.type === "overdue_reminder") {
-    await handleOverdueReminder(data);
+    await withTimeout(handleOverdueReminder(data), 5000, "overdue reminder");
     return;
   }
   if (data.type === "automation_push_user") {
-    await sendPushToUser(data.clinicId, data.userId, {
+    await withTimeout(sendPushToUser(data.clinicId, data.userId, {
       title: data.title,
       body: data.body,
       tag: data.tag,
       url: "/appointments",
-    });
+    }), 5000, "automation push user");
     return;
   }
   if (data.type === "automation_push_role") {
-    await sendPushToRole(data.clinicId, data.role, {
+    await withTimeout(sendPushToRole(data.clinicId, data.role, {
       title: data.title,
       body: data.body,
       tag: data.tag,
       url: "/appointments",
-    });
+    }), 5000, "automation push role");
   }
 }
 
 async function main(): Promise<void> {
-  if (!getRedisUrl()) {
-    console.error("[worker] REDIS_URL is required for notification worker");
+  if (!process.env.REDIS_URL?.trim()) {
+    console.error("WORKER_DISABLED_NO_REDIS");
     process.exit(1);
   }
 
@@ -89,8 +101,13 @@ async function main(): Promise<void> {
   }
 
   const queue = getNotificationsQueue();
+  const dlq = getNotificationsDlq();
   if (!queue) {
     console.error("[worker] notifications queue unavailable");
+    process.exit(1);
+  }
+  if (!dlq) {
+    console.error("[worker] notifications DLQ unavailable");
     process.exit(1);
   }
 
@@ -123,6 +140,11 @@ async function main(): Promise<void> {
       const t0 = Date.now();
       const jid = String(job.id ?? "");
       console.log("QUEUE_JOB_STARTED", { id: jid, name: job.name });
+      incrementMetric("queue_jobs_started");
+      if (job.attemptsMade > 0) {
+        incrementMetric("retries_attempted");
+        console.warn("QUEUE_JOB_RETRY_ATTEMPT", { id: jid, attemptsMade: job.attemptsMade, name: job.name });
+      }
       try {
         if (job.name === "scan_overdue_reminders") {
           await scanOverdueAndEnqueue();
@@ -131,13 +153,32 @@ async function main(): Promise<void> {
         } else if (job.name === "automation_execute") {
           await executeAutomationJob(job.data as AutomationExecutePayload);
         } else if (job.name === "send_notification") {
+          const key = `notif:${jid}`;
+          if (await checkIdempotentAsync(key)) {
+            console.log("QUEUE_JOB_SKIPPED_IDEMPOTENT", { id: jid, name: job.name });
+            return;
+          }
           await processSendNotification(job.data as NotificationJobData);
+          await markIdempotentAsync(key);
         }
         queueMetrics.completed++;
+        incrementMetric("queue_jobs_completed");
         console.log("QUEUE_JOB_COMPLETED", { id: jid, ms: Date.now() - t0 });
       } catch (err) {
         queueMetrics.failed++;
+        incrementMetric("queue_jobs_failed");
         console.error("QUEUE_JOB_FAILED", { id: jid, err: (err as Error).message });
+        const maxAttempts = job.opts?.attempts ?? 1;
+        if (job.attemptsMade + 1 >= maxAttempts) {
+          await enqueueDeadLetterJob({
+            sourceQueue: NOTIFICATION_QUEUE_NAME,
+            sourceJobId: jid,
+            sourceJobName: job.name,
+            attemptsMade: job.attemptsMade + 1,
+            data: job.data,
+            reason: (err as Error).message,
+          });
+        }
         throw err;
       }
     },
@@ -148,9 +189,29 @@ async function main(): Promise<void> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error("QUEUE_JOB_FAILED", { id: job?.id, err: err?.message });
+    console.error("QUEUE_JOB_FAILED", { jobId: job?.id, err });
   });
 
+  const dlqWorker = new Worker(
+    NOTIFICATION_DLQ_NAME,
+    async (job) => {
+      incrementMetric("queue_jobs_dead_letter");
+      console.error("DLQ_JOB_RECEIVED", {
+        id: job.id,
+        sourceQueue: job.data?.sourceQueue,
+        sourceJobId: job.data?.sourceJobId,
+        attemptsMade: job.data?.attemptsMade,
+        reason: job.data?.reason,
+      });
+    },
+    { connection, concurrency: 1 },
+  );
+
+  dlqWorker.on("failed", (job, err) => {
+    console.error("DLQ_JOB_FAILED", { jobId: job?.id, err });
+  });
+
+  console.log("NOTIFICATION_WORKER_STARTED");
   console.log(
     `[worker] notification worker listening (${NOTIFICATION_QUEUE_NAME}), overdue scan every ${OVERDUE_SCAN_MS / 60000} min, automation tick every ${AUTOMATION_TICK_MS / 1000}s`,
   );

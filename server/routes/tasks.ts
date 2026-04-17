@@ -7,6 +7,7 @@ import {
   getTasksForTechnicianToday,
   startTask,
 } from "../services/appointments.service.js";
+import { getTaskRecommendations } from "../services/task-intelligence.service.js";
 import { getTaskDashboard } from "../services/task-recall.service.js";
 
 const router = Router();
@@ -102,6 +103,23 @@ router.get("/active", requireAuth, requireEffectiveRole("technician"), async (re
     if (sendServiceError(res, err)) return;
     console.error("tasks:active", err);
     return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load active tasks" });
+  }
+});
+
+router.get("/recommendations", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+  }
+  const clinicId = req.clinicId;
+  if (!clinicId?.trim()) {
+    return res.status(400).json({ error: "VALIDATION_FAILED", message: "clinicId is required" });
+  }
+  try {
+    const data = await getTaskRecommendations(clinicId, req.authUser.id);
+    return res.json(data);
+  } catch (err) {
+    console.error("tasks:recommendations", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load recommendations" });
   }
 });
 

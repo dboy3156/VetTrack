@@ -32,19 +32,31 @@ const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf
 
 console.log("\n── Phase 3.3.5 Production hardening (static checks)");
 
-assert(redis.includes("getRedis") && redis.includes("REDIS_URL") && redis.includes("safeRedisGet"), "server/lib/redis.ts with lazy client + safe reads", "Expected redis module");
+assert(
+  redis.includes("getRedis") && redis.includes("REDIS_URL") && redis.includes("safeRedisGet") && redis.includes("REDIS_DISABLED"),
+  "server/lib/redis.ts with lazy client + safe reads",
+  "Expected redis module",
+);
 assert(redis.includes("incrementRateLimit"), "Redis rate limit helper for queue", "Expected incrementRateLimit");
 
 assert(queue.includes("bullmq") && queue.includes("Queue"), "BullMQ queue for notifications", "Expected BullMQ");
 assert(queue.includes("attempts") && queue.includes("backoff"), "Job retries with backoff", "Expected retry config");
-assert(queue.includes("enqueueNotificationJob") && queue.includes("droppedNoRedis"), "Enqueue is API-safe when Redis missing", "Expected no-throw patterns");
+assert(
+  queue.includes("enqueueNotificationJob") &&
+    queue.includes("droppedNoRedis") &&
+    queue.includes("QUEUE_DISABLED_NO_REDIS") &&
+    queue.includes("QUEUE_JOB_ENQUEUED"),
+  "Enqueue is API-safe when Redis missing",
+  "Expected no-throw patterns",
+);
 
 assert(
   taskNotification.includes("enqueueNotificationJob") &&
     taskNotification.includes("dispatchTaskNotificationSync") &&
-    taskNotification.includes("await enqueueNotificationJob"),
+    taskNotification.includes("await enqueueNotificationJob") &&
+    taskNotification.includes("NOTIFICATION_SENT"),
   "Task notifications enqueue from API path; worker calls dispatchTaskNotificationSync",
-  "Expected queue-based task-notification"
+  "Expected queue-based task-notification",
 );
 
 assert(
@@ -58,9 +70,11 @@ assert(
     worker.includes("scan_overdue_reminders") &&
     worker.includes("QUEUE_JOB_STARTED") &&
     worker.includes("QUEUE_JOB_COMPLETED") &&
-    worker.includes("QUEUE_JOB_FAILED"),
+    worker.includes("QUEUE_JOB_FAILED") &&
+    worker.includes("NOTIFICATION_WORKER_STARTED") &&
+    worker.includes("WORKER_DISABLED_NO_REDIS"),
   "Notification worker processes jobs with observability hooks",
-  "Expected worker file"
+  "Expected worker file",
 );
 
 assert(

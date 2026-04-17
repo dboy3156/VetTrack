@@ -34,6 +34,7 @@ import type {
   CreateAppointmentRequest,
   UpdateAppointmentRequest,
   TaskDashboard,
+  TaskRecommendations,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -755,6 +756,7 @@ export const api = {
   },
   tasks: {
     dashboard: () => request<TaskDashboard>("/api/tasks/dashboard"),
+    recommendations: () => request<TaskRecommendations>("/api/tasks/recommendations"),
     me: () => request<{ tasks: Appointment[] }>("/api/tasks/me").then((r) => r.tasks),
     active: () => request<{ tasks: Appointment[] }>("/api/tasks/active").then((r) => r.tasks),
     start: (id: string) =>

@@ -1,62 +1,46 @@
-import type { QueryClient } from "@tanstack/react-query";
-import type { Equipment } from "@/types";
-import { getAuthHeaders } from "@/lib/auth-store";
+export type RealtimeEventType =
+  | "TASK_CREATED"
+  | "TASK_STARTED"
+  | "TASK_COMPLETED"
+  | "TASK_UPDATED"
+  | "AUTOMATION_TRIGGERED"
+  | "NOTIFICATION_SENT";
 
-let socket: WebSocket | null = null;
-let retryDelay = 1000;
-const MAX_RETRY_DELAY = 30000;
+export type RealtimeEvent = {
+  type: RealtimeEventType;
+  payload: unknown;
+  timestamp: string;
+};
 
-export function connectRealtime(queryClient: QueryClient) {
-  const headers = getAuthHeaders();
-  const token = (headers.Authorization ?? "").split(" ")[1];
-  if (!token) return;
+let source: EventSource | null = null;
 
-  const wsUrl = import.meta.env.VITE_WS_URL as string | undefined;
-  if (!wsUrl) return;
+export function connectRealtime(onEvent: (event: RealtimeEvent) => void): void {
+  try {
+    if (typeof window === "undefined") return;
+    if (source) return;
 
-  socket = new WebSocket(`${wsUrl}?token=${token}`);
-
-  socket.onopen = () => {
-    retryDelay = 1000;
-  };
-
-  socket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data as string) as {
-        type: string;
-        payload: Equipment & { id: string };
-      };
-      switch (data.type) {
-        case "equipment.updated":
-          queryClient.setQueryData(
-            ["/api/equipment"],
-            (old: Equipment[] | undefined) =>
-              old?.map((e) => (e.id === data.payload.id ? data.payload : e))
-          );
-          break;
-        case "equipment.created":
-          queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
-          break;
-        case "equipment.deleted":
-          queryClient.setQueryData(
-            ["/api/equipment"],
-            (old: Equipment[] | undefined) =>
-              old?.filter((e) => e.id !== data.payload.id)
-          );
-          break;
+    source = new EventSource("/api/realtime");
+    source.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data) as RealtimeEvent;
+        onEvent(parsed);
+      } catch {
+        // Ignore malformed payloads to keep stream alive.
       }
-    } catch {
-      // ignore malformed messages
-    }
-  };
-
-  socket.onclose = () => {
-    retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
-    setTimeout(() => connectRealtime(queryClient), retryDelay);
-  };
+    };
+    source.onerror = () => {
+      // Browser EventSource handles reconnect automatically.
+    };
+  } catch {
+    // Realtime is best-effort only.
+  }
 }
 
-export function disconnectRealtime() {
-  socket?.close();
-  socket = null;
+export function disconnectRealtime(): void {
+  try {
+    source?.close();
+    source = null;
+  } catch {
+    // Ignore close errors.
+  }
 }

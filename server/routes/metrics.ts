@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { getSyncMetrics } from "../lib/sync-metrics.js";
+import { getMetricsSnapshot } from "../lib/metrics.js";
 import {
   getAccessDeniedLogSafetySnapshot,
   getAccessDeniedMetricsSnapshot,
@@ -28,6 +29,7 @@ router.get("/", requireAuth, requireAdmin, async (_req, res) => {
     }
 
     const syncMetrics = getSyncMetrics();
+    const runtimeMetrics = getMetricsSnapshot();
     const accessDeniedMetrics = getAccessDeniedMetricsSnapshot();
     const accessDeniedWindow = getAccessDeniedMetricsWindowSnapshot();
     const alertEngine = getAlertEngineSnapshot();
@@ -35,6 +37,7 @@ router.get("/", requireAuth, requireAdmin, async (_req, res) => {
     const accessDeniedLogSafety = getAccessDeniedLogSafetySnapshot();
 
     res.json({
+      ...runtimeMetrics,
       uptime: uptimeSeconds,
       memoryMb: Math.round(memUsage.heapUsed / 1024 / 1024),
       memoryTotalMb: Math.round(memUsage.heapTotal / 1024 / 1024),
