@@ -2,6 +2,9 @@ import { useEffect } from "react";
 import { useAuth as useClerkAuth, useOrganizationList } from "@clerk/clerk-react";
 
 export function useAutoSelectOrg() {
+  const clerkEnabled = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+  if (!clerkEnabled) return;
+
   const { isSignedIn, isLoaded, orgId } = useClerkAuth();
   const { isLoaded: membershipsReady, userMemberships, setActive } = useOrganizationList({
     userMemberships: true,
