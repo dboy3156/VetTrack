@@ -116,9 +116,10 @@ export function recordAccessDenied(params: {
     clinicId: params.clinicId ?? params.req.clinicId ?? null,
     userId: params.userId ?? params.req.authUser?.id ?? null,
     message: params.message ?? null,
-    requestId:
-      (typeof params.req.headers["x-request-id"] === "string" && params.req.headers["x-request-id"]) ||
-      null,
+    requestId: (() => {
+      const headers = (params.req as Request & { headers?: Record<string, unknown> }).headers;
+      return typeof headers?.["x-request-id"] === "string" ? headers["x-request-id"] : null;
+    })(),
     ts: new Date().toISOString(),
   };
 
