@@ -220,7 +220,15 @@ export interface ShiftImportResult {
   issues: ShiftCsvIssue[];
 }
 
-export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
+export type AppointmentStatus =
+  | "pending"
+  | "assigned"
+  | "scheduled"
+  | "arrived"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show";
 
 export type TaskPriority = "critical" | "high" | "normal";
 export type TaskType = "maintenance" | "repair" | "inspection";
@@ -230,7 +238,7 @@ export interface Appointment {
   clinicId: string;
   animalId?: string | null;
   ownerId?: string | null;
-  vetId: string;
+  vetId: string | null;
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
@@ -241,12 +249,27 @@ export interface Appointment {
   taskType?: TaskType | null;
   createdAt: string;
   updatedAt: string;
+  /** Set by task recall dashboard — end_time is before now. */
+  isOverdue?: boolean;
+}
+
+/** GET /api/tasks/dashboard — single payload for Daily Recall UI. */
+export interface TaskDashboard {
+  today: Appointment[];
+  overdue: Appointment[];
+  upcoming: Appointment[];
+  myTasks: Appointment[];
+  counts: {
+    today: number;
+    overdue: number;
+    myTasks: number;
+  };
 }
 
 export interface CreateAppointmentRequest {
   animalId?: string | null;
   ownerId?: string | null;
-  vetId: string;
+  vetId?: string | null;
   startTime: string;
   endTime: string;
   status?: AppointmentStatus;
@@ -260,7 +283,7 @@ export interface CreateAppointmentRequest {
 export interface UpdateAppointmentRequest {
   animalId?: string | null;
   ownerId?: string | null;
-  vetId?: string;
+  vetId?: string | null;
   startTime?: string;
   endTime?: string;
   status?: AppointmentStatus;

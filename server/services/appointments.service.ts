@@ -1,9 +1,24 @@
 import { randomUUID } from "crypto";
-import { and, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, db, owners, shifts, users } from "../db.js";
+import { logAudit } from "../lib/audit.js";
+import { sendTaskNotification } from "../lib/task-notification.js";
 
-export type AppointmentStatus = "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
+export type AppointmentStatus =
+  | "pending"
+  | "assigned"
+  | "scheduled"
+  | "arrived"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show";
+
+export interface TaskAuditActor {
+  userId: string;
+  email: string;
+}
 
 export type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 
@@ -15,7 +30,8 @@ const TASK_TYPES: TaskType[] = ["maintenance", "repair", "inspection"];
 export interface AppointmentInput {
   animalId?: string | null;
   ownerId?: string | null;
-  vetId: string;
+  /** When omitted or empty, task is unassigned (pending queue). */
+  vetId?: string | null;
   startTime: string | Date;
   endTime: string | Date;
   status?: AppointmentStatus;
@@ -29,7 +45,7 @@ export interface AppointmentInput {
 export interface AppointmentUpdateInput {
   animalId?: string | null;
   ownerId?: string | null;
-  vetId?: string;
+  vetId?: string | null;
   startTime?: string | Date;
   endTime?: string | Date;
   status?: AppointmentStatus;
@@ -52,10 +68,22 @@ export class AppointmentServiceError extends Error {
   }
 }
 
-const ACTIVE_CONFLICT_STATUSES: AppointmentStatus[] = ["scheduled", "arrived", "in_progress", "completed"];
-const ALL_STATUSES: AppointmentStatus[] = ["scheduled", "arrived", "in_progress", "completed", "cancelled", "no_show"];
+/** Statuses that participate in technician time overlap detection. */
+const ACTIVE_CONFLICT_STATUSES: AppointmentStatus[] = ["scheduled", "assigned", "arrived", "in_progress", "completed"];
+const ALL_STATUSES: AppointmentStatus[] = [
+  "pending",
+  "assigned",
+  "scheduled",
+  "arrived",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "no_show",
+];
 
 const VALID_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
+  pending: ["assigned", "scheduled", "cancelled"],
+  assigned: ["arrived", "in_progress", "completed", "cancelled", "no_show"],
   scheduled: ["arrived", "in_progress", "completed", "cancelled", "no_show"],
   arrived: ["in_progress", "completed", "cancelled", "no_show"],
   in_progress: ["completed", "cancelled"],
@@ -63,6 +91,8 @@ const VALID_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> =
   cancelled: [],
   no_show: [],
 };
+
+const DB_ACTIVE_STATUSES: AppointmentStatus[] = ["pending", "assigned", "scheduled", "arrived", "in_progress"];
 
 function assertClinicId(clinicId: string): string {
   const normalized = clinicId.trim();
@@ -188,11 +218,12 @@ async function assertAnimalInClinic(clinicId: string, animalId: string): Promise
 
 async function findActiveVetConflict(args: {
   clinicId: string;
-  vetId: string;
+  vetId: string | null;
   startTime: Date;
   endTime: Date;
   excludeAppointmentId?: string;
 }): Promise<{ id: string; startTime: Date; endTime: Date } | null> {
+  if (!args.vetId) return null;
   const whereBase = and(
     eq(appointments.clinicId, args.clinicId),
     eq(appointments.vetId, args.vetId),
@@ -217,7 +248,7 @@ async function findActiveVetConflict(args: {
 
 async function assertNoVetConflict(args: {
   clinicId: string;
-  vetId: string;
+  vetId: string | null;
   startTime: Date;
   endTime: Date;
   conflictOverride: boolean;
@@ -225,6 +256,7 @@ async function assertNoVetConflict(args: {
   excludeAppointmentId?: string;
   existingConflict?: { id: string; startTime: Date; endTime: Date } | null;
 }): Promise<void> {
+  if (!args.vetId) return;
   const conflict =
     args.existingConflict !== undefined
       ? args.existingConflict
@@ -275,10 +307,11 @@ function utcIsoDate(date: Date): string {
 
 async function assertWithinVetShift(args: {
   clinicId: string;
-  vetId: string;
+  vetId: string | null;
   startTime: Date;
   endTime: Date;
 }): Promise<void> {
+  if (!args.vetId) return;
   if (utcIsoDate(args.startTime) !== utcIsoDate(args.endTime)) {
     throw new AppointmentServiceError("OUTSIDE_SHIFT", 400, "Appointment must start and end on the same clinic day");
   }
@@ -330,18 +363,59 @@ async function assertWithinVetShift(args: {
 function ensureStatusTransition(current: AppointmentStatus, next: AppointmentStatus): void {
   if (current === next) return;
   const allowed = VALID_STATUS_TRANSITIONS[current] ?? [];
-  if (!allowed.includes(next)) {
-    throw new AppointmentServiceError("INVALID_STATUS_TRANSITION", 400, `Cannot change status from ${current} to ${next}`, {
-      from: current,
-      to: next,
-      allowed,
-    });
+  if (allowed.includes(next)) return;
+
+  if (next === "cancelled" && current !== "cancelled" && current !== "completed") return;
+  if (current === "pending" && (next === "assigned" || next === "scheduled")) return;
+  if (["assigned", "scheduled", "arrived"].includes(current) && next === "in_progress") return;
+  if (current === "in_progress" && next === "completed") return;
+
+  throw new AppointmentServiceError("INVALID_STATUS_TRANSITION", 400, `Cannot change status from ${current} to ${next}`, {
+    from: current,
+    to: next,
+    allowed,
+  });
+}
+
+function resolveCreateStatus(payload: AppointmentInput, vetId: string | null): AppointmentStatus {
+  if (payload.status !== undefined) {
+    const s = normalizeStatus(payload.status);
+    if (!vetId && s !== "pending" && s !== "cancelled") {
+      throw new AppointmentServiceError(
+        "UNASSIGNED_TASK_STATUS",
+        400,
+        "Unassigned tasks must use status pending or cancelled",
+      );
+    }
+    return s;
   }
+  if (!vetId) return "pending";
+  return "scheduled";
+}
+
+function auditTaskChange(
+  action: "task_created" | "task_updated" | "task_cancelled",
+  clinicId: string,
+  actor: TaskAuditActor,
+  taskId: string,
+  previous: Record<string, unknown> | null,
+  next: Record<string, unknown>,
+): void {
+  logAudit({
+    clinicId,
+    actionType: action,
+    performedBy: actor.userId,
+    performedByEmail: actor.email,
+    targetId: taskId,
+    targetType: "task",
+    metadata: { previousState: previous, newState: next },
+  });
 }
 
 function serializeAppointment(row: AppointmentRecord) {
   return {
     ...row,
+    vetId: row.vetId ?? null,
     startTime: new Date(row.startTime).toISOString(),
     endTime: new Date(row.endTime).toISOString(),
     createdAt: new Date(row.createdAt).toISOString(),
@@ -349,13 +423,12 @@ function serializeAppointment(row: AppointmentRecord) {
   };
 }
 
-export async function createAppointment(clinicIdInput: string, payload: AppointmentInput) {
+export async function createAppointment(clinicIdInput: string, payload: AppointmentInput, actor?: TaskAuditActor) {
   const clinicId = assertClinicId(clinicIdInput);
   const startTime = toUtcDate(payload.startTime, "startTime");
   const endTime = toUtcDate(payload.endTime, "endTime");
   ensureTimeWindow(startTime, endTime);
 
-  const status = normalizeStatus(payload.status);
   const notes = normalizeNotes(payload.notes);
   const conflictOverride = payload.conflictOverride === true;
   const overrideReason = normalizeNotes(payload.overrideReason);
@@ -363,13 +436,13 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
   const taskType = normalizeTaskType(payload.taskType);
   const ownerId = payload.ownerId?.trim() || null;
   const animalId = payload.animalId?.trim() || null;
-  const vetId = payload.vetId.trim();
+  const vetId = payload.vetId?.trim() ? payload.vetId.trim() : null;
 
-  if (!vetId) {
-    throw new AppointmentServiceError("INVALID_VET_ID", 400, "vetId is required");
+  const status = resolveCreateStatus(payload, vetId);
+
+  if (vetId) {
+    await assertVetInClinic(clinicId, vetId);
   }
-
-  await assertVetInClinic(clinicId, vetId);
   if (ownerId) await assertOwnerInClinic(clinicId, ownerId);
   if (animalId) {
     const animal = await assertAnimalInClinic(clinicId, animalId);
@@ -382,8 +455,10 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
 
   if (status !== "cancelled" && status !== "no_show") {
     await assertWithinVetShift({ clinicId, vetId, startTime, endTime });
-    const conflict = await findActiveVetConflict({ clinicId, vetId, startTime, endTime });
-    if (conflict && priority === "critical") {
+    const conflict = vetId
+      ? await findActiveVetConflict({ clinicId, vetId, startTime, endTime })
+      : null;
+    if (conflict && priority === "critical" && vetId) {
       console.log(
         JSON.stringify({
           event: "PRIORITY_CRITICAL_OVERLAP",
@@ -432,10 +507,36 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
     })
     .returning();
 
-  return serializeAppointment(created);
+  const serialized = serializeAppointment(created);
+  if (actor) {
+    auditTaskChange("task_created", clinicId, actor, serialized.id, null, { ...serialized });
+    if (serialized.conflictOverride && serialized.overrideReason === "AUTO_CRITICAL" && serialized.priority === "critical") {
+      logAudit({
+        clinicId,
+        actionType: "CRITICAL_TASK_EXECUTED",
+        performedBy: actor.userId,
+        performedByEmail: actor.email,
+        targetId: serialized.id,
+        targetType: "task",
+        metadata: {
+          conflictOverride: true,
+          overrideReason: "AUTO_CRITICAL",
+          previousState: null,
+          newState: { ...serialized },
+        },
+      });
+    }
+  }
+  void sendTaskNotification("TASK_CREATED", serialized, actor).catch(() => {});
+  return serialized;
 }
 
-export async function updateAppointment(clinicIdInput: string, appointmentId: string, payload: AppointmentUpdateInput) {
+export async function updateAppointment(
+  clinicIdInput: string,
+  appointmentId: string,
+  payload: AppointmentUpdateInput,
+  actor?: TaskAuditActor,
+) {
   const clinicId = assertClinicId(clinicIdInput);
   const [existing] = await db
     .select()
@@ -447,7 +548,10 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
     throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
   }
 
-  const nextVetId = payload.vetId?.trim() ?? existing.vetId;
+  const previousSnapshot = { ...serializeAppointment(existing) };
+
+  const nextVetId =
+    payload.vetId === undefined ? existing.vetId : payload.vetId?.trim() ? payload.vetId.trim() : null;
   const nextStartTime = payload.startTime ? toUtcDate(payload.startTime, "startTime") : existing.startTime;
   const nextEndTime = payload.endTime ? toUtcDate(payload.endTime, "endTime") : existing.endTime;
   const nextStatus = payload.status ? normalizeStatus(payload.status) : (existing.status as AppointmentStatus);
@@ -467,9 +571,19 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
       ? normalizeTaskType(payload.taskType)
       : normalizeTaskType((existing as { taskType?: TaskType | null }).taskType);
 
+  if (!nextVetId && nextStatus !== "pending" && nextStatus !== "cancelled") {
+    throw new AppointmentServiceError(
+      "UNASSIGNED_TASK_STATUS",
+      400,
+      "Unassigned tasks must use status pending or cancelled",
+    );
+  }
+
   ensureTimeWindow(nextStartTime, nextEndTime);
   ensureStatusTransition(existing.status as AppointmentStatus, nextStatus);
-  await assertVetInClinic(clinicId, nextVetId);
+  if (nextVetId) {
+    await assertVetInClinic(clinicId, nextVetId);
+  }
   if (nextOwnerId) await assertOwnerInClinic(clinicId, nextOwnerId);
   if (nextAnimalId) {
     const animal = await assertAnimalInClinic(clinicId, nextAnimalId);
@@ -490,7 +604,7 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
       endTime: nextEndTime,
       excludeAppointmentId: appointmentId,
     });
-    if (conflict && nextPriority === "critical") {
+    if (conflict && nextPriority === "critical" && nextVetId) {
       console.log(
         JSON.stringify({
           event: "PRIORITY_CRITICAL_OVERLAP",
@@ -504,6 +618,22 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
       );
       finalConflictOverride = true;
       finalOverrideReason = "AUTO_CRITICAL";
+      if (actor) {
+        logAudit({
+          clinicId,
+          actionType: "CRITICAL_TASK_EXECUTED",
+          performedBy: actor.userId,
+          performedByEmail: actor.email,
+          targetId: appointmentId,
+          targetType: "task",
+          metadata: {
+            phase: "update",
+            conflictOverride: true,
+            overrideReason: "AUTO_CRITICAL",
+            conflictAppointmentId: conflict.id,
+          },
+        });
+      }
     }
     await assertNoVetConflict({
       clinicId,
@@ -538,11 +668,47 @@ export async function updateAppointment(clinicIdInput: string, appointmentId: st
     .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
     .returning();
 
-  return serializeAppointment(updated);
+  const serialized = serializeAppointment(updated);
+  if (actor) {
+    auditTaskChange("task_updated", clinicId, actor, appointmentId, previousSnapshot, { ...serialized });
+    if (
+      serialized.conflictOverride &&
+      serialized.overrideReason === "AUTO_CRITICAL" &&
+      nextPriority === "critical" &&
+      finalConflictOverride
+    ) {
+      logAudit({
+        clinicId,
+        actionType: "CRITICAL_TASK_EXECUTED",
+        performedBy: actor.userId,
+        performedByEmail: actor.email,
+        targetId: appointmentId,
+        targetType: "task",
+        metadata: {
+          conflictOverride: true,
+          overrideReason: "AUTO_CRITICAL",
+          previousState: previousSnapshot,
+          newState: { ...serialized },
+        },
+      });
+    }
+  }
+  return serialized;
 }
 
-export async function cancelAppointment(clinicIdInput: string, appointmentId: string, reason?: string) {
+export async function cancelAppointment(clinicIdInput: string, appointmentId: string, reason?: string, actor?: TaskAuditActor) {
   const clinicId = assertClinicId(clinicIdInput);
+  const [existing] = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
+    .limit(1);
+
+  if (!existing) {
+    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+  }
+
+  const previousSnapshot = { ...serializeAppointment(existing) };
   const notes = normalizeNotes(reason);
   const [updated] = await db
     .update(appointments)
@@ -557,7 +723,179 @@ export async function cancelAppointment(clinicIdInput: string, appointmentId: st
   if (!updated) {
     throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
   }
-  return serializeAppointment(updated);
+  const serialized = serializeAppointment(updated);
+  if (actor) {
+    auditTaskChange("task_cancelled", clinicId, actor, appointmentId, previousSnapshot, { ...serialized });
+  }
+  return serialized;
+}
+
+export async function startTask(clinicIdInput: string, taskId: string, actor: TaskAuditActor) {
+  const clinicId = assertClinicId(clinicIdInput);
+  const [existing] = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+    .limit(1);
+
+  if (!existing) {
+    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+  }
+
+  const vetId = existing.vetId;
+  if (!vetId) {
+    throw new AppointmentServiceError("TASK_NOT_ASSIGNED", 400, "Task has no technician assigned");
+  }
+  if (vetId !== actor.userId) {
+    throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can start this task");
+  }
+
+  const from = existing.status as AppointmentStatus;
+  if (!["scheduled", "assigned", "arrived"].includes(from)) {
+    throw new AppointmentServiceError("INVALID_STATUS_TRANSITION", 400, "Task cannot be started from this status", {
+      from,
+      to: "in_progress",
+    });
+  }
+
+  await assertVetInClinic(clinicId, vetId);
+
+  const previousSnapshot = { ...serializeAppointment(existing) };
+  const [updated] = await db
+    .update(appointments)
+    .set({ status: "in_progress", updatedAt: new Date() })
+    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+    .returning();
+
+  const serialized = serializeAppointment(updated);
+  logAudit({
+    clinicId,
+    actionType: "task_started",
+    performedBy: actor.userId,
+    performedByEmail: actor.email,
+    targetId: taskId,
+    targetType: "task",
+    metadata: { previousState: previousSnapshot, newState: { ...serialized } },
+  });
+  void sendTaskNotification("TASK_STARTED", serialized, actor).catch(() => {});
+  return serialized;
+}
+
+export async function completeTask(clinicIdInput: string, taskId: string, actor: TaskAuditActor) {
+  const clinicId = assertClinicId(clinicIdInput);
+  const [existing] = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+    .limit(1);
+
+  if (!existing) {
+    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+  }
+
+  const vetId = existing.vetId;
+  if (!vetId || vetId !== actor.userId) {
+    throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can complete this task");
+  }
+
+  const from = existing.status as AppointmentStatus;
+  if (from !== "in_progress") {
+    throw new AppointmentServiceError("INVALID_STATUS_TRANSITION", 400, "Task must be in progress to complete", {
+      from,
+      to: "completed",
+    });
+  }
+
+  await assertVetInClinic(clinicId, vetId);
+
+  const previousSnapshot = { ...serializeAppointment(existing) };
+  const [updated] = await db
+    .update(appointments)
+    .set({ status: "completed", updatedAt: new Date() })
+    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+    .returning();
+
+  const serialized = serializeAppointment(updated);
+  logAudit({
+    clinicId,
+    actionType: "task_completed",
+    performedBy: actor.userId,
+    performedByEmail: actor.email,
+    targetId: taskId,
+    targetType: "task",
+    metadata: { previousState: previousSnapshot, newState: { ...serialized } },
+  });
+  void sendTaskNotification("TASK_COMPLETED", serialized, actor).catch(() => {});
+  return serialized;
+}
+
+export async function getTasksForTechnician(clinicIdInput: string, technicianId: string) {
+  const clinicId = assertClinicId(clinicIdInput);
+  await assertVetInClinic(clinicId, technicianId);
+
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.clinicId, clinicId), eq(appointments.vetId, technicianId)))
+    .orderBy(desc(appointments.startTime));
+
+  return rows.map(serializeAppointment);
+}
+
+/** Today's tasks (UTC day) for a technician — used by GET /api/tasks/me. */
+export async function getTasksForTechnicianToday(clinicIdInput: string, technicianId: string) {
+  const day = new Date().toISOString().slice(0, 10);
+  const clinicId = assertClinicId(clinicIdInput);
+  await assertVetInClinic(clinicId, technicianId);
+
+  const dayStart = new Date(`${day}T00:00:00.000Z`);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.clinicId, clinicId),
+        eq(appointments.vetId, technicianId),
+        gte(appointments.startTime, dayStart),
+        lt(appointments.startTime, dayEnd),
+      ),
+    )
+    .orderBy(appointments.startTime);
+
+  return rows.map(serializeAppointment);
+}
+
+export async function getTasksByPriority(clinicIdInput: string, priority: TaskPriority) {
+  const clinicId = assertClinicId(clinicIdInput);
+  const p = normalizePriority(priority);
+
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.clinicId, clinicId), eq(appointments.priority, p)))
+    .orderBy(desc(appointments.startTime));
+
+  return rows.map(serializeAppointment);
+}
+
+export async function getActiveTasks(clinicIdInput: string) {
+  const clinicId = assertClinicId(clinicIdInput);
+
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.clinicId, clinicId), inArray(appointments.status, DB_ACTIVE_STATUSES)))
+    .orderBy(appointments.startTime);
+
+  return rows.map(serializeAppointment);
+}
+
+export async function getTodayTasks(clinicIdInput: string) {
+  const day = new Date().toISOString().slice(0, 10);
+  return getAppointmentsByDay(clinicIdInput, day);
 }
 
 export async function getAppointmentsByDay(clinicIdInput: string, dayIsoDate: string) {

@@ -62,7 +62,7 @@ export const appointments = pgTable("vt_appointments", {
   clinicId: text("clinic_id").notNull(),
   animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
   ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
-  vetId: text("vet_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  vetId: text("vet_id").references(() => users.id, { onDelete: "restrict" }),
   startTime: timestamp("start_time", { withTimezone: true }).notNull(),
   endTime: timestamp("end_time", { withTimezone: true }).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("scheduled"),
@@ -71,6 +71,11 @@ export const appointments = pgTable("vt_appointments", {
   notes: text("notes"),
   priority: varchar("priority", { length: 20 }).notNull().default("normal"),
   taskType: varchar("task_type", { length: 20 }),
+  /** Automation: overdue escalation target — does not replace vet_id (technician ownership). */
+  escalatedTo: text("escalated_to").references(() => users.id, { onDelete: "set null" }),
+  escalatedAt: timestamp("escalated_at", { withTimezone: true }),
+  stuckNotifiedAt: timestamp("stuck_notified_at", { withTimezone: true }),
+  prestartReminderAt: timestamp("prestart_reminder_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, Plus } from "lucide-react";
+import { CalendarDays, Clock3, Flame, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import type { Appointment, AppointmentStatus, CreateAppointmentRequest } from "@/types";
+import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
 import { toast } from "sonner";
 
 const DAY_START_HOUR = 8;
@@ -17,6 +18,7 @@ const DAY_END_HOUR = 20;
 const SLOT_MINUTES = 15;
 const PIXELS_PER_MINUTE = 1.2;
 const HOUR_ROW_HEIGHT = 60;
+const DASHBOARD_REFETCH_MS = 45_000;
 
 const DURATION_PRESETS = [
   { key: "checkup", label: "Checkup (20m)", minutes: 20 },
@@ -26,12 +28,20 @@ const DURATION_PRESETS = [
 ] as const;
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
+  pending: "bg-slate-100 border-slate-300 text-slate-900",
+  assigned: "bg-indigo-100 border-indigo-300 text-indigo-900",
   scheduled: "bg-blue-100 border-blue-300 text-blue-900",
   arrived: "bg-cyan-100 border-cyan-300 text-cyan-900",
   in_progress: "bg-amber-100 border-amber-300 text-amber-900",
   completed: "bg-emerald-100 border-emerald-300 text-emerald-900",
   cancelled: "bg-rose-100 border-rose-300 text-rose-900",
   no_show: "bg-zinc-200 border-zinc-400 text-zinc-900",
+};
+
+const PRIORITY_BADGE: Record<string, string> = {
+  critical: "bg-red-600 text-white border-transparent",
+  high: "bg-orange-500 text-white border-transparent",
+  normal: "bg-muted text-foreground border-border",
 };
 
 function todayIsoDate(): string {
@@ -73,7 +83,19 @@ function toErrorMessage(err: Error): string {
   if (err.message === "OUTSIDE_SHIFT") return "Selected time is outside the technician shift.";
   if (err.message === "OVERRIDE_REASON_REQUIRED") return "Conflict override requires a reason.";
   if (err.message === "TIMEZONE_REQUIRED") return "Time input must include timezone information.";
+  if (err.message === "TASK_NOT_OWNED_BY_TECH") return "Only the assigned technician can perform this action.";
+  if (err.message === "TASK_NOT_ASSIGNED") return "Assign a technician before starting.";
   return err.message;
+}
+
+function canStartTask(a: Appointment, meId: string | undefined): boolean {
+  if (!meId || !a.vetId || a.vetId !== meId) return false;
+  return ["scheduled", "assigned", "arrived"].includes(a.status);
+}
+
+function canCompleteTask(a: Appointment, meId: string | undefined): boolean {
+  if (!meId || !a.vetId || a.vetId !== meId) return false;
+  return a.status === "in_progress";
 }
 
 export default function AppointmentsPage() {
@@ -125,11 +147,22 @@ export default function AppointmentsPage() {
     queryFn: () => api.appointments.list({ day }),
   });
 
+  const dashboardQuery = useQuery({
+    queryKey: ["/api/tasks/dashboard", meQuery.data?.id],
+    queryFn: () => api.tasks.dashboard(),
+    enabled: !!meQuery.data?.id,
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+  });
+
   const createMutation = useMutation({
     mutationFn: (payload: CreateAppointmentRequest) => api.appointments.create(payload),
     onSuccess: () => {
       toast.success("Task created");
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
       setBookingOpen(false);
       setFormNotes("");
       setFormAnimalId("");
@@ -160,6 +193,31 @@ export default function AppointmentsPage() {
       api.appointments.update(id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+    },
+    onError: (error: Error) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
+
+  const startTaskMutation = useMutation({
+    mutationFn: (id: string) => api.tasks.start(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      toast.success("Task started");
+    },
+    onError: (error: Error) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
+
+  const completeTaskMutation = useMutation({
+    mutationFn: (id: string) => api.tasks.complete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
+      toast.success("Task completed");
     },
     onError: (error: Error) => {
       toast.error(toErrorMessage(error));
@@ -252,7 +310,236 @@ export default function AppointmentsPage() {
             <CalendarDays className="w-6 h-6" />
             Tasks
           </h1>
-          <p className="text-sm text-muted-foreground">Calendar workflow with shift-aware, conflict-safe booking.</p>
+          <p className="text-sm text-muted-foreground">
+            Operational task board: execution, priority, and audit-backed workflow. Calendar view uses shift-aware booking.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <Flame className="w-4 h-4 text-orange-600 shrink-0" aria-hidden />
+              <CardTitle className="text-sm font-semibold">
+                Overdue
+                {dashboardQuery.data ? (
+                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.overdue})</span>
+                ) : null}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (dashboardQuery.data?.overdue.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">Nothing overdue.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {dashboardQuery.data!.overdue.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex flex-col gap-2 rounded-lg border border-orange-200/80 bg-orange-50/40 dark:bg-orange-950/20 p-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <span className="font-medium">
+                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
+                            {t.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
+                          >
+                            {(t.priority ?? "normal") as TaskPriority}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {canStartTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs"
+                            disabled={startTaskMutation.isPending}
+                            onClick={() => startTaskMutation.mutate(t.id)}
+                          >
+                            Start
+                          </Button>
+                        ) : null}
+                        {canCompleteTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 text-xs"
+                            disabled={completeTaskMutation.isPending}
+                            onClick={() => completeTaskMutation.mutate(t.id)}
+                          >
+                            Complete
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <Zap className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
+              <CardTitle className="text-sm font-semibold">
+                Today
+                {dashboardQuery.data ? (
+                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.today})</span>
+                ) : null}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (dashboardQuery.data?.today.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No active tasks due today (UTC).</p>
+              ) : (
+                <ul className="space-y-2">
+                  {dashboardQuery.data!.today.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/80 p-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <span className="font-medium">
+                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
+                            {t.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
+                          >
+                            {(t.priority ?? "normal") as TaskPriority}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {canStartTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs"
+                            disabled={startTaskMutation.isPending}
+                            onClick={() => startTaskMutation.mutate(t.id)}
+                          >
+                            Start
+                          </Button>
+                        ) : null}
+                        {canCompleteTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 text-xs"
+                            disabled={completeTaskMutation.isPending}
+                            onClick={() => completeTaskMutation.mutate(t.id)}
+                          >
+                            Complete
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <User className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
+              <CardTitle className="text-sm font-semibold">
+                My tasks
+                {dashboardQuery.data ? (
+                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.myTasks})</span>
+                ) : null}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (dashboardQuery.data?.myTasks.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No tasks assigned to you in your active queue.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {dashboardQuery.data!.myTasks.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/80 p-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <span className="font-medium">
+                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
+                            {t.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
+                          >
+                            {(t.priority ?? "normal") as TaskPriority}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {canStartTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs"
+                            disabled={startTaskMutation.isPending}
+                            onClick={() => startTaskMutation.mutate(t.id)}
+                          >
+                            Start
+                          </Button>
+                        ) : null}
+                        {canCompleteTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 text-xs"
+                            disabled={completeTaskMutation.isPending}
+                            onClick={() => completeTaskMutation.mutate(t.id)}
+                          >
+                            Complete
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <Card className="bg-card border-border/60 shadow-sm">
@@ -364,17 +651,47 @@ export default function AppointmentsPage() {
                           <div className="text-xs font-semibold">
                             {formatTimeHHMM(start)} - {formatTimeHHMM(end)}
                           </div>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {appointment.status}
-                          </Badge>
+                          <div className="flex gap-1">
+                            <Badge variant="secondary" className="text-[10px]">
+                              {appointment.status}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${PRIORITY_BADGE[appointment.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
+                            >
+                              {appointment.priority ?? "normal"}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="text-[11px] mt-1 truncate">
-                          Animal: {appointment.animalId ?? "N/A"} | Technician: {appointment.vetId}
+                          Asset: {appointment.animalId ?? "N/A"} | Technician: {appointment.vetId ?? "—"}
                         </div>
                         {appointment.conflictOverride ? (
                           <div className="text-[10px] mt-1 font-medium">Conflict override</div>
                         ) : null}
                         <div className="flex gap-1 mt-2 flex-wrap">
+                          {canStartTask(appointment, meQuery.data?.id) ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-6 text-[10px] px-2"
+                              disabled={startTaskMutation.isPending}
+                              onClick={() => startTaskMutation.mutate(appointment.id)}
+                            >
+                              Start
+                            </Button>
+                          ) : null}
+                          {canCompleteTask(appointment, meQuery.data?.id) ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-6 text-[10px] px-2"
+                              disabled={completeTaskMutation.isPending}
+                              onClick={() => completeTaskMutation.mutate(appointment.id)}
+                            >
+                              Complete
+                            </Button>
+                          ) : null}
                           {statusActions(appointment.status).map((nextStatus) => (
                             <Button
                               key={`${appointment.id}-${nextStatus}`}

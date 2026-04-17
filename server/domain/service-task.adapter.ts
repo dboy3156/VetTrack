@@ -6,12 +6,14 @@
 export type TaskPriority = "critical" | "high" | "normal";
 export type TaskType = "maintenance" | "repair" | "inspection";
 
-export type ServiceTaskStatus =
+/** Canonical task status (execution engine). */
+export type ServiceTaskStatus = "pending" | "assigned" | "in_progress" | "completed" | "cancelled";
+
+/** All values persisted on vt_appointments.status */
+export type DbAppointmentStatus =
+  | ServiceTaskStatus
   | "scheduled"
   | "arrived"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
   | "no_show";
 
 export interface ServiceTask {
@@ -19,7 +21,7 @@ export interface ServiceTask {
   clinicId: string;
   assetId: string | null;
   locationId: string | null;
-  technicianId: string;
+  technicianId: string | null;
   startTime: string;
   endTime: string;
   status: ServiceTaskStatus;
@@ -38,10 +40,10 @@ export type AppointmentLike = {
   clinicId: string;
   animalId?: string | null;
   ownerId?: string | null;
-  vetId: string;
+  vetId: string | null;
   startTime: string;
   endTime: string;
-  status: ServiceTaskStatus;
+  status: DbAppointmentStatus;
   conflictOverride: boolean;
   overrideReason?: string | null;
   notes?: string | null;
@@ -51,16 +53,41 @@ export type AppointmentLike = {
   updatedAt: string;
 };
 
+/** Map persisted status → canonical task lifecycle status. */
+export function dbStatusToServiceStatus(db: string): ServiceTaskStatus {
+  switch (db) {
+    case "pending":
+      return "pending";
+    case "assigned":
+    case "scheduled":
+    case "arrived":
+      return "assigned";
+    case "in_progress":
+      return "in_progress";
+    case "completed":
+      return "completed";
+    case "cancelled":
+    case "no_show":
+      return "cancelled";
+    default:
+      return "assigned";
+  }
+}
+
+export function isTaskActive(serviceStatus: ServiceTaskStatus): boolean {
+  return serviceStatus !== "completed" && serviceStatus !== "cancelled";
+}
+
 export function toServiceTask(appointment: AppointmentLike): ServiceTask {
   return {
     id: appointment.id,
     clinicId: appointment.clinicId,
     assetId: appointment.animalId ?? null,
     locationId: appointment.ownerId ?? null,
-    technicianId: appointment.vetId,
+    technicianId: appointment.vetId ?? null,
     startTime: appointment.startTime,
     endTime: appointment.endTime,
-    status: appointment.status,
+    status: dbStatusToServiceStatus(appointment.status),
     conflictOverride: appointment.conflictOverride,
     overrideReason: appointment.overrideReason ?? null,
     notes: appointment.notes ?? null,
@@ -69,6 +96,24 @@ export function toServiceTask(appointment: AppointmentLike): ServiceTask {
     createdAt: appointment.createdAt,
     updatedAt: appointment.updatedAt,
   };
+}
+
+/** Map canonical task status → DB row (prefers new enum values over legacy). */
+export function serviceStatusToDbStatus(status: ServiceTaskStatus): DbAppointmentStatus {
+  switch (status) {
+    case "pending":
+      return "pending";
+    case "assigned":
+      return "assigned";
+    case "in_progress":
+      return "in_progress";
+    case "completed":
+      return "completed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "assigned";
+  }
 }
 
 export function toAppointment(serviceTask: ServiceTask): AppointmentLike {
@@ -80,7 +125,7 @@ export function toAppointment(serviceTask: ServiceTask): AppointmentLike {
     vetId: serviceTask.technicianId,
     startTime: serviceTask.startTime,
     endTime: serviceTask.endTime,
-    status: serviceTask.status,
+    status: serviceStatusToDbStatus(serviceTask.status),
     conflictOverride: serviceTask.conflictOverride,
     overrideReason: serviceTask.overrideReason,
     notes: serviceTask.notes,

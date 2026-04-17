@@ -28,6 +28,7 @@ async function run(): Promise<void> {
   assert.equal(st.assetId, "animal-x");
   assert.equal(st.locationId, "owner-y");
   assert.equal(st.technicianId, "vet-z");
+  assert.equal(st.status, "assigned");
   assert.equal(st.priority, "normal");
   assert.equal(st.taskType, "inspection");
 
