@@ -29,6 +29,8 @@ const accessDeniedLib = fs.readFileSync(path.join(repoRoot, "server", "lib", "ac
 const metricsRoute = fs.readFileSync(path.join(repoRoot, "server", "routes", "metrics.ts"), "utf8");
 const authHook = fs.readFileSync(path.join(repoRoot, "src", "hooks", "use-auth.tsx"), "utf8");
 const appShell = fs.readFileSync(path.join(repoRoot, "src", "App.tsx"), "utf8");
+const authGuardPath = path.join(repoRoot, "src", "features", "auth", "components", "AuthGuard.tsx");
+const authGuard = fs.existsSync(authGuardPath) ? fs.readFileSync(authGuardPath, "utf8") : "";
 
 console.log("\n── Access Denied Observability Test");
 
@@ -75,9 +77,9 @@ assert(
 );
 
 assert(
-  appShell.includes("accessDeniedReason") &&
-    appShell.includes("t.auth.guard.accessDeniedTitle") &&
-    appShell.includes("t.auth.guard.retry"),
+  [appShell, authGuard].join("\n").includes("accessDeniedReason") &&
+    [appShell, authGuard].join("\n").includes("t.auth.guard.accessDeniedTitle") &&
+    [appShell, authGuard].join("\n").includes("t.auth.guard.retry"),
   "Auth guard renders recoverable access denied UI",
   "Expected App auth guard to show specific reason + retry and sign out actions"
 );
