@@ -4,6 +4,7 @@
  * notify admin + vet (no `manager` role string in schema).
  */
 import { logAudit } from "./audit.js";
+import { incrementMetric } from "./metrics.js";
 import { enqueueNotificationJob } from "./queue.js";
 import { checkDedupe, sendPushToRole, sendPushToUser } from "./push.js";
 
@@ -124,6 +125,7 @@ export async function dispatchTaskNotificationSync(
       console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
     }
   } catch (err) {
+    incrementMetric("notifications_failed");
     console.error("[task-notification] dispatch failed:", err);
     throw err;
   }

@@ -1,10 +1,10 @@
 import { useEffect } from "react";
-import type { QueryClient } from "@tanstack/react-query";
+import type { RealtimeEvent } from "@/lib/realtime";
 import { connectRealtime, disconnectRealtime } from "@/lib/realtime";
 
-export function useRealtime(queryClient: QueryClient) {
+export function useRealtime(onEvent: (event: RealtimeEvent) => void) {
   useEffect(() => {
-    connectRealtime(queryClient);
+    connectRealtime(onEvent);
     return () => disconnectRealtime();
-  }, []);
+  }, [onEvent]);
 }

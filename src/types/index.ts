@@ -266,6 +266,33 @@ export interface TaskDashboard {
   };
 }
 
+export type RecommendationSuggestionType = "OVERDUE_WARNING" | "START_NOW" | "OVERLOADED" | "PICK_FROM_QUEUE";
+
+export interface RecommendationSuggestion {
+  type: RecommendationSuggestionType;
+  message: string;
+  severity: "high" | "medium" | "low";
+}
+
+export interface RecommendedTask extends Appointment {
+  reason: string;
+  score: number;
+  scoreBreakdown: {
+    overdue: number;
+    critical: number;
+    startsSoon: number;
+    assigned: number;
+    inProgress: number;
+  };
+}
+
+export interface TaskRecommendations {
+  nextBestTask: RecommendedTask | null;
+  urgentTasks: Appointment[];
+  overloaded: boolean;
+  suggestions: RecommendationSuggestion[];
+}
+
 export interface CreateAppointmentRequest {
   animalId?: string | null;
   ownerId?: string | null;

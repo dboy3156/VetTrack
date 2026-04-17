@@ -2,6 +2,10 @@ import webpush from "web-push";
 import { db, pool, pushSubscriptions, serverConfig, users } from "../db.js";
 import { and, eq, isNull } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
+import { isCircuitOpen, recordFailure, recordSuccess } from "./circuit-breaker.js";
+import { incrementMetric } from "./metrics.js";
+import { broadcast } from "./realtime.js";
+import { withTimeout } from "./timeout.js";
 
 let vapidReady = false;
 
@@ -110,6 +114,9 @@ async function dispatchToSub(
   sub: { endpoint: string; p256dh: string; auth: string },
   payload: string
 ): Promise<"ok" | "expired" | "error"> {
+  if (isCircuitOpen("push")) {
+    return "error";
+  }
   // S5 — Breadcrumb on every attempt so the Sentry timeline shows push activity.
   // Guard with SENTRY_DSN so these are no-ops when monitoring is not configured.
   if (process.env.SENTRY_DSN) {
@@ -121,13 +128,20 @@ async function dispatchToSub(
   }
 
   try {
-    await webpush.sendNotification(
-      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-      payload,
-      { TTL: 60 }
+    await withTimeout(
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload,
+        { TTL: 60 }
+      ),
+      5000,
+      "web-push send"
     );
+    recordSuccess("push");
+    incrementMetric("notifications_sent");
     return "ok";
   } catch (err: unknown) {
+    recordFailure("push");
     const e = err as { statusCode?: number };
     if (e?.statusCode === 410 || e?.statusCode === 404) return "expired";
 
@@ -145,6 +159,7 @@ async function dispatchToSub(
       });
     }
 
+    incrementMetric("notifications_failed");
     return "error";
   }
 }
@@ -228,6 +243,12 @@ export async function sendPushToRole(clinicId: string, role: string, payload: Pu
       });
       const result = await dispatchToSub(sub, notificationPayload);
       if (result === 'expired') expired.push(sub.endpoint);
+      if (result === "ok") {
+        broadcast(clinicId, {
+          type: "NOTIFICATION_SENT",
+          payload: { scope: "role", role, userId: sub.userId, tag: payload.tag ?? null, title: payload.title },
+        });
+      }
     })
   );
 
@@ -298,6 +319,12 @@ export async function sendPushToUser(clinicId: string, userId: string, payload: 
       if (result === "ok") deliveredCount += 1;
       if (result === "error") failedCount += 1;
       if (result === "expired") expired.push(sub.endpoint);
+      if (result === "ok") {
+        broadcast(clinicId, {
+          type: "NOTIFICATION_SENT",
+          payload: { scope: "user", userId, tag: payload.tag ?? null, title: payload.title },
+        });
+      }
     })
   );
 

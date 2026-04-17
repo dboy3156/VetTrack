@@ -3,6 +3,8 @@ import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, db, owners, shifts, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
+import { incrementMetric } from "../lib/metrics.js";
+import { broadcast } from "../lib/realtime.js";
 import { sendTaskNotification } from "../lib/task-notification.js";
 
 export type AppointmentStatus =
@@ -508,6 +510,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
     .returning();
 
   const serialized = serializeAppointment(created);
+  incrementMetric("tasks_created");
   if (actor) {
     auditTaskChange("task_created", clinicId, actor, serialized.id, null, { ...serialized });
     if (serialized.conflictOverride && serialized.overrideReason === "AUTO_CRITICAL" && serialized.priority === "critical") {
@@ -528,6 +531,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
     }
   }
   void sendTaskNotification("TASK_CREATED", serialized, actor).catch(() => {});
+  broadcast(clinicId, { type: "TASK_CREATED", payload: serialized });
   return serialized;
 }
 
@@ -693,6 +697,7 @@ export async function updateAppointment(
       });
     }
   }
+  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 
@@ -768,6 +773,7 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     .returning();
 
   const serialized = serializeAppointment(updated);
+  incrementMetric("tasks_started");
   logAudit({
     clinicId,
     actionType: "task_started",
@@ -778,6 +784,7 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
   });
   void sendTaskNotification("TASK_STARTED", serialized, actor).catch(() => {});
+  broadcast(clinicId, { type: "TASK_STARTED", payload: serialized });
   return serialized;
 }
 
@@ -816,6 +823,7 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
     .returning();
 
   const serialized = serializeAppointment(updated);
+  incrementMetric("tasks_completed");
   logAudit({
     clinicId,
     actionType: "task_completed",
@@ -826,6 +834,7 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
   });
   void sendTaskNotification("TASK_COMPLETED", serialized, actor).catch(() => {});
+  broadcast(clinicId, { type: "TASK_COMPLETED", payload: serialized });
   return serialized;
 }
 
