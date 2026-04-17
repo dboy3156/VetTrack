@@ -55,7 +55,7 @@ assert(
 
 assert(
   codeBluePage.includes("onClick={() => navigate(\"/\")}") &&
-    codeBluePage.includes("<X className=\"w-4 h-4\" />"),
+    codeBluePage.includes("<X className=\"w-4 h-4 mr-1\" />"),
   "Dismiss button exists and navigates back",
 );
 

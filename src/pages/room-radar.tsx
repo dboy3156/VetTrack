@@ -86,6 +86,8 @@ const STATUS_BAR_COLORS: Record<EquipmentStatus, string> = {
   issue: "border-s-red-500",
   maintenance: "border-s-amber-500",
   sterilized: "border-s-blue-500",
+  critical: "border-s-red-600",
+  needs_attention: "border-s-orange-500",
 };
 
 interface RadarEquipmentCardProps {

@@ -1327,7 +1327,7 @@ export default function EquipmentDetailPage() {
                       </p>
                     )}
                   </div>
-                  <Badge variant={equipment.status} className="shrink-0 text-xs" data-testid="scan-action-status-badge">
+                  <Badge variant={statusToBadgeVariant(equipment.status)} className="shrink-0 text-xs" data-testid="scan-action-status-badge">
                     {STATUS_LABELS[equipment.status as keyof typeof STATUS_LABELS] || equipment.status}
                   </Badge>
                 </div>

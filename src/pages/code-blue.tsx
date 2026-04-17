@@ -71,7 +71,7 @@ export default function CodeBluePage() {
             <Button
               variant="outline"
               className="border-zinc-600 bg-zinc-900/80 text-zinc-100 hover:bg-zinc-800"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate("/")}
               data-testid="code-blue-dismiss"
             >
               <X className="w-4 h-4 mr-1" />
