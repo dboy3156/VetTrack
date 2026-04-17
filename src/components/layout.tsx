@@ -646,8 +646,8 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       {/* ScanFAB — opens camera QR scanner */}
       <button
         onClick={openScanner}
-        className="fixed left-1/2 -translate-x-1/2 z-[60] w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
-        style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
+        className="fixed z-[60] w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
+        style={{ left: "20px", bottom: "calc(90px + env(safe-area-inset-bottom))", zIndex: 60 }}
         aria-label={lh.scanQrAria}
         data-testid="bottom-nav-scan"
       >

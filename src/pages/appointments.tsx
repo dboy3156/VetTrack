@@ -444,7 +444,7 @@ export default function AppointmentsPage() {
 
   return (
     <Layout title="Tasks">
-      <div className="flex flex-col gap-4 pb-24">
+      <div dir="rtl" className="flex flex-col gap-4 pb-24 text-right">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="w-6 h-6" />
@@ -876,15 +876,16 @@ export default function AppointmentsPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
             <div>
-              <label className="text-xs text-muted-foreground">Day</label>
-              <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+              <label className="text-xs text-muted-foreground block text-right">Day</label>
+              <Input dir="ltr" className="text-left" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Technician</label>
+              <label className="text-xs text-muted-foreground block text-right">Technician</label>
               <select
+                dir="ltr"
                 value={selectedVetId}
                 onChange={(e) => setSelectedVetId(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
               >
                 <option value="">All technicians</option>
                 {(metaQuery.data?.vets ?? []).map((vet) => (
@@ -895,13 +896,13 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Hours</label>
+              <label className="text-xs text-muted-foreground block text-right">Hours</label>
               <div className="h-10 px-3 rounded-md border flex items-center text-sm">
                 {DAY_START_HOUR}:00 - {DAY_END_HOUR}:00
               </div>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Interval</label>
+              <label className="text-xs text-muted-foreground block text-right">Interval</label>
               <div className="h-10 px-3 rounded-md border flex items-center text-sm">{SLOT_MINUTES} min</div>
             </div>
             <div>
@@ -1068,18 +1069,24 @@ export default function AppointmentsPage() {
       </div>
 
       <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
-        <DialogContent>
+        <DialogContent dir="rtl" className="text-right">
           <DialogHeader>
             <DialogTitle>New Task</DialogTitle>
-            <DialogDescription>Assign a device and technician. Tap a slot to prefill the time.</DialogDescription>
+            <DialogDescription>
+              Assign a device and technician.{" "}
+              <span dir="ltr" className="inline-block text-left">
+                Tap a slot to prefill the time.
+              </span>
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">Technician (required)</label>
+              <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
               <select
+                dir="ltr"
                 value={formVetId}
                 onChange={(e) => setFormVetId(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
               >
                 <option value="">Select technician</option>
                 {(metaQuery.data?.vets ?? []).map((vet) => (
@@ -1090,22 +1097,35 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Device / Asset (required)</label>
-              <Input value={formAnimalId} onChange={(e) => setFormAnimalId(e.target.value)} placeholder="e.g. Ventilator, Autoclave" />
+              <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
+              <Input
+                dir="ltr"
+                className="text-left"
+                value={formAnimalId}
+                onChange={(e) => setFormAnimalId(e.target.value)}
+                placeholder="e.g. Ventilator, Autoclave"
+              />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Location / Department (optional)</label>
-              <Input value={formOwnerId} onChange={(e) => setFormOwnerId(e.target.value)} placeholder="ICU / ER / Ward" />
+              <label className="text-xs text-muted-foreground block text-right">Location / Department (optional)</label>
+              <Input
+                dir="ltr"
+                className="text-left"
+                value={formOwnerId}
+                onChange={(e) => setFormOwnerId(e.target.value)}
+                placeholder="ICU / ER / Ward"
+              />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Duration preset</label>
+              <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
               <select
+                dir="ltr"
                 value={String(selectedDuration)}
                 onChange={(e) => {
                   setSelectedDuration(Number.parseInt(e.target.value, 10));
                   setManualEndOverride(false);
                 }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
               >
                 {DURATION_PRESETS.map((preset) => (
                   <option key={preset.key} value={preset.minutes}>
@@ -1115,12 +1135,20 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Scheduled time</label>
-              <Input type="datetime-local" value={formStartLocal} onChange={(e) => setFormStartLocal(e.target.value)} />
+              <label className="text-xs text-muted-foreground block text-right">Scheduled time</label>
+              <Input
+                dir="ltr"
+                className="text-left"
+                type="datetime-local"
+                value={formStartLocal}
+                onChange={(e) => setFormStartLocal(e.target.value)}
+              />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Expected end (manual override allowed)</label>
+              <label className="text-xs text-muted-foreground block text-right">Expected end (manual override allowed)</label>
               <Input
+                dir="ltr"
+                className="text-left"
                 type="datetime-local"
                 value={formEndLocal}
                 onChange={(e) => {
@@ -1130,8 +1158,8 @@ export default function AppointmentsPage() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="text-xs text-muted-foreground">Notes</label>
-              <Textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3} />
+              <label className="text-xs text-muted-foreground block text-right">Notes</label>
+              <Textarea dir="ltr" className="text-left" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3} />
             </div>
           </div>
           <DialogFooter>
@@ -1149,7 +1177,7 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={conflictOpen} onOpenChange={setConflictOpen}>
-        <DialogContent>
+        <DialogContent dir="rtl" className="text-right">
           <DialogHeader>
             <DialogTitle>Scheduling conflict</DialogTitle>
             <DialogDescription>
@@ -1157,8 +1185,8 @@ export default function AppointmentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div>
-              <label className="text-xs text-muted-foreground">Reason for override</label>
-            <Textarea value={conflictReason} onChange={(e) => setConflictReason(e.target.value)} rows={3} />
+              <label className="text-xs text-muted-foreground block text-right">Reason for override</label>
+            <Textarea dir="ltr" className="text-left" value={conflictReason} onChange={(e) => setConflictReason(e.target.value)} rows={3} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConflictOpen(false)}>

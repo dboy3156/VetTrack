@@ -16,39 +16,12 @@ import xss from "xss";
 import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import equipmentRoutes from "./routes/equipment.js";
-import analyticsRoutes from "./routes/analytics.js";
-import activityRoutes from "./routes/activity.js";
-import userRoutes from "./routes/users.js";
-import stabilityRoutes from "./routes/stability.js";
-import metricsRoutes from "./routes/metrics.js";
-import foldersRoutes from "./routes/folders.js";
-import alertAcksRoutes from "./routes/alert-acks.js";
-import roomsRoutes from "./routes/rooms.js";
-import supportRoutes from "./routes/support.js";
-import pushRoutes from "./routes/push.js";
-import whatsappRoutes from "./routes/whatsapp.js";
-import auditLogsRoutes from "./routes/audit-logs.js";
-import storageRoutes from "./routes/storage.js";
-import shiftsRoutes from "./routes/shifts.js";
-import appointmentsRoutes from "./routes/appointments.js";
-import tasksRoutes from "./routes/tasks.js";
-import testRoutes from "./routes/test.js";
-import healthRoutes from "./routes/health.js";
-import queueRoutes from "./routes/queue.js";
-import realtimeRoutes from "./routes/realtime.js";
 import { runMigrations } from "./migrate.js";
-import { initVapid, startPushCleanupScheduler } from "./lib/push.js";
-import { startCleanupScheduler } from "./lib/cleanup-scheduler.js";
-import {
-  startScheduledNotificationProcessor,
-  startSmartRoleNotificationScheduler,
-} from "./lib/role-notification-scheduler.js";
-import { startAccessDeniedMetricsWindowScheduler } from "./lib/access-denied.js";
-import { startSystemWatchdog } from "./lib/system-watchdog.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
+import { registerApiRoutes } from "./app/routes.js";
+import { startBackgroundSchedulers } from "./app/start-schedulers.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
@@ -219,29 +192,7 @@ app.use("/api", globalApiLimiter);
 app.use("/api", i18nMiddleware);
 app.use("/api", tenantContext);
 
-app.use("/api/users", userRoutes);
-app.use("/api/equipment", equipmentRoutes);
-app.use("/api/analytics", analyticsRoutes);
-app.use("/api/activity", activityRoutes);
-app.use("/api/metrics", metricsRoutes);
-app.use("/api/realtime", realtimeRoutes);
-app.use("/api/queue", queueRoutes);
-app.use("/api/folders", foldersRoutes);
-app.use("/api/stability", stabilityRoutes);
-app.use("/api/alert-acks", alertAcksRoutes);
-app.use("/api/rooms", roomsRoutes);
-app.use("/api/support", supportRoutes);
-app.use("/api/push", pushRoutes);
-app.use("/api/whatsapp", whatsappRoutes);
-app.use("/api/audit-logs", auditLogsRoutes);
-app.use("/api/storage", storageRoutes);
-app.use("/api/shifts", shiftsRoutes);
-app.use("/api/appointments", appointmentsRoutes);
-app.use("/api/tasks", tasksRoutes);
-app.use("/api/test", testRoutes);
-app.use("/api/health", healthRoutes);
-app.use("/api/health/ready", healthRoutes);
-app.use("/health", healthRoutes);
+registerApiRoutes(app);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../dist/public")));
@@ -273,16 +224,9 @@ app.listen(PORT, "0.0.0.0", () => {
 
 runMigrations()
   .then(() => {
-    initVapid().then(() => {
-      startPushCleanupScheduler();
-    }).catch((err) => {
+    startBackgroundSchedulers().catch((err) => {
       console.error("Failed to initialize push notifications", err);
     });
-    startCleanupScheduler();
-    startAccessDeniedMetricsWindowScheduler();
-    startScheduledNotificationProcessor();
-    startSmartRoleNotificationScheduler();
-    startSystemWatchdog();
     console.log("✅ Background schedulers started");
   })
   .catch((err) => {
