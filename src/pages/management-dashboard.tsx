@@ -406,16 +406,6 @@ export default function ManagementDashboardPage() {
         </Card>
       </div>
 
-      {/* Floating QR scan button — thumb-reachable, bottom-right */}
-      <button
-        onClick={() => setScannerOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
-        aria-label="Scan QR code"
-        data-testid="fab-qr-scan"
-      >
-        <QrCode className="w-6 h-6" />
-      </button>
-
       {scannerOpen && (
         <QrScanner onClose={() => setScannerOpen(false)} />
       )}
