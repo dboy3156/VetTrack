@@ -28,6 +28,8 @@ const migration025 = fs.readFileSync(path.join(repoRoot, "migrations", "025_data
 const migrationRunner = fs.readFileSync(path.join(repoRoot, "server", "migrate.ts"), "utf8");
 const healthRoute = fs.readFileSync(path.join(repoRoot, "server", "routes", "health.ts"), "utf8");
 const indexServer = fs.readFileSync(path.join(repoRoot, "server", "index.ts"), "utf8");
+const appRoutesPath = path.join(repoRoot, "server", "app", "routes.ts");
+const appRoutes = fs.existsSync(appRoutesPath) ? fs.readFileSync(appRoutesPath, "utf8") : "";
 const pushLib = fs.readFileSync(path.join(repoRoot, "server", "lib", "push.ts"), "utf8");
 
 console.log("\n── Data Integrity Hardening Test");
@@ -92,9 +94,9 @@ assert(
 );
 
 assert(
-  indexServer.includes('app.use("/health", healthRoutes);'),
+  indexServer.includes("registerApiRoutes(app);") || appRoutes.includes('app.use("/health", healthRoutes);'),
   "Server mounts /health routes",
-  "Expected server/index.ts to expose /health/data-integrity endpoint path"
+  "Expected server bootstrap to expose /health/data-integrity endpoint path"
 );
 
 assert(

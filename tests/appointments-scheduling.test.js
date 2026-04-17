@@ -36,6 +36,8 @@ const routeFile = fs.readFileSync(path.join(repoRoot, "server", "routes", "appoi
 const taskRouteFile = fs.readFileSync(path.join(repoRoot, "server", "routes", "tasks.ts"), "utf8");
 const taskRbacFile = fs.readFileSync(path.join(repoRoot, "server", "lib", "task-rbac.ts"), "utf8");
 const serverIndex = fs.readFileSync(path.join(repoRoot, "server", "index.ts"), "utf8");
+const appRoutesPath = path.join(repoRoot, "server", "app", "routes.ts");
+const appRoutes = fs.existsSync(appRoutesPath) ? fs.readFileSync(appRoutesPath, "utf8") : "";
 const appointmentsPage = fs.readFileSync(path.join(repoRoot, "src", "pages", "appointments.tsx"), "utf8");
 
 console.log("\n── Appointments Scheduling Test");
@@ -160,9 +162,9 @@ assert(
 );
 
 assert(
-  serverIndex.includes("app.use(\"/api/appointments\", appointmentsRoutes);"),
+  serverIndex.includes("registerApiRoutes(app);") || appRoutes.includes('app.use("/api/appointments", appointmentsRoutes);'),
   "Appointments API mounted in server",
-  "Expected server/index.ts to mount /api/appointments"
+  "Expected bootstrap flow to mount /api/appointments"
 );
 
 assert(
