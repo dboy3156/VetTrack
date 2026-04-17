@@ -13,7 +13,16 @@ import { logAudit } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
 import { scheduleSmartReturnReminder, cancelSmartReturnReminder } from "../lib/role-notification-scheduler.js";
 
-const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
+const EQUIPMENT_STATUS_VALUES = [
+  "ok",
+  "issue",
+  "maintenance",
+  "sterilized",
+  "overdue",
+  "inactive",
+  "critical",
+  "needs_attention",
+] as const;
 
 const createEquipmentSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(500),
@@ -89,6 +98,7 @@ const upload = multer({
  * PERMISSIONS MATRIX — /api/equipment
  * ─────────────────────────────────────────────────────
  * GET  /                  viewer+       List all equipment
+ * GET  /critical          viewer+       List critical/needs-attention equipment
  * GET  /my                viewer+       List equipment checked out by current user
  * GET  /:id               viewer+       Get single equipment item
  * GET  /:id/logs          viewer+       Scan log history for item
@@ -432,6 +442,44 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
         code: "INTERNAL_ERROR",
         reason: "DELETED_EQUIPMENT_LIST_FAILED",
         message: "Failed to list deleted equipment",
+        requestId,
+      }),
+    );
+  }
+});
+
+// GET /api/equipment/critical
+router.get("/critical", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const items = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+        category: sql<string>`COALESCE(${equipment.model}, 'General')`,
+        status: equipment.status,
+        lastSeenLocation: sql<string | null>`COALESCE(${equipment.checkedOutLocation}, ${equipment.location})`,
+        lastSeenTimestamp: equipment.lastSeen,
+      })
+      .from(equipment)
+      .where(
+        and(
+          eq(equipment.clinicId, clinicId),
+          inArray(equipment.status, ["critical", "needs_attention"]),
+          isNull(equipment.deletedAt),
+        ),
+      )
+      .orderBy(desc(equipment.lastSeen));
+
+    res.json(items);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "CRITICAL_EQUIPMENT_FETCH_FAILED",
+        message: "Failed to fetch critical equipment",
         requestId,
       }),
     );

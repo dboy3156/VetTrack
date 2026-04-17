@@ -1,5 +1,6 @@
 import type {
   Equipment,
+  CriticalEquipment,
   CreateEquipmentRequest,
   UpdateEquipmentRequest,
   ScanEquipmentRequest,
@@ -370,6 +371,7 @@ export const api = {
         throw err;
       }
     },
+    getCriticalEquipment: () => request<CriticalEquipment[]>("/api/equipment/critical"),
     create: (data: CreateEquipmentRequest, signal?: AbortSignal) =>
       request<Equipment>(
         "/api/equipment",
