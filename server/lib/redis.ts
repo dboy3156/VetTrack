@@ -5,6 +5,7 @@ import Redis from "ioredis";
 
 let shared: Redis | null = null;
 let creationFailed = false;
+let redisDisabledWarned = false;
 
 export function getRedisUrl(): string | null {
   const u = process.env.REDIS_URL?.trim();
@@ -20,6 +21,10 @@ export function getRedis(): Redis | null {
   if (shared) return shared;
   const url = getRedisUrl();
   if (!url) {
+    if (!redisDisabledWarned) {
+      redisDisabledWarned = true;
+      console.warn("REDIS_DISABLED: running without Redis");
+    }
     return null;
   }
   try {

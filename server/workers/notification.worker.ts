@@ -14,7 +14,7 @@ import {
   type AutomationExecutePayload,
   type NotificationJobData,
 } from "../lib/queue.js";
-import { createRedisConnection, getRedisUrl } from "../lib/redis.js";
+import { createRedisConnection } from "../lib/redis.js";
 import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/push.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
@@ -75,8 +75,8 @@ async function processSendNotification(data: NotificationJobData): Promise<void>
 }
 
 async function main(): Promise<void> {
-  if (!getRedisUrl()) {
-    console.error("[worker] REDIS_URL is required for notification worker");
+  if (!process.env.REDIS_URL?.trim()) {
+    console.error("WORKER_DISABLED_NO_REDIS");
     process.exit(1);
   }
 
@@ -148,9 +148,10 @@ async function main(): Promise<void> {
   );
 
   worker.on("failed", (job, err) => {
-    console.error("QUEUE_JOB_FAILED", { id: job?.id, err: err?.message });
+    console.error("QUEUE_JOB_FAILED", { jobId: job?.id, err });
   });
 
+  console.log("NOTIFICATION_WORKER_STARTED");
   console.log(
     `[worker] notification worker listening (${NOTIFICATION_QUEUE_NAME}), overdue scan every ${OVERDUE_SCAN_MS / 60000} min, automation tick every ${AUTOMATION_TICK_MS / 1000}s`,
   );

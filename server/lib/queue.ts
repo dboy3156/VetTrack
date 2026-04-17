@@ -125,10 +125,15 @@ export type NotificationJobData =
  * Enqueue a notification job. Never throws — API stays safe if Redis/queue down.
  */
 export async function enqueueNotificationJob(data: NotificationJobData): Promise<void> {
+  if (!getRedisUrl()) {
+    console.warn("QUEUE_DISABLED_NO_REDIS");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
   const q = getNotificationsQueue();
   if (!q) {
     queueMetrics.droppedNoRedis++;
-    console.warn("[queue] enqueue skipped — queue unavailable (REDIS_URL or connection)");
+    console.warn("[queue] enqueue skipped — queue unavailable (Redis connection failed)");
     return;
   }
 
@@ -166,6 +171,7 @@ export async function enqueueNotificationJob(data: NotificationJobData): Promise
   }
 
   try {
+    console.log("QUEUE_JOB_ENQUEUED", data.type);
     await q.add("send_notification", data, defaultJobOptions());
     queueMetrics.enqueued++;
   } catch (err) {
@@ -179,6 +185,11 @@ export async function enqueueNotificationJob(data: NotificationJobData): Promise
  * jobId includes a 1-minute bucket so BullMQ can retry / re-enqueue without permanent collision.
  */
 export async function enqueueAutomationExecuteJob(payload: AutomationExecutePayload): Promise<void> {
+  if (!getRedisUrl()) {
+    console.warn("QUEUE_DISABLED_NO_REDIS");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
   const q = getNotificationsQueue();
   if (!q) {
     queueMetrics.droppedNoRedis++;
