@@ -33,6 +33,8 @@ const migration028 = fs.readFileSync(path.join(repoRoot, "migrations", "028_appo
 const serviceFile = fs.readFileSync(path.join(repoRoot, "server", "services", "appointments.service.ts"), "utf8");
 const authFile = fs.readFileSync(path.join(repoRoot, "server", "middleware", "auth.ts"), "utf8");
 const routeFile = fs.readFileSync(path.join(repoRoot, "server", "routes", "appointments.ts"), "utf8");
+const taskRouteFile = fs.readFileSync(path.join(repoRoot, "server", "routes", "tasks.ts"), "utf8");
+const taskRbacFile = fs.readFileSync(path.join(repoRoot, "server", "lib", "task-rbac.ts"), "utf8");
 const serverIndex = fs.readFileSync(path.join(repoRoot, "server", "index.ts"), "utf8");
 const appointmentsPage = fs.readFileSync(path.join(repoRoot, "src", "pages", "appointments.tsx"), "utf8");
 
@@ -131,6 +133,22 @@ assert(
     routeFile.includes("logServiceChange"),
   "Routes require auth + structured validation errors",
   "Expected appointments route to enforce auth, expose metadata, and return structured errors"
+);
+
+assert(
+  routeFile.includes("eq(users.role, \"technician\")"),
+  "Appointments meta includes technicians as assignable users",
+  "Expected /api/appointments/meta query to include technician role"
+);
+
+assert(
+  routeFile.includes("requireTaskActionPermission") &&
+    taskRouteFile.includes("requireTaskActionPermission") &&
+    taskRbacFile.includes("canPerformTaskAction") &&
+    taskRbacFile.includes("\"task.assign\"") &&
+    taskRbacFile.includes("\"task.reassign\""),
+  "Task RBAC policy is enforced in appointment and task routes",
+  "Expected shared task RBAC helper and route-level permission checks"
 );
 
 assert(
