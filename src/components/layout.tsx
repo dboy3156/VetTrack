@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -102,12 +102,23 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       setQuickSettingsViewportTop(rect.bottom + QUICK_SETTINGS_MARGIN);
     };
 
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    const debouncedUpdateQuickSettingsPlacement = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(updateQuickSettingsPlacement, 100);
+    };
+
     updateQuickSettingsPlacement();
-    window.addEventListener("resize", updateQuickSettingsPlacement);
-    window.addEventListener("scroll", updateQuickSettingsPlacement, true);
+    window.addEventListener("resize", debouncedUpdateQuickSettingsPlacement);
+    window.addEventListener("scroll", debouncedUpdateQuickSettingsPlacement, true);
     return () => {
-      window.removeEventListener("resize", updateQuickSettingsPlacement);
-      window.removeEventListener("scroll", updateQuickSettingsPlacement, true);
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      window.removeEventListener("resize", debouncedUpdateQuickSettingsPlacement);
+      window.removeEventListener("scroll", debouncedUpdateQuickSettingsPlacement, true);
     };
   }, [quickSettingsOpen]);
 
@@ -168,7 +179,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const alertCount = equipment ? computeAlerts(equipment).length : 0;
   const myCount = myEquipment?.length ?? 0;
 
-  const navItems: NavItem[] = [
+  const navItems: NavItem[] = useMemo(() => [
     { href: "/", label: lh.home, icon: <Home className="w-5 h-5" /> },
     { href: "/equipment", label: t.equipment.title, icon: <Package className="w-5 h-5" /> },
     {
@@ -194,7 +205,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
-  ];
+  ], [alertCount, myCount, isAdmin, location, lh, t]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
   const bottomItems = visibleItems.filter((item) => !item.menuOnly);
