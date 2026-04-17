@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, users } from "../db.js";
 import { eq, sql, isNull, isNotNull, desc, and } from "drizzle-orm";
 import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js";
+import { clerkClient } from "@clerk/express";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { logAudit } from "../lib/audit.js";
@@ -53,6 +54,25 @@ const syncUserSchema = z.object({
   email: z.string().email("email must be a valid email address"),
   name: z.string().optional(),
 });
+
+function normalizeIdentityValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isDemoIdentity(clerkId: string, email: string, name: string): boolean {
+  const id = clerkId.toLowerCase();
+  const em = email.toLowerCase();
+  const nm = name.toLowerCase();
+  const local = em.includes("@") ? em.split("@")[0] : em;
+
+  return (
+    id.startsWith("demo") ||
+    id.includes("demo-") ||
+    local.startsWith("demo") ||
+    local.includes("+demo") ||
+    nm.includes("demo")
+  );
+}
 
 function serializeUser(user: typeof users.$inferSelect) {
   return {
@@ -490,6 +510,120 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to sync user" });
+  }
+});
+
+router.post("/backfill-clerk", requireAuth, requireAdmin, authSensitiveLimiter, async (req, res) => {
+  try {
+    const clinicId = req.clinicId!;
+    const actor = req.authUser!;
+    const pageSize = 100;
+    let offset = 0;
+
+    let scanned = 0;
+    let inserted = 0;
+    let updated = 0;
+    let skippedDemo = 0;
+    let skippedIncomplete = 0;
+
+    while (true) {
+      const page = await clerkClient.organizations.getOrganizationMembershipList({
+        organizationId: clinicId,
+        limit: pageSize,
+        offset,
+      });
+      const memberships = (page.data ?? []) as Array<{
+        publicUserData?: {
+          userId?: string;
+          identifier?: string;
+          firstName?: string;
+          lastName?: string;
+        };
+      }>;
+
+      if (memberships.length === 0) break;
+
+      for (const membership of memberships) {
+        scanned += 1;
+        const clerkId = normalizeIdentityValue(membership.publicUserData?.userId);
+        const email = normalizeIdentityValue(membership.publicUserData?.identifier).toLowerCase();
+        const firstName = normalizeIdentityValue(membership.publicUserData?.firstName);
+        const lastName = normalizeIdentityValue(membership.publicUserData?.lastName);
+        const name = `${firstName} ${lastName}`.trim();
+        const displayName = name || email;
+
+        if (!clerkId || !email) {
+          skippedIncomplete += 1;
+          continue;
+        }
+
+        if (isDemoIdentity(clerkId, email, displayName)) {
+          skippedDemo += 1;
+          continue;
+        }
+
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.clerkId, clerkId), eq(users.clinicId, clinicId)))
+          .limit(1);
+
+        const [row] = await db
+          .insert(users)
+          .values({
+            id: existing?.id ?? randomUUID(),
+            clinicId,
+            clerkId,
+            email,
+            name,
+            displayName,
+            role: "technician",
+            status: "active",
+          })
+          .onConflictDoUpdate({
+            target: users.clerkId,
+            set: {
+              clinicId,
+              email,
+              name: sql`CASE WHEN EXCLUDED.name = '' THEN ${users.name} ELSE EXCLUDED.name END`,
+              displayName: sql`CASE WHEN EXCLUDED.display_name = '' THEN ${users.displayName} ELSE EXCLUDED.display_name END`,
+              deletedAt: null,
+              deletedBy: null,
+            },
+          })
+          .returning({ id: users.id });
+
+        if (existing?.id || row.id === existing?.id) {
+          updated += 1;
+        } else {
+          inserted += 1;
+        }
+      }
+
+      if (memberships.length < pageSize) break;
+      offset += memberships.length;
+    }
+
+    logAudit({
+      clinicId,
+      actionType: "users_backfilled_from_clerk",
+      performedBy: actor.id,
+      performedByEmail: actor.email,
+      targetType: "user",
+      metadata: { scanned, inserted, updated, skippedDemo, skippedIncomplete },
+    });
+
+    return res.json({
+      ok: true,
+      scanned,
+      inserted,
+      updated,
+      skippedDemo,
+      skippedIncomplete,
+    });
+  } catch (err) {
+    console.error("users:backfill-clerk", err);
+    return res.status(500).json({ error: "Failed to backfill users from Clerk" });
   }
 });
 
