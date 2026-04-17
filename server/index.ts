@@ -34,7 +34,6 @@ import shiftsRoutes from "./routes/shifts.js";
 import appointmentsRoutes from "./routes/appointments.js";
 import tasksRoutes from "./routes/tasks.js";
 import testRoutes from "./routes/test.js";
-import demoSeedRoutes from "./routes/demo-seed.js";
 import healthRoutes from "./routes/health.js";
 import queueRoutes from "./routes/queue.js";
 import realtimeRoutes from "./routes/realtime.js";
@@ -239,7 +238,6 @@ app.use("/api/shifts", shiftsRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/test", testRoutes);
-app.use("/api/demo-seed", demoSeedRoutes);
 app.use("/api/health/ready", healthRoutes);
 app.use("/health", healthRoutes);
 

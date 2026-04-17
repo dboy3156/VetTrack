@@ -42,7 +42,6 @@ const requiredPrefixes = [
   "/api/audit-logs",
   "/api/storage",
   "/api/test",
-  "/api/demo-seed",
   "/api/health/ready",
 ];
 

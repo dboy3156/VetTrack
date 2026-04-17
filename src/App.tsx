@@ -57,7 +57,6 @@ const HelpPage = lazy(() => import("@/pages/help"));
 const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const AdminShiftsPage = lazy(() => import("@/pages/admin-shifts"));
 const AppointmentsPage = lazy(() => import("@/pages/appointments"));
-const DemoGuidePage = lazy(() => import("@/pages/demo-guide"));
 const WhatsNewPage = lazy(() => import("@/pages/whats-new"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
@@ -157,7 +156,6 @@ export default function App() {
         {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
         <Route path="/signin/*?" component={SignInPage} />
         <Route path="/signup/*?" component={SignUpPage} />
-        <Route path="/demo-guide" component={DemoGuidePage} />
 
         <Route path="/"><AuthGuard><HomePage /></AuthGuard></Route>
         <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
