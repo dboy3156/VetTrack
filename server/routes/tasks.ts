@@ -7,6 +7,7 @@ import {
   getTasksForTechnicianToday,
   startTask,
 } from "../services/appointments.service.js";
+import { getTaskDashboard } from "../services/task-recall.service.js";
 
 const router = Router();
 
@@ -21,6 +22,23 @@ function sendServiceError(res: Response, err: unknown) {
   }
   return false;
 }
+
+router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+  }
+  const clinicId = req.clinicId;
+  if (!clinicId?.trim()) {
+    return res.status(400).json({ error: "VALIDATION_FAILED", message: "clinicId is required" });
+  }
+  try {
+    const dashboard = await getTaskDashboard(clinicId, req.authUser.id);
+    return res.json(dashboard);
+  } catch (err) {
+    console.error("tasks:dashboard", err);
+    return res.status(500).json({ error: "INTERNAL_ERROR", message: "Failed to load task dashboard" });
+  }
+});
 
 router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   if (!req.params.id?.trim()) {

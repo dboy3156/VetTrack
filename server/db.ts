@@ -71,6 +71,11 @@ export const appointments = pgTable("vt_appointments", {
   notes: text("notes"),
   priority: varchar("priority", { length: 20 }).notNull().default("normal"),
   taskType: varchar("task_type", { length: 20 }),
+  /** Automation: overdue escalation target — does not replace vet_id (technician ownership). */
+  escalatedTo: text("escalated_to").references(() => users.id, { onDelete: "set null" }),
+  escalatedAt: timestamp("escalated_at", { withTimezone: true }),
+  stuckNotifiedAt: timestamp("stuck_notified_at", { withTimezone: true }),
+  prestartReminderAt: timestamp("prestart_reminder_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

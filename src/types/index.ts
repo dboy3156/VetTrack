@@ -249,6 +249,21 @@ export interface Appointment {
   taskType?: TaskType | null;
   createdAt: string;
   updatedAt: string;
+  /** Set by task recall dashboard — end_time is before now. */
+  isOverdue?: boolean;
+}
+
+/** GET /api/tasks/dashboard — single payload for Daily Recall UI. */
+export interface TaskDashboard {
+  today: Appointment[];
+  overdue: Appointment[];
+  upcoming: Appointment[];
+  myTasks: Appointment[];
+  counts: {
+    today: number;
+    overdue: number;
+    myTasks: number;
+  };
 }
 
 export interface CreateAppointmentRequest {

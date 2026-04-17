@@ -33,7 +33,11 @@ export type AuditActionType =
   | "task_started"
   | "task_completed"
   | "task_cancelled"
-  | "CRITICAL_TASK_EXECUTED";
+  | "CRITICAL_TASK_EXECUTED"
+  | "CRITICAL_NOTIFICATION_SENT"
+  | "TASK_ESCALATED"
+  | "TASK_AUTO_ASSIGNED"
+  | "TASK_STUCK_NOTIFIED";
 
 export interface LogAuditParams {
   clinicId: string;

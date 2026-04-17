@@ -3,6 +3,7 @@ import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, db, owners, shifts, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
+import { sendTaskNotification } from "../lib/task-notification.js";
 
 export type AppointmentStatus =
   | "pending"
@@ -526,6 +527,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       });
     }
   }
+  void sendTaskNotification("TASK_CREATED", serialized, actor).catch(() => {});
   return serialized;
 }
 
@@ -775,6 +777,7 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     targetType: "task",
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
   });
+  void sendTaskNotification("TASK_STARTED", serialized, actor).catch(() => {});
   return serialized;
 }
 
@@ -822,6 +825,7 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
     targetType: "task",
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
   });
+  void sendTaskNotification("TASK_COMPLETED", serialized, actor).catch(() => {});
   return serialized;
 }
 

@@ -92,17 +92,18 @@ function assertClinicId(clinicId: string): void {
 const dedupeCache = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 60_000;
 
-function isDuplicate(key: string): boolean {
+function isDuplicate(key: string, windowMs: number): boolean {
   const now = Date.now();
   const last = dedupeCache.get(key);
-  if (last && now - last < DEDUPE_WINDOW_MS) return true;
+  if (last && now - last < windowMs) return true;
   dedupeCache.set(key, now);
-  setTimeout(() => dedupeCache.delete(key), DEDUPE_WINDOW_MS);
+  setTimeout(() => dedupeCache.delete(key), windowMs);
   return false;
 }
 
-export function checkDedupe(equipmentId: string, eventType: string): boolean {
-  return isDuplicate(`${equipmentId}:${eventType}`);
+/** @param windowMs Optional window (default 60s). Use 3_600_000 for hourly reminders. */
+export function checkDedupe(equipmentId: string, eventType: string, windowMs: number = DEDUPE_WINDOW_MS): boolean {
+  return isDuplicate(`${equipmentId}:${eventType}`, windowMs);
 }
 
 async function dispatchToSub(

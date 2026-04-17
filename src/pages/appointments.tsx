@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, Plus } from "lucide-react";
+import { CalendarDays, Clock3, Flame, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ const DAY_END_HOUR = 20;
 const SLOT_MINUTES = 15;
 const PIXELS_PER_MINUTE = 1.2;
 const HOUR_ROW_HEIGHT = 60;
+const DASHBOARD_REFETCH_MS = 45_000;
 
 const DURATION_PRESETS = [
   { key: "checkup", label: "Checkup (20m)", minutes: 20 },
@@ -145,14 +147,14 @@ export default function AppointmentsPage() {
     queryFn: () => api.appointments.list({ day }),
   });
 
-  const myTasksQuery = useQuery({
-    queryKey: ["/api/tasks/me"],
-    queryFn: () => api.tasks.me(),
-  });
-
-  const activeTasksQuery = useQuery({
-    queryKey: ["/api/tasks/active"],
-    queryFn: () => api.tasks.active(),
+  const dashboardQuery = useQuery({
+    queryKey: ["/api/tasks/dashboard", meQuery.data?.id],
+    queryFn: () => api.tasks.dashboard(),
+    enabled: !!meQuery.data?.id,
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
   });
 
   const createMutation = useMutation({
@@ -160,8 +162,7 @@ export default function AppointmentsPage() {
     onSuccess: () => {
       toast.success("Task created");
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
       setBookingOpen(false);
       setFormNotes("");
       setFormAnimalId("");
@@ -192,8 +193,7 @@ export default function AppointmentsPage() {
       api.appointments.update(id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
     },
     onError: (error: Error) => {
       toast.error(toErrorMessage(error));
@@ -204,8 +204,7 @@ export default function AppointmentsPage() {
     mutationFn: (id: string) => api.tasks.start(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
       toast.success("Task started");
     },
     onError: (error: Error) => {
@@ -217,8 +216,7 @@ export default function AppointmentsPage() {
     mutationFn: (id: string) => api.tasks.complete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard"] });
       toast.success("Task completed");
     },
     onError: (error: Error) => {
@@ -317,19 +315,103 @@ export default function AppointmentsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="bg-card border-border/60 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold">My Tasks (today)</CardTitle>
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <Flame className="w-4 h-4 text-orange-600 shrink-0" aria-hidden />
+              <CardTitle className="text-sm font-semibold">
+                Overdue
+                {dashboardQuery.data ? (
+                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.overdue})</span>
+                ) : null}
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {myTasksQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">Loading your tasks…</p>
-              ) : (myTasksQuery.data?.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">No tasks assigned to you for today.</p>
+            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (dashboardQuery.data?.overdue.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">Nothing overdue.</p>
               ) : (
                 <ul className="space-y-2">
-                  {myTasksQuery.data!.map((t) => (
+                  {dashboardQuery.data!.overdue.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex flex-col gap-2 rounded-lg border border-orange-200/80 bg-orange-50/40 dark:bg-orange-950/20 p-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <span className="font-medium">
+                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
+                            {t.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
+                          >
+                            {(t.priority ?? "normal") as TaskPriority}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {canStartTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs"
+                            disabled={startTaskMutation.isPending}
+                            onClick={() => startTaskMutation.mutate(t.id)}
+                          >
+                            Start
+                          </Button>
+                        ) : null}
+                        {canCompleteTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 text-xs"
+                            disabled={completeTaskMutation.isPending}
+                            onClick={() => completeTaskMutation.mutate(t.id)}
+                          >
+                            Complete
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border/60 shadow-sm">
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <Zap className="w-4 h-4 text-amber-500 shrink-0" aria-hidden />
+              <CardTitle className="text-sm font-semibold">
+                Today
+                {dashboardQuery.data ? (
+                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.today})</span>
+                ) : null}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (dashboardQuery.data?.today.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No active tasks due today (UTC).</p>
+              ) : (
+                <ul className="space-y-2">
+                  {dashboardQuery.data!.today.map((t) => (
                     <li
                       key={t.id}
                       className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/80 p-3 text-sm"
@@ -385,28 +467,72 @@ export default function AppointmentsPage() {
           </Card>
 
           <Card className="bg-card border-border/60 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold">Active Tasks (clinic)</CardTitle>
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <User className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
+              <CardTitle className="text-sm font-semibold">
+                My tasks
+                {dashboardQuery.data ? (
+                  <span className="text-muted-foreground font-normal"> ({dashboardQuery.data.counts.myTasks})</span>
+                ) : null}
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[320px] overflow-y-auto">
-              {activeTasksQuery.isLoading ? (
-                <p className="text-sm text-muted-foreground">Loading active tasks…</p>
-              ) : (activeTasksQuery.data?.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">No active tasks.</p>
+            <CardContent className="space-y-2 max-h-[min(360px,50vh)] overflow-y-auto">
+              {dashboardQuery.isLoading && !dashboardQuery.data ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (dashboardQuery.data?.myTasks.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No tasks assigned to you in your active queue.</p>
               ) : (
                 <ul className="space-y-2">
-                  {activeTasksQuery.data!.map((t) => (
-                    <li key={t.id} className="rounded-lg border border-border/70 px-3 py-2 text-xs">
+                  {dashboardQuery.data!.myTasks.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/80 p-3 text-sm"
+                    >
                       <div className="flex flex-wrap items-center gap-2 justify-between">
-                        <span>
-                          {formatTimeHHMM(new Date(t.startTime))} · {t.animalId ?? "asset ?"}
+                        <span className="font-medium">
+                          {formatTimeHHMM(new Date(t.startTime))} – {formatTimeHHMM(new Date(t.endTime))}
                         </span>
-                        <Badge variant="outline" className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}>
-                          {t.priority ?? "normal"}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary" className={`text-[10px] ${STATUS_COLORS[t.status]}`}>
+                            {t.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_BADGE[t.priority ?? "normal"] ?? PRIORITY_BADGE.normal}`}
+                          >
+                            {(t.priority ?? "normal") as TaskPriority}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="text-muted-foreground mt-1">
-                        {t.status} · {t.vetId ?? "unassigned"}
+                      <div className="text-xs text-muted-foreground truncate">
+                        Asset: {t.animalId ?? "—"} · Tech: {t.vetId ?? "unassigned"}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {canStartTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-xs"
+                            disabled={startTaskMutation.isPending}
+                            onClick={() => startTaskMutation.mutate(t.id)}
+                          >
+                            Start
+                          </Button>
+                        ) : null}
+                        {canCompleteTask(t, meQuery.data?.id) ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 text-xs"
+                            disabled={completeTaskMutation.isPending}
+                            onClick={() => completeTaskMutation.mutate(t.id)}
+                          >
+                            Complete
+                          </Button>
+                        ) : null}
                       </div>
                     </li>
                   ))}
