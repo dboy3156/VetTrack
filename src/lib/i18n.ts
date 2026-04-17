@@ -42,6 +42,7 @@ export function setStoredLocale(locale: string): Locale {
   try {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, resolved);
+      refreshTranslations(resolved);
       window.dispatchEvent(new CustomEvent("vettrack:locale-changed", { detail: resolved }));
     }
   } catch {
@@ -65,13 +66,12 @@ export function applyLocaleDocumentAttributes(locale: string | null | undefined)
   document.documentElement.dir = getDirection(resolved);
 }
 
-const d = dictionaries[getStoredLocale()];
+function buildTranslations(d: typeof heDict) {
+  function tr(template: string, params: Record<string, string | number | boolean>): string {
+    return interpolate(template, params);
+  }
 
-function tr(template: string, params: Record<string, string | number | boolean>): string {
-  return interpolate(template, params);
-}
-
-export const t = {
+const translations = {
 
   common: d.common,
 
@@ -327,3 +327,12 @@ export const t = {
   pageErrorBoundary: d.pageErrorBoundary,
 
 } as const;
+
+return translations;
+}
+
+export let t = buildTranslations(dictionaries[getStoredLocale()]);
+
+export function refreshTranslations(locale: string | null | undefined = getStoredLocale()): void {
+  t = buildTranslations(dictionaries[resolveClientLocale(locale)]);
+}
