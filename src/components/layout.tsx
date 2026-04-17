@@ -222,6 +222,12 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     update({ criticalAlertsSound: v });
   };
 
+  const openSettingsPage = () => {
+    setQuickSettingsOpen(false);
+    setMenuOpen(false);
+    navigate("/settings");
+  };
+
   return (
     <div className="min-h-[100dvh] bg-background">
       {/* Top header */}
@@ -391,12 +397,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                     data-testid="quick-critical-sound"
                   />
                   <div className="pt-1 border-t border-border">
-                    <Link href="/settings" onClick={() => setQuickSettingsOpen(false)}>
-                      <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-xs text-muted-foreground">
-                        <Settings className="w-3.5 h-3.5" />
-                        {lh.allSettings}
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start gap-2 text-xs text-muted-foreground"
+                      onClick={openSettingsPage}
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      {lh.allSettings}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -491,6 +500,30 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               {["/help", "/settings", "/landing"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
+                if (href === "/settings") {
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={openSettingsPage}
+                      data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                      className="w-full text-left"
+                    >
+                      <div
+                        className={cn(
+                          "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
+                          location === item.href
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                          <span className="text-sm font-medium">{item.label}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                }
                 return (
                   <Link
                     key={item.href}
@@ -602,8 +635,8 @@ export function Layout({ children, title, onScan }: LayoutProps) {
       {/* ScanFAB — opens camera QR scanner */}
       <button
         onClick={openScanner}
-        className="fixed left-1/2 -translate-x-1/2 w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
-        style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 40 }}
+        className="fixed left-1/2 -translate-x-1/2 z-[60] w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
+        style={{ bottom: "calc(36px + env(safe-area-inset-bottom))", zIndex: 60 }}
         aria-label={lh.scanQrAria}
         data-testid="bottom-nav-scan"
       >
