@@ -63,6 +63,7 @@ export function canPerformMedicationTaskAction(
       action === "med.task.create" ||
       action === "med.task.cancel" ||
       action === "med.dose.edit" ||
+      action === "med.start" ||
       action === "med.complete"
     );
   }

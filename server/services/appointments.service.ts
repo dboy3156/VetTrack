@@ -1008,7 +1008,8 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
   if (!vetId) {
     throw new AppointmentServiceError("TASK_NOT_ASSIGNED", 400, "Task has no technician assigned");
   }
-  if (vetId !== actor.userId && actorRole !== "admin") {
+  const canBypassOwnership = actorRole === "admin" || actorRole === "vet" || actorRole === "senior_technician";
+  if (vetId !== actor.userId && !canBypassOwnership) {
     throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can start this task");
   }
 
