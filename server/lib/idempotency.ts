@@ -66,7 +66,8 @@ export async function checkIdempotentAsync(key: string): Promise<boolean> {
     const redis = await getRedis();
     if (!redis) {
       recordRedisFallback("idempotency.check");
-      return true;
+      // Redis acts as a cache only; DB uniqueness is the correctness guarantee.
+      return false;
     }
 
     const exists = await timedRedisOp("idempotency.check", () =>
@@ -79,8 +80,9 @@ export async function checkIdempotentAsync(key: string): Promise<boolean> {
     incrementMetric("idempotency_hits");
     return true;
   } catch {
-    redisMetric("fallback", { operation: "idempotency.check.catch_fail_closed" });
-    return true;
+    redisMetric("fallback", { operation: "idempotency.check.catch_fail_open" });
+    // Unknown Redis state should not suppress first-time billing writes.
+    return false;
   }
 }
 
