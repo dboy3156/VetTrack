@@ -58,8 +58,10 @@ jobs:
       - name: 🔷 TypeScript
         run: pnpm exec tsc --noEmit
 
+      # Apply all `migrations/*.sql` via `server/migrate.ts` (tracks `vt_migrations`).
+      # `pnpm db:migrate` (drizzle-kit) only runs entries in `migrations/meta/_journal.json`.
       - name: 🗄️ Database migrations
-        run: pnpm db:migrate
+        run: pnpm migrate
 
       - name: 🧪 Test suite
         run: pnpm test
