@@ -137,6 +137,14 @@ function redisOptions(): Redis.RedisOptions {
   };
 }
 
+/** BullMQ uses blocking commands; ioredis must not cap per-command retries on queue connections. */
+function redisQueueOptions(): Redis.RedisOptions {
+  return {
+    ...redisOptions(),
+    maxRetriesPerRequest: null,
+  };
+}
+
 function attachRedisObservers(client: Redis, source: "app" | "queue"): void {
   client.on("connect", () => {
     redisMetric("connect", { source });
@@ -226,7 +234,7 @@ export async function createRedisConnection(): Promise<Redis | null> {
   const url = getRedisUrl();
   if (!url) return null;
   try {
-    queueShared = new Redis(url, redisOptions());
+    queueShared = new Redis(url, redisQueueOptions());
     attachRedisObservers(queueShared, "queue");
   } catch (err) {
     recordFailure("redis");
