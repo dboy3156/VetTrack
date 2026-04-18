@@ -262,7 +262,14 @@ export async function scanItem(params: {
             setWhere: sql`${containerItems.quantity} + ${params.delta} >= 0`,
           })
           .returning({ quantity: containerItems.quantity });
-        nextQuantity = insertedRow?.quantity;
+        if (!insertedRow) {
+          throw new RestockServiceError(
+            "SCAN_CONFLICT_FAILED",
+            409,
+            "Scan conflict: upsert did not apply (concurrent update or guard failed)",
+          );
+        }
+        nextQuantity = insertedRow.quantity;
       } catch (err) {
         if (err instanceof RestockServiceError) throw err;
         throw new RestockServiceError(
