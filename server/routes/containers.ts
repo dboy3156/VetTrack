@@ -2,16 +2,12 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
-import { billingLedger, containers, db, inventoryLogs, auditLogs } from "../db.js";
+import { containers, db, inventoryLogs, auditLogs } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { logAudit } from "../lib/audit.js";
-import {
-  findActiveAnimalInRoom,
-  resolveBillingItemForContainer,
-  restockLedgerIdempotencyKey,
-} from "../lib/container-billing.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
+import { restockContainer } from "../services/inventory.service.js";
 
 const router = Router();
 
@@ -143,81 +139,11 @@ router.post(
     try {
       const clinicId = req.clinicId!;
       const { addedQuantity } = req.body as z.infer<typeof restockSchema>;
-      const now = new Date();
-
-      const result = await db.transaction(async (tx) => {
-        const [c] = await tx
-          .select()
-          .from(containers)
-          .where(and(eq(containers.clinicId, clinicId), eq(containers.id, req.params.id)))
-          .limit(1);
-        if (!c) return { error: "NOT_FOUND" as const };
-
-        const quantityBefore = c.currentQuantity;
-        const consumed = Math.max(0, c.targetQuantity - quantityBefore);
-        const quantityAfter = Math.min(c.targetQuantity, quantityBefore + addedQuantity);
-
-        await tx
-          .update(containers)
-          .set({ currentQuantity: quantityAfter })
-          .where(and(eq(containers.clinicId, clinicId), eq(containers.id, c.id)));
-
-        const animal = await findActiveAnimalInRoom(tx, clinicId, c.roomId);
-        let ledgerId: string | null = null;
-
-        if (consumed > 0 && animal) {
-          const billing = await resolveBillingItemForContainer(tx, clinicId, c);
-          const idempotencyKey = restockLedgerIdempotencyKey(c.id, now, consumed);
-          const [existing] = await tx
-            .select({ id: billingLedger.id })
-            .from(billingLedger)
-            .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, idempotencyKey)))
-            .limit(1);
-
-          if (!existing) {
-            ledgerId = randomUUID();
-            const totalCents = billing.unitPriceCents * consumed;
-            await tx.insert(billingLedger).values({
-              id: ledgerId,
-              clinicId,
-              animalId: animal.id,
-              itemType: "CONSUMABLE",
-              itemId: c.id,
-              quantity: consumed,
-              unitPriceCents: billing.unitPriceCents,
-              totalAmountCents: totalCents,
-              idempotencyKey,
-              status: "pending",
-            });
-          } else {
-            ledgerId = existing.id;
-          }
-        }
-
-        const logId = randomUUID();
-        await tx.insert(inventoryLogs).values({
-          id: logId,
-          clinicId,
-          containerId: c.id,
-          logType: "restock",
-          quantityBefore,
-          quantityAdded: addedQuantity,
-          quantityAfter,
-          consumedDerived: consumed,
-          variance: null,
-          animalId: animal?.id ?? null,
-          roomId: c.roomId,
-          note: null,
-          createdByUserId: req.authUser!.id,
-        });
-
-        return {
-          ok: true as const,
-          container: { ...c, currentQuantity: quantityAfter },
-          consumed,
-          ledgerId,
-          animal,
-        };
+      const result = await restockContainer({
+        clinicId,
+        containerId: req.params.id,
+        addedQuantity,
+        actorUserId: req.authUser!.id,
       });
 
       if ("error" in result && result.error === "NOT_FOUND") {
