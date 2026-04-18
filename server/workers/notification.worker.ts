@@ -94,14 +94,14 @@ async function main(): Promise<void> {
 
   await initVapid();
 
-  const connection = createRedisConnection();
+  const connection = await createRedisConnection();
   if (!connection) {
     console.error("[worker] Redis connection failed");
     process.exit(1);
   }
 
-  const queue = getNotificationsQueue();
-  const dlq = getNotificationsDlq();
+  const queue = await getNotificationsQueue();
+  const dlq = await getNotificationsDlq();
   if (!queue) {
     console.error("[worker] notifications queue unavailable");
     process.exit(1);
