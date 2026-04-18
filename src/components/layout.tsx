@@ -2,7 +2,7 @@ import { t } from "@/lib/i18n";
 import { Link, useLocation } from "wouter";
 import { useQRScanner } from "@/hooks/use-qr-scanner";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { computeAlerts } from "@/lib/utils";
 import {
@@ -71,9 +71,11 @@ interface LayoutProps {
   children: React.ReactNode;
   title?: string;
   onScan?: () => void;
+  /** When true, blocks leaving the flow via header/sidebar/outside taps (hands-free restock). */
+  navigationLocked?: boolean;
 }
 
-export function Layout({ children, title: _title, onScan }: LayoutProps) {
+export function Layout({ children, title: _title, onScan, navigationLocked }: LayoutProps) {
   const lh = t.layoutHebrew;
   const QUICK_SETTINGS_PANEL_WIDTH = 288;
   const QUICK_SETTINGS_MARGIN = 8;
@@ -92,6 +94,22 @@ export function Layout({ children, title: _title, onScan }: LayoutProps) {
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
   const quickSettingsToggleRef = useRef<HTMLButtonElement>(null);
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!navigationLocked) return;
+    const blockExternalNav = (e: MouseEvent) => {
+      for (const n of e.composedPath()) {
+        if (n instanceof Element && n.closest("[data-restock-allow]")) return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      navigator.vibrate?.(150);
+    };
+    document.addEventListener("click", blockExternalNav, true);
+    return () => document.removeEventListener("click", blockExternalNav, true);
+  }, [navigationLocked]);
 
   useEffect(() => {
     if (!quickSettingsOpen) return;
@@ -140,6 +158,20 @@ export function Layout({ children, title: _title, onScan }: LayoutProps) {
         toast.error("Invalid container NFC tag");
         return;
       }
+      const rawActive = localStorage.getItem("vt_active_restock_session");
+      if (rawActive) {
+        try {
+          const parsed = JSON.parse(rawActive) as { containerId?: string };
+          if (parsed.containerId && parsed.containerId !== containerId) {
+            navigator.vibrate?.(150);
+            toast.warning("Finish restock before scanning another container.");
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      sessionStorage.setItem("vt_auto_restock_container", containerId);
       navigate(`/inventory?container=${encodeURIComponent(containerId)}`);
       return;
     }
@@ -156,16 +188,20 @@ export function Layout({ children, title: _title, onScan }: LayoutProps) {
         return;
       }
       try {
-        const parsed = JSON.parse(raw) as { sessionId?: string };
+        const parsed = JSON.parse(raw) as { sessionId?: string; containerId?: string };
         if (!parsed.sessionId) {
           toast.error("No active restock session found");
           return;
         }
         await api.restock.scan(parsed.sessionId, { nfcTagId, delta: 1 });
-        toast.success("Inventory item scanned");
+        navigator.vibrate?.(50);
+        if (parsed.containerId) {
+          qc.invalidateQueries({ queryKey: ["/api/restock/container-items", parsed.containerId] });
+        }
         navigate("/inventory");
         return;
       } catch {
+        navigator.vibrate?.(150);
         toast.error("Inventory scan failed");
         return;
       }
