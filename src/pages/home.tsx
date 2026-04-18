@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
@@ -45,7 +45,8 @@ const STATUS_COLOR_MAP: Record<string, string> = {
 };
 
 export default function HomePage() {
-  const { name } = useAuth();
+  const { name, refreshAuth } = useAuth();
+  const queryClient = useQueryClient();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [, navigate] = useLocation();
@@ -107,7 +108,11 @@ export default function HomePage() {
         {equipmentError && (
           <ErrorCard
             message={t.equipmentList.errors.loadFailed}
-            onRetry={() => refetch()}
+            onRetry={() => {
+              queryClient.clear();
+              refreshAuth();
+              refetch();
+            }}
           />
         )}
 

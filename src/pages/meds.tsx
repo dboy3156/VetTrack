@@ -24,6 +24,7 @@ import type { MedicationExecutionTask } from "@/types";
 type MedicationMetadata = {
   acknowledgedBy?: string;
   doseMgPerKg?: number;
+  defaultDoseMgPerKg?: number;
   concentrationMgPerMl?: number;
   doseUnit?: DrugDoseUnit;
   drugName?: string;
@@ -53,7 +54,25 @@ function resolveDrugName(task: MedicationExecutionTask): string {
 
 function resolvePrescribedDose(task: MedicationExecutionTask): number {
   const metadata = asMedicationMetadata(task);
-  return Number.isFinite(metadata.doseMgPerKg) ? Number(metadata.doseMgPerKg) : 0;
+  if (Number.isFinite(metadata.doseMgPerKg)) return Number(metadata.doseMgPerKg);
+  if (Number.isFinite(metadata.defaultDoseMgPerKg)) return Number(metadata.defaultDoseMgPerKg);
+  return 0;
+}
+
+function statusLabel(status: MedicationExecutionTask["status"]): string {
+  switch (status) {
+    case "scheduled":
+      return "Scheduled";
+    case "assigned":
+      return "Assigned";
+    case "arrived":
+      return "Arrived";
+    case "in_progress":
+      return "In Progress";
+    case "pending":
+    default:
+      return "Pending";
+  }
 }
 
 function completeButtonState(args: {
@@ -224,7 +243,7 @@ export default function MedicationHubPage() {
             Medication Hub
           </h1>
           <p className="text-sm text-muted-foreground">
-            Execution-focused medication queue for pending and in-progress tasks.
+            Execution-focused medication queue for all active medication tasks.
           </p>
         </div>
 
@@ -246,7 +265,7 @@ export default function MedicationHubPage() {
           <EmptyState
             icon={Syringe}
             message="No medication tasks ready"
-            subMessage="Only pending and in-progress medication tasks appear here."
+            subMessage="Assigned, scheduled, arrived, pending, and in-progress tasks appear here."
           />
         ) : null}
 
@@ -283,7 +302,7 @@ export default function MedicationHubPage() {
               role,
               effectiveRole,
             });
-            const canStart = task.status === "pending";
+            const canStart = ["scheduled", "assigned", "arrived"].includes(task.status);
             const hasValidCalculation =
               weightKg > 0
               && prescribedDosePerKg > 0
@@ -305,7 +324,7 @@ export default function MedicationHubPage() {
                       </div>
                     </div>
                     <Badge variant={task.status === "in_progress" ? "default" : "secondary"}>
-                      {task.status === "in_progress" ? "In Progress" : "Pending"}
+                      {statusLabel(task.status)}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -377,7 +396,7 @@ export default function MedicationHubPage() {
                       {concentrationMgPerMl?.toFixed(4) ?? "0"} = {calculatedVolumeMl.toFixed(3)} mL
                     </div>
 
-                    <div className="rounded-2xl border-4 border-yellow-300 bg-lime-300 text-slate-900 shadow-[0_0_0_4px_rgba(250,204,21,0.35)] animate-pulse p-4 text-center">
+                    <div className="rounded-2xl border-4 border-yellow-400 bg-yellow-300 text-black shadow-[0_0_0_4px_rgba(250,204,21,0.45)] animate-pulse p-4 text-center">
                       <div className="text-xs font-bold uppercase tracking-wide">Total Volume</div>
                       <div className="text-5xl md:text-6xl font-extrabold leading-none">
                         {calculatedVolumeMl.toFixed(2)}

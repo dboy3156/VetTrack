@@ -126,6 +126,8 @@ function isNetworkError(err: unknown): boolean {
 const FETCH_TIMEOUT_MS = 30_000;
 /** Shorter deadline for equipment list so a stuck Redis/backend cannot block the UI for the default 30s. */
 export const EQUIPMENT_LIST_FETCH_TIMEOUT_MS = 5_000;
+/** Fail fast task dashboards/queues so operational screens can recover quickly. */
+export const TASKS_FETCH_TIMEOUT_MS = 5_000;
 let authRedirectInProgress = false;
 
 function redirectToSignInSoft(): void {
@@ -348,7 +350,13 @@ export const api = {
   equipment: {
     list: async () => {
       try {
-        const result = await request<EquipmentPage>("/api/equipment");
+        const result = await request<EquipmentPage>(
+          "/api/equipment",
+          {},
+          undefined,
+          undefined,
+          EQUIPMENT_LIST_FETCH_TIMEOUT_MS
+        );
         cacheEquipment(result.items).catch(() => {});
         return result.items;
       } catch (err) {
@@ -888,12 +896,23 @@ export const api = {
       request<{ day: string; vets: AppointmentVetMeta[] }>(`/api/appointments/meta?day=${encodeURIComponent(day)}`),
   },
   tasks: {
-    dashboard: () => request<TaskDashboard>("/api/tasks/dashboard"),
-    recommendations: () => request<TaskRecommendations>("/api/tasks/recommendations"),
-    me: () => request<{ tasks: Appointment[] }>("/api/tasks/me").then((r) => r.tasks),
-    active: () => request<{ tasks: Appointment[] }>("/api/tasks/active").then((r) => r.tasks),
+    dashboard: () => request<TaskDashboard>("/api/tasks/dashboard", {}, undefined, undefined, TASKS_FETCH_TIMEOUT_MS),
+    recommendations: () =>
+      request<TaskRecommendations>("/api/tasks/recommendations", {}, undefined, undefined, TASKS_FETCH_TIMEOUT_MS),
+    me: () =>
+      request<{ tasks: Appointment[] }>("/api/tasks/me", {}, undefined, undefined, TASKS_FETCH_TIMEOUT_MS)
+        .then((r) => r.tasks),
+    active: () =>
+      request<{ tasks: Appointment[] }>("/api/tasks/active", {}, undefined, undefined, TASKS_FETCH_TIMEOUT_MS)
+        .then((r) => r.tasks),
     medicationActive: () =>
-      request<{ tasks: MedicationExecutionTask[] }>("/api/tasks/medication-active").then((r) => r.tasks),
+      request<{ tasks: MedicationExecutionTask[] }>(
+        "/api/tasks/medication-active",
+        {},
+        undefined,
+        undefined,
+        TASKS_FETCH_TIMEOUT_MS
+      ).then((r) => r.tasks),
     start: (id: string) =>
       request<{ task: Appointment }>(`/api/tasks/${id}/start`, { method: "POST" }).then((r) => r.task),
     complete: (id: string, payload?: { execution?: MedicationExecutionPayload }) =>

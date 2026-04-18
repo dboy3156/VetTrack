@@ -449,6 +449,11 @@ export interface InventoryContainer {
   roomId: string | null;
   billingItemId: string | null;
   nfcTagId: string | null;
+  supplyTargets?: Array<{
+    code: string;
+    label: string;
+    targetUnits: number;
+  }>;
 }
 
 export interface ShiftHandoverSession {
