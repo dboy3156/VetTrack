@@ -38,12 +38,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { QrScanner } from "@/components/qr-scanner";
+import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 
 export default function MyEquipmentPage() {
   const queryClient = useQueryClient();
   const [returningAll, setReturningAll] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [pendingReturnEquipmentId, setPendingReturnEquipmentId] = useState<string | null>(null);
 
   const { data: items, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment/my"],
@@ -51,7 +53,8 @@ export default function MyEquipmentPage() {
   });
 
   const returnMut = useMutation({
-    mutationFn: (id: string) => api.equipment.return(id),
+    mutationFn: ({ id, isPluggedIn, plugInDeadlineMinutes }: { id: string; isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
+      api.equipment.return(id, { isPluggedIn, plugInDeadlineMinutes }),
     onSuccess: () => {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
@@ -65,7 +68,7 @@ export default function MyEquipmentPage() {
     if (!items || items.length === 0) return;
     setReturningAll(true);
     try {
-      await Promise.all(items.map((item) => api.equipment.return(item.id)));
+      await Promise.all(items.map((item) => api.equipment.return(item.id, { isPluggedIn: false })));
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Returned ${items.length} item${items.length !== 1 ? "s" : ""} — all equipment now available`);
@@ -206,7 +209,7 @@ export default function MyEquipmentPage() {
                         size="sm"
                         variant="outline"
                         className="border-border/60 text-muted-foreground hover:text-foreground min-h-[44px] px-3"
-                        onClick={() => returnMut.mutate(item.id)}
+                        onClick={() => setPendingReturnEquipmentId(item.id)}
                         disabled={returnMut.isPending}
                         data-testid={`btn-return-${item.id}`}
                       >
@@ -241,6 +244,30 @@ export default function MyEquipmentPage() {
       {isScannerOpen && (
         <QrScanner onClose={() => setIsScannerOpen(false)} />
       )}
+      <ReturnPlugDialog
+        open={Boolean(pendingReturnEquipmentId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingReturnEquipmentId(null);
+          }
+        }}
+        defaultDeadlineMinutes={30}
+        onConfirm={({ isPluggedIn, plugInDeadlineMinutes }) => {
+          if (!pendingReturnEquipmentId) return;
+          returnMut.mutate(
+            {
+              id: pendingReturnEquipmentId,
+              isPluggedIn,
+              plugInDeadlineMinutes,
+            },
+            {
+              onSettled: () => {
+                setPendingReturnEquipmentId(null);
+              },
+            },
+          );
+        }}
+      />
     </Layout>
   );
 }

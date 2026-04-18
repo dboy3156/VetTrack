@@ -140,6 +140,9 @@ export interface Equipment {
   checkedOutAt?: string | null;
   checkedOutLocation?: string | null;
   expectedReturnMinutes?: number | null;
+  isPluggedIn?: boolean | null;
+  plugInDeadlineMinutes?: number | null;
+  plugInAlertSentAt?: string | null;
   createdAt: string;
 }
 
@@ -183,8 +186,36 @@ export interface UpdateEquipmentRequest {
   nfcTagId?: string | null;
   maintenanceIntervalDays?: number | null;
   expectedReturnMinutes?: number | null;
+  isPluggedIn?: boolean | null;
+  plugInDeadlineMinutes?: number | null;
   imageUrl?: string | null;
   status?: EquipmentStatus;
+}
+
+export interface EquipmentReturn {
+  id: string;
+  clinicId: string;
+  equipmentId: string;
+  returnedById: string;
+  returnedByEmail: string;
+  returnedAt: string;
+  isPluggedIn: boolean;
+  plugInDeadlineMinutes: number;
+  plugInAlertSentAt?: string | null;
+  chargeAlertJobId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReturnRequest {
+  equipmentId: string;
+  isPluggedIn: boolean;
+  plugInDeadlineMinutes?: number;
+}
+
+export interface UpdateReturnRequest {
+  isPluggedIn?: boolean;
+  plugInDeadlineMinutes?: number;
 }
 
 export interface Shift {

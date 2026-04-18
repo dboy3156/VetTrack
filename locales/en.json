@@ -126,6 +126,7 @@
       "duplicateEquipment": "Duplicate equipment",
       "checkoutFailedDefault": "Equipment checkout failed",
       "returned": "Equipment available",
+      "chargeAlertScheduled": "Charge alert scheduled",
       "returnFailedDefault": "Return failed",
       "deleted": "Equipment deleted",
       "deleteFailed": "Deletion failed",
@@ -171,6 +172,7 @@
   "myEquipment": {
     "toast": {
       "returnSuccess": "Equipment available",
+      "chargeAlertScheduled": "Charge alert will be sent if still unplugged",
       "returnError": "Return failed",
       "returnAllSuccess": "Returned {count} items — all equipment available",
       "returnAllPartialError": "Some items were not returned. Try again."

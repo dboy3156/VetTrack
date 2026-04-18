@@ -31,6 +31,7 @@ const TYPE_LABELS: Record<SyncQueueItemType, string> = {
   delete: t.syncQueueSheet.typeDelete,
   checkout: t.syncQueueSheet.typeCheckout,
   return: t.syncQueueSheet.typeReturn,
+  return_with_charge: t.syncQueueSheet.typeReturn,
 };
 
 function extractEquipmentIdFromEndpoint(endpoint: string): string | null {

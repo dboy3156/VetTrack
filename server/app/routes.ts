@@ -20,6 +20,7 @@ import testRoutes from "../routes/test.js";
 import healthRoutes from "../routes/health.js";
 import queueRoutes from "../routes/queue.js";
 import realtimeRoutes from "../routes/realtime.js";
+import returnsRoutes from "../routes/returns.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -41,6 +42,7 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/shifts", shiftsRoutes);
   app.use("/api/appointments", appointmentsRoutes);
   app.use("/api/tasks", tasksRoutes);
+  app.use("/api/returns", returnsRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);
   app.use("/api/health/ready", healthRoutes);

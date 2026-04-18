@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import type { Equipment, Room, RoomActivityEntry, EquipmentStatus } from "@/types";
+import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 
 function toInitials(name: string | null | undefined): string {
   if (!name?.trim()) return "?";
@@ -97,6 +98,7 @@ interface RadarEquipmentCardProps {
 
 function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardProps) {
   const [moveOpen, setMoveOpen] = useState(false);
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [tapped, setTapped] = useState(false);
   const busyRef = useRef(false);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,7 +123,8 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
   });
 
   const returnMut = useMutation({
-    mutationFn: () => api.equipment.return(eq.id),
+    mutationFn: (payload: { isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
+      api.equipment.return(eq.id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
@@ -134,7 +137,7 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
   const quickAction = !isCheckedOut && eq.status === "ok"
     ? { label: "Take", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, cls: "text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" }
     : isCheckedOut && (checkedOutByMe || isAdmin) && eq.status === "ok"
-    ? { label: "Return", icon: LogOut, action: () => returnMut.mutate(), pending: returnMut.isPending, cls: "text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40" }
+    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, cls: "text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40" }
     : null;
 
   const handleQuickAction = (e: React.MouseEvent) => {
@@ -276,6 +279,16 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
         onMoved={() => {
           queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
           queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+        }}
+      />
+      <ReturnPlugDialog
+        open={returnDialogOpen}
+        onOpenChange={setReturnDialogOpen}
+        defaultDeadlineMinutes={30}
+        onConfirm={(payload) => {
+          returnMut.mutate(payload, {
+            onSettled: () => setReturnDialogOpen(false),
+          });
         }}
       />
     </>

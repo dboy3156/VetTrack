@@ -71,6 +71,7 @@ import { QrScanner } from "@/components/qr-scanner";
 import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList";
 import { usePaginatedEquipment } from "@/hooks/use-paginated-equipment";
 import { exportEquipmentToExcel } from "@/lib/export-excel";
+import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 
 const VIRTUALIZATION_THRESHOLD = 100;
 const SERVER_PAGE_SIZE = 100;
@@ -767,6 +768,7 @@ function EquipmentItem({
 }) {
   const { userId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const statusVariant = statusToBadgeVariant(eq.status);
   const isCheckedOut = !!eq.checkedOutById;
   const checkedOutByMe = eq.checkedOutById === userId;
@@ -783,7 +785,8 @@ function EquipmentItem({
   });
 
   const returnMut = useMutation({
-    mutationFn: () => api.equipment.return(eq.id),
+    mutationFn: (payload: { isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
+      api.equipment.return(eq.id, payload),
     onSuccess: () => {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
@@ -796,12 +799,13 @@ function EquipmentItem({
   const quickAction = !isCheckedOut && eq.status === "ok"
     ? { label: "In Use", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, className: "text-emerald-700 border-emerald-200 hover:bg-emerald-50" }
     : (isCheckedOut && (checkedOutByMe || isAdmin)) && eq.status === "ok"
-    ? { label: "Return", icon: LogOut, action: () => returnMut.mutate(), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
+    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
     : eq.status === "issue"
     ? { label: "View Issue", icon: AlertTriangle, action: null, href: `/equipment/${eq.id}`, pending: false, className: "text-red-600 border-red-200 hover:bg-red-50" }
     : null;
 
   return (
+    <>
     <div
       className={`flex items-center gap-2 ${selectMode ? "cursor-pointer" : ""}`}
       onClick={selectMode ? onToggleSelect : undefined}
@@ -947,5 +951,16 @@ function EquipmentItem({
         </Link>
       </div>
     </div>
+    <ReturnPlugDialog
+      open={returnDialogOpen}
+      onOpenChange={setReturnDialogOpen}
+      defaultDeadlineMinutes={30}
+      onConfirm={(payload) =>
+        returnMut.mutate(payload, {
+          onSettled: () => setReturnDialogOpen(false),
+        })
+      }
+    />
+    </>
   );
 }
