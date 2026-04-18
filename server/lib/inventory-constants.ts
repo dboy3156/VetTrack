@@ -1,0 +1,1 @@
+export const MAX_INVENTORY_JOB_RETRIES = 3;
