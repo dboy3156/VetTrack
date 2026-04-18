@@ -122,6 +122,8 @@ function isNetworkError(err: unknown): boolean {
 }
 
 const FETCH_TIMEOUT_MS = 30_000;
+/** Shorter deadline for equipment list so a stuck Redis/backend cannot block the UI for the default 30s. */
+export const EQUIPMENT_LIST_FETCH_TIMEOUT_MS = 5_000;
 let authRedirectInProgress = false;
 
 function redirectToSignInSoft(): void {
@@ -167,12 +169,13 @@ export async function request<T>(
   url: string,
   init: RequestInit = {},
   offline?: OfflineOptions,
-  silent?: boolean
+  silent?: boolean,
+  timeoutMs?: number
 ): Promise<T> {
   const headers = { ...buildHeaders(), ...(init.headers as Record<string, string> | undefined) };
 
   try {
-    const res = await fetchWithTimeout(url, { ...init, headers });
+    const res = await fetchWithTimeout(url, { ...init, headers }, timeoutMs ?? FETCH_TIMEOUT_MS);
     if (res.status === 401) {
       const method = String(init.method ?? "GET").toUpperCase();
       if (method === "GET") {
@@ -361,7 +364,13 @@ export const api = {
         if (filters?.status && filters.status !== "all") params.set("status", filters.status);
         if (filters?.folder && filters.folder !== "all") params.set("folder", filters.folder);
         if (filters?.location && filters.location !== "all") params.set("location", filters.location);
-        const result = await request<EquipmentPage>(`/api/equipment?${params}`);
+        const result = await request<EquipmentPage>(
+          `/api/equipment?${params}`,
+          {},
+          undefined,
+          undefined,
+          EQUIPMENT_LIST_FETCH_TIMEOUT_MS
+        );
         cacheEquipment(result.items).catch(() => {});
         return result;
       } catch (err) {
