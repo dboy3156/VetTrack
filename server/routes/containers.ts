@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
-import { containers, db, inventoryLogs, auditLogs } from "../db.js";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { containerItems, containers, db, inventoryLogs, auditLogs } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { logAudit } from "../lib/audit.js";
@@ -77,10 +77,24 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
       .from(containers)
       .where(eq(containers.clinicId, clinicId))
       .orderBy(asc(containers.name));
+    const ids = rows.map((row) => row.id);
+    const aggregateRows = ids.length
+      ? await db
+          .select({
+            containerId: containerItems.containerId,
+            quantity: sql<number>`COALESCE(SUM(${containerItems.quantity}), 0)`,
+          })
+          .from(containerItems)
+          .where(and(eq(containerItems.clinicId, clinicId), inArray(containerItems.containerId, ids)))
+          .groupBy(containerItems.containerId)
+      : [];
+    const qtyByContainerId = new Map(aggregateRows.map((row) => [row.containerId, Number(row.quantity)]));
     const withBlueprintTargets = rows.map((row) => {
       const entry = resolveBlueprintEntryForContainerName(row.name);
+      const currentQuantity = qtyByContainerId.get(row.id) ?? row.currentQuantity;
       return {
         ...row,
+        currentQuantity,
         supplyTargets: entry?.supplyTargets ?? [],
       };
     });
@@ -142,54 +156,11 @@ router.post(
   requireEffectiveRole("technician"),
   validateUuid("id"),
   validateBody(restockSchema),
-  async (req, res) => {
-    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-    try {
-      const clinicId = req.clinicId!;
-      const { addedQuantity } = req.body as z.infer<typeof restockSchema>;
-      const now = new Date();
-      const result = await db.transaction(async (tx) =>
-        restockContainerInTx(tx, {
-          clinicId,
-          containerId: req.params.id,
-          addedQuantity,
-          actorUserId: req.authUser!.id,
-        }, now),
-      );
-
-      if ("error" in result && result.error === "NOT_FOUND") {
-        return res.status(404).json(
-          apiError({
-            code: "NOT_FOUND",
-            reason: "CONTAINER_NOT_FOUND",
-            message: "Container not found",
-            requestId,
-          }),
-        );
-      }
-
-      logAudit({
-        clinicId,
-        actionType: "container_restock",
-        performedBy: req.authUser!.id,
-        performedByEmail: req.authUser!.email,
-        targetId: req.params.id,
-        targetType: "container",
-        metadata: { consumed: result.consumed },
-      });
-
-      res.json(result);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json(
-        apiError({
-          code: "INTERNAL_ERROR",
-          reason: "RESTOCK_FAILED",
-          message: "Restock failed",
-          requestId,
-        }),
-      );
-    }
+  async (_req, res) => {
+    return res.status(409).json({
+      error: "Legacy restock endpoint is disabled. Use restock sessions.",
+      code: "LEGACY_RESTOCK_DISABLED",
+    });
   },
 );
 
@@ -199,80 +170,11 @@ router.post(
   requireEffectiveRole("technician"),
   validateUuid("id"),
   validateBody(blindAuditSchema),
-  async (req, res) => {
-    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-    try {
-      const clinicId = req.clinicId!;
-      const { physicalCount, note } = req.body as z.infer<typeof blindAuditSchema>;
-
-      const result = await db.transaction(async (tx) => {
-        const [c] = await tx
-          .select()
-          .from(containers)
-          .where(and(eq(containers.clinicId, clinicId), eq(containers.id, req.params.id)))
-          .limit(1);
-        if (!c) return { error: "NOT_FOUND" as const };
-
-        const variance = physicalCount - c.currentQuantity;
-        const logId = randomUUID();
-        await tx.insert(inventoryLogs).values({
-          id: logId,
-          clinicId,
-          containerId: c.id,
-          logType: "blind_audit",
-          quantityBefore: c.currentQuantity,
-          quantityAdded: 0,
-          quantityAfter: physicalCount,
-          consumedDerived: null,
-          variance,
-          animalId: null,
-          roomId: c.roomId,
-          note: note?.trim() || null,
-          createdByUserId: req.authUser!.id,
-        });
-
-        await tx
-          .update(containers)
-          .set({ currentQuantity: physicalCount })
-          .where(and(eq(containers.clinicId, clinicId), eq(containers.id, c.id)));
-
-        return { ok: true as const, containerId: c.id, variance, logId };
-      });
-
-      if ("error" in result && result.error === "NOT_FOUND") {
-        return res.status(404).json(
-          apiError({
-            code: "NOT_FOUND",
-            reason: "CONTAINER_NOT_FOUND",
-            message: "Container not found",
-            requestId,
-          }),
-        );
-      }
-
-      await db.insert(auditLogs).values({
-        id: randomUUID(),
-        clinicId,
-        actionType: "inventory_blind_audit",
-        performedBy: req.authUser!.id,
-        performedByEmail: req.authUser!.email,
-        targetId: req.params.id,
-        targetType: "container",
-        metadata: { variance: result.variance, note: note?.trim() ?? null },
-      });
-
-      res.json(result);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json(
-        apiError({
-          code: "INTERNAL_ERROR",
-          reason: "BLIND_AUDIT_FAILED",
-          message: "Blind audit failed",
-          requestId,
-        }),
-      );
-    }
+  async (_req, res) => {
+    return res.status(409).json({
+      error: "Legacy blind-audit endpoint is disabled. Use restock sessions.",
+      code: "LEGACY_RESTOCK_DISABLED",
+    });
   },
 );
 

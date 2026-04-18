@@ -60,7 +60,7 @@ function mapErrorToHttp(err: unknown, requestId: string) {
     return {
       status: err.status,
       body: apiError({
-        code: err.status >= 500 ? "INTERNAL_ERROR" : "VALIDATION_FAILED",
+        code: err.code,
         reason: err.code,
         message: err.message,
         requestId,

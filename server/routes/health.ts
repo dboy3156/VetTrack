@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { pool } from "../db.js";
+import { isPostgresqlConfigured } from "../lib/postgresql.js";
 import https from "https";
 
 const router = Router();
@@ -33,16 +34,39 @@ router.get("/live", (_req, res) => {
   res.status(200).json({ status: "ok", type: "liveness" });
 });
 
-router.get("/startup", (_req, res) => {
+router.get("/startup", async (_req, res) => {
+  const checks = {
+    nodeEnv: process.env.NODE_ENV ?? "development",
+    hasDatabaseUrl: isPostgresqlConfigured(),
+    hasRedisUrl: Boolean(process.env.REDIS_URL?.trim()),
+    hasSessionSecret: Boolean(process.env.SESSION_SECRET?.trim()),
+    hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY?.trim()),
+  };
+
+  let databaseReachable = false;
+  if (checks.hasDatabaseUrl) {
+    try {
+      await pool.query("SELECT 1");
+      databaseReachable = true;
+    } catch {
+      return res.status(503).json({
+        status: "error",
+        type: "startup",
+        code: "DATABASE_UNREACHABLE",
+        checks: {
+          ...checks,
+          databaseReachable: false,
+        },
+      });
+    }
+  }
+
   res.status(200).json({
     status: "ok",
     type: "startup",
     checks: {
-      nodeEnv: process.env.NODE_ENV ?? "development",
-      hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
-      hasRedisUrl: Boolean(process.env.REDIS_URL?.trim()),
-      hasSessionSecret: Boolean(process.env.SESSION_SECRET?.trim()),
-      hasClerkSecretKey: Boolean(process.env.CLERK_SECRET_KEY?.trim()),
+      ...checks,
+      databaseReachable,
     },
   });
 });
