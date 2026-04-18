@@ -24,6 +24,7 @@ import returnsRoutes from "../routes/returns.js";
 import shiftHandoverRoutes from "../routes/shift-handover.js";
 import containersRoutes from "../routes/containers.js";
 import formularyRoutes from "../routes/formulary.js";
+import restockRoutes from "../routes/restock.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -48,6 +49,7 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/returns", returnsRoutes);
   app.use("/api/shift-handover", shiftHandoverRoutes);
   app.use("/api/containers", containersRoutes);
+  app.use("/api/restock", restockRoutes);
   app.use("/api/formulary", formularyRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);

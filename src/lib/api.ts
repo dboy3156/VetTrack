@@ -47,6 +47,9 @@ import type {
   TaskRecommendations,
   DrugFormularyEntry,
   CreateDrugFormularyRequest,
+  RestockSession,
+  RestockContainerView,
+  RestockFinishSummary,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -1026,6 +1029,40 @@ export const api = {
         `/api/containers/${id}/blind-audit`,
         { method: "POST", body: JSON.stringify({ physicalCount, note }) },
       ),
+  },
+  restock: {
+    start: (containerId: string) =>
+      request<RestockSession>("/api/restock/start", {
+        method: "POST",
+        body: JSON.stringify({ containerId }),
+      }),
+    scan: (sessionId: string, params: { itemId?: string; nfcTagId?: string; delta: number }) =>
+      request<{
+        event: {
+          id: string;
+          clinicId: string;
+          sessionId: string;
+          containerId: string;
+          itemId: string;
+          delta: number;
+          createdAt: string;
+        };
+        quantity: number;
+        item: { id: string; code: string; label: string; nfcTagId: string | null };
+      }>("/api/restock/scan", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, ...params }),
+      }),
+    finish: (sessionId: string) =>
+      request<RestockFinishSummary>("/api/restock/finish", {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
+      }),
+    containerItems: (containerId: string) =>
+      request<RestockContainerView>("/api/restock/container-items", {
+        method: "POST",
+        body: JSON.stringify({ containerId }),
+      }),
   },
   shiftHandover: {
     getDischargeItems: (animalId: string) =>
