@@ -5,9 +5,15 @@ import { useSearch } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +28,13 @@ import type { ShiftHandoverSummary } from "@/types";
 
 function formatIls(cents: number): string {
   return (cents / 100).toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatExpiryYmd(value: string | null): string {
+  if (!value?.trim()) return "—";
+  const d = new Date(`${value.trim()}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("he-IL");
 }
 
 function buildHebrewSummary(data: ShiftHandoverSummary): string {
@@ -40,13 +53,15 @@ function buildHebrewSummary(data: ShiftHandoverSummary): string {
     ),
     ...(data.unreturned.length === 0 ? [p.noItems] : []),
     "",
-    `*${p.deadTitle}* (${data.deadAssets.length})`,
-    ...data.deadAssets.map((d) => `• ${d.name}`),
-    ...(data.deadAssets.length === 0 ? [p.noItems] : []),
-    "",
-    `*${p.hotTitle}*`,
+    `*${p.activityTitle}* (${data.hotAssets.length})`,
     ...data.hotAssets.map((h) => `• ${h.name} — ${p.scanCount}: ${h.scans}`),
     ...(data.hotAssets.length === 0 ? [p.noItems] : []),
+    "",
+    `*${p.expiringTitle}* (${data.expiringAssets.length})`,
+    ...data.expiringAssets.map(
+      (e) => `• ${e.name}${e.expiryDate ? ` — ${p.expiryLabel}: ${formatExpiryYmd(e.expiryDate)}` : ""}`,
+    ),
+    ...(data.expiringAssets.length === 0 ? [p.noItems] : []),
   ];
   return lines.join("\n");
 }
@@ -197,33 +212,14 @@ export default function ShiftHandoverPage() {
         )}
 
         {data && (
-          <>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{p.windowLabel}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm space-y-1">
-                <p>
-                  {formatDateTimeByLocale(new Date(data.windowStart))} — {formatDateTimeByLocale(new Date(data.windowEnd))}
-                </p>
-                <p className="text-muted-foreground">
-                  {data.windowSource === "open_shift" ? p.windowOpenShift : p.windowFallback}
-                </p>
-                <p className="text-lg font-semibold pt-2">
-                  {p.revenue}: ₪{formatIls(data.revenueCents)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{p.unreturnedTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm space-y-2">
+          <Accordion type="multiple" defaultValue={["unreturned", "revenue", "activity", "expiring"]} className="w-full border rounded-xl px-3 bg-card">
+            <AccordionItem value="unreturned">
+              <AccordionTrigger className="text-base font-semibold">{p.unreturnedTitle}</AccordionTrigger>
+              <AccordionContent>
                 {data.unreturned.length === 0 ? (
-                  <p className="text-muted-foreground">{p.noItems}</p>
+                  <p className="text-muted-foreground text-sm">{p.noItems}</p>
                 ) : (
-                  <ul className="list-disc list-inside space-y-1">
+                  <ul className="list-disc list-inside space-y-1 text-sm">
                     {data.unreturned.map((u) => (
                       <li key={u.id}>
                         <span className="font-medium">{u.name}</span>
@@ -233,35 +229,31 @@ export default function ShiftHandoverPage() {
                     ))}
                   </ul>
                 )}
-              </CardContent>
-            </Card>
+              </AccordionContent>
+            </AccordionItem>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{p.deadTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">
-                {data.deadAssets.length === 0 ? (
-                  <p className="text-muted-foreground">{p.noItems}</p>
-                ) : (
-                  <ul className="list-disc list-inside space-y-1">
-                    {data.deadAssets.map((d) => (
-                      <li key={d.id}>{d.name}</li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+            <AccordionItem value="revenue">
+              <AccordionTrigger className="text-base font-semibold">{p.revenueSectionTitle}</AccordionTrigger>
+              <AccordionContent className="text-sm space-y-2">
+                <p>
+                  {formatDateTimeByLocale(new Date(data.windowStart))} — {formatDateTimeByLocale(new Date(data.windowEnd))}
+                </p>
+                <p className="text-muted-foreground">
+                  {data.windowSource === "open_shift" ? p.windowOpenShift : p.windowFallback}
+                </p>
+                <p className="text-lg font-semibold pt-1">
+                  {p.revenue}: ₪{formatIls(data.revenueCents)}
+                </p>
+              </AccordionContent>
+            </AccordionItem>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{p.hotTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">
+            <AccordionItem value="activity">
+              <AccordionTrigger className="text-base font-semibold">{p.activityTitle}</AccordionTrigger>
+              <AccordionContent>
                 {data.hotAssets.length === 0 ? (
-                  <p className="text-muted-foreground">{p.noItems}</p>
+                  <p className="text-muted-foreground text-sm">{p.noItems}</p>
                 ) : (
-                  <ul className="list-disc list-inside space-y-1">
+                  <ul className="list-disc list-inside space-y-1 text-sm">
                     {data.hotAssets.map((h) => (
                       <li key={h.id}>
                         {h.name} — {p.scanCount}: {h.scans}
@@ -269,9 +261,32 @@ export default function ShiftHandoverPage() {
                     ))}
                   </ul>
                 )}
-              </CardContent>
-            </Card>
-          </>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="expiring" className="border-b-0">
+              <AccordionTrigger className="text-base font-semibold">{p.expiringTitle}</AccordionTrigger>
+              <AccordionContent>
+                {data.expiringAssets.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">{p.noItems}</p>
+                ) : (
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    {data.expiringAssets.map((e) => (
+                      <li key={e.id}>
+                        <span className="font-medium">{e.name}</span>
+                        {e.expiryDate ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            — {p.expiryLabel}: {formatExpiryYmd(e.expiryDate)}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
       </div>
     </Layout>

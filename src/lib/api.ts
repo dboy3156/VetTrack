@@ -956,6 +956,8 @@ export const api = {
   },
   containers: {
     list: () => request<InventoryContainer[]>("/api/containers"),
+    bootstrapDefaults: () =>
+      request<{ inserted: number }>("/api/containers/bootstrap-defaults", { method: "POST" }),
     create: (data: {
       name: string;
       department?: string;

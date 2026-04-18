@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { billingLedger, db, equipment, scanLogs, shiftSessions, usageSessions } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
@@ -44,6 +44,12 @@ async function getOpenShiftSession(clinicId: string) {
     .orderBy(desc(shiftSessions.startedAt))
     .limit(1);
   return row ?? null;
+}
+
+function addDaysYmd(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 async function resolveReportWindow(
@@ -159,12 +165,29 @@ router.get("/summary", requireAuth, requireEffectiveRole("technician"), async (r
       if (r.equipmentId) scanMap.set(r.equipmentId, r.cnt);
     }
 
+    const expiringAssets = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+        expiryDate: equipment.expiryDate,
+      })
+      .from(equipment)
+      .where(
+        and(
+          eq(equipment.clinicId, clinicId),
+          isNull(equipment.deletedAt),
+          isNotNull(equipment.expiryDate),
+          lte(equipment.expiryDate, addDaysYmd(90)),
+        ),
+      )
+      .orderBy(asc(equipment.expiryDate))
+      .limit(50);
+
     const allActive = await db
       .select({ id: equipment.id, name: equipment.name })
       .from(equipment)
       .where(and(eq(equipment.clinicId, clinicId), isNull(equipment.deletedAt)));
 
-    const deadAssets = allActive.filter((e) => (scanMap.get(e.id) ?? 0) === 0).slice(0, 50);
     const hotAssets = [...allActive]
       .map((e) => ({ ...e, scans: scanMap.get(e.id) ?? 0 }))
       .filter((e) => e.scans > 0)
@@ -179,7 +202,7 @@ router.get("/summary", requireAuth, requireEffectiveRole("technician"), async (r
       windowSource: source,
       revenueCents,
       unreturned,
-      deadAssets,
+      expiringAssets,
       hotAssets,
       openShiftSession: openSession
         ? {

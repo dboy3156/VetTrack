@@ -86,7 +86,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
-  const { isAdmin, role } = useAuth();
+  const { isAdmin, role, effectiveRole } = useAuth();
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
@@ -183,6 +183,11 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
   const canAccessCodeBlue = isAdmin || role === "vet";
 
+  const canAccessHandoverInventory = useMemo(() => {
+    const allowed = new Set(["admin", "vet", "technician", "senior_technician"]);
+    return allowed.has(String(role)) || allowed.has(String(effectiveRole));
+  }, [role, effectiveRole]);
+
   const navItems: NavItem[] = useMemo(() => [
     { href: "/", label: lh.home, icon: <Home className="w-5 h-5" /> },
     { href: "/equipment", label: t.equipment.title, icon: <Package className="w-5 h-5" /> },
@@ -207,8 +212,12 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     },
     { href: "/appointments", label: "Tasks", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
     { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
-    { href: "/shift-handover", label: lh.shiftHandover, icon: <ClipboardList className="w-5 h-5" /> },
-    { href: "/inventory", label: lh.inventory, icon: <Warehouse className="w-5 h-5" /> },
+    ...(canAccessHandoverInventory
+      ? [
+          { href: "/shift-handover", label: lh.shiftHandover, icon: <ClipboardList className="w-5 h-5" /> } satisfies NavItem,
+          { href: "/inventory", label: lh.inventory, icon: <Warehouse className="w-5 h-5" /> } satisfies NavItem,
+        ]
+      : []),
     { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
     { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: lh.printQr, icon: <QrCode className="w-5 h-5" />, menuOnly: true },
@@ -218,7 +227,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
-  ], [alertCount, canAccessCodeBlue, myCount, lh, t]);
+  ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, myCount, lh, t]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
   const bottomItems = visibleItems.filter((item) => !item.menuOnly);
@@ -458,7 +467,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
             <nav className="flex flex-col gap-1">
               {/* Operations group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
-              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/rooms"].map((href) => {
+              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/rooms", "/shift-handover", "/inventory"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
                 return (

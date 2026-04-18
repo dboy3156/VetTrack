@@ -102,9 +102,12 @@
     "windowFallback": "Last 12 hours",
     "revenue": "Cumulative revenue",
     "unreturnedTitle": "Unreturned equipment",
-    "deadTitle": "No scans in period",
+    "revenueSectionTitle": "Revenue",
+    "activityTitle": "Activity (scans)",
+    "expiringTitle": "Expiring soon",
+    "expiryLabel": "Expiry",
     "hotTitle": "Most scanned equipment",
-    "copySummary": "Copy summary",
+    "copySummary": "Export summary",
     "copied": "Copied to clipboard",
     "startShift": "Start shift",
     "endShift": "End shift",
@@ -119,7 +122,7 @@
   },
 
   "inventoryPage": {
-    "title": "Inventory — carts and drawers",
+    "title": "Inventory & consumables",
     "target": "Target",
     "current": "On hand",
     "restock": "Restock",
@@ -129,7 +132,10 @@
     "submitRestock": "Save restock",
     "submitAudit": "Save count",
     "loadError": "Load failed",
-    "empty": "No containers defined — ask an admin to add carts/drawers."
+    "empty": "No containers yet. Use Quick add or ask an admin.",
+    "quickAdd": "Quick add (ICU / internal)",
+    "quickAddSuccess": "Default carts and drawers added",
+    "quickAddNothing": "Containers already exist."
   },
 
   "equipmentDetail": {
@@ -876,7 +882,7 @@
     "home": "Home",
     "radar": "Radar",
     "shiftHandover": "Shift handover",
-    "inventory": "Inventory",
+    "inventory": "Inventory & consumables",
     "analytics": "Analytics",
     "dashboard": "Dashboard",
     "printQr": "Print QR",

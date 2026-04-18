@@ -95,16 +95,19 @@
   },
 
   "shiftHandoverPage": {
-    "title": "מסירת משמרת",
+    "title": "חפיפת משמרת",
     "subtitle": "סיכום כספי ותפעולי לתקופה הנוכחית",
     "windowLabel": "תקופת הדוח",
     "windowOpenShift": "משמרת פתוחה",
     "windowFallback": "12 שעות אחרונות",
     "revenue": "הכנסות מצטברות",
     "unreturnedTitle": "ציוד שלא הוחזר",
-    "deadTitle": "ציוד ללא סריקות בתקופה",
+    "revenueSectionTitle": "הכנסות",
+    "activityTitle": "פעילות (סריקות)",
+    "expiringTitle": "פגי תוקף בקרוב",
+    "expiryLabel": "תאריך תוקף",
     "hotTitle": "ציוד עם הכי הרבה סריקות",
-    "copySummary": "העתק סיכום לווטסאפ",
+    "copySummary": "ייצוא סיכום",
     "copied": "הועתק ללוח",
     "startShift": "התחל משמרת",
     "endShift": "סיים משמרת",
@@ -119,7 +122,7 @@
   },
 
   "inventoryPage": {
-    "title": "מלאי — עגלות ומגירות",
+    "title": "מלאי ומתכלים",
     "target": "יעד",
     "current": "במלאי",
     "restock": "מילוי",
@@ -129,7 +132,10 @@
     "submitRestock": "שמור מילוי",
     "submitAudit": "שמור ספירה",
     "loadError": "טעינה נכשלה",
-    "empty": "אין מיכלים מוגדרים — פנה למנהל להוספה."
+    "empty": "אין מיכלים מוגדרים. השתמש בהוספה מהירה או פנה למנהל.",
+    "quickAdd": "הוספה מהירה (ICU / פנימה)",
+    "quickAddSuccess": "נוספו עגלות ומגירות ברירת מחדל",
+    "quickAddNothing": "כבר קיימים מיכלים — לא נדרש שיבוץ."
   },
 
   "equipmentDetail": {
@@ -876,8 +882,8 @@
   "layoutHebrew": {
     "home": "ראשי",
     "radar": "רדאר",
-    "shiftHandover": "מסירת משמרת",
-    "inventory": "מלאי",
+    "shiftHandover": "חפיפת משמרת",
+    "inventory": "מלאי ומתכלים",
     "analytics": "ניתוח נתונים",
     "dashboard": "לוח בקרה",
     "printQr": "הדפסת QR",

@@ -22,6 +22,7 @@ import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
 import { registerApiRoutes } from "./app/routes.js";
 import { startBackgroundSchedulers } from "./app/start-schedulers.js";
+import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
@@ -223,7 +224,13 @@ app.listen(PORT, "0.0.0.0", () => {
 });
 
 runMigrations()
-  .then(() => {
+  .then(async () => {
+    try {
+      await ensureClinicPhase2Defaults();
+      console.log("✅ Clinic billing / inventory defaults ensured");
+    } catch (err) {
+      console.error("Clinic Phase 2 defaults failed (non-fatal)", err);
+    }
     startBackgroundSchedulers().catch((err) => {
       console.error("Failed to initialize push notifications", err);
     });

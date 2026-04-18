@@ -404,7 +404,7 @@ export interface ShiftHandoverSummary {
     checkedOutByEmail: string | null;
     checkedOutLocation: string | null;
   }>;
-  deadAssets: Array<{ id: string; name: string }>;
+  expiringAssets: Array<{ id: string; name: string; expiryDate: string | null }>;
   hotAssets: Array<{ id: string; name: string; scans: number }>;
   openShiftSession: {
     id: string;

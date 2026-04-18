@@ -11,6 +11,7 @@ import {
   resolveBillingItemForContainer,
   restockLedgerIdempotencyKey,
 } from "../lib/container-billing.js";
+import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
 
 const router = Router();
 
@@ -50,6 +51,25 @@ function apiError(params: { code: string; reason: string; message: string; reque
     requestId: params.requestId,
   };
 }
+
+router.post("/bootstrap-defaults", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const inserted = await seedDefaultContainersIfEmpty(clinicId);
+    res.json({ inserted });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "CONTAINERS_BOOTSTRAP_FAILED",
+        message: "Failed to seed default containers",
+        requestId,
+      }),
+    );
+  }
+});
 
 router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);

@@ -41,16 +41,38 @@ export default function InventoryPage() {
     onError: () => toast.error(p.loadError),
   });
 
+  const bootstrapMut = useMutation({
+    mutationFn: () => api.containers.bootstrapDefaults(),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["/api/containers"] });
+      if (res.inserted > 0) toast.success(p.quickAddSuccess);
+      else toast(p.quickAddNothing);
+    },
+    onError: () => toast.error(p.loadError),
+  });
+
   return (
     <Layout title={p.title}>
       <Helmet>
         <title>{p.title} — VetTrack</title>
       </Helmet>
       <div className="max-w-3xl mx-auto p-4 space-y-4">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Warehouse className="w-7 h-7" aria-hidden />
-          {p.title}
-        </h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Warehouse className="w-7 h-7" aria-hidden />
+            {p.title}
+          </h1>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-11 shrink-0"
+            disabled={bootstrapMut.isPending || q.isLoading}
+            onClick={() => bootstrapMut.mutate()}
+          >
+            {bootstrapMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {p.quickAdd}
+          </Button>
+        </div>
 
         {q.isLoading && (
           <div className="space-y-2">
