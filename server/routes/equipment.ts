@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import { z } from "zod";
-import { db, equipment, folders, rooms, scanLogs, transferLogs, undoTokens, users } from "../db.js";
+import { db, equipment, equipmentReturns, folders, rooms, scanLogs, transferLogs, undoTokens, users } from "../db.js";
 import { eq, inArray, desc, and, or, ilike, lt, sql, isNull, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
@@ -13,7 +13,25 @@ import { logAudit } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
 import { scheduleSmartReturnReminder, cancelSmartReturnReminder } from "../lib/role-notification-scheduler.js";
 
-const EQUIPMENT_STATUS_VALUES = ["ok", "issue", "maintenance", "sterilized", "overdue", "inactive"] as const;
+const EQUIPMENT_STATUS_VALUES = [
+  "ok",
+  "issue",
+  "maintenance",
+  "sterilized",
+  "overdue",
+  "inactive",
+  "critical",
+  "needs_attention",
+] as const;
+
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const isoDateOnlySchema = z.string().refine((value) => {
+  if (!ISO_DATE_REGEX.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.toISOString().slice(0, 10) === value;
+}, "Date must be a valid ISO date string (YYYY-MM-DD)");
 
 const createEquipmentSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(500),
@@ -21,6 +39,7 @@ const createEquipmentSchema = z.object({
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
   purchaseDate: z.string().optional().nullable(),
+  expiryDate: isoDateOnlySchema.optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
@@ -36,6 +55,7 @@ const patchEquipmentSchema = z.object({
   model: z.string().max(500).optional(),
   manufacturer: z.string().max(500).optional(),
   purchaseDate: z.string().optional().nullable(),
+  expiryDate: isoDateOnlySchema.optional().nullable(),
   location: z.string().max(500).optional(),
   folderId: z.string().optional().nullable(),
   roomId: z.string().optional().nullable(),
@@ -89,6 +109,7 @@ const upload = multer({
  * PERMISSIONS MATRIX — /api/equipment
  * ─────────────────────────────────────────────────────
  * GET  /                  viewer+       List all equipment
+ * GET  /critical          viewer+       List critical/needs-attention equipment
  * GET  /my                viewer+       List equipment checked out by current user
  * GET  /:id               viewer+       Get single equipment item
  * GET  /:id/logs          viewer+       Scan log history for item
@@ -247,6 +268,8 @@ router.get("/my", requireAuth, async (req, res) => {
         model: equipment.model,
         manufacturer: equipment.manufacturer,
         purchaseDate: equipment.purchaseDate,
+        expiryDate: equipment.expiryDate,
+        expiryNotifiedAt: equipment.expiryNotifiedAt,
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
@@ -354,6 +377,8 @@ router.get("/", requireAuth, async (req, res) => {
         model: equipment.model,
         manufacturer: equipment.manufacturer,
         purchaseDate: equipment.purchaseDate,
+        expiryDate: equipment.expiryDate,
+        expiryNotifiedAt: equipment.expiryNotifiedAt,
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
@@ -438,6 +463,44 @@ router.get("/deleted", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/equipment/critical
+router.get("/critical", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const items = await db
+      .select({
+        id: equipment.id,
+        name: equipment.name,
+        category: sql<string>`COALESCE(${equipment.model}, 'General')`,
+        status: equipment.status,
+        lastSeenLocation: sql<string | null>`COALESCE(${equipment.checkedOutLocation}, ${equipment.location})`,
+        lastSeenTimestamp: equipment.lastSeen,
+      })
+      .from(equipment)
+      .where(
+        and(
+          eq(equipment.clinicId, clinicId),
+          inArray(equipment.status, ["critical", "needs_attention"]),
+          isNull(equipment.deletedAt),
+        ),
+      )
+      .orderBy(desc(equipment.lastSeen));
+
+    res.json(items);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "CRITICAL_EQUIPMENT_FETCH_FAILED",
+        message: "Failed to fetch critical equipment",
+        requestId,
+      }),
+    );
+  }
+});
+
 router.get("/:id", requireAuth, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
@@ -450,6 +513,8 @@ router.get("/:id", requireAuth, async (req, res) => {
         model: equipment.model,
         manufacturer: equipment.manufacturer,
         purchaseDate: equipment.purchaseDate,
+        expiryDate: equipment.expiryDate,
+        expiryNotifiedAt: equipment.expiryNotifiedAt,
         location: equipment.location,
         folderId: equipment.folderId,
         folderName: folders.name,
@@ -513,6 +578,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
       model,
       manufacturer,
       purchaseDate,
+      expiryDate,
       location,
       folderId,
       roomId,
@@ -543,6 +609,8 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
         model: model ?? null,
         manufacturer: manufacturer ?? null,
         purchaseDate: purchaseDate ?? null,
+        expiryDate: expiryDate ?? null,
+        expiryNotifiedAt: null,
         location: location ?? null,
         folderId: folderId ?? null,
         roomId: roomId ?? null,
@@ -590,6 +658,7 @@ try {
       model,
       manufacturer,
       purchaseDate,
+      expiryDate,
       location,
       folderId,
       roomId,
@@ -628,6 +697,7 @@ try {
           ...(model !== undefined && { model }),
           ...(manufacturer !== undefined && { manufacturer }),
           ...(purchaseDate !== undefined && { purchaseDate }),
+          ...(expiryDate !== undefined && { expiryDate, expiryNotifiedAt: null }),
           ...(location !== undefined && { location }),
           ...(folderId !== undefined && { folderId: folderId ?? null }),
           ...(roomId !== undefined && { roomId: roomId ?? null }),
@@ -951,6 +1021,8 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
 
     let updated: EquipmentRow | null = null;
     let undoToken = "";
+    let returnRecordId: string | null = null;
+    let returnRecordDeadlineMinutes: number | null = null;
     let alreadyReturned = false;
 
     await db.transaction(async (tx) => {
@@ -1007,6 +1079,27 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
         scanLogId: returnLogId,
         previousState: snapshotState(existing),
       });
+
+      const [returnRecord] = await tx
+        .insert(equipmentReturns)
+        .values({
+          id: randomUUID(),
+          clinicId,
+          equipmentId: req.params.id,
+          returnedById: req.authUser!.id,
+          returnedByEmail: req.authUser!.email,
+          returnedAt: returnTime,
+          isPluggedIn: true,
+          plugInDeadlineMinutes: 30,
+          plugInAlertSentAt: null,
+          chargeAlertJobId: null,
+        })
+        .returning({
+          id: equipmentReturns.id,
+          plugInDeadlineMinutes: equipmentReturns.plugInDeadlineMinutes,
+        });
+      returnRecordId = returnRecord?.id ?? null;
+      returnRecordDeadlineMinutes = returnRecord?.plugInDeadlineMinutes ?? null;
     });
 
     if (!updated) {
@@ -1035,7 +1128,17 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
 
     invalidateAnalyticsCache(clinicId);
     trackSyncSuccess();
-    res.json({ equipment: updated, undoToken });
+    res.json({
+      equipment: updated,
+      undoToken,
+      returnRecord: returnRecordId
+        ? {
+            id: returnRecordId,
+            isPluggedIn: true,
+            plugInDeadlineMinutes: returnRecordDeadlineMinutes ?? 30,
+          }
+        : null,
+    });
 
     await cancelSmartReturnReminder(clinicId, u.id, req.authUser!.id);
 

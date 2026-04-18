@@ -56,6 +56,21 @@ export function isInactive(equipment: Equipment): boolean {
   return isAfter(fourteenDaysAgo, new Date(equipment.lastSeen));
 }
 
+export type ExpiryBadgeState = "expired" | "expiring_soon" | "healthy";
+
+export function getExpiryBadgeState(
+  expiryDate: string | null | undefined,
+  now: Date = new Date(),
+): ExpiryBadgeState | null {
+  if (!expiryDate) return null;
+  const date = new Date(`${expiryDate}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const daysUntilExpiry = Math.ceil((date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  if (daysUntilExpiry < 0) return "expired";
+  if (daysUntilExpiry <= 7) return "expiring_soon";
+  return "healthy";
+}
+
 // Runtime allowlist — only these types may be emitted; update AlertType in @/types and ALERT_SEVERITY together
 const ALERT_TYPE_ALLOWLIST = new Set<Alert["type"]>(["issue", "overdue", "sterilization_due", "inactive"]);
 

@@ -60,6 +60,9 @@ import {
   Camera,
   Copy,
   MoveHorizontal,
+  CalendarX,
+  CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 import {
   formatDate,
@@ -68,12 +71,14 @@ import {
   buildWhatsAppUrl,
   isOverdue,
   isSterilizationDue,
+  getExpiryBadgeState,
 } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useSyncQueue } from "@/hooks/use-sync";
 import { MoveRoomSheet } from "@/components/move-room-sheet";
+import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 import { useSettings } from "@/hooks/use-settings";
 import { playCriticalAlertTone } from "@/lib/sounds";
 
@@ -113,6 +118,9 @@ export default function EquipmentDetailPage() {
   const [scanPhoto, setScanPhoto] = useState<string | null>(null);
   const [noteError, setNoteError] = useState("");
   const [checkoutLocation, setCheckoutLocation] = useState("");
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [isPluggedIn, setIsPluggedIn] = useState<boolean>(false);
+  const [plugInDeadlineMinutes, setPlugInDeadlineMinutes] = useState<number>(30);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const reportIssuePhotoRef = useRef<HTMLInputElement>(null);
   const undoStateRef = useRef<UndoState | null>(null);
@@ -407,15 +415,19 @@ export default function EquipmentDetailPage() {
   });
 
   const returnMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ isPluggedIn: nextPluggedIn, plugInDeadlineMinutes: nextDeadline }: { isPluggedIn: boolean; plugInDeadlineMinutes: number }) => {
       const prev = queryClient.getQueryData<Equipment>([`/api/equipment/${id}`]);
-      const result = await api.equipment.return(id!);
-      return { result, prev };
+      const result = await api.equipment.return(id!, {
+        isPluggedIn: nextPluggedIn,
+        plugInDeadlineMinutes: nextPluggedIn ? undefined : nextDeadline,
+      });
+      return { result, prev, usedPluggedIn: nextPluggedIn, usedDeadline: nextDeadline };
     },
-    onSuccess: ({ result, prev }) => {
+    onSuccess: ({ result, prev, usedPluggedIn, usedDeadline }) => {
       navigator.vibrate?.(50);
       const { equipment: updated, undoToken } = result;
       const wasOffline = result.pendingSyncId !== undefined;
+      setReturnDialogOpen(false);
 
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
 
@@ -433,6 +445,9 @@ export default function EquipmentDetailPage() {
       }
 
       invalidateAll();
+      if (!usedPluggedIn) {
+        toast.warning(`התראה תישלח לאחר ${usedDeadline} דקות אם לא יחובר`);
+      }
 
       if (prev) {
         startUndoTimer({
@@ -447,6 +462,12 @@ export default function EquipmentDetailPage() {
       toast.error(t.equipmentDetail.toast.returnFailed(err.message));
     },
   });
+
+  function handleConfirmReturn(values: { isPluggedIn: boolean; plugInDeadlineMinutes: number }) {
+    setIsPluggedIn(values.isPluggedIn);
+    setPlugInDeadlineMinutes(values.plugInDeadlineMinutes);
+    returnMut.mutate(values);
+  }
 
   const deleteMut = useMutation({
     mutationFn: () => api.equipment.delete(id!),
@@ -529,6 +550,12 @@ export default function EquipmentDetailPage() {
       toast.error(t.equipmentDetail.toast.reportFailed(err.message));
     },
   });
+
+  function handleOpenReturnDialog() {
+    setIsPluggedIn(false);
+    setPlugInDeadlineMinutes(30);
+    setReturnDialogOpen(true);
+  }
 
   function handleDuplicate() {
     if (!equipment) return;
@@ -761,7 +788,7 @@ export default function EquipmentDetailPage() {
             <Button
               className="w-full h-12 gap-2 text-sm font-semibold rounded-2xl active:scale-[0.98] transition-all shadow-sm"
               variant="outline"
-              onClick={() => returnMut.mutate()}
+              onClick={handleOpenReturnDialog}
               disabled={returnMut.isPending}
               data-testid="btn-return"
             >
@@ -921,6 +948,7 @@ export default function EquipmentDetailPage() {
                   { icon: Package, label: t.equipmentDetail.model, value: equipment.model },
                   { icon: Package, label: t.equipmentDetail.manufacturer, value: equipment.manufacturer },
                   { icon: Calendar, label: t.equipmentDetail.purchaseDate, value: formatDate(equipment.purchaseDate) },
+                  { icon: Calendar, label: "תאריך תפוגה", value: formatDate(equipment.expiryDate) },
                   { icon: MapPin, label: t.equipmentDetail.location, value: equipment.location },
                   {
                     icon: Clock,
@@ -950,6 +978,32 @@ export default function EquipmentDetailPage() {
                       </div>
                     </div>
                   ))}
+                {(() => {
+                  const expiryState = getExpiryBadgeState(equipment.expiryDate);
+                  if (!expiryState) return null;
+                  if (expiryState === "expired") {
+                    return (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
+                        <CalendarX className="w-3.5 h-3.5" />
+                        פג תוקף
+                      </div>
+                    );
+                  }
+                  if (expiryState === "expiring_soon") {
+                    return (
+                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        פג בקרוב (עד 7 ימים)
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      בתוקף
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1068,6 +1122,19 @@ export default function EquipmentDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ReturnPlugDialog
+        open={returnDialogOpen}
+        onOpenChange={setReturnDialogOpen}
+        equipmentName={equipment.name}
+        isSubmitting={returnMut.isPending}
+        onConfirm={({ isPluggedIn: nextPluggedIn, plugInDeadlineMinutes: nextDeadline }) => {
+          returnMut.mutate({
+            isPluggedIn: nextPluggedIn,
+            plugInDeadlineMinutes: nextDeadline ?? 30,
+          });
+        }}
+      />
 
       {/* Update Status dialog */}
       <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}>
@@ -1327,7 +1394,7 @@ export default function EquipmentDetailPage() {
                       </p>
                     )}
                   </div>
-                  <Badge variant={equipment.status} className="shrink-0 text-xs" data-testid="scan-action-status-badge">
+                  <Badge variant={statusToBadgeVariant(equipment.status)} className="shrink-0 text-xs" data-testid="scan-action-status-badge">
                     {STATUS_LABELS[equipment.status as keyof typeof STATUS_LABELS] || equipment.status}
                   </Badge>
                 </div>
@@ -1372,7 +1439,7 @@ export default function EquipmentDetailPage() {
                       variant="outline"
                       size="lg"
                       className="w-full gap-2.5"
-                      onClick={() => returnMut.mutate()}
+                      onClick={handleOpenReturnDialog}
                       disabled={returnMut.isPending || checkoutMut.isPending}
                       data-testid="btn-scan-action-return"
                     >

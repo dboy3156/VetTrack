@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { STATUS_LABELS } from "@/types";
 import type { Equipment } from "@/types";
+import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 
 interface QrScannerProps {
   onClose: () => void;
@@ -111,6 +112,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const [notFoundId, setNotFoundId] = useState<string | null>(null);
   const [scannedEquipment, setScannedEquipment] = useState<Equipment | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<number>(0);
@@ -416,15 +418,28 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
   async function handleReturn() {
     if (!scannedEquipment) return;
+    setReturnDialogOpen(true);
+  }
+
+  async function handleConfirmReturn(payload: {
+    isPluggedIn: boolean;
+    plugInDeadlineMinutes?: number;
+  }) {
+    if (!scannedEquipment) return;
     setIsActing(true);
     try {
-      await api.equipment.return(scannedEquipment.id);
+      await api.equipment.return(scannedEquipment.id, {
+        isPluggedIn: payload.isPluggedIn,
+        plugInDeadlineMinutes: payload.plugInDeadlineMinutes,
+      });
       navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} returned`);
+      setReturnDialogOpen(false);
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Return failed";
       toast.error(msg);
+    } finally {
       setIsActing(false);
     }
   }
@@ -812,6 +827,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {scannedEquipment && (
+        <ReturnPlugDialog
+          open={returnDialogOpen}
+          onOpenChange={setReturnDialogOpen}
+          equipmentName={scannedEquipment.name}
+          onConfirm={handleConfirmReturn}
+          isSubmitting={isActing}
+        />
       )}
     </div>
   );

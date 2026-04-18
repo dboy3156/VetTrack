@@ -53,6 +53,9 @@ import {
   LogIn,
   LogOut,
   AlertTriangle,
+  CalendarX,
+  CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import {
@@ -61,13 +64,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getExpiryBadgeState } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QrScanner } from "@/components/qr-scanner";
 import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList";
 import { usePaginatedEquipment } from "@/hooks/use-paginated-equipment";
 import { exportEquipmentToExcel } from "@/lib/export-excel";
+import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 
 const VIRTUALIZATION_THRESHOLD = 100;
 const SERVER_PAGE_SIZE = 100;
@@ -764,9 +768,11 @@ function EquipmentItem({
 }) {
   const { userId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const statusVariant = statusToBadgeVariant(eq.status);
   const isCheckedOut = !!eq.checkedOutById;
   const checkedOutByMe = eq.checkedOutById === userId;
+  const expiryState = getExpiryBadgeState(eq.expiryDate);
 
   const checkoutMut = useMutation({
     mutationFn: () => api.equipment.checkout(eq.id),
@@ -779,7 +785,8 @@ function EquipmentItem({
   });
 
   const returnMut = useMutation({
-    mutationFn: () => api.equipment.return(eq.id),
+    mutationFn: (payload: { isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
+      api.equipment.return(eq.id, payload),
     onSuccess: () => {
       navigator.vibrate?.(50);
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
@@ -792,12 +799,13 @@ function EquipmentItem({
   const quickAction = !isCheckedOut && eq.status === "ok"
     ? { label: "In Use", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, className: "text-emerald-700 border-emerald-200 hover:bg-emerald-50" }
     : (isCheckedOut && (checkedOutByMe || isAdmin)) && eq.status === "ok"
-    ? { label: "Return", icon: LogOut, action: () => returnMut.mutate(), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
+    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
     : eq.status === "issue"
     ? { label: "View Issue", icon: AlertTriangle, action: null, href: `/equipment/${eq.id}`, pending: false, className: "text-red-600 border-red-200 hover:bg-red-50" }
     : null;
 
   return (
+    <>
     <div
       className={`flex items-center gap-2 ${selectMode ? "cursor-pointer" : ""}`}
       onClick={selectMode ? onToggleSelect : undefined}
@@ -869,6 +877,24 @@ function EquipmentItem({
                   <span className="text-xs text-muted-foreground">
                     {formatRelativeTime(eq.lastSeen?.toString())}
                   </span>
+                  {expiryState === "expired" && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-800">
+                      <CalendarX className="w-3 h-3" />
+                      פג תוקף
+                    </span>
+                  )}
+                  {expiryState === "expiring_soon" && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-orange-100 text-orange-800">
+                      <CalendarClock className="w-3 h-3" />
+                      פחות מ-7 ימים
+                    </span>
+                  )}
+                  {expiryState === "healthy" && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-green-100 text-green-800">
+                      <CalendarCheck className="w-3 h-3" />
+                      בתוקף
+                    </span>
+                  )}
                 </div>
               </div>
               {/* Trailing: compact in-card quick action or status badge + chevron.
@@ -925,5 +951,16 @@ function EquipmentItem({
         </Link>
       </div>
     </div>
+    <ReturnPlugDialog
+      open={returnDialogOpen}
+      onOpenChange={setReturnDialogOpen}
+      defaultDeadlineMinutes={30}
+      onConfirm={(payload) =>
+        returnMut.mutate(payload, {
+          onSettled: () => setReturnDialogOpen(false),
+        })
+      }
+    />
+    </>
   );
 }

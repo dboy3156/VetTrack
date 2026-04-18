@@ -1,4 +1,10 @@
-export type EquipmentStatus = "ok" | "issue" | "maintenance" | "sterilized";
+export type EquipmentStatus =
+  | "ok"
+  | "issue"
+  | "maintenance"
+  | "sterilized"
+  | "critical"
+  | "needs_attention";
 
 export type UserRole = "admin" | "vet" | "technician" | "viewer";
 export type ShiftRole = "technician" | "senior_technician" | "admin";
@@ -109,6 +115,8 @@ export interface Equipment {
   model?: string | null;
   manufacturer?: string | null;
   purchaseDate?: string | null;
+  expiryDate?: string | null;
+  expiryNotifiedAt?: string | null;
   location?: string | null;
   folderId?: string | null;
   folderName?: string | null;
@@ -132,7 +140,21 @@ export interface Equipment {
   checkedOutAt?: string | null;
   checkedOutLocation?: string | null;
   expectedReturnMinutes?: number | null;
+  isPluggedIn?: boolean | null;
+  plugInDeadlineMinutes?: number | null;
+  plugInAlertSentAt?: string | null;
   createdAt: string;
+}
+
+export type CodeBlueStatus = "critical" | "needs_attention";
+
+export interface CriticalEquipment {
+  id: string;
+  name: string;
+  category: string;
+  status: CodeBlueStatus;
+  lastSeenLocation?: string | null;
+  lastSeenTimestamp?: string | null;
 }
 
 export interface CreateEquipmentRequest {
@@ -141,6 +163,7 @@ export interface CreateEquipmentRequest {
   model?: string;
   manufacturer?: string;
   purchaseDate?: string | null;
+  expiryDate?: string | null;
   location?: string;
   folderId?: string;
   roomId?: string;
@@ -156,14 +179,43 @@ export interface UpdateEquipmentRequest {
   model?: string | null;
   manufacturer?: string | null;
   purchaseDate?: string | null;
+  expiryDate?: string | null;
   location?: string | null;
   folderId?: string | null;
   roomId?: string | null;
   nfcTagId?: string | null;
   maintenanceIntervalDays?: number | null;
   expectedReturnMinutes?: number | null;
+  isPluggedIn?: boolean | null;
+  plugInDeadlineMinutes?: number | null;
   imageUrl?: string | null;
   status?: EquipmentStatus;
+}
+
+export interface EquipmentReturn {
+  id: string;
+  clinicId: string;
+  equipmentId: string;
+  returnedById: string;
+  returnedByEmail: string;
+  returnedAt: string;
+  isPluggedIn: boolean;
+  plugInDeadlineMinutes: number;
+  plugInAlertSentAt?: string | null;
+  chargeAlertJobId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReturnRequest {
+  equipmentId: string;
+  isPluggedIn: boolean;
+  plugInDeadlineMinutes?: number;
+}
+
+export interface UpdateReturnRequest {
+  isPluggedIn?: boolean;
+  plugInDeadlineMinutes?: number;
 }
 
 export interface Shift {
@@ -487,6 +539,8 @@ export const STATUS_LABELS: Record<EquipmentStatus, string> = {
   issue: "Issue",
   maintenance: "Maintenance",
   sterilized: "Sterilized",
+  critical: "Critical",
+  needs_attention: "Needs Attention",
 };
 
 export const STATUS_COLORS: Record<EquipmentStatus, string> = {
@@ -494,6 +548,8 @@ export const STATUS_COLORS: Record<EquipmentStatus, string> = {
   issue: "bg-red-100 text-red-800 border-red-200",
   maintenance: "bg-amber-100 text-amber-800 border-amber-200",
   sterilized: "bg-blue-100 text-blue-800 border-blue-200",
+  critical: "bg-red-100 text-red-800 border-red-200",
+  needs_attention: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
 export type SupportTicketSeverity = "low" | "medium" | "high";

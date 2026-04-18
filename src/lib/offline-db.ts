@@ -3,7 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { Equipment, ScanLog, Folder, Room } from "@/types";
 
 export type PendingSyncStatus = "pending" | "synced" | "failed";
-export type PendingSyncType = "scan" | "create" | "update" | "delete" | "checkout" | "return";
+export type PendingSyncType = "scan" | "create" | "update" | "delete" | "checkout" | "return" | "return_with_charge";
 
 export interface PendingSync {
   id?: number;

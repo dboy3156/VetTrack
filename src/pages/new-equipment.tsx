@@ -32,6 +32,7 @@ const schema = z.object({
   model: z.string().optional(),
   manufacturer: z.string().optional(),
   purchaseDate: z.string().optional(),
+  expiryDate: z.string().optional().nullable(),
   location: z.string().optional(),
   folderId: z.string().optional(),
   maintenanceIntervalDays: z.preprocess(
@@ -85,6 +86,7 @@ export default function NewEquipmentPage() {
       model: p.get("copyModel") ?? "",
       manufacturer: p.get("copyManuf") ?? "",
       purchaseDate: p.get("copyPurchaseDate") ?? "",
+      expiryDate: p.get("copyExpiryDate") ?? "",
       location: p.get("copyLocation") ?? "",
       folderId: p.get("copyFolder") ?? "",
       maintenanceIntervalDays: p.get("copyMaint") ?? "",
@@ -119,6 +121,7 @@ export default function NewEquipmentPage() {
       model: prefill.model || undefined,
       manufacturer: prefill.manufacturer || undefined,
       purchaseDate: prefill.purchaseDate || undefined,
+      expiryDate: prefill.expiryDate || undefined,
       location: prefill.location || undefined,
       folderId: prefill.folderId || undefined,
       maintenanceIntervalDays: prefill.maintenanceIntervalDays
@@ -136,6 +139,7 @@ export default function NewEquipmentPage() {
         model: existingEquipment.model ?? undefined,
         manufacturer: existingEquipment.manufacturer ?? undefined,
         purchaseDate: existingEquipment.purchaseDate ?? undefined,
+        expiryDate: existingEquipment.expiryDate ?? undefined,
         location: existingEquipment.location ?? undefined,
         folderId: existingEquipment.folderId ?? undefined,
         maintenanceIntervalDays: existingEquipment.maintenanceIntervalDays ?? undefined,
@@ -191,6 +195,7 @@ export default function NewEquipmentPage() {
       model: normalizeOptionalString(data.model),
       manufacturer: normalizeOptionalString(data.manufacturer),
       purchaseDate: normalizeOptionalString(data.purchaseDate) ?? null,
+      expiryDate: data.expiryDate ? normalizeOptionalString(data.expiryDate) ?? null : null,
       location: normalizeOptionalString(data.location),
       folderId: data.folderId === "none" ? undefined : data.folderId,
       maintenanceIntervalDays: data.maintenanceIntervalDays,
@@ -206,6 +211,7 @@ export default function NewEquipmentPage() {
       model: normalizeOptionalString(data.model) ?? null,
       manufacturer: normalizeOptionalString(data.manufacturer) ?? null,
       purchaseDate: normalizeOptionalString(data.purchaseDate) ?? null,
+      expiryDate: data.expiryDate ? normalizeOptionalString(data.expiryDate) ?? null : null,
       location: normalizeOptionalString(data.location) ?? null,
       folderId: data.folderId === "none" ? null : data.folderId,
       maintenanceIntervalDays: data.maintenanceIntervalDays ?? null,
@@ -400,6 +406,17 @@ export default function NewEquipmentPage() {
                   className="h-12 rounded-xl border-border/60 bg-background text-base"
                   {...register("purchaseDate")}
                   data-testid="input-purchase-date"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="expiryDate" className="text-sm font-medium">תאריך תפוגה</Label>
+                <Input
+                  id="expiryDate"
+                  type="date"
+                  className="h-12 rounded-xl border-border/60 bg-background text-base"
+                  {...register("expiryDate")}
+                  data-testid="input-expiry-date"
                 />
               </div>
             </CardContent>

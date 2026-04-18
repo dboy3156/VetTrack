@@ -59,7 +59,168 @@ const AuthContext = createContext<AuthContextType>({
   refreshAuth: () => {},
 });
 
+function DevAuthProviderInner({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+
+  const offlineSnapshot = typeof window !== "undefined" && !navigator.onLine
+    ? restoreOfflineSession()
+    : null;
+
+  const [state, setState] = useState<AuthState>(() => {
+    if (offlineSnapshot) {
+      setAuthState({
+        userId: offlineSnapshot.userId,
+        email: offlineSnapshot.email,
+        name: offlineSnapshot.name,
+        bearerToken: offlineSnapshot.token,
+      });
+
+      return {
+        userId: offlineSnapshot.userId,
+        email: offlineSnapshot.email,
+        name: offlineSnapshot.name,
+        role: offlineSnapshot.role as UserRole,
+        effectiveRole: offlineSnapshot.role as UserRole,
+        roleSource: "permanent",
+        activeShift: null,
+        resolvedAt: null,
+        status: offlineSnapshot.status as UserStatus,
+        accessDeniedReason: null,
+        isLoaded: true,
+        isSignedIn: true,
+        isAdmin: offlineSnapshot.role === "admin",
+        isOfflineSession: true,
+      };
+    }
+
+    return {
+      userId: null, email: null, name: null, role: "technician",
+      effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
+      isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+    };
+  });
+  const [authRefreshNonce, setAuthRefreshNonce] = useState(0);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    setAuthStateRef(() => ({
+      isSignedIn: stateRef.current.isSignedIn,
+      isOfflineSession: stateRef.current.isOfflineSession,
+    }));
+    return () => {
+      setAuthStateRef(() => null);
+    };
+  }, []);
+
+  const signOut = useCallback(async () => {
+    clearOfflineSession();
+    clearHaltQueue();
+    setAuthState({ userId: "", email: "", name: "", bearerToken: null });
+    queryClient.clear();
+    setState({
+      userId: null, email: null, name: null, role: "technician",
+      effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
+      isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+    });
+    if (typeof window !== "undefined") {
+      window.location.assign("/landing");
+    }
+  }, [queryClient]);
+
+  const refreshAuth = useCallback(() => {
+    setState((prev) => ({ ...prev, isLoaded: false }));
+    setAuthRefreshNonce((v) => v + 1);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function syncDevSession() {
+      try {
+        const res = await fetch("/api/users/me", {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => ({} as Partial<SyncedUserResponse>));
+        if (!res.ok) {
+          throw new Error(`DEV_AUTH_SYNC_FAILED_${res.status}`);
+        }
+
+        const dbUserId = typeof data.id === "string" ? data.id : "";
+        const role = (data.role ?? "technician") as UserRole;
+        const status = (data.status ?? "active") as UserStatus;
+        const resolvedEmail = typeof data.email === "string" ? data.email : "";
+        const resolvedName = typeof data.name === "string" ? data.name : "";
+        if (!dbUserId) {
+          throw new Error("Missing DB user ID in /api/users/me response");
+        }
+
+        setAuthState({
+          userId: dbUserId,
+          email: resolvedEmail,
+          name: resolvedName,
+          bearerToken: null,
+        });
+
+        clearHaltQueue();
+        saveOfflineSession({
+          userId: dbUserId,
+          email: resolvedEmail,
+          name: resolvedName,
+          role,
+          status: status ?? "active",
+          token: "",
+        });
+
+        setState({
+          userId: dbUserId,
+          email: resolvedEmail,
+          name: resolvedName,
+          role,
+          effectiveRole: (data.effectiveRole ?? role) as UserRole | ShiftRole,
+          roleSource: data.roleSource ?? "permanent",
+          activeShift: data.activeShift ?? null,
+          resolvedAt: data.resolvedAt ?? null,
+          status,
+          accessDeniedReason: null,
+          isLoaded: true,
+          isSignedIn: true,
+          isAdmin: role === "admin",
+          isOfflineSession: false,
+        });
+
+        processQueue().catch(() => {});
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        console.error("Dev auth sync failed:", err);
+        clearHaltQueue();
+        setAuthState({ userId: "", email: "", name: "", bearerToken: null });
+        setState({
+          userId: null, email: null, name: null, role: "technician",
+          effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
+          isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+        });
+      }
+    }
+
+    syncDevSession();
+    return () => controller.abort();
+  }, [authRefreshNonce]);
+
+  const value = useMemo(() => ({ ...state, signOut, refreshAuth }), [state, signOut, refreshAuth]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
 export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
+  const clerkEnabled = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+  if (!clerkEnabled) {
+    return <DevAuthProviderInner>{children}</DevAuthProviderInner>;
+  }
+
   const { isLoaded, isSignedIn, user } = useUser();
   const { getToken, signOut: clerkSignOut } = useClerkAuth();
   const queryClient = useQueryClient();

@@ -111,6 +111,8 @@ export const equipment = pgTable("vt_equipment", {
   model: text("model"),
   manufacturer: text("manufacturer"),
   purchaseDate: text("purchase_date"),
+  expiryDate: date("expiry_date", { mode: "string" }),
+  expiryNotifiedAt: timestamp("expiry_notified_at"),
   location: text("location"),
   folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
@@ -134,6 +136,21 @@ export const equipment = pgTable("vt_equipment", {
   version: integer("version").notNull().default(1),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
+});
+
+export const equipmentReturns = pgTable("vt_equipment_returns", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  equipmentId: text("equipment_id").notNull().references(() => equipment.id, { onDelete: "cascade" }),
+  returnedById: text("returned_by_id").notNull(),
+  returnedByEmail: text("returned_by_email").notNull(),
+  returnedAt: timestamp("returned_at").defaultNow().notNull(),
+  isPluggedIn: boolean("is_plugged_in").notNull().default(false),
+  plugInDeadlineMinutes: integer("plug_in_deadline_minutes").notNull().default(30),
+  plugInAlertSentAt: timestamp("plug_in_alert_sent_at"),
+  chargeAlertJobId: text("charge_alert_job_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const shiftRole = pgEnum("vt_shift_role", ["technician", "senior_technician", "admin"]);

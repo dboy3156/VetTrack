@@ -3,7 +3,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { db, equipment, scheduledNotifications } from "../db.js";
+import { db, equipment, equipmentReturns, scheduledNotifications } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { isTestMode } from "../lib/test-mode.js";
@@ -11,6 +11,8 @@ import {
   runHourlySmartNotifications,
   runScheduledNotifications,
 } from "../lib/role-notification-scheduler.js";
+import { runExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
+import { runChargeAlertJobForReturn } from "../workers/chargeAlertWorker.js";
 
 const router = Router();
 
@@ -171,6 +173,84 @@ router.get("/notifications", requireAuth, requireTestMode, async (req, res) => {
     .limit(100);
 
   res.json({ notifications: rows });
+});
+
+/** POST /api/test/expiry-check/run — run expiry-check worker once. */
+router.post("/expiry-check/run", requireAuth, requireTestMode, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const notifiedCount = await runExpiryCheckWorker();
+    res.json({ success: true, notifiedCount });
+  } catch (error) {
+    console.error("[test] expiry-check run failed", error);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "EXPIRY_CHECK_RUN_FAILED",
+        message: "Failed to run expiry check",
+        requestId,
+      }),
+    );
+  }
+});
+
+const runChargeAlertSchema = z.object({
+  returnId: z.string().uuid(),
+});
+
+/** POST /api/test/charge-alert/run — run a single charge-alert job by return id. */
+router.post("/charge-alert/run", requireAuth, requireTestMode, validateBody(runChargeAlertSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const { returnId } = req.body as z.infer<typeof runChargeAlertSchema>;
+    const clinicId = req.clinicId!;
+    const { notified } = await runChargeAlertJobForReturn(returnId, clinicId);
+    res.json({ success: true, alerted: notified });
+  } catch (error) {
+    console.error("[test] charge-alert run failed", error);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "CHARGE_ALERT_RUN_FAILED",
+        message: "Failed to run charge alert",
+        requestId,
+      }),
+    );
+  }
+});
+
+router.get("/returns/:id", requireAuth, requireTestMode, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const returnId = req.params.id;
+  try {
+    const [row] = await db
+      .select()
+      .from(equipmentReturns)
+      .where(and(eq(equipmentReturns.id, returnId), eq(equipmentReturns.clinicId, clinicId)))
+      .limit(1);
+    if (!row) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "RETURN_NOT_FOUND",
+          message: "Return not found",
+          requestId,
+        }),
+      );
+    }
+    res.json({ return: row });
+  } catch (error) {
+    console.error("[test] returns fetch failed", error);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "RETURN_FETCH_FAILED",
+        message: "Failed to fetch return",
+        requestId,
+      }),
+    );
+  }
 });
 
 export default router;

@@ -132,6 +132,8 @@
       "issueReported": "תקלה דווחה",
       "issueWhatsAppOffline": "הודעת WhatsApp תישלח כשתתחבר.",
       "reportFailedDefault": "הדיווח נכשל"
+      ,
+      "chargeAlertScheduled": "התראה תישלח לאחר {minutes} דקות אם לא יחובר"
     }
   },
 
@@ -173,7 +175,8 @@
       "returnSuccess": "הציוד זמין",
       "returnError": "ההחזרה נכשלה",
       "returnAllSuccess": "הוחזרו {count} פריטים — כל הציוד זמין",
-      "returnAllPartialError": "חלק מהפריטים לא הוחזרו. נסה שוב."
+      "returnAllPartialError": "חלק מהפריטים לא הוחזרו. נסה שוב.",
+      "chargeAlertScheduled": "התראה תישלח לאחר {minutes} דקות אם לא יחובר"
     },
     "empty": {
       "message": "אין ציוד בשימוש",

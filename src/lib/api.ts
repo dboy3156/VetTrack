@@ -1,5 +1,9 @@
 import type {
   Equipment,
+  CriticalEquipment,
+  EquipmentReturn,
+  CreateReturnRequest,
+  UpdateReturnRequest,
   CreateEquipmentRequest,
   UpdateEquipmentRequest,
   ScanEquipmentRequest,
@@ -266,6 +270,10 @@ interface MutationResponse {
   pendingSyncId?: number;
 }
 
+interface ReturnMutationResponse extends MutationResponse {
+  returnRecord?: EquipmentReturn;
+}
+
 async function handleOptimisticMutation(opts: {
   id: string;
   endpoint: string;
@@ -305,6 +313,25 @@ async function handleOptimisticMutation(opts: {
       return { equipment: updated, undoToken: undefined, pendingSyncId: pendingSyncId as number };
     }
     throw err;
+  }
+}
+
+async function createReturnRecordForEquipment(params: {
+  equipmentId: string;
+  isPluggedIn: boolean;
+  plugInDeadlineMinutes?: number;
+}): Promise<EquipmentReturn | undefined> {
+  try {
+    return await request<EquipmentReturn>("/api/returns", {
+      method: "POST",
+      body: JSON.stringify({
+        equipmentId: params.equipmentId,
+        isPluggedIn: params.isPluggedIn,
+        ...(params.plugInDeadlineMinutes !== undefined && { plugInDeadlineMinutes: params.plugInDeadlineMinutes }),
+      } satisfies CreateReturnRequest),
+    }, undefined, true);
+  } catch {
+    return undefined;
   }
 }
 
@@ -377,6 +404,7 @@ export const api = {
         throw err;
       }
     },
+    getCriticalEquipment: () => request<CriticalEquipment[]>("/api/equipment/critical"),
     create: (data: CreateEquipmentRequest, signal?: AbortSignal) =>
       request<Equipment>(
         "/api/equipment",
@@ -492,10 +520,13 @@ export const api = {
         cachedEquipment: cached,
       });
     },
-    return: async (id: string) => {
+    return: async (
+      id: string,
+      options?: { isPluggedIn?: boolean; plugInDeadlineMinutes?: number }
+    ): Promise<ReturnMutationResponse> => {
       const cached = await getCachedEquipmentById(id);
       const now = new Date().toISOString();
-      return handleOptimisticMutation({
+      const response = await handleOptimisticMutation({
         id,
         endpoint: `/api/equipment/${id}/return`,
         syncType: "return",
@@ -511,6 +542,20 @@ export const api = {
         },
         cachedEquipment: cached,
       });
+      if (response.pendingSyncId !== undefined) {
+        return response;
+      }
+
+      const isPluggedIn = options?.isPluggedIn ?? false;
+      const returnRecord = await createReturnRecordForEquipment({
+        equipmentId: id,
+        isPluggedIn,
+        plugInDeadlineMinutes: options?.plugInDeadlineMinutes,
+      });
+      return {
+        ...response,
+        returnRecord,
+      };
     },
     bulkDelete: (data: BulkDeleteRequest) =>
       request<BulkResult>(
@@ -569,6 +614,18 @@ export const api = {
       ),
     listDeleted: () => request<DeletedEquipment[]>("/api/equipment/deleted"),
     restore: (id: string) => request<Equipment>(`/api/equipment/${id}/restore`, { method: "POST" }),
+  },
+  returns: {
+    create: (data: CreateReturnRequest) =>
+      request<EquipmentReturn>("/api/returns", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: UpdateReturnRequest) =>
+      request<EquipmentReturn>(`/api/returns/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
   },
   folders: {
     list: async () => {

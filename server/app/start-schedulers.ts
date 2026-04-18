@@ -6,6 +6,8 @@ import {
 } from "../lib/role-notification-scheduler.js";
 import { startAccessDeniedMetricsWindowScheduler } from "../lib/access-denied.js";
 import { startSystemWatchdog } from "../lib/system-watchdog.js";
+import { startExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
+import { startChargeAlertWorker } from "../workers/chargeAlertWorker.js";
 
 export async function startBackgroundSchedulers() {
   await initVapid();
@@ -15,4 +17,6 @@ export async function startBackgroundSchedulers() {
   startScheduledNotificationProcessor();
   startSmartRoleNotificationScheduler();
   startSystemWatchdog();
+  await startExpiryCheckWorker();
+  await startChargeAlertWorker();
 }
