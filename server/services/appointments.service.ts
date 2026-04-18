@@ -135,6 +135,8 @@ interface MedicationMetadata {
   createdBy?: string;
   acknowledgedBy?: string;
   completedBy?: string;
+  containerId?: string;
+  containerBillingItemId?: string;
   acknowledged_at?: string;
   completed_at?: string;
   prescribedByName?: string;

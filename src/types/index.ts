@@ -321,6 +321,7 @@ export interface MedicationExecutionPayload {
   convertedDoseMgPerKg?: number;
   calculatedVolumeMl?: number;
   concentrationOverridden?: boolean;
+  containerId?: string;
 }
 
 export interface MedicationExecutionTask extends Appointment {
@@ -380,7 +381,7 @@ export interface CreateAppointmentRequest {
   notes?: string | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: (Record<string, unknown> & { containerId?: string }) | null;
 }
 
 export interface UpdateAppointmentRequest {
