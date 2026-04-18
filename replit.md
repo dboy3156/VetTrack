@@ -46,6 +46,26 @@ Tables (all prefixed `vt_`):
 - `vt_audit_logs` — immutable audit trail for all critical actions
 - `vt_alert_acknowledgments` — per-equipment alert ack records
 - `vt_support_tickets` — in-app support/issue ticket system
+- `vt_inventory_jobs` — async medication inventory deduction reconciliation (`pending` / `processing` / `resolved` / `failed`)
+
+## Architecture Rules
+1. Every DB row is clinic-scoped (`clinicId`); every query must preserve tenant filtering.
+2. `vt_appointments` is the unified appointment/task model.
+3. `task_type = "medication"` identifies medication tasks.
+4. `vet_id` is the assigned technician field (legacy naming).
+5. Medication execution metadata lives in `vt_appointments.metadata` (`jsonb`).
+6. Migrations are manual with `pnpm db:migrate`; they are not auto-run on boot.
+7. Medication inventory deduction is async by design: `completeTask` commits billing + completion transactionally, then writes/enqueues `vt_inventory_jobs`; BullMQ worker processes deductions and a 10-minute recovery loop re-enqueues stale/retryable jobs.
+
+## Medication Execution Flow
+1. **Start** — Assigned technician (or elevated role override) starts the medication task and acknowledges ownership.
+2. **Execute** — UI records dosage execution including calculated medication volume.
+3. **Complete** — Single DB transaction commits task completion and billing idempotently; after commit, server inserts/enqueues an inventory deduction job.
+4. **Deduct** — Inventory worker atomically claims pending jobs, resolves container from task state, applies idempotent inventory adjustment, and resolves/fails job.
+5. **Recover** — Recovery scheduler runs every 10 minutes to re-enqueue stale pending jobs and retry-eligible failed jobs.
+
+## Known Deferred Issues
+- **M5 — `vt_inventory_jobs` operational UI**: terminal failures are visible only in logs/DB; add an operator-facing UI for failure visibility and retry workflow.
 
 ## Running
 ```bash
