@@ -7,7 +7,12 @@ import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { toServiceTask, type AppointmentLike } from "../domain/service-task.adapter.js";
 import { isServiceTaskModeForUser } from "../lib/feature-flags.js";
 import { logServiceChange } from "../lib/service-change-log.js";
-import { canPerformTaskAction, type TaskAction } from "../lib/task-rbac.js";
+import {
+  canPerformMedicationTaskAction,
+  canPerformTaskAction,
+  type MedicationTaskAction,
+  type TaskAction,
+} from "../lib/task-rbac.js";
 import {
   AppointmentServiceError,
   cancelAppointment,
@@ -59,7 +64,8 @@ const statusSchema = z.enum([
   "no_show",
 ]);
 const prioritySchema = z.enum(["critical", "high", "normal"]);
-const taskTypeSchema = z.enum(["maintenance", "repair", "inspection"]);
+const taskTypeSchema = z.enum(["maintenance", "repair", "inspection", "medication"]);
+const metadataSchema = z.record(z.unknown()).optional().nullable();
 
 const createAppointmentSchema = z.object({
   animalId: z.string().trim().min(1).optional().nullable(),
@@ -67,12 +73,14 @@ const createAppointmentSchema = z.object({
   vetId: z.string().trim().optional().nullable(),
   startTime: z.string().trim().min(1, "startTime is required"),
   endTime: z.string().trim().min(1, "endTime is required"),
+  scheduledAt: z.string().trim().min(1).optional().nullable(),
   status: statusSchema.optional(),
   conflictOverride: z.boolean().optional(),
   overrideReason: z.string().max(4000).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   priority: prioritySchema.optional(),
   taskType: taskTypeSchema.optional().nullable(),
+  metadata: metadataSchema,
 });
 
 const updateAppointmentSchema = z
@@ -82,12 +90,14 @@ const updateAppointmentSchema = z
     vetId: z.string().trim().optional().nullable(),
     startTime: z.string().trim().min(1).optional(),
     endTime: z.string().trim().min(1).optional(),
+    scheduledAt: z.string().trim().min(1).optional().nullable(),
     status: statusSchema.optional(),
     conflictOverride: z.boolean().optional(),
     overrideReason: z.string().max(4000).optional().nullable(),
     notes: z.string().max(4000).optional().nullable(),
     priority: prioritySchema.optional(),
     taskType: taskTypeSchema.optional().nullable(),
+    metadata: metadataSchema,
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field must be provided",
@@ -157,6 +167,25 @@ function requireTaskActionPermission(
   return false;
 }
 
+function requireMedicationActionPermission(
+  req: { authUser?: { role?: string }; effectiveRole?: string },
+  res: Response,
+  action: MedicationTaskAction,
+): boolean {
+  const role = resolveTaskAuthRole(req);
+  if (canPerformMedicationTaskAction(role, action)) return true;
+  const requestId = resolveRequestId(res, null);
+  res.status(403).json(
+    apiError({
+      code: "INSUFFICIENT_ROLE",
+      reason: "INSUFFICIENT_ROLE",
+      message: "Insufficient medication task permissions",
+      requestId,
+    }),
+  );
+  return false;
+}
+
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.create")) {
@@ -180,12 +209,21 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   if (parsed.data.vetId?.trim() && !requireTaskActionPermission(req, res, "task.assign")) {
     return;
   }
+  if (parsed.data.taskType === "medication" && !requireMedicationActionPermission(req, res, "med.task.create")) {
+    return;
+  }
 
   try {
     const appointment = await createAppointment(
       req.clinicId!,
       parsed.data,
-      req.authUser ? { userId: req.authUser.id, email: req.authUser.email } : undefined,
+      req.authUser
+        ? {
+            userId: req.authUser.id,
+            email: req.authUser.email,
+            role: resolveTaskAuthRole(req),
+          }
+        : undefined,
     );
     const uid = req.authUser?.id;
     if (uid && isServiceTaskModeForUser(uid)) {
@@ -375,13 +413,22 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
   if (parsed.data.status === "cancelled" && !requireTaskActionPermission(req, res, "task.cancel")) {
     return;
   }
+  if (parsed.data.taskType === "medication" && !requireMedicationActionPermission(req, res, "med.dose.edit")) {
+    return;
+  }
 
   try {
     const appointment = await updateAppointment(
       req.clinicId!,
       req.params.id,
       parsed.data,
-      req.authUser ? { userId: req.authUser.id, email: req.authUser.email } : undefined,
+      req.authUser
+        ? {
+            userId: req.authUser.id,
+            email: req.authUser.email,
+            role: resolveTaskAuthRole(req),
+          }
+        : undefined,
     );
     const uid = req.authUser?.id;
     if (uid && isServiceTaskModeForUser(uid)) {
@@ -444,7 +491,13 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
       req.clinicId!,
       req.params.id,
       parsed.data.reason,
-      req.authUser ? { userId: req.authUser.id, email: req.authUser.email } : undefined,
+      req.authUser
+        ? {
+            userId: req.authUser.id,
+            email: req.authUser.email,
+            role: resolveTaskAuthRole(req),
+          }
+        : undefined,
     );
     const uid = req.authUser?.id;
     if (uid && isServiceTaskModeForUser(uid)) {

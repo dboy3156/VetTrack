@@ -287,7 +287,7 @@ export type AppointmentStatus =
   | "no_show";
 
 export type TaskPriority = "critical" | "high" | "normal";
-export type TaskType = "maintenance" | "repair" | "inspection";
+export type TaskType = "maintenance" | "repair" | "inspection" | "medication";
 
 export interface Appointment {
   id: string;
@@ -297,12 +297,15 @@ export interface Appointment {
   vetId: string | null;
   startTime: string;
   endTime: string;
+  scheduledAt?: string | null;
+  completedAt?: string | null;
   status: AppointmentStatus;
   conflictOverride: boolean;
   overrideReason?: string | null;
   notes?: string | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   /** Set by task recall dashboard — end_time is before now. */
@@ -355,12 +358,14 @@ export interface CreateAppointmentRequest {
   vetId?: string | null;
   startTime: string;
   endTime: string;
+  scheduledAt?: string | null;
   status?: AppointmentStatus;
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface UpdateAppointmentRequest {
@@ -369,12 +374,14 @@ export interface UpdateAppointmentRequest {
   vetId?: string | null;
   startTime?: string;
   endTime?: string;
+  scheduledAt?: string | null;
   status?: AppointmentStatus;
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface VetShiftWindow {
@@ -399,6 +406,7 @@ export interface ShiftHandoverSummary {
   windowEnd: string;
   windowSource: "open_shift" | "fallback_12h";
   revenueCents: number;
+  averageMedicationDelaySeconds: number;
   unreturned: Array<{
     id: string;
     name: string;
