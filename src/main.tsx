@@ -29,7 +29,7 @@ const CLERK_ENABLED = Boolean(PUBLISHABLE_KEY);
 const rootEl = document.getElementById("root");
 
 function AppBootstrap() {
-  const [localeVersion, setLocaleVersion] = useState(0);
+  const [, forceLocaleRefresh] = useState(0);
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch((err) => {
@@ -37,12 +37,12 @@ function AppBootstrap() {
     });
   }, []);
   useEffect(() => {
-    const handler = () => setLocaleVersion((v) => v + 1);
+    const handler = () => forceLocaleRefresh((v) => v + 1);
     window.addEventListener("vettrack:locale-changed", handler as EventListener);
     return () => window.removeEventListener("vettrack:locale-changed", handler as EventListener);
   }, []);
 
-  return <App key={`locale-${localeVersion}`} />;
+  return <App />;
 }
 
 if (!rootEl) {

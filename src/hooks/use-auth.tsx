@@ -437,12 +437,14 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error("Auth Sync Error:", err);
         clearHaltQueue();
-        setAuthState({ userId: "", email: "", name: "", bearerToken: null });
-        setState({
-          userId: null, email: null, name: null, role: "technician",
-          effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
-          isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
-        });
+        setState((s) => ({
+          ...s,
+          isLoaded: true,
+          isSignedIn: true,
+          status: "pending",
+          accessDeniedReason: null,
+          isOfflineSession: false,
+        }));
       } finally {
         clearTimeout(timeoutId);
       }

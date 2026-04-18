@@ -70,9 +70,8 @@ interface LayoutProps {
   onScan?: () => void;
 }
 
-const lh = t.layoutHebrew;
-
 export function Layout({ children, title, onScan }: LayoutProps) {
+  const lh = t.layoutHebrew;
   const QUICK_SETTINGS_PANEL_WIDTH = 288;
   const QUICK_SETTINGS_MARGIN = 8;
 
