@@ -104,6 +104,36 @@ function completeButtonState(args: {
   return { disabled: false, tooltip: "" };
 }
 
+function startButtonState(args: {
+  task: MedicationExecutionTask;
+  meId?: string | null;
+  meClerkId?: string | null;
+  role?: string | null;
+  effectiveRole?: string | null;
+}): { disabled: boolean; tooltip: string } {
+  const { task, meId, role, effectiveRole } = args;
+  const validStartStatuses = ["scheduled", "assigned", "arrived"];
+  if (!validStartStatuses.includes(task.status)) {
+    return { disabled: true, tooltip: "Task is not in a startable state." };
+  }
+  const resolvedRole = (effectiveRole || role || "").toLowerCase();
+  if (resolvedRole === "admin" || resolvedRole === "vet" || resolvedRole === "senior_technician") {
+    return { disabled: false, tooltip: "" };
+  }
+  const assignedTo = task.vetId;
+  const meIdentifier = (meId ?? "").trim();
+  if (!assignedTo) {
+    return { disabled: true, tooltip: "Task has no assigned technician." };
+  }
+  if (assignedTo !== meIdentifier) {
+    return {
+      disabled: true,
+      tooltip: "This task is assigned to another technician. Ask an admin or vet to reassign it.",
+    };
+  }
+  return { disabled: false, tooltip: "" };
+}
+
 function ActionTooltip({ content, children }: { content?: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const tooltipId = useId();
@@ -216,7 +246,8 @@ export default function MedicationHubPage() {
       event.type === "TASK_UPDATED" ||
       event.type === "TASK_STARTED" ||
       event.type === "TASK_COMPLETED" ||
-      event.type === "TASK_CREATED"
+      event.type === "TASK_CREATED" ||
+      event.type === "TASK_CANCELLED"
     ) {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
     }
@@ -302,7 +333,13 @@ export default function MedicationHubPage() {
               role,
               effectiveRole,
             });
-            const canStart = ["scheduled", "assigned", "arrived"].includes(task.status);
+            const startState = startButtonState({
+              task,
+              meId: userId,
+              meClerkId: meQuery.data?.clerkId,
+              role,
+              effectiveRole,
+            });
             const hasValidCalculation =
               weightKg > 0
               && prescribedDosePerKg > 0
@@ -406,14 +443,16 @@ export default function MedicationHubPage() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <Button
-                      onClick={() => startMutation.mutate(task.id)}
-                      disabled={!canStart || startMutation.isPending}
-                      className="min-h-12 min-w-12 h-12 px-6 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      START
-                    </Button>
+                    <ActionTooltip content={startState.disabled ? startState.tooltip : undefined}>
+                      <Button
+                        onClick={() => startMutation.mutate(task.id)}
+                        disabled={startState.disabled || startMutation.isPending}
+                        className="min-h-12 min-w-12 h-12 px-6 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        START
+                      </Button>
+                    </ActionTooltip>
 
                     <ActionTooltip content={completeState.disabled ? completeState.tooltip : undefined}>
                       <Button

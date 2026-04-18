@@ -1,14 +1,15 @@
 import { randomUUID } from "crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
-import { animals, appointments, billingItems, billingLedger, db, owners, shifts, users } from "../db.js";
+import { animals, appointments, billingItems, billingLedger, containers, db, inventoryJobs, owners, shifts, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
-import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
+import { markIdempotentAsync } from "../lib/idempotency.js";
 import { validateJustificationText, MedJustificationError, resolvePresetLabel } from "../lib/med-justification.js";
 import { incrementMetric } from "../lib/metrics.js";
 import { broadcast } from "../lib/realtime.js";
 import { sendTaskNotification } from "../lib/task-notification.js";
 import { canPerformMedicationTaskAction } from "../lib/task-rbac.js";
+import { inventoryDeductionQueue } from "../queues/inventory-deduction.queue.js";
 import { doseDeviationRatio, justificationTier, requiresDoseJustification } from "../../shared/medication-justification.js";
 
 export type AppointmentStatus =
@@ -103,7 +104,7 @@ export class AppointmentServiceError extends Error {
 }
 
 /** Statuses that participate in technician time overlap detection. */
-const ACTIVE_CONFLICT_STATUSES: AppointmentStatus[] = ["scheduled", "assigned", "arrived", "in_progress", "completed"];
+const ACTIVE_CONFLICT_STATUSES: AppointmentStatus[] = ["scheduled", "assigned", "arrived", "in_progress"];
 const ALL_STATUSES: AppointmentStatus[] = [
   "pending",
   "assigned",
@@ -135,6 +136,8 @@ interface MedicationMetadata {
   createdBy?: string;
   acknowledgedBy?: string;
   completedBy?: string;
+  containerId?: string;
+  containerBillingItemId?: string;
   acknowledged_at?: string;
   completed_at?: string;
   prescribedByName?: string;
@@ -265,30 +268,117 @@ function actorCanOverrideMedicationOwnership(roleInput: string | null | undefine
   return role === "admin" || role === "vet" || role === "senior_technician";
 }
 
-const MEDICATION_TASK_BILLING_CODE = "MEDICATION_TASK";
+const MISSING_MEDICATION_BILLING_MESSAGE = "Missing billing configuration for medication task";
 
-async function resolveMedicationBillingItemId(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+function extractMedicationContainerIdFromMetadata(metadata: Record<string, unknown> | null | undefined): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const raw = (metadata as { containerId?: unknown }).containerId;
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  return t.length > 0 ? t : null;
+}
+
+/** Prefer persisted column; fall back to legacy metadata.containerId. */
+export function resolveMedicationTaskContainerId(
+  row: Pick<AppointmentRecord, "containerId" | "metadata">,
+): string {
+  const col =
+    typeof row.containerId === "string" && row.containerId.trim().length > 0 ? row.containerId.trim() : "";
+  if (col) return col;
+  const taskMetadata = medicationMetadataFromUnknown(row.metadata);
+  const fromMeta = typeof taskMetadata.containerId === "string" ? taskMetadata.containerId.trim() : "";
+  return fromMeta;
+}
+
+function resolvePublicContainerId(row: AppointmentRecord): string | null {
+  const resolved = resolveMedicationTaskContainerId(row);
+  return resolved.length > 0 ? resolved : null;
+}
+
+/**
+ * Resolves billing for medication task completion. Must succeed before any completion writes.
+ * Does not auto-create catalog rows or accept zero pricing.
+ */
+async function resolveMedicationBillingForCompletion(
+  executor: Pick<typeof db, "select">,
   clinicId: string,
-): Promise<{ id: string; unitPriceCents: number }> {
-  const [existing] = await tx
+  rawContainerId: string,
+): Promise<{ billingItemId: string; unitPriceCents: number; containerId: string }> {
+  if (!rawContainerId) {
+    throw new AppointmentServiceError(
+      "MISSING_MEDICATION_BILLING_CONFIG",
+      400,
+      MISSING_MEDICATION_BILLING_MESSAGE,
+      { reason: "MISSING_CONTAINER_ID" },
+    );
+  }
+
+  const [containerRow] = await executor
+    .select({
+      id: containers.id,
+      billingItemId: containers.billingItemId,
+    })
+    .from(containers)
+    .where(and(eq(containers.id, rawContainerId), eq(containers.clinicId, clinicId)))
+    .limit(1);
+
+  if (!containerRow) {
+    throw new AppointmentServiceError(
+      "MISSING_MEDICATION_BILLING_CONFIG",
+      400,
+      MISSING_MEDICATION_BILLING_MESSAGE,
+      { reason: "CONTAINER_NOT_FOUND", containerId: rawContainerId },
+    );
+  }
+
+  const linkedBillingItemId =
+    typeof containerRow.billingItemId === "string" ? containerRow.billingItemId.trim() : "";
+  if (!linkedBillingItemId) {
+    throw new AppointmentServiceError(
+      "MISSING_MEDICATION_BILLING_CONFIG",
+      400,
+      MISSING_MEDICATION_BILLING_MESSAGE,
+      { reason: "MISSING_CONTAINER_BILLING_ITEM", containerId: rawContainerId },
+    );
+  }
+
+  const [billingItem] = await executor
     .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
     .from(billingItems)
-    .where(and(eq(billingItems.clinicId, clinicId), eq(billingItems.code, MEDICATION_TASK_BILLING_CODE)))
+    .where(and(eq(billingItems.id, linkedBillingItemId), eq(billingItems.clinicId, clinicId)))
     .limit(1);
-  if (existing) return existing;
 
-  const id = randomUUID();
-  const unitPriceCents = 0;
-  await tx.insert(billingItems).values({
-    id,
-    clinicId,
-    code: MEDICATION_TASK_BILLING_CODE,
-    description: "Medication administration task",
-    unitPriceCents,
-    chargeKind: "per_unit",
-  });
-  return { id, unitPriceCents };
+  if (!billingItem) {
+    throw new AppointmentServiceError(
+      "MISSING_MEDICATION_BILLING_CONFIG",
+      400,
+      MISSING_MEDICATION_BILLING_MESSAGE,
+      {
+        reason: "BILLING_ITEM_NOT_FOUND",
+        containerId: rawContainerId,
+        billingItemId: linkedBillingItemId,
+      },
+    );
+  }
+
+  if (!Number.isFinite(billingItem.unitPriceCents) || billingItem.unitPriceCents <= 0) {
+    throw new AppointmentServiceError(
+      "MISSING_MEDICATION_BILLING_CONFIG",
+      400,
+      MISSING_MEDICATION_BILLING_MESSAGE,
+      {
+        reason: "INVALID_UNIT_PRICE",
+        billingItemId: billingItem.id,
+        unitPriceCents: billingItem.unitPriceCents,
+      },
+    );
+  }
+
+  return {
+    billingItemId: billingItem.id,
+    unitPriceCents: billingItem.unitPriceCents,
+    containerId: rawContainerId,
+  };
 }
 
 function normalizeMedicationMetadataOrThrow(metadataInput: unknown, actor: TaskAuditActor | undefined): MedicationMetadata {
@@ -621,8 +711,10 @@ function auditTaskChange(
 }
 
 function serializeAppointment(row: AppointmentRecord) {
+  const resolvedContainerId = resolvePublicContainerId(row);
   return {
     ...row,
+    containerId: resolvedContainerId,
     vetId: row.vetId ?? null,
     startTime: new Date(row.startTime).toISOString(),
     endTime: new Date(row.endTime).toISOString(),
@@ -729,6 +821,9 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       metadata: metadataRecord,
       priority,
       taskType,
+      containerId: isMedicationTaskType(taskType)
+        ? extractMedicationContainerIdFromMetadata(metadataRecord ?? null)
+        : null,
       createdAt: now,
       updatedAt: now,
     })
@@ -891,9 +986,18 @@ export async function updateAppointment(
       excludeAppointmentId: appointmentId,
       existingConflict: conflict,
     });
-  } else if (nextConflictOverride && !nextOverrideReason) {
+  } else   if (nextConflictOverride && !nextOverrideReason) {
     throw new AppointmentServiceError("OVERRIDE_REASON_REQUIRED", 400, "overrideReason is required when conflictOverride is true");
   }
+
+  const extractedContainer = extractMedicationContainerIdFromMetadata(nextMetadata ?? null);
+  const persistedContainerId =
+    typeof existing.containerId === "string" && existing.containerId.trim().length > 0
+      ? existing.containerId.trim()
+      : null;
+  const nextContainerIdForRow = isMedicationTaskType(nextTaskType)
+    ? extractedContainer ?? persistedContainerId
+    : null;
 
   const [updated] = await db
     .update(appointments)
@@ -912,6 +1016,7 @@ export async function updateAppointment(
       metadata: nextMetadata,
       priority: nextPriority,
       taskType: nextTaskType,
+      containerId: nextContainerIdForRow,
       updatedAt: new Date(),
     })
     .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
@@ -977,6 +1082,9 @@ export async function cancelAppointment(clinicIdInput: string, appointmentId: st
   if (actor) {
     auditTaskChange("task_cancelled", clinicId, actor, appointmentId, previousSnapshot, { ...serialized });
   }
+  void sendTaskNotification("TASK_CANCELLED", serialized, actor).catch(() => {});
+  broadcast(clinicId, { type: "TASK_CANCELLED", payload: serialized });
+  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 
@@ -1002,7 +1110,8 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
   if (!vetId) {
     throw new AppointmentServiceError("TASK_NOT_ASSIGNED", 400, "Task has no technician assigned");
   }
-  if (vetId !== actor.userId && actorRole !== "admin") {
+  const canBypassOwnership = actorRole === "admin" || actorRole === "vet" || actorRole === "senior_technician";
+  if (vetId !== actor.userId && !canBypassOwnership) {
     throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can start this task");
   }
 
@@ -1110,9 +1219,17 @@ export async function completeTask(
   const previousSnapshot = { ...serializeAppointment(existing) };
   const completedAt = new Date();
   const completionIdempotencyKey = `medication-task-complete:${taskId}`;
-  const redisMarkedComplete = isMedicationTask ? await checkIdempotentAsync(completionIdempotencyKey) : false;
   const normalizedExecution = normalizeMedicationExecutionInput(executionInput);
-  const [updated] = await db.transaction(async (tx) => {
+  const [{ row: updated, medicationBilling }] = await db.transaction(async (tx) => {
+    let medicationBilling: Awaited<ReturnType<typeof resolveMedicationBillingForCompletion>> | null = null;
+    if (isMedicationTask && existing.animalId) {
+      medicationBilling = await resolveMedicationBillingForCompletion(
+        tx,
+        clinicId,
+        resolveMedicationTaskContainerId(existing),
+      );
+    }
+
     const existingMetadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
     const actorIdentifier = actor.clerkId?.trim() || actor.userId;
     if (existingMetadata) {
@@ -1147,33 +1264,64 @@ export async function completeTask(
       throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
     }
 
-    if (isMedicationTask && row.animalId) {
+    if (medicationBilling && row.animalId) {
       const idempotencyKey = completionIdempotencyKey;
-      const [existingLedger] = await tx
-        .select({ id: billingLedger.id })
-        .from(billingLedger)
-        .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, idempotencyKey)))
-        .limit(1);
-
-      if (!existingLedger && !redisMarkedComplete) {
-        const billing = await resolveMedicationBillingItemId(tx, clinicId);
-        await tx.insert(billingLedger).values({
-          id: randomUUID(),
-          clinicId,
-          animalId: row.animalId,
-          itemType: "CONSUMABLE",
-          itemId: billing.id,
-          quantity: 1,
-          unitPriceCents: billing.unitPriceCents,
-          totalAmountCents: billing.unitPriceCents,
-          idempotencyKey,
-          status: "pending",
-        });
-      }
+      await tx.insert(billingLedger).values({
+        id: randomUUID(),
+        clinicId,
+        animalId: row.animalId,
+        itemType: "CONSUMABLE",
+        itemId: medicationBilling.billingItemId,
+        quantity: 1,
+        unitPriceCents: medicationBilling.unitPriceCents,
+        totalAmountCents: medicationBilling.unitPriceCents,
+        idempotencyKey,
+        status: "pending",
+      }).onConflictDoNothing();
     }
 
-    return [row] as const;
+    return [{ row, medicationBilling }] as const;
   });
+
+  let inventoryJobInserted = false;
+  if (medicationBilling && normalizedExecution?.calculatedVolumeMl && updated.animalId) {
+    const [jobRow] = await db.insert(inventoryJobs).values({
+      id: randomUUID(),
+      clinicId,
+      taskId,
+      containerId: medicationBilling.containerId,
+      requiredVolumeMl: String(normalizedExecution.calculatedVolumeMl),
+      animalId: updated.animalId,
+      status: "pending",
+      retryCount: 0,
+      failureReason: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      resolvedAt: null,
+    }).onConflictDoNothing().returning({ id: inventoryJobs.id });
+    inventoryJobInserted = Boolean(jobRow);
+  }
+  if (
+    inventoryJobInserted &&
+    medicationBilling &&
+    normalizedExecution?.calculatedVolumeMl &&
+    updated.animalId
+  ) {
+    try {
+      await inventoryDeductionQueue.add({
+        taskId,
+        containerId: medicationBilling.containerId,
+        requiredVolumeMl: normalizedExecution.calculatedVolumeMl,
+        clinicId,
+        animalId: updated.animalId,
+      });
+    } catch (error) {
+      console.error("[completeTask] inventory deduction enqueue failed", {
+        taskId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const serialized = serializeAppointment(updated);
   incrementMetric("tasks_completed");

@@ -321,10 +321,29 @@ export interface MedicationExecutionPayload {
   convertedDoseMgPerKg?: number;
   calculatedVolumeMl?: number;
   concentrationOverridden?: boolean;
+  containerId?: string;
 }
 
 export interface MedicationExecutionTask extends Appointment {
   animalWeightKg: number | null;
+}
+
+export interface DrugFormularyEntry {
+  id: string;
+  clinicId: string;
+  name: string;
+  concentrationMgMl: number;
+  standardDose: number;
+  doseUnit: "mg_per_kg" | "mcg_per_kg";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDrugFormularyRequest {
+  name: string;
+  concentrationMgMl: number;
+  standardDose: number;
+  doseUnit: "mg_per_kg" | "mcg_per_kg";
 }
 
 /** GET /api/tasks/dashboard — single payload for Daily Recall UI. */
@@ -380,7 +399,7 @@ export interface CreateAppointmentRequest {
   notes?: string | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: (Record<string, unknown> & { containerId?: string }) | null;
 }
 
 export interface UpdateAppointmentRequest {

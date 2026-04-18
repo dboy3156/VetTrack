@@ -9,7 +9,7 @@ import { enqueueNotificationJob } from "./queue.js";
 import { checkDedupe, sendPushToRole, sendPushToUser } from "./push.js";
 
 /** Task lifecycle events that trigger web push orchestration (not DB enums). */
-export type TaskNotificationEvent = "TASK_CREATED" | "TASK_STARTED" | "TASK_COMPLETED";
+export type TaskNotificationEvent = "TASK_CREATED" | "TASK_STARTED" | "TASK_COMPLETED" | "TASK_CANCELLED";
 
 /** Minimal task snapshot from appointments serialization — clinic-scoped. */
 export interface TaskNotificationTask {
@@ -61,12 +61,13 @@ export async function dispatchTaskNotificationSync(
   const windowLabel = formatWindow(task.startTime, task.endTime);
   const asset = task.animalId?.trim() || "Unassigned asset";
   const typeLabel = task.taskType?.trim() || "task";
+  const medicationUrl = task.taskType === "medication" ? "/meds" : "/appointments";
 
   const payloadFor = (title: string, body: string) => ({
     title,
     body,
     tag: taskTag(event, task.id),
-    url: "/appointments",
+    url: medicationUrl,
   });
 
   try {
@@ -123,6 +124,18 @@ export async function dispatchTaskNotificationSync(
       await sendPushToRole(clinicId, "admin", payloadFor("Task completed", body));
       await sendPushToRole(clinicId, "vet", payloadFor("Task completed", body));
       console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
+      return;
+    }
+
+    if (event === "TASK_CANCELLED") {
+      if (task.vetId) {
+        await sendPushToUser(
+          clinicId,
+          task.vetId,
+          payloadFor("Task cancelled", `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""}`),
+        );
+      }
+      return;
     }
   } catch (err) {
     incrementMetric("notifications_failed");
