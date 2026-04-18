@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CheckCircle2, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -16,6 +16,12 @@ import { useRealtime } from "@/hooks/useRealtime";
 import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
 import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
 import { toast } from "sonner";
+import {
+  justificationTier,
+  minimumJustificationLength,
+  requiresDoseJustification,
+} from "../../shared/medication-justification";
+import { MED_JUSTIFICATION_PRESETS } from "../../shared/medication-justification-presets";
 
 const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 20;
@@ -74,6 +80,67 @@ const TASK_CARD_STYLES = {
 };
 
 const ACTION_BUTTON_BASE = "h-8 px-3 text-xs";
+const MEDICATION_CUSTOM_JUSTIFICATION = "__custom__";
+
+type MedicationMetadata = {
+  createdBy?: string;
+  acknowledgedBy?: string;
+  prescribedByName?: string;
+  doseJustification?: string;
+  [key: string]: unknown;
+};
+
+function ActionTooltip({
+  content,
+  children,
+}: {
+  content?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  const wrapperRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  if (!content) {
+    return <>{children}</>;
+  }
+
+  return (
+    <span
+      ref={wrapperRef}
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      onClick={() => setOpen((v) => !v)}
+      tabIndex={0}
+      aria-describedby={open ? tooltipId : undefined}
+    >
+      {children}
+      {open ? (
+        <span
+          id={tooltipId}
+          role="tooltip"
+          className="absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-xl"
+        >
+          {content}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function todayIsoDate(): string {
   const now = new Date();
@@ -127,9 +194,104 @@ function canStartTask(a: Appointment, meId: string | undefined): boolean {
   return ["scheduled", "assigned", "arrived"].includes(a.status);
 }
 
-function canCompleteTask(a: Appointment, meId: string | undefined): boolean {
-  if (!meId || !a.vetId || a.vetId !== meId) return false;
-  return a.status === "in_progress";
+function medicationMetadata(appointment: Appointment): MedicationMetadata | null {
+  if (!appointment.metadata || typeof appointment.metadata !== "object") return null;
+  return appointment.metadata as MedicationMetadata;
+}
+
+function getScheduledIso(appointment: Appointment): string | null {
+  if (appointment.scheduledAt) return appointment.scheduledAt;
+  const metadata = medicationMetadata(appointment);
+  if (metadata && typeof metadata.scheduled_at === "string") return metadata.scheduled_at;
+  return appointment.startTime ?? null;
+}
+
+function isDelayedMedicationTask(appointment: Appointment): boolean {
+  if (appointment.taskType !== "medication") return false;
+  if (appointment.status !== "pending") return false;
+  const scheduledIso = getScheduledIso(appointment);
+  if (!scheduledIso) return false;
+  const scheduledMs = new Date(scheduledIso).getTime();
+  if (!Number.isFinite(scheduledMs)) return false;
+  return Date.now() > scheduledMs + 15 * 60 * 1000;
+}
+
+function formatScheduledLabel(appointment: Appointment): string | null {
+  const scheduledIso = getScheduledIso(appointment);
+  if (!scheduledIso) return null;
+  return `Scheduled ${formatTimeHHMM(new Date(scheduledIso))}`;
+}
+
+function formatPrescribedByLabel(appointment: Appointment): string | null {
+  if (appointment.taskType !== "medication") return null;
+  const metadata = medicationMetadata(appointment);
+  const prescribedBy = typeof metadata?.prescribedByName === "string"
+    ? metadata.prescribedByName
+    : typeof metadata?.createdBy === "string"
+      ? metadata.createdBy
+      : null;
+  if (!prescribedBy) return null;
+  return `Prescribed by ${prescribedBy}`;
+}
+
+function completeButtonState(args: {
+  appointment: Appointment;
+  meId?: string;
+  meClerkId?: string | null;
+  effectiveRole?: string;
+  role?: string;
+}) {
+  const { appointment, meId, meClerkId, effectiveRole, role } = args;
+  if (appointment.status !== "in_progress") {
+    return { visible: false, disabled: true, tooltip: "" };
+  }
+
+  const resolvedRole = (effectiveRole || role || "").toLowerCase();
+  const isVetOrAdmin = resolvedRole === "vet" || resolvedRole === "admin";
+  if (isVetOrAdmin) {
+    return { visible: true, disabled: false, tooltip: "" };
+  }
+
+  if (!meId || !appointment.vetId || appointment.vetId !== meId) {
+    return { visible: false, disabled: true, tooltip: "" };
+  }
+
+  if (appointment.taskType !== "medication") {
+    return { visible: true, disabled: false, tooltip: "" };
+  }
+
+  const metadata = medicationMetadata(appointment);
+  const acknowledgedBy = typeof metadata?.acknowledgedBy === "string" ? metadata.acknowledgedBy : "";
+  const meIdentifier = (meClerkId ?? "").trim() || meId;
+  if (!acknowledgedBy || acknowledgedBy !== meIdentifier) {
+    return {
+      visible: true,
+      disabled: true,
+      tooltip: "Only the technician who acknowledged this task can complete it. Please contact the prescriber or admin for override.",
+    };
+  }
+
+  return { visible: true, disabled: false, tooltip: "" };
+}
+
+function validateCustomJustification(text: string, minLength: number): string | null {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (normalized.length < minLength) {
+    return `Justification must be at least ${minLength} characters.`;
+  }
+  if (/(.)\1{4,}/u.test(normalized)) {
+    return "Justification looks repetitive. Please enter a meaningful reason.";
+  }
+  const chars = Array.from(normalized);
+  const maxCount = Math.max(...chars.map((char) => normalized.split(char).length - 1));
+  if (maxCount / normalized.length > 0.4) {
+    return "Justification looks repetitive. Please enter a meaningful reason.";
+  }
+  const letterCount = chars.filter((char) => /\p{L}/u.test(char)).length;
+  if (letterCount / chars.length < 0.5 || !/\p{L}{2,}/u.test(normalized)) {
+    return "Justification must include meaningful words.";
+  }
+  return null;
 }
 
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
@@ -194,10 +356,24 @@ export default function AppointmentsPage() {
   const [formAnimalId, setFormAnimalId] = useState("");
   const [formOwnerId, setFormOwnerId] = useState("");
   const [formNotes, setFormNotes] = useState("");
+  const [formTaskType, setFormTaskType] = useState<Appointment["taskType"]>("maintenance");
+  const [formDoseMgPerKg, setFormDoseMgPerKg] = useState("");
+  const [formDefaultDoseMgPerKg, setFormDefaultDoseMgPerKg] = useState("");
+  const [formConcentrationMgPerMl, setFormConcentrationMgPerMl] = useState("");
+  const [formJustificationPresetCode, setFormJustificationPresetCode] = useState("");
+  const [formJustificationCustom, setFormJustificationCustom] = useState("");
   const [formStartLocal, setFormStartLocal] = useState<string>(() => toLocalDateTimeInputValue(new Date()));
   const [formEndLocal, setFormEndLocal] = useState<string>(() => toLocalDateTimeInputValue(new Date(Date.now() + 20 * 60 * 1000)));
   const [selectedDuration, setSelectedDuration] = useState<number>(20);
   const [manualEndOverride, setManualEndOverride] = useState(false);
+
+  const isMedicationForm = formTaskType === "medication";
+  const dose = Number.parseFloat(formDoseMgPerKg);
+  const defaultDose = Number.parseFloat(formDefaultDoseMgPerKg);
+  const doseInputsValid = Number.isFinite(dose) && Number.isFinite(defaultDose) && defaultDose > 0;
+  const doseDeviation = doseInputsValid ? Math.abs(dose - defaultDose) / defaultDose : 0;
+  const requiresJustification = doseInputsValid ? requiresDoseJustification(dose, defaultDose) : false;
+  const justificationMinLength = minimumJustificationLength(justificationTier(doseDeviation));
 
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
@@ -264,6 +440,12 @@ export default function AppointmentsPage() {
       setFormNotes("");
       setFormAnimalId("");
       setFormOwnerId("");
+      setFormTaskType("maintenance");
+      setFormDoseMgPerKg("");
+      setFormDefaultDoseMgPerKg("");
+      setFormConcentrationMgPerMl("");
+      setFormJustificationPresetCode("");
+      setFormJustificationCustom("");
     },
     onError: (error: Error) => {
       if (error.message === "APPOINTMENT_CONFLICT") {
@@ -428,6 +610,61 @@ export default function AppointmentsPage() {
       return;
     }
 
+    let metadata: Record<string, unknown> | undefined;
+    if (isMedicationForm) {
+      const meIdentifier = (meQuery.data?.clerkId ?? "").trim() || meQuery.data?.id;
+      if (!doseInputsValid || dose <= 0) {
+        toast.error("Enter valid dose and default dose values for medication tasks.");
+        return;
+      }
+      if (doseDeviation > 0.5) {
+        toast.error("Dose deviation above 50% is not allowed.");
+        return;
+      }
+
+      const concentration = Number.parseFloat(formConcentrationMgPerMl);
+      const selectedPreset = MED_JUSTIFICATION_PRESETS.find((preset) => preset.code === formJustificationPresetCode);
+      const isCustomJustification = formJustificationPresetCode === MEDICATION_CUSTOM_JUSTIFICATION;
+      let justificationPayload: {
+        doseJustification: string;
+        doseJustificationKind: "preset" | "custom";
+        doseJustificationPresetCode?: string;
+      } | null = null;
+
+      if (requiresJustification) {
+        if (selectedPreset) {
+          justificationPayload = {
+            doseJustification: selectedPreset.label,
+            doseJustificationKind: "preset",
+            doseJustificationPresetCode: selectedPreset.code,
+          };
+        } else if (isCustomJustification) {
+          const validationError = validateCustomJustification(formJustificationCustom, justificationMinLength);
+          if (validationError) {
+            toast.error(validationError);
+            return;
+          }
+          justificationPayload = {
+            doseJustification: formJustificationCustom.trim().replace(/\s+/g, " "),
+            doseJustificationKind: "custom",
+          };
+        } else {
+          toast.error("Choose a justification preset or provide a custom reason.");
+          return;
+        }
+      }
+
+      metadata = {
+        kind: "medication",
+        createdBy: meIdentifier ?? null,
+        scheduled_at: start.toISOString(),
+        doseMgPerKg: dose,
+        defaultDoseMgPerKg: defaultDose,
+        concentrationMgPerMl: Number.isFinite(concentration) && concentration > 0 ? concentration : null,
+        ...justificationPayload,
+      };
+    }
+
     const payload: CreateAppointmentRequest = {
       vetId: formVetId.trim(),
       animalId: formAnimalId.trim() || null,
@@ -436,6 +673,9 @@ export default function AppointmentsPage() {
       endTime: end.toISOString(),
       notes: formNotes.trim() || null,
       status: "scheduled",
+      taskType: formTaskType,
+      scheduledAt: start.toISOString(),
+      metadata,
       conflictOverride,
       overrideReason: overrideReason?.trim() || null,
     };
@@ -489,6 +729,13 @@ export default function AppointmentsPage() {
               />
             ) : (() => {
               const nbt = recommendationsQuery.data.nextBestTask;
+              const nbtCompleteState = completeButtonState({
+                appointment: nbt,
+                meId: meQuery.data?.id,
+                meClerkId: meQuery.data?.clerkId,
+                role: meQuery.data?.role,
+                effectiveRole: meQuery.data?.effectiveRole,
+              });
               const timeRange = `${formatTimeHHMM(new Date(nbt.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(nbt.endTime))}`;
               return (
                 <div className="rounded-xl border border-border/70 p-4 space-y-3">
@@ -498,6 +745,11 @@ export default function AppointmentsPage() {
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(formatLocation(nbt.ownerId), resolveVet(nbt.vetId), timeRange)}
                       </div>
+                      {formatScheduledLabel(nbt) || formatPrescribedByLabel(nbt) ? (
+                        <div className="text-xs text-muted-foreground">
+                          {compactMeta(formatScheduledLabel(nbt), formatPrescribedByLabel(nbt))}
+                        </div>
+                      ) : null}
                     </div>
                     <Badge
                       variant="outline"
@@ -517,6 +769,11 @@ export default function AppointmentsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    {isDelayedMedicationTask(nbt) ? (
+                      <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
+                        Delayed
+                      </Badge>
+                    ) : null}
                     {canStartTask(nbt, meQuery.data?.id) ? (
                       <Button
                         size="sm"
@@ -528,16 +785,18 @@ export default function AppointmentsPage() {
                         Start now
                       </Button>
                     ) : null}
-                    {canCompleteTask(nbt, meQuery.data?.id) ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className={ACTION_BUTTON_BASE}
-                        disabled={completeTaskMutation.isPending}
-                        onClick={() => completeTaskMutation.mutate(nbt.id)}
-                      >
-                        Mark complete
-                      </Button>
+                    {nbtCompleteState.visible ? (
+                      <ActionTooltip content={nbtCompleteState.disabled ? nbtCompleteState.tooltip : undefined}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className={ACTION_BUTTON_BASE}
+                          disabled={completeTaskMutation.isPending || nbtCompleteState.disabled}
+                          onClick={() => completeTaskMutation.mutate(nbt.id)}
+                        >
+                          Mark complete
+                        </Button>
+                      </ActionTooltip>
                     ) : null}
                   </div>
                 </div>
@@ -579,6 +838,11 @@ export default function AppointmentsPage() {
                           `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
                         )}
                       </div>
+                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                   {(recommendationsQuery.data?.urgentTasks ?? []).map((t) => (
@@ -596,6 +860,11 @@ export default function AppointmentsPage() {
                           `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
                         )}
                       </div>
+                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -662,16 +931,31 @@ export default function AppointmentsPage() {
                 />
               ) : (
                 <ul className="space-y-2">
-                  {dashboardQuery.data!.today.map((t) => (
+                  {dashboardQuery.data!.today.map((t) => {
+                    const completeState = completeButtonState({
+                      appointment: t,
+                      meId: meQuery.data?.id,
+                      meClerkId: meQuery.data?.clerkId,
+                      role: meQuery.data?.role,
+                      effectiveRole: meQuery.data?.effectiveRole,
+                    });
+                    return (
                     <li key={t.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.soon}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold">{formatDevice(t.animalId)}</span>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
-                        >
-                          {t.priority ?? "normal"}
-                        </Badge>
+                        <div className="flex items-center gap-1">
+                          {isDelayedMedicationTask(t) ? (
+                            <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
+                              Delayed
+                            </Badge>
+                          ) : null}
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
+                          >
+                            {t.priority ?? "normal"}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(
@@ -680,6 +964,11 @@ export default function AppointmentsPage() {
                           `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
                         )}
                       </div>
+                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                        <div className="text-xs text-muted-foreground">
+                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                        </div>
+                      ) : null}
                       <div className="flex flex-wrap gap-2 mt-1">
                         {canStartTask(t, meQuery.data?.id) ? (
                           <Button
@@ -692,20 +981,22 @@ export default function AppointmentsPage() {
                             Start this task
                           </Button>
                         ) : null}
-                        {canCompleteTask(t, meQuery.data?.id) ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className={ACTION_BUTTON_BASE}
-                            disabled={completeTaskMutation.isPending}
-                            onClick={() => completeTaskMutation.mutate(t.id)}
-                          >
-                            Mark complete
-                          </Button>
+                        {completeState.visible ? (
+                          <ActionTooltip content={completeState.disabled ? completeState.tooltip : undefined}>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className={ACTION_BUTTON_BASE}
+                              disabled={completeTaskMutation.isPending || completeState.disabled}
+                              onClick={() => completeTaskMutation.mutate(t.id)}
+                            >
+                              Mark complete
+                            </Button>
+                          </ActionTooltip>
                         ) : null}
                       </div>
                     </li>
-                  ))}
+                  );})}
                 </ul>
               )}
             </CardContent>
@@ -750,16 +1041,31 @@ export default function AppointmentsPage() {
                 />
               ) : (
                 <ul className="space-y-2">
-                  {dashboardQuery.data!.myTasks.map((t) => (
+                  {dashboardQuery.data!.myTasks.map((t) => {
+                    const completeState = completeButtonState({
+                      appointment: t,
+                      meId: meQuery.data?.id,
+                      meClerkId: meQuery.data?.clerkId,
+                      role: meQuery.data?.role,
+                      effectiveRole: meQuery.data?.effectiveRole,
+                    });
+                    return (
                     <li key={t.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.normal}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold">{formatDevice(t.animalId)}</span>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
-                        >
-                          {t.priority ?? "normal"}
-                        </Badge>
+                        <div className="flex items-center gap-1">
+                          {isDelayedMedicationTask(t) ? (
+                            <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
+                              Delayed
+                            </Badge>
+                          ) : null}
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
+                          >
+                            {t.priority ?? "normal"}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(
@@ -768,6 +1074,11 @@ export default function AppointmentsPage() {
                           `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
                         )}
                       </div>
+                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                        <div className="text-xs text-muted-foreground">
+                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                        </div>
+                      ) : null}
                       <div className="flex flex-wrap gap-2 mt-1">
                         {canStartTask(t, meQuery.data?.id) ? (
                           <Button
@@ -780,20 +1091,22 @@ export default function AppointmentsPage() {
                             Start this task
                           </Button>
                         ) : null}
-                        {canCompleteTask(t, meQuery.data?.id) ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className={ACTION_BUTTON_BASE}
-                            disabled={completeTaskMutation.isPending}
-                            onClick={() => completeTaskMutation.mutate(t.id)}
-                          >
-                            Mark complete
-                          </Button>
+                        {completeState.visible ? (
+                          <ActionTooltip content={completeState.disabled ? completeState.tooltip : undefined}>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className={ACTION_BUTTON_BASE}
+                              disabled={completeTaskMutation.isPending || completeState.disabled}
+                              onClick={() => completeTaskMutation.mutate(t.id)}
+                            >
+                              Mark complete
+                            </Button>
+                          </ActionTooltip>
                         ) : null}
                       </div>
                     </li>
-                  ))}
+                  );})}
                 </ul>
               )}
             </CardContent>
@@ -978,7 +1291,15 @@ export default function AppointmentsPage() {
                       );
                     })}
 
-                    {appointmentBlocks.map(({ appointment, top, height, start, end }) => (
+                    {appointmentBlocks.map(({ appointment, top, height, start, end }) => {
+                      const completeState = completeButtonState({
+                        appointment,
+                        meId: meQuery.data?.id,
+                        meClerkId: meQuery.data?.clerkId,
+                        role: meQuery.data?.role,
+                        effectiveRole: meQuery.data?.effectiveRole,
+                      });
+                      return (
                       <div
                         key={appointment.id}
                         className={`absolute left-24 right-3 rounded-lg border shadow-sm p-2 ${STATUS_COLORS[appointment.status]}`}
@@ -989,6 +1310,11 @@ export default function AppointmentsPage() {
                             {formatDevice(appointment.animalId)}
                           </div>
                           <div className="flex gap-1">
+                            {isDelayedMedicationTask(appointment) ? (
+                              <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
+                                Delayed
+                              </Badge>
+                            ) : null}
                             <Badge variant="secondary" className="text-[10px]">
                               {STATUS_LABEL[appointment.status]}
                             </Badge>
@@ -1007,6 +1333,11 @@ export default function AppointmentsPage() {
                             `${formatTimeHHMM(start)}\u2009\u2013\u2009${formatTimeHHMM(end)}`,
                           )}
                         </div>
+                        {formatScheduledLabel(appointment) || formatPrescribedByLabel(appointment) ? (
+                          <div className="text-[11px] mt-1 truncate text-muted-foreground">
+                            {compactMeta(formatScheduledLabel(appointment), formatPrescribedByLabel(appointment))}
+                          </div>
+                        ) : null}
                         {appointment.conflictOverride ? (
                           <div className="text-[10px] mt-1 font-medium">Override applied</div>
                         ) : null}
@@ -1022,16 +1353,18 @@ export default function AppointmentsPage() {
                               Start now
                             </Button>
                           ) : null}
-                          {canCompleteTask(appointment, meQuery.data?.id) ? (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="h-7 text-[11px] px-2"
-                              disabled={completeTaskMutation.isPending}
-                              onClick={() => completeTaskMutation.mutate(appointment.id)}
-                            >
-                              Mark complete
-                            </Button>
+                          {completeState.visible ? (
+                            <ActionTooltip content={completeState.disabled ? completeState.tooltip : undefined}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-7 text-[11px] px-2"
+                                disabled={completeTaskMutation.isPending || completeState.disabled}
+                                onClick={() => completeTaskMutation.mutate(appointment.id)}
+                              >
+                                Mark complete
+                              </Button>
+                            </ActionTooltip>
                           ) : null}
                           {statusActions(appointment.status).map((nextStatus) => (
                             <Button
@@ -1047,7 +1380,7 @@ export default function AppointmentsPage() {
                           ))}
                         </div>
                       </div>
-                    ))}
+                    );})}
 
                     {appointmentBlocks.length === 0 ? (
                       <div className="absolute inset-0 flex items-center justify-center px-4">
@@ -1117,6 +1450,30 @@ export default function AppointmentsPage() {
               />
             </div>
             <div>
+              <label className="text-xs text-muted-foreground block text-right">Task type</label>
+              <select
+                dir="ltr"
+                value={formTaskType ?? "maintenance"}
+                onChange={(e) => {
+                  const nextType = (e.target.value || "maintenance") as Appointment["taskType"];
+                  setFormTaskType(nextType);
+                  if (nextType !== "medication") {
+                    setFormDoseMgPerKg("");
+                    setFormDefaultDoseMgPerKg("");
+                    setFormConcentrationMgPerMl("");
+                    setFormJustificationPresetCode("");
+                    setFormJustificationCustom("");
+                  }
+                }}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+              >
+                <option value="maintenance">Maintenance</option>
+                <option value="repair">Repair</option>
+                <option value="inspection">Inspection</option>
+                <option value="medication">Medication</option>
+              </select>
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
               <select
                 dir="ltr"
@@ -1161,6 +1518,81 @@ export default function AppointmentsPage() {
               <label className="text-xs text-muted-foreground block text-right">Notes</label>
               <Textarea dir="ltr" className="text-left" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3} />
             </div>
+            {isMedicationForm ? (
+              <>
+                <div>
+                  <label className="text-xs text-muted-foreground block text-right">Dose (mg/kg)</label>
+                  <Input
+                    dir="ltr"
+                    className="text-left"
+                    inputMode="decimal"
+                    value={formDoseMgPerKg}
+                    onChange={(e) => setFormDoseMgPerKg(e.target.value)}
+                    placeholder="e.g. 2.5"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block text-right">Default dose (mg/kg)</label>
+                  <Input
+                    dir="ltr"
+                    className="text-left"
+                    inputMode="decimal"
+                    value={formDefaultDoseMgPerKg}
+                    onChange={(e) => setFormDefaultDoseMgPerKg(e.target.value)}
+                    placeholder="e.g. 2.0"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block text-right">Concentration (mg/ml)</label>
+                  <Input
+                    dir="ltr"
+                    className="text-left"
+                    inputMode="decimal"
+                    value={formConcentrationMgPerMl}
+                    onChange={(e) => setFormConcentrationMgPerMl(e.target.value)}
+                    placeholder="optional"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <div className="text-xs text-muted-foreground">
+                    {doseInputsValid ? `Deviation: ${(doseDeviation * 100).toFixed(1)}%` : "Enter dose values to calculate deviation"}
+                  </div>
+                </div>
+                {requiresJustification ? (
+                  <>
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-muted-foreground block text-right">Dose justification (required)</label>
+                      <select
+                        dir="ltr"
+                        value={formJustificationPresetCode}
+                        onChange={(e) => setFormJustificationPresetCode(e.target.value)}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+                      >
+                        <option value="">Select a reason</option>
+                        {MED_JUSTIFICATION_PRESETS.map((preset) => (
+                          <option key={preset.code} value={preset.code}>{preset.label}</option>
+                        ))}
+                        <option value={MEDICATION_CUSTOM_JUSTIFICATION}>Other (specify)</option>
+                      </select>
+                    </div>
+                    {formJustificationPresetCode === MEDICATION_CUSTOM_JUSTIFICATION ? (
+                      <div className="md:col-span-2">
+                        <label className="text-xs text-muted-foreground block text-right">
+                          Custom justification (minimum {justificationMinLength} chars)
+                        </label>
+                        <Textarea
+                          dir="ltr"
+                          className="text-left"
+                          value={formJustificationCustom}
+                          onChange={(e) => setFormJustificationCustom(e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBookingOpen(false)}>
