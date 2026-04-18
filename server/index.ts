@@ -23,6 +23,7 @@ import { tenantContext } from "./middleware/tenant-context.js";
 import { registerApiRoutes } from "./app/routes.js";
 import { startBackgroundSchedulers } from "./app/start-schedulers.js";
 import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.js";
+import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
@@ -235,6 +236,17 @@ runMigrations()
       console.error("Failed to initialize push notifications", err);
     });
     console.log("✅ Background schedulers started");
+
+    const runInventoryRecovery = () => {
+      void recoverPendingInventoryJobs().then((result) => {
+        console.warn("[inventory-job-recovery] completed", result);
+      }).catch((error) => {
+        console.error("[inventory-job-recovery] failed", error);
+      });
+    };
+
+    runInventoryRecovery();
+    setInterval(runInventoryRecovery, 10 * 60 * 1000);
   })
   .catch((err) => {
     console.error("💥 Migration failed, aborting scheduler start", err);
