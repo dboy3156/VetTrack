@@ -216,7 +216,8 @@ export default function MedicationHubPage() {
       event.type === "TASK_UPDATED" ||
       event.type === "TASK_STARTED" ||
       event.type === "TASK_COMPLETED" ||
-      event.type === "TASK_CREATED"
+      event.type === "TASK_CREATED" ||
+      event.type === "TASK_CANCELLED"
     ) {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
     }

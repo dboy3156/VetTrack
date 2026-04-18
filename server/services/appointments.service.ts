@@ -980,6 +980,9 @@ export async function cancelAppointment(clinicIdInput: string, appointmentId: st
   if (actor) {
     auditTaskChange("task_cancelled", clinicId, actor, appointmentId, previousSnapshot, { ...serialized });
   }
+  void sendTaskNotification("TASK_CANCELLED", serialized, actor).catch(() => {});
+  broadcast(clinicId, { type: "TASK_CANCELLED", payload: serialized });
+  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 
