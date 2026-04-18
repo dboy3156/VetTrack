@@ -40,6 +40,8 @@ import type {
   Appointment,
   AppointmentVetMeta,
   CreateAppointmentRequest,
+  MedicationExecutionPayload,
+  MedicationExecutionTask,
   UpdateAppointmentRequest,
   TaskDashboard,
   TaskRecommendations,
@@ -890,10 +892,15 @@ export const api = {
     recommendations: () => request<TaskRecommendations>("/api/tasks/recommendations"),
     me: () => request<{ tasks: Appointment[] }>("/api/tasks/me").then((r) => r.tasks),
     active: () => request<{ tasks: Appointment[] }>("/api/tasks/active").then((r) => r.tasks),
+    medicationActive: () =>
+      request<{ tasks: MedicationExecutionTask[] }>("/api/tasks/medication-active").then((r) => r.tasks),
     start: (id: string) =>
       request<{ task: Appointment }>(`/api/tasks/${id}/start`, { method: "POST" }).then((r) => r.task),
-    complete: (id: string) =>
-      request<{ task: Appointment }>(`/api/tasks/${id}/complete`, { method: "POST" }).then((r) => r.task),
+    complete: (id: string, payload?: { execution?: MedicationExecutionPayload }) =>
+      request<{ task: Appointment }>(
+        `/api/tasks/${id}/complete`,
+        { method: "POST", body: JSON.stringify(payload ?? {}) },
+      ).then((r) => r.task),
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),

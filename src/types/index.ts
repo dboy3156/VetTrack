@@ -312,6 +312,21 @@ export interface Appointment {
   isOverdue?: boolean;
 }
 
+export interface MedicationExecutionPayload {
+  weightKg?: number;
+  prescribedDosePerKg?: number;
+  concentrationMgPerMl?: number;
+  formularyConcentrationMgPerMl?: number;
+  doseUnit?: "mg_per_kg" | "mcg_per_kg";
+  convertedDoseMgPerKg?: number;
+  calculatedVolumeMl?: number;
+  concentrationOverridden?: boolean;
+}
+
+export interface MedicationExecutionTask extends Appointment {
+  animalWeightKg: number | null;
+}
+
 /** GET /api/tasks/dashboard — single payload for Daily Recall UI. */
 export interface TaskDashboard {
   today: Appointment[];

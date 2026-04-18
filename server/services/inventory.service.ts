@@ -1,8 +1,42 @@
 import { randomUUID } from "crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { billingLedger, containers, db, inventoryLogs } from "../db.js";
-import { consumedFromBlueprint, INVENTORY_BLUEPRINT, targetQuantityFromSupplies } from "../config/inventoryBlueprint.js";
+import {
+  consumedFromBlueprint,
+  INVENTORY_BLUEPRINT,
+  INVENTORY_BLUEPRINT_LEGACY_NAMES,
+  resolveBlueprintEntryForContainerName,
+  targetQuantityFromSupplies,
+} from "../config/inventoryBlueprint.js";
 import { findActiveAnimalInRoom, resolveBillingItemForContainer, restockLedgerIdempotencyKey } from "../lib/container-billing.js";
+
+/**
+ * Aligns persisted `vt_containers.target_quantity` with the current blueprint for that
+ * container name (including legacy "ICU Cart *" names). Ensures {@link restockContainerInTx}
+ * shortfall math (`consumedFromBlueprint(targetQuantity, currentQuantity)`) reflects the
+ * updated high-capacity catheter and monitor sticker targets.
+ */
+export async function syncContainerTargetQuantitiesFromBlueprint(): Promise<number> {
+  let updated = 0;
+  const rows = await db.select().from(containers);
+  for (const row of rows) {
+    const entry = resolveBlueprintEntryForContainerName(row.name);
+    if (!entry) continue;
+    const target = targetQuantityFromSupplies(entry.supplyTargets);
+    const needsLegacyRename = Boolean(INVENTORY_BLUEPRINT_LEGACY_NAMES[row.name]);
+    if (row.targetQuantity === target && !needsLegacyRename) continue;
+
+    await db
+      .update(containers)
+      .set({
+        targetQuantity: target,
+        ...(needsLegacyRename ? { name: entry.name, department: entry.department } : {}),
+      })
+      .where(and(eq(containers.clinicId, row.clinicId), eq(containers.id, row.id)));
+    updated++;
+  }
+  return updated;
+}
 
 export async function seedContainersFromBlueprint(clinicId: string): Promise<number> {
   const [{ n }] = await db
@@ -45,6 +79,11 @@ type RestockContainerResult =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbTx = any;
 
+/**
+ * Restock flow uses the container row's aggregate `targetQuantity` (sum of blueprint
+ * supplyTargets at seed/sync time). Shortfall units billed as consumables:
+ * `consumed = max(0, targetQuantity - quantityBefore)` — see `consumedFromBlueprint`.
+ */
 export async function restockContainerInTx(
   tx: DbTx,
   params: RestockContainerParams,
