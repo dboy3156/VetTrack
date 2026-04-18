@@ -1,12 +1,19 @@
 import { db, users } from "../db.js";
-import { getOrCreateDefaultConsumableBillingItem } from "./container-billing.js";
+import {
+  ensureInventoryIvAndMonitorBillingCatalog,
+  getOrCreateDefaultConsumableBillingItem,
+} from "./container-billing.js";
 import { getOrCreateDefaultEquipmentBillingItem } from "./equipment-seen.js";
-import { seedContainersFromBlueprint } from "../services/inventory.service.js";
+import {
+  seedContainersFromBlueprint,
+  syncContainerTargetQuantitiesFromBlueprint,
+} from "../services/inventory.service.js";
 
 export async function ensureDefaultBillingItemsForClinic(clinicId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await getOrCreateDefaultEquipmentBillingItem(tx, clinicId);
     await getOrCreateDefaultConsumableBillingItem(tx, clinicId);
+    await ensureInventoryIvAndMonitorBillingCatalog(tx, clinicId);
   });
 }
 
@@ -38,8 +45,9 @@ export async function seedDefaultContainersForAllEmptyClinics(): Promise<void> {
   }
 }
 
-/** Run after migrations: billing catalog + optional container seed. */
+/** Run after migrations: billing catalog + optional container seed + blueprint target sync. */
 export async function ensureClinicPhase2Defaults(): Promise<void> {
   await ensureDefaultBillingItemsForAllClinics();
   await seedDefaultContainersForAllEmptyClinics();
+  await syncContainerTargetQuantitiesFromBlueprint();
 }

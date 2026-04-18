@@ -39,6 +39,7 @@ import {
   ClipboardList,
   Search,
   Map,
+  Pill,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -206,6 +207,7 @@ export function Layout({ children, title: _title, onScan }: LayoutProps) {
       badgeCount: myCount,
     },
     { href: "/appointments", label: "Tasks", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
+    { href: "/meds", label: "Medication Hub", icon: <Pill className="w-5 h-5" />, menuOnly: true },
     { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
     ...(canAccessHandoverInventory
       ? [
@@ -450,7 +452,7 @@ export function Layout({ children, title: _title, onScan }: LayoutProps) {
           <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto">
             <nav className="flex flex-col gap-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
-              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/rooms", "/shift-handover", "/inventory"].map((href) => {
+              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/meds", "/rooms", "/shift-handover", "/inventory"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
                 return (

@@ -4,8 +4,10 @@ import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import {
   AppointmentServiceError,
   completeTask,
+  getActiveMedicationTasks,
   getActiveTasks,
   getTasksForTechnicianToday,
+  type MedicationExecutionInput,
   startTask,
 } from "../services/appointments.service.js";
 import { getTaskRecommendations } from "../services/task-intelligence.service.js";
@@ -104,6 +106,38 @@ function requireTaskOrMedicationActionPermission(
     }),
   );
   return false;
+}
+
+function normalizeMedicationExecutionPayload(input: unknown): MedicationExecutionInput | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const record = input as Record<string, unknown>;
+  const execution: MedicationExecutionInput = {};
+  const asFinite = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+  const weightKg = asFinite(record.weightKg);
+  const prescribedDosePerKg = asFinite(record.prescribedDosePerKg);
+  const concentrationMgPerMl = asFinite(record.concentrationMgPerMl);
+  const formularyConcentrationMgPerMl = asFinite(record.formularyConcentrationMgPerMl);
+  const convertedDoseMgPerKg = asFinite(record.convertedDoseMgPerKg);
+  const calculatedVolumeMl = asFinite(record.calculatedVolumeMl);
+  if (weightKg !== undefined) execution.weightKg = weightKg;
+  if (prescribedDosePerKg !== undefined) execution.prescribedDosePerKg = prescribedDosePerKg;
+  if (concentrationMgPerMl !== undefined) execution.concentrationMgPerMl = concentrationMgPerMl;
+  if (formularyConcentrationMgPerMl !== undefined) {
+    execution.formularyConcentrationMgPerMl = formularyConcentrationMgPerMl;
+  }
+  if (convertedDoseMgPerKg !== undefined) execution.convertedDoseMgPerKg = convertedDoseMgPerKg;
+  if (calculatedVolumeMl !== undefined) execution.calculatedVolumeMl = calculatedVolumeMl;
+
+  if (record.doseUnit === "mg_per_kg" || record.doseUnit === "mcg_per_kg") {
+    execution.doseUnit = record.doseUnit;
+  }
+  if (typeof record.concentrationOverridden === "boolean") {
+    execution.concentrationOverridden = record.concentrationOverridden;
+  }
+
+  return Object.keys(execution).length > 0 ? execution : undefined;
 }
 
 router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
@@ -215,12 +249,16 @@ router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), as
     );
   }
   try {
+    const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
+    const executionPayload = normalizeMedicationExecutionPayload(
+      (body.execution as unknown) ?? body,
+    );
     const task = await completeTask(req.clinicId!, req.params.id, {
       userId: req.authUser.id,
       clerkId: req.authUser.clerkId,
       email: req.authUser.email,
       role: resolveTaskAuthRole(req),
-    });
+    }, executionPayload);
     return res.json({ task });
   } catch (err) {
     if (sendServiceError(res, err, requestId)) return;
@@ -280,6 +318,26 @@ router.get("/active", requireAuth, requireEffectiveRole("technician"), async (re
         code: "INTERNAL_ERROR",
         reason: "ACTIVE_TASKS_LOAD_FAILED",
         message: "Failed to load active tasks",
+        requestId,
+      }),
+    );
+  }
+});
+
+router.get("/medication-active", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  if (!requireTaskOrMedicationActionPermission(req, res, "task.read", "med.read")) return;
+  try {
+    const tasks = await getActiveMedicationTasks(req.clinicId!);
+    return res.json({ tasks });
+  } catch (err) {
+    if (sendServiceError(res, err, requestId)) return;
+    console.error("tasks:medication-active", err);
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "MEDICATION_ACTIVE_TASKS_LOAD_FAILED",
+        message: "Failed to load medication execution tasks",
         requestId,
       }),
     );

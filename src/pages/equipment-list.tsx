@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
@@ -70,7 +70,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { QrScanner } from "@/components/qr-scanner";
 import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList";
-import { usePaginatedEquipment } from "@/hooks/use-paginated-equipment";
+import {
+  getPaginatedEquipmentQueryOptions,
+  usePaginatedEquipment,
+} from "@/hooks/use-paginated-equipment";
 import { exportEquipmentToExcel } from "@/lib/export-excel";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 
@@ -175,8 +178,8 @@ export default function EquipmentListPage() {
   const {
     data: equipmentPage,
     isLoading: isQueryLoading,
+    isFetching,
     isError,
-    refetch,
   } = usePaginatedEquipment({
     page: 1,
     pageSize: SERVER_PAGE_SIZE,
@@ -190,11 +193,49 @@ export default function EquipmentListPage() {
   const equipment = equipmentPage?.items ?? [];
   const totalCount = equipmentPage?.total ?? 0;
 
-  const refetchAll = () => { refetch(); };
+  /** Clears paginated equipment cache, resets local UI state, and runs a fresh fetch (used by ErrorCard retry). */
+  const handleEquipmentHardReset = useCallback(async () => {
+    setSelected(new Set());
+    setSelectMode(false);
+    setPage(1);
+    setShowSkeleton(false);
+    if (skeletonTimerRef.current) {
+      clearTimeout(skeletonTimerRef.current);
+      skeletonTimerRef.current = null;
+    }
+
+    queryClient.removeQueries({ queryKey: ["/api/equipment", "paginated"] });
+
+    const { queryKey, queryFn } = getPaginatedEquipmentQueryOptions({
+      page: 1,
+      pageSize: SERVER_PAGE_SIZE,
+      q: search,
+      status: statusFilter,
+      folder: folderFilter,
+      location: locationFilter,
+    });
+
+    return queryClient.fetchQuery({ queryKey, queryFn });
+  }, [
+    queryClient,
+    search,
+    statusFilter,
+    folderFilter,
+    locationFilter,
+  ]);
 
   // Enforce minimum skeleton visibility: keep showSkeleton=true for at least SKELETON_MIN_MS
   // after the query starts, so the shimmer phase is always visible on every refresh.
+  // On error, drop the skeleton immediately so we never pair "load failed" with an endless shimmer (deadlock UX).
   useEffect(() => {
+    if (isError) {
+      setShowSkeleton(false);
+      if (skeletonTimerRef.current) {
+        clearTimeout(skeletonTimerRef.current);
+        skeletonTimerRef.current = null;
+      }
+      return;
+    }
     if (isQueryLoading) {
       setShowSkeleton(true);
       if (skeletonTimerRef.current) clearTimeout(skeletonTimerRef.current);
@@ -204,9 +245,14 @@ export default function EquipmentListPage() {
     return () => {
       if (skeletonTimerRef.current) clearTimeout(skeletonTimerRef.current);
     };
-  }, [isQueryLoading]);
+  }, [isQueryLoading, isError]);
 
-  const isLoading = isQueryLoading || showSkeleton;
+  // Block the list while initial load runs, during the minimum skeleton window, or while retrying after an error.
+  // Avoid treating unrelated background refetches (when data already loaded) as full-page blocking load.
+  const isLoading =
+    isQueryLoading ||
+    (isFetching && isError) ||
+    (showSkeleton && !isError);
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -635,7 +681,7 @@ export default function EquipmentListPage() {
         {isError && (
           <ErrorCard
             message={t.equipmentList.errors.loadFailed}
-            onRetry={() => refetchAll()}
+            onRetry={handleEquipmentHardReset}
           />
         )}
 

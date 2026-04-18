@@ -2,7 +2,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { EquipmentPage } from "@/lib/api";
 
-interface UsePaginatedEquipmentOptions {
+export interface UsePaginatedEquipmentOptions {
   page?: number;
   pageSize?: number;
   enabled?: boolean;
@@ -12,35 +12,44 @@ interface UsePaginatedEquipmentOptions {
   location?: string;
 }
 
-export function usePaginatedEquipment({
-  page = 1,
-  pageSize = 100,
-  enabled = true,
-  q,
-  status,
-  folder,
-  location,
-}: UsePaginatedEquipmentOptions = {}) {
+export function getPaginatedEquipmentQueryOptions(
+  opts: UsePaginatedEquipmentOptions = {}
+) {
+  const page = opts.page ?? 1;
+  const pageSize = opts.pageSize ?? 100;
   const normalizedFilters = {
-    q: q?.trim() || undefined,
-    status: status && status !== "all" ? status : undefined,
-    folder: folder && folder !== "all" ? folder : undefined,
-    location: location && location !== "all" ? location : undefined,
+    q: opts.q?.trim() || undefined,
+    status: opts.status && opts.status !== "all" ? opts.status : undefined,
+    folder: opts.folder && opts.folder !== "all" ? opts.folder : undefined,
+    location: opts.location && opts.location !== "all" ? opts.location : undefined,
   };
 
+  const queryKey = [
+    "/api/equipment",
+    "paginated",
+    page,
+    pageSize,
+    normalizedFilters.q,
+    normalizedFilters.status,
+    normalizedFilters.folder,
+    normalizedFilters.location,
+  ] as const;
+
+  const queryFn = () =>
+    api.equipment.listPaginated(page, pageSize, normalizedFilters);
+
+  return { queryKey, queryFn };
+}
+
+export function usePaginatedEquipment(
+  opts: UsePaginatedEquipmentOptions = {}
+) {
+  const { queryKey, queryFn } = getPaginatedEquipmentQueryOptions(opts);
+
   return useQuery<EquipmentPage>({
-    queryKey: [
-      "/api/equipment",
-      "paginated",
-      page,
-      pageSize,
-      normalizedFilters.q,
-      normalizedFilters.status,
-      normalizedFilters.folder,
-      normalizedFilters.location,
-    ],
-    queryFn: () => api.equipment.listPaginated(page, pageSize, normalizedFilters),
+    queryKey,
+    queryFn,
     placeholderData: keepPreviousData,
-    enabled,
+    enabled: opts.enabled ?? true,
   });
 }

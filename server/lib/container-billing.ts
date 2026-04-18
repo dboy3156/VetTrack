@@ -13,6 +13,51 @@ type DbTx = any;
 
 const DEFAULT_CONSUMABLE_CODE = "DEFAULT_CONSUMABLE";
 
+/**
+ * Distinct billing catalog codes for IV catheter gauges and monitor stickers so clients can
+ * price or invoice by SKU. Container-level ledger rows still use the container's billing
+ * item (or default consumable); these rows exist for API/catalog alignment.
+ */
+export const INVENTORY_IV_AND_MONITOR_BILLING_CATALOG: {
+  code: string;
+  description: string;
+  unitPriceCents: number;
+}[] = [
+  { code: "IV_CATHETER_16G", description: "IV Catheter 16G", unitPriceCents: 225 },
+  { code: "IV_CATHETER_18G", description: "IV Catheter 18G", unitPriceCents: 195 },
+  { code: "IV_CATHETER_20G", description: "IV Catheter 20G", unitPriceCents: 175 },
+  { code: "IV_CATHETER_22G", description: "IV Catheter 22G", unitPriceCents: 165 },
+  { code: "IV_CATHETER_24G", description: "IV Catheter 24G", unitPriceCents: 155 },
+  { code: "MONITOR_STICKERS", description: "Monitor Stickers (monitor / cable labels)", unitPriceCents: 20 },
+];
+
+async function ensureBillingItemByCode(
+  tx: DbTx,
+  clinicId: string,
+  entry: { code: string; description: string; unitPriceCents: number },
+): Promise<void> {
+  const [existing] = await tx
+    .select({ id: billingItems.id })
+    .from(billingItems)
+    .where(and(eq(billingItems.clinicId, clinicId), eq(billingItems.code, entry.code)))
+    .limit(1);
+  if (existing) return;
+  await tx.insert(billingItems).values({
+    id: randomUUID(),
+    clinicId,
+    code: entry.code,
+    description: entry.description,
+    unitPriceCents: entry.unitPriceCents,
+    chargeKind: "per_unit",
+  });
+}
+
+export async function ensureInventoryIvAndMonitorBillingCatalog(tx: DbTx, clinicId: string): Promise<void> {
+  for (const entry of INVENTORY_IV_AND_MONITOR_BILLING_CATALOG) {
+    await ensureBillingItemByCode(tx, clinicId, entry);
+  }
+}
+
 export async function getOrCreateDefaultConsumableBillingItem(tx: DbTx, clinicId: string): Promise<{ id: string; unitPriceCents: number }> {
   const [existing] = await tx
     .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })

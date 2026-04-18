@@ -28,6 +28,28 @@ export interface TaskAuditActor {
   role?: string;
 }
 
+export interface MedicationExecutionTask {
+  id: string;
+  clinicId: string;
+  animalId: string | null;
+  ownerId: string | null;
+  vetId: string | null;
+  startTime: string;
+  endTime: string;
+  scheduledAt: string | null;
+  completedAt: string | null;
+  status: AppointmentStatus;
+  conflictOverride: boolean;
+  overrideReason: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  priority: TaskPriority;
+  taskType: TaskType | null;
+  createdAt: string;
+  updatedAt: string;
+  animalWeightKg: number | null;
+}
+
 export type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 
 type AppointmentRecord = typeof appointments.$inferSelect;
@@ -126,7 +148,34 @@ interface MedicationMetadata {
   [key: string]: unknown;
 }
 
+export interface MedicationExecutionInput {
+  weightKg?: number;
+  prescribedDosePerKg?: number;
+  concentrationMgPerMl?: number;
+  formularyConcentrationMgPerMl?: number;
+  doseUnit?: "mg_per_kg" | "mcg_per_kg";
+  convertedDoseMgPerKg?: number;
+  calculatedVolumeMl?: number;
+  concentrationOverridden?: boolean;
+}
+
 const DOSE_DEVIATION_HARD_CAP = 0.5;
+
+function normalizeMedicationExecutionInput(input: MedicationExecutionInput | null | undefined): MedicationExecutionInput | null {
+  if (!input) return null;
+  const normalized: MedicationExecutionInput = {};
+  if (Number.isFinite(input.weightKg)) normalized.weightKg = Number(input.weightKg);
+  if (Number.isFinite(input.prescribedDosePerKg)) normalized.prescribedDosePerKg = Number(input.prescribedDosePerKg);
+  if (Number.isFinite(input.concentrationMgPerMl)) normalized.concentrationMgPerMl = Number(input.concentrationMgPerMl);
+  if (Number.isFinite(input.formularyConcentrationMgPerMl)) {
+    normalized.formularyConcentrationMgPerMl = Number(input.formularyConcentrationMgPerMl);
+  }
+  if (input.doseUnit === "mg_per_kg" || input.doseUnit === "mcg_per_kg") normalized.doseUnit = input.doseUnit;
+  if (Number.isFinite(input.convertedDoseMgPerKg)) normalized.convertedDoseMgPerKg = Number(input.convertedDoseMgPerKg);
+  if (Number.isFinite(input.calculatedVolumeMl)) normalized.calculatedVolumeMl = Number(input.calculatedVolumeMl);
+  if (typeof input.concentrationOverridden === "boolean") normalized.concentrationOverridden = input.concentrationOverridden;
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
 
 function normalizeRole(roleInput: string | null | undefined): string {
   return (roleInput ?? "").trim().toLowerCase();
@@ -1004,7 +1053,12 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
   return serialized;
 }
 
-export async function completeTask(clinicIdInput: string, taskId: string, actor: TaskAuditActor) {
+export async function completeTask(
+  clinicIdInput: string,
+  taskId: string,
+  actor: TaskAuditActor,
+  executionInput?: MedicationExecutionInput | null,
+) {
   const clinicId = assertClinicId(clinicIdInput);
   const [existing] = await db
     .select()
@@ -1057,6 +1111,7 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
   const completedAt = new Date();
   const completionIdempotencyKey = `medication-task-complete:${taskId}`;
   const redisMarkedComplete = isMedicationTask ? await checkIdempotentAsync(completionIdempotencyKey) : false;
+  const normalizedExecution = normalizeMedicationExecutionInput(executionInput);
   const [updated] = await db.transaction(async (tx) => {
     const existingMetadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
     const actorIdentifier = actor.clerkId?.trim() || actor.userId;
@@ -1064,6 +1119,17 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
       existingMetadata.completedBy = actorIdentifier;
       existingMetadata.completed_at = completedAt.toISOString();
       existingMetadata.scheduled_at = new Date(existing.scheduledAt ?? existing.startTime).toISOString();
+      if (normalizedExecution) {
+        existingMetadata.execution_weight_kg = normalizedExecution.weightKg ?? null;
+        existingMetadata.execution_prescribed_dose_per_kg = normalizedExecution.prescribedDosePerKg ?? null;
+        existingMetadata.execution_dose_unit = normalizedExecution.doseUnit ?? null;
+        existingMetadata.execution_converted_dose_mg_per_kg = normalizedExecution.convertedDoseMgPerKg ?? null;
+        existingMetadata.execution_concentration_mg_per_ml = normalizedExecution.concentrationMgPerMl ?? null;
+        existingMetadata.execution_formulary_concentration_mg_per_ml =
+          normalizedExecution.formularyConcentrationMgPerMl ?? null;
+        existingMetadata.execution_concentration_overridden = normalizedExecution.concentrationOverridden ?? null;
+        existingMetadata.execution_calculated_volume_ml = normalizedExecution.calculatedVolumeMl ?? null;
+      }
     }
 
     const [row] = await tx
@@ -1191,6 +1257,38 @@ export async function getActiveTasks(clinicIdInput: string) {
     .orderBy(appointments.startTime);
 
   return rows.map(serializeAppointment);
+}
+
+export async function getActiveMedicationTasks(clinicIdInput: string): Promise<MedicationExecutionTask[]> {
+  const clinicId = assertClinicId(clinicIdInput);
+  const rows = await db
+    .select({
+      appointment: appointments,
+      animalWeightKg: animals.weightKg,
+    })
+    .from(appointments)
+    .leftJoin(animals, and(eq(animals.id, appointments.animalId), eq(animals.clinicId, appointments.clinicId)))
+    .where(
+      and(
+        eq(appointments.clinicId, clinicId),
+        eq(appointments.taskType, "medication"),
+        inArray(appointments.status, ["pending", "in_progress"]),
+      ),
+    )
+    .orderBy(appointments.startTime);
+
+  return rows.map(({ appointment, animalWeightKg }) => {
+    const serialized = serializeAppointment(appointment);
+    const normalizedWeight =
+      animalWeightKg == null ? null : Number.isFinite(Number.parseFloat(String(animalWeightKg)))
+        ? Number.parseFloat(String(animalWeightKg))
+        : null;
+
+    return {
+      ...serialized,
+      animalWeightKg: normalizedWeight,
+    };
+  });
 }
 
 export async function getTodayTasks(clinicIdInput: string) {
