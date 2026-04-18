@@ -306,10 +306,18 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     }
 
     async function syncSession() {
-      const token = await getToken();
+      const rawToken = await getToken();
+      const token = typeof rawToken === "string" ? rawToken.trim() : "";
       const email = user?.primaryEmailAddress?.emailAddress || "";
       const name = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
       const clerkId = user?.id || "";
+      const tokenParts = token ? token.split(".") : [];
+      // TEMP DEBUG: remove after auth verification.
+      console.log("CLERK TOKEN:", token);
+      console.log("CLERK TOKEN DEBUG:", {
+        hasToken: Boolean(token),
+        tokenParts: tokenParts.length,
+      });
 
       setAuthState({
         userId: "",
@@ -320,7 +328,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
 
       const headers = { 
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
       };
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
