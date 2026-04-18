@@ -14,11 +14,9 @@ import Redis from "ioredis";
 import { isCircuitOpen, recordFailure, recordSuccess } from "./circuit-breaker.js";
 
 let shared: Redis | null = null;
-let queueShared: Redis | null = null;
 let creationFailed = false;
 let redisDisabledWarned = false;
 let sharedReadyResolve: (() => void) | null = null;
-let queueReadyResolve: (() => void) | null = null;
 
 const DEFAULT_CACHE_TTL_SEC = 300;
 const DEFAULT_SCAN_MAX_KEYS = 2000;
@@ -154,7 +152,6 @@ function attachRedisObservers(client: Redis, source: "app" | "queue"): void {
     redisMetric("ready", { source });
     console.log(`[redis:${source}] ready`);
     if (source === "app") sharedReadyResolve?.();
-    if (source === "queue") queueReadyResolve?.();
   });
   client.on("error", (err) => {
     recordFailure("redis");
@@ -218,40 +215,42 @@ export async function getRedis(): Promise<Redis | null> {
 }
 
 /**
- * Duplicate connection for BullMQ workers (separate from Queue producer if needed).
- * Waits up to 5 seconds for the client to be ready before returning (fail-open on timeout).
+ * Factory that creates a fresh dedicated ioredis connection for each BullMQ entity
+ * (Queue, Worker, QueueScheduler, etc.).
+ *
+ * BullMQ requires every Worker to own its connection exclusively because Workers
+ * use blocking commands (BLPOP/BRPOP) that monopolise the connection. Sharing a
+ * single connection across multiple BullMQ entities causes the
+ * "maxRetriesPerRequest must be null" error and prevents workers from starting.
+ *
+ * maxRetriesPerRequest is set to null (via redisQueueOptions) as required by BullMQ.
+ * Waits up to 5 seconds for the connection to become ready before returning.
  */
 export async function createRedisConnection(): Promise<Redis | null> {
   if (isCircuitOpen("redis")) return null;
-  if (queueShared) {
-    if (queueShared.status === "ready") return queueShared;
-    await Promise.race([
-      new Promise<void>((resolve) => { queueReadyResolve = resolve; }),
-      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-    ]).finally(() => { queueReadyResolve = null; });
-    return queueShared;
-  }
   const url = getRedisUrl();
   if (!url) return null;
+  let conn: Redis;
   try {
-    queueShared = new Redis(url, redisQueueOptions());
-    attachRedisObservers(queueShared, "queue");
+    conn = new Redis(url, redisQueueOptions());
+    attachRedisObservers(conn, "queue");
   } catch (err) {
     recordFailure("redis");
-    console.error("[redis] duplicate connection failed:", err);
+    console.error("[redis] BullMQ connection failed:", err);
     return null;
   }
-  if (queueShared.status !== "ready") {
+  if (conn.status !== "ready") {
     await Promise.race([
-      new Promise<void>((resolve) => { queueReadyResolve = resolve; }),
+      new Promise<void>((resolve) => { conn.once("ready", resolve); }),
       new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-    ]).finally(() => { queueReadyResolve = null; });
-    if (queueShared.status !== "ready") {
-      console.warn("[redis] queue client not ready after 5s timeout; proceeding anyway");
+    ]);
+    if (conn.status !== "ready") {
+      console.warn("[redis] BullMQ connection not ready after 5s timeout; proceeding anyway");
     }
   }
-  return queueShared;
+  return conn;
 }
+
 
 export function redisKey(service: string, domain: string, id: string): string {
   const safeService = sanitizeSegment(service);
