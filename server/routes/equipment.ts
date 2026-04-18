@@ -12,6 +12,7 @@ import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
 import { logAudit } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
 import { scheduleSmartReturnReminder, cancelSmartReturnReminder } from "../lib/role-notification-scheduler.js";
+import { recordEquipmentSeen } from "../lib/equipment-seen.js";
 
 const EQUIPMENT_STATUS_VALUES = [
   "ok",
@@ -82,6 +83,10 @@ const scanSchema = z.object({
 
 const revertSchema = z.object({
   undoToken: z.string().min(1, "undoToken is required"),
+});
+
+const seenSchema = z.object({
+  roomId: z.string().uuid().optional().nullable(),
 });
 
 const bulkIdsSchema = z.object({
@@ -292,6 +297,26 @@ router.get("/my", requireAuth, async (req, res) => {
         checkedOutLocation: equipment.checkedOutLocation,
         expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
+        linkedAnimalId: sql<string | null>`(
+          SELECT a.id
+          FROM vt_patient_room_assignments pra
+          INNER JOIN vt_animals a ON a.id = pra.animal_id
+          WHERE pra.clinic_id = ${clinicId}
+            AND pra.room_id = ${equipment.roomId}
+            AND pra.ended_at IS NULL
+            AND a.clinic_id = ${clinicId}
+          LIMIT 1
+        )`.as("linkedAnimalId"),
+        linkedAnimalName: sql<string | null>`(
+          SELECT a.name
+          FROM vt_patient_room_assignments pra
+          INNER JOIN vt_animals a ON a.id = pra.animal_id
+          WHERE pra.clinic_id = ${clinicId}
+            AND pra.room_id = ${equipment.roomId}
+            AND pra.ended_at IS NULL
+            AND a.clinic_id = ${clinicId}
+          LIMIT 1
+        )`.as("linkedAnimalName"),
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
@@ -401,6 +426,26 @@ router.get("/", requireAuth, async (req, res) => {
         checkedOutLocation: equipment.checkedOutLocation,
         expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
+        linkedAnimalId: sql<string | null>`(
+          SELECT a.id
+          FROM vt_patient_room_assignments pra
+          INNER JOIN vt_animals a ON a.id = pra.animal_id
+          WHERE pra.clinic_id = ${clinicId}
+            AND pra.room_id = ${equipment.roomId}
+            AND pra.ended_at IS NULL
+            AND a.clinic_id = ${clinicId}
+          LIMIT 1
+        )`.as("linkedAnimalId"),
+        linkedAnimalName: sql<string | null>`(
+          SELECT a.name
+          FROM vt_patient_room_assignments pra
+          INNER JOIN vt_animals a ON a.id = pra.animal_id
+          WHERE pra.clinic_id = ${clinicId}
+            AND pra.room_id = ${equipment.roomId}
+            AND pra.ended_at IS NULL
+            AND a.clinic_id = ${clinicId}
+          LIMIT 1
+        )`.as("linkedAnimalName"),
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
@@ -537,6 +582,26 @@ router.get("/:id", requireAuth, async (req, res) => {
         checkedOutLocation: equipment.checkedOutLocation,
         expectedReturnMinutes: equipment.expectedReturnMinutes,
         createdAt: equipment.createdAt,
+        linkedAnimalId: sql<string | null>`(
+          SELECT a.id
+          FROM vt_patient_room_assignments pra
+          INNER JOIN vt_animals a ON a.id = pra.animal_id
+          WHERE pra.clinic_id = ${clinicId}
+            AND pra.room_id = ${equipment.roomId}
+            AND pra.ended_at IS NULL
+            AND a.clinic_id = ${clinicId}
+          LIMIT 1
+        )`.as("linkedAnimalId"),
+        linkedAnimalName: sql<string | null>`(
+          SELECT a.name
+          FROM vt_patient_room_assignments pra
+          INNER JOIN vt_animals a ON a.id = pra.animal_id
+          WHERE pra.clinic_id = ${clinicId}
+            AND pra.room_id = ${equipment.roomId}
+            AND pra.ended_at IS NULL
+            AND a.clinic_id = ${clinicId}
+          LIMIT 1
+        )`.as("linkedAnimalName"),
       })
       .from(equipment)
       .leftJoin(folders, and(eq(equipment.folderId, folders.id), eq(folders.clinicId, clinicId), isNull(folders.deletedAt)))
@@ -1163,6 +1228,63 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("t
     );
   }
 });
+
+// POST /api/equipment/:id/seen — idempotent billing + usage session (Phase 2)
+router.post(
+  "/:id/seen",
+  requireAuth,
+  writeLimiter,
+  requireEffectiveRole("vet"),
+  validateUuid("id"),
+  validateBody(seenSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const clinicId = req.clinicId!;
+      const { roomId } = req.body as z.infer<typeof seenSchema>;
+      const result = await recordEquipmentSeen({
+        clinicId,
+        equipmentId: req.params.id,
+        roomId: roomId ?? null,
+      });
+      if (!result.ok) {
+        return res.status(404).json(
+          apiError({
+            code: "NOT_FOUND",
+            reason: "EQUIPMENT_NOT_FOUND",
+            message: "Equipment not found",
+            requestId,
+          }),
+        );
+      }
+      if (!result.linked) {
+        return res.json({
+          linked: false,
+          reason: result.reason,
+          roomId: result.roomId,
+        });
+      }
+      res.json({
+        linked: true,
+        animal: result.animal,
+        roomId: result.roomId,
+        usageSessionId: result.usageSessionId,
+        ledgerId: result.ledgerId,
+        idempotentReplay: result.idempotentReplay ?? false,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json(
+        apiError({
+          code: "INTERNAL_ERROR",
+          reason: "EQUIPMENT_SEEN_FAILED",
+          message: "Failed to record equipment seen",
+          requestId,
+        }),
+      );
+    }
+  },
+);
 
 // POST /api/equipment/:id/scan
 router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {

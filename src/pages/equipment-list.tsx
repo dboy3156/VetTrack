@@ -56,6 +56,7 @@ import {
   CalendarX,
   CalendarClock,
   CalendarCheck,
+  PawPrint,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import {
@@ -861,6 +862,12 @@ function EquipmentItem({
               {/* Main info */}
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-base truncate leading-snug">{eq.name}</p>
+                {eq.linkedAnimalName && (
+                  <p className="flex items-center gap-1 text-xs font-medium text-violet-700 dark:text-violet-300 mt-0.5">
+                    <PawPrint className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                    {t.equipmentList.linkedInUse(eq.linkedAnimalName)}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   {eq.folderName && (
                     <span className="flex items-center gap-0.5 text-xs text-muted-foreground">

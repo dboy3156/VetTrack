@@ -7,6 +7,10 @@ import type {
   CreateEquipmentRequest,
   UpdateEquipmentRequest,
   ScanEquipmentRequest,
+  EquipmentSeenResponse,
+  ShiftHandoverSummary,
+  ShiftHandoverSession,
+  InventoryContainer,
   ScanLog,
   TransferLog,
   Folder,
@@ -503,6 +507,39 @@ export const api = {
         throw err;
       }
     },
+    seen: async (id: string, body?: { roomId?: string | null }) => {
+      const cached = await getCachedEquipmentById(id);
+      const bodyStr = JSON.stringify({ roomId: body?.roomId ?? null });
+      try {
+        const result = await request<EquipmentSeenResponse>(`/api/equipment/${id}/seen`, {
+          method: "POST",
+          body: bodyStr,
+        });
+        if ("linked" in result && result.linked && result.animal) {
+          await updateCachedEquipment(id, {
+            linkedAnimalId: result.animal.id,
+            linkedAnimalName: result.animal.name,
+          }).catch(() => {});
+        }
+        return result;
+      } catch (err) {
+        if (isNetworkError(err)) {
+          const pendingSyncId = await addPendingSync({
+            type: "seen",
+            endpoint: `/api/equipment/${id}/seen`,
+            method: "POST",
+            body: bodyStr,
+            createdAt: new Date(),
+            retries: 0,
+            status: "pending",
+            clientTimestamp: Date.now(),
+            equipmentName: cached?.name,
+          });
+          return { pending: true, pendingSyncId } as const;
+        }
+        throw err;
+      }
+    },
     checkout: async (id: string, location?: string) => {
       const cached = await getCachedEquipmentById(id);
       const now = new Date().toISOString();
@@ -916,5 +953,54 @@ export const api = {
       }),
     activity: (roomId: string) =>
       request<import("@/types").RoomActivityEntry[]>(`/api/rooms/${roomId}/activity`),
+  },
+  containers: {
+    list: () => request<InventoryContainer[]>("/api/containers"),
+    create: (data: {
+      name: string;
+      department?: string;
+      targetQuantity: number;
+      currentQuantity?: number;
+      roomId?: string | null;
+      nfcTagId?: string | null;
+    }) =>
+      request<InventoryContainer>("/api/containers", { method: "POST", body: JSON.stringify(data) }),
+    restock: (id: string, addedQuantity: number) =>
+      request<{
+        container: InventoryContainer;
+        consumed: number;
+        ledgerId: string | null;
+        animal: { id: string; name: string } | null;
+      }>(`/api/containers/${id}/restock`, {
+        method: "POST",
+        body: JSON.stringify({ addedQuantity }),
+      }),
+    blindAudit: (id: string, physicalCount: number, note?: string) =>
+      request<{ containerId: string; variance: number; logId: string }>(
+        `/api/containers/${id}/blind-audit`,
+        { method: "POST", body: JSON.stringify({ physicalCount, note }) },
+      ),
+  },
+  shiftHandover: {
+    getDischargeItems: (animalId: string) =>
+      request<{
+        items: Array<{
+          sessionId: string;
+          equipmentId: string;
+          equipmentName: string;
+          startedAt: string;
+        }>;
+      }>(`/api/shift-handover/discharge/${encodeURIComponent(animalId)}`),
+    getSummary: () => request<ShiftHandoverSummary>("/api/shift-handover/summary"),
+    startSession: (body?: { note?: string }) =>
+      request<ShiftHandoverSession>("/api/shift-handover/session/start", {
+        method: "POST",
+        body: JSON.stringify(body ?? {}),
+      }),
+    endSession: (body?: { note?: string }) =>
+      request<ShiftHandoverSession>("/api/shift-handover/session/end", {
+        method: "POST",
+        body: JSON.stringify(body ?? {}),
+      }),
   },
 };

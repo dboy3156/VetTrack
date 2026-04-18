@@ -90,7 +90,46 @@
       "moveError": "Move failed",
       "checkoutError": "Equipment checkout failed",
       "returnError": "Return failed"
-    }
+    },
+    "linkedInUse": "In use for: {name}"
+  },
+
+  "shiftHandoverPage": {
+    "title": "Shift handover",
+    "subtitle": "Financial and operational summary for the current period",
+    "windowLabel": "Report period",
+    "windowOpenShift": "Open shift",
+    "windowFallback": "Last 12 hours",
+    "revenue": "Cumulative revenue",
+    "unreturnedTitle": "Unreturned equipment",
+    "deadTitle": "No scans in period",
+    "hotTitle": "Most scanned equipment",
+    "copySummary": "Copy summary",
+    "copied": "Copied to clipboard",
+    "startShift": "Start shift",
+    "endShift": "End shift",
+    "noItems": "No items",
+    "scanCount": "Scans",
+    "loadError": "Failed to load report",
+    "shiftConflict": "A shift is already open",
+    "noOpenShift": "No open shift to end",
+    "dischargeTitle": "Open equipment sessions for patient",
+    "dischargeEmpty": "No open usage sessions",
+    "dischargeClose": "Close"
+  },
+
+  "inventoryPage": {
+    "title": "Inventory — carts and drawers",
+    "target": "Target",
+    "current": "On hand",
+    "restock": "Restock",
+    "addedLabel": "Quantity added",
+    "blindAudit": "Blind count",
+    "physicalCount": "Physical count",
+    "submitRestock": "Save restock",
+    "submitAudit": "Save count",
+    "loadError": "Load failed",
+    "empty": "No containers defined — ask an admin to add carts/drawers."
   },
 
   "equipmentDetail": {
@@ -431,11 +470,14 @@
 
   "syncQueueSheet": {
     "typeScan": "Scan",
+    "typeSeen": "Patient link",
     "typeCreate": "Create",
     "typeUpdate": "Update",
     "typeDelete": "Delete",
     "typeCheckout": "Checkout",
     "typeReturn": "Return",
+    "typeRestock": "Restock",
+    "typeShiftSession": "Shift",
     "unknownEquipment": "Unknown equipment",
     "pending": "Pending",
     "failed": "Failed",
@@ -833,6 +875,8 @@
   "layoutHebrew": {
     "home": "Home",
     "radar": "Radar",
+    "shiftHandover": "Shift handover",
+    "inventory": "Inventory",
     "analytics": "Analytics",
     "dashboard": "Dashboard",
     "printQr": "Print QR",

@@ -37,6 +37,8 @@ import {
   FlaskConical,
   Radar,
   HelpCircle,
+  ClipboardList,
+  Warehouse,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -205,6 +207,8 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     },
     { href: "/appointments", label: "Tasks", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
     { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
+    { href: "/shift-handover", label: lh.shiftHandover, icon: <ClipboardList className="w-5 h-5" /> },
+    { href: "/inventory", label: lh.inventory, icon: <Warehouse className="w-5 h-5" /> },
     { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
     { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: lh.printQr, icon: <QrCode className="w-5 h-5" />, menuOnly: true },

@@ -8,6 +8,7 @@ import { startAccessDeniedMetricsWindowScheduler } from "../lib/access-denied.js
 import { startSystemWatchdog } from "../lib/system-watchdog.js";
 import { startExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
 import { startChargeAlertWorker } from "../workers/chargeAlertWorker.js";
+import { startSmartflowSyncWorker } from "../workers/smartflowSyncWorker.js";
 
 export async function startBackgroundSchedulers() {
   await initVapid();
@@ -19,4 +20,5 @@ export async function startBackgroundSchedulers() {
   startSystemWatchdog();
   await startExpiryCheckWorker();
   await startChargeAlertWorker();
+  await startSmartflowSyncWorker();
 }

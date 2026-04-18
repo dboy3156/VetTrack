@@ -96,6 +96,7 @@ const translations = {
     actions: d.equipmentList.actions,
     empty: d.equipmentList.empty,
     errors: d.equipmentList.errors,
+    linkedInUse: (name: string) => tr(d.equipmentList.linkedInUse, { name }),
     toast: {
       deleteSuccess: (count: number) => tr(d.equipmentList.toast.deleteSuccess, { count }),
       deleteError: d.equipmentList.toast.deleteError,
@@ -105,6 +106,10 @@ const translations = {
       returnError: d.equipmentList.toast.returnError,
     },
   },
+
+  shiftHandoverPage: d.shiftHandoverPage,
+
+  inventoryPage: d.inventoryPage,
 
   equipmentDetail: {
     serialNumber: d.equipmentDetail.serialNumber,

@@ -90,7 +90,46 @@
       "moveError": "ההעברה נכשלה",
       "checkoutError": "לקיחת הציוד נכשלה",
       "returnError": "ההחזרה נכשלה"
-    }
+    },
+    "linkedInUse": "בשימוש אצל: {name}"
+  },
+
+  "shiftHandoverPage": {
+    "title": "מסירת משמרת",
+    "subtitle": "סיכום כספי ותפעולי לתקופה הנוכחית",
+    "windowLabel": "תקופת הדוח",
+    "windowOpenShift": "משמרת פתוחה",
+    "windowFallback": "12 שעות אחרונות",
+    "revenue": "הכנסות מצטברות",
+    "unreturnedTitle": "ציוד שלא הוחזר",
+    "deadTitle": "ציוד ללא סריקות בתקופה",
+    "hotTitle": "ציוד עם הכי הרבה סריקות",
+    "copySummary": "העתק סיכום לווטסאפ",
+    "copied": "הועתק ללוח",
+    "startShift": "התחל משמרת",
+    "endShift": "סיים משמרת",
+    "noItems": "אין פריטים",
+    "scanCount": "סריקות",
+    "loadError": "טעינת הדוח נכשלה",
+    "shiftConflict": "כבר קיימת משמרת פתוחה",
+    "noOpenShift": "אין משמרת פתוחה לסיום",
+    "dischargeTitle": "רשימת ציוד פתוח למטופל",
+    "dischargeEmpty": "אין סשני שימוש פתוחים",
+    "dischargeClose": "סגור"
+  },
+
+  "inventoryPage": {
+    "title": "מלאי — עגלות ומגירות",
+    "target": "יעד",
+    "current": "במלאי",
+    "restock": "מילוי",
+    "addedLabel": "כמות שנוספה",
+    "blindAudit": "ספירה עיוורת",
+    "physicalCount": "ספירה פיזית",
+    "submitRestock": "שמור מילוי",
+    "submitAudit": "שמור ספירה",
+    "loadError": "טעינה נכשלה",
+    "empty": "אין מיכלים מוגדרים — פנה למנהל להוספה."
   },
 
   "equipmentDetail": {
@@ -432,11 +471,14 @@
 
   "syncQueueSheet": {
     "typeScan": "סריקה",
+    "typeSeen": "זיהוי מטופל",
     "typeCreate": "יצירה",
     "typeUpdate": "עדכון",
     "typeDelete": "מחיקה",
     "typeCheckout": "הוצאה לשימוש",
     "typeReturn": "החזרה",
+    "typeRestock": "מילוי מלאי",
+    "typeShiftSession": "משמרת",
     "unknownEquipment": "ציוד לא ידוע",
     "pending": "ממתין",
     "failed": "נכשל",
@@ -834,6 +876,8 @@
   "layoutHebrew": {
     "home": "ראשי",
     "radar": "רדאר",
+    "shiftHandover": "מסירת משמרת",
+    "inventory": "מלאי",
     "analytics": "ניתוח נתונים",
     "dashboard": "לוח בקרה",
     "printQr": "הדפסת QR",
