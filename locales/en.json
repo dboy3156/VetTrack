@@ -101,14 +101,14 @@
     "windowOpenShift": "Open shift",
     "windowFallback": "Last 12 hours",
     "revenue": "Cumulative revenue",
-    "unreturnedTitle": "Unreturned equipment",
-    "revenueSectionTitle": "Revenue",
-    "activityTitle": "Activity (scans)",
+    "unreturnedTitle": "Not returned",
+    "revenueSectionTitle": "Shift revenue",
+    "activityTitle": "Shift activity",
     "expiringTitle": "Expiring soon",
     "expiryLabel": "Expiry",
     "hotTitle": "Most scanned equipment",
     "copySummary": "Export summary",
-    "copied": "Copied to clipboard",
+    "copied": "Summary copied successfully",
     "startShift": "Start shift",
     "endShift": "End shift",
     "noItems": "No items",
@@ -123,6 +123,7 @@
 
   "inventoryPage": {
     "title": "Inventory & consumables",
+    "targetHeading": "Stock target",
     "target": "Target",
     "current": "On hand",
     "restock": "Restock",
@@ -135,7 +136,13 @@
     "empty": "No containers yet. Use Quick add or ask an admin.",
     "quickAdd": "Quick add (ICU / internal)",
     "quickAddSuccess": "Default carts and drawers added",
-    "quickAddNothing": "Containers already exist."
+    "quickAddNothing": "Containers already exist.",
+    "billingHint": "Billing applies to the patient in {roomName}",
+    "billingHintNoRoom": "Billing only applies when an active patient is linked to the container room.",
+    "tapToSelect": "Tap to select",
+    "selected": "Selected",
+    "decreaseAdded": "Decrease added quantity",
+    "increaseAdded": "Increase added quantity"
   },
 
   "equipmentDetail": {
@@ -684,6 +691,15 @@
   },
 
   "roomRadarPage": {
+    "roomVacant": "Room available",
+    "patientActive": "Active patient",
+    "syncedBadge": "Synced",
+    "auditBadge": "Needs audit",
+    "staleBadge": "Stale",
+    "activityScannedOk": "scanned — OK",
+    "activityIssue": "flagged issue on",
+    "activityMaintenance": "logged maintenance for",
+    "activityScannedStatus": "scanned ({status})",
     "verifiedReset": "Verified (room reset)",
     "verifiedNow": "Verified now",
     "verifyFailed": "Verification failed",
@@ -880,6 +896,11 @@
 
   "layoutHebrew": {
     "home": "Home",
+    "bottomHome": "Home",
+    "bottomEquipment": "Equipment",
+    "bottomScan": "Scan",
+    "bottomRooms": "Rooms",
+    "bottomMenu": "Menu",
     "radar": "Radar",
     "shiftHandover": "Shift handover",
     "inventory": "Inventory & consumables",

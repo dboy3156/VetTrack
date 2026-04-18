@@ -22,7 +22,6 @@ import {
   XCircle,
   RefreshCw,
   CheckCircle,
-  Scan,
   LayoutDashboard,
   Globe,
   Settings,
@@ -38,7 +37,8 @@ import {
   Radar,
   HelpCircle,
   ClipboardList,
-  Warehouse,
+  Search,
+  Map,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -72,7 +72,7 @@ interface LayoutProps {
   onScan?: () => void;
 }
 
-export function Layout({ children, title, onScan }: LayoutProps) {
+export function Layout({ children, title: _title, onScan }: LayoutProps) {
   const lh = t.layoutHebrew;
   const QUICK_SETTINGS_PANEL_WIDTH = 288;
   const QUICK_SETTINGS_MARGIN = 8;
@@ -86,7 +86,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
-  const { isAdmin, role, effectiveRole } = useAuth();
+  const { isAdmin, role } = useAuth();
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
@@ -132,10 +132,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     }
   };
 
-  // useQRScanner — handles hardware barcode scanners (keyboard-based).
-  // Validates that the equipment exists before navigating so an unknown ID
-  // never lands on the "Failed to load equipment" error screen.
-  const { triggerScan } = useQRScanner(async (assetId) => {
+  useQRScanner(async (assetId) => {
     try {
       await api.equipment.get(assetId);
       navigate(`/equipment/${assetId}`);
@@ -183,10 +180,8 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
   const canAccessCodeBlue = isAdmin || role === "vet";
 
-  const canAccessHandoverInventory = useMemo(() => {
-    const allowed = new Set(["admin", "vet", "technician", "senior_technician"]);
-    return allowed.has(String(role)) || allowed.has(String(effectiveRole));
-  }, [role, effectiveRole]);
+  const canAccessHandoverInventory =
+    role === "admin" || role === "vet" || role === "technician";
 
   const navItems: NavItem[] = useMemo(() => [
     { href: "/", label: lh.home, icon: <Home className="w-5 h-5" /> },
@@ -215,7 +210,7 @@ export function Layout({ children, title, onScan }: LayoutProps) {
     ...(canAccessHandoverInventory
       ? [
           { href: "/shift-handover", label: lh.shiftHandover, icon: <ClipboardList className="w-5 h-5" /> } satisfies NavItem,
-          { href: "/inventory", label: lh.inventory, icon: <Warehouse className="w-5 h-5" /> } satisfies NavItem,
+          { href: "/inventory", label: lh.inventory, icon: <Package className="w-5 h-5" /> } satisfies NavItem,
         ]
       : []),
     { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
@@ -230,7 +225,15 @@ export function Layout({ children, title, onScan }: LayoutProps) {
   ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, myCount, lh, t]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
-  const bottomItems = visibleItems.filter((item) => !item.menuOnly);
+
+  const bottomNavActive = useMemo(
+    () => ({
+      home: location === "/" || location === "",
+      equipment: location.startsWith("/equipment"),
+      rooms: location.startsWith("/rooms"),
+    }),
+    [location],
+  );
 
   const hasPending = pendingCount > 0;
   const hasFailed = failedCount > 0;
@@ -263,7 +266,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      {/* Top header */}
       <header className="sticky top-safe z-40 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <UpdateBanner />
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
@@ -367,7 +369,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
               </Link>
             )}
 
-            {/* Quick settings button */}
             <div className="relative" ref={quickSettingsRef}>
               <Button
                 ref={quickSettingsToggleRef}
@@ -384,7 +385,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 <Settings className="w-4 h-4" />
               </Button>
 
-              {/* Quick Settings dropdown panel */}
               {quickSettingsOpen && (
                 <div
                   className={cn(
@@ -443,29 +443,12 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 </div>
               )}
             </div>
-
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => {
-                setMenuOpen(!menuOpen);
-                setQuickSettingsOpen(false);
-              }}
-              data-testid="menu-toggle"
-              aria-label={menuOpen ? t.common.closeNavigationMenu : t.common.openNavigationMenu}
-              aria-expanded={menuOpen}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              {menuOpen ? <X className="w-4 h-4" aria-hidden="true" /> : <Menu className="w-4 h-4" aria-hidden="true" />}
-            </Button>
           </div>
         </div>
 
-        {/* Slide-down nav menu */}
         {menuOpen && (
           <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto">
             <nav className="flex flex-col gap-1">
-              {/* Operations group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
               {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/rooms", "/shift-handover", "/inventory"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
@@ -499,7 +482,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 );
               })}
 
-              {/* Management group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">Management</p>
               {["/analytics", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
@@ -528,7 +510,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
                 );
               })}
 
-              {/* System group */}
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">System</p>
               {["/help", "/settings", "/landing"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
@@ -596,7 +577,6 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         )}
       </header>
 
-      {/* Main content */}
       <main
         className={cn(
           "max-w-2xl mx-auto px-4 pb-nav-safe",
@@ -606,94 +586,126 @@ export function Layout({ children, title, onScan }: LayoutProps) {
         {children}
       </main>
 
-      {/* Bottom nav (mobile) — 4 primary items + Scan in center */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/80 bg-background/98 backdrop-blur-md shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]"
         style={{
-          height: "calc(72px + env(safe-area-inset-bottom))",
           paddingBottom: "env(safe-area-inset-bottom)",
           willChange: "transform",
           WebkitTransform: "translateZ(0)",
           transform: "translateZ(0)",
         }}
+        aria-label={lh.bottomMenu}
       >
-        <div className="flex max-w-2xl mx-auto items-center">
-          {/* First 2 nav items */}
-          {bottomItems.slice(0, 2).map((item) => (
-            <Link key={item.href} href={item.href} className="flex-1">
-              <div
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] min-w-[48px] transition-colors relative",
-                  location === item.href ? "text-primary" : "text-muted-foreground"
-                )}
-                data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
-              >
-                {item.icon}
-                <span className="text-[11px] font-medium">{item.label}</span>
-                {item.badgeCount ? (
-                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-destructive text-destructive-foreground text-[9px] rounded-full flex items-center justify-center font-bold">
-                    {item.badgeCount > 9 ? "9+" : item.badgeCount}
-                  </span>
-                ) : null}
-              </div>
-            </Link>
-          ))}
+        <div className="grid grid-cols-5 max-w-2xl mx-auto items-end min-h-[68px] px-0.5 pt-1">
+          <Link href="/" className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px]" data-testid="bottom-nav-home">
+            <Home
+              className={cn(
+                "w-6 h-6 transition-colors",
+                bottomNavActive.home ? "text-primary" : "text-muted-foreground"
+              )}
+              aria-hidden
+            />
+            <span
+              className={cn(
+                "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
+                bottomNavActive.home ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              {lh.bottomHome}
+            </span>
+          </Link>
 
-          {/* Center spacer — FAB is now fixed-positioned below */}
-          <div className="flex-1" />
+          <Link href="/equipment" className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px]" data-testid="bottom-nav-equipment">
+            <Search
+              className={cn(
+                "w-6 h-6 transition-colors",
+                bottomNavActive.equipment ? "text-primary" : "text-muted-foreground"
+              )}
+              aria-hidden
+            />
+            <span
+              className={cn(
+                "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
+                bottomNavActive.equipment ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              {lh.bottomEquipment}
+            </span>
+          </Link>
 
-          {/* Last 2 nav items */}
-          {bottomItems.slice(2, 4).map((item) => (
-            <Link key={item.href} href={item.href} className="flex-1">
-              <div
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] min-w-[48px] transition-colors relative",
-                  location === item.href ? "text-primary" : "text-muted-foreground"
-                )}
-                data-testid={`bottom-nav-${item.href.replace("/", "") || "home"}`}
-              >
-                {item.icon}
-                <span className="text-[11px] font-medium">{item.label}</span>
-                {item.badgeCount ? (
-                  <span className="absolute top-2 right-1/4 w-3.5 h-3.5 bg-destructive text-destructive-foreground text-[9px] rounded-full flex items-center justify-center font-bold">
-                    {item.badgeCount > 9 ? "9+" : item.badgeCount}
-                  </span>
-                ) : null}
-              </div>
-            </Link>
-          ))}
+          <div className="flex flex-col items-center justify-end pb-1 relative">
+            <button
+              type="button"
+              onClick={() => {
+                openScanner();
+                navigator.vibrate?.(15);
+              }}
+              className={cn(
+                "-mt-6 mb-0.5 flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-2xl",
+                "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
+                "ring-4 ring-background dark:ring-background",
+                "hover:bg-primary/90 active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              )}
+              aria-label={lh.bottomScan}
+              data-testid="bottom-nav-scan"
+            >
+              <QrCode className="w-8 h-8" aria-hidden />
+            </button>
+            <span className="text-[10px] font-bold text-foreground leading-tight text-center">{lh.bottomScan}</span>
+          </div>
+
+          <Link href="/rooms" className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px]" data-testid="bottom-nav-rooms">
+            <Map
+              className={cn(
+                "w-6 h-6 transition-colors",
+                bottomNavActive.rooms ? "text-primary" : "text-muted-foreground"
+              )}
+              aria-hidden
+            />
+            <span
+              className={cn(
+                "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate px-0.5",
+                bottomNavActive.rooms ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              {lh.bottomRooms}
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full"
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? t.common.closeNavigationMenu : lh.bottomMenu}
+            data-testid="bottom-nav-menu"
+          >
+            {menuOpen ? (
+              <X className="w-6 h-6 text-primary" aria-hidden />
+            ) : (
+              <Menu className="w-6 h-6 text-muted-foreground" aria-hidden />
+            )}
+            <span className={cn("text-[10px] font-semibold", menuOpen ? "text-primary" : "text-muted-foreground")}>
+              {lh.bottomMenu}
+            </span>
+          </button>
         </div>
       </nav>
 
-      {/* ScanFAB — opens camera QR scanner */}
-      <button
-        onClick={openScanner}
-        className="fixed z-[60] w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 active:scale-95 transition-all"
-        style={{ left: "20px", bottom: "calc(90px + env(safe-area-inset-bottom))", zIndex: 60 }}
-        aria-label={lh.scanQrAria}
-        data-testid="bottom-nav-scan"
-      >
-        <Scan className="w-5 h-5" aria-hidden="true" />
-      </button>
-
-      {/* Scanner opened from bottom nav (non-home pages) */}
       {scannerOpen && (
         <QrScanner onClose={() => setScannerOpen(false)} />
       )}
 
-      {/* Report Issue dialog */}
       <ReportIssueDialog
         open={reportIssueOpen}
         onOpenChange={setReportIssueOpen}
       />
 
-      {/* Sync Queue sheet */}
       <SyncQueueSheet
         open={syncQueueOpen}
         onClose={() => setSyncQueueOpen(false)}
       />
 
-      {/* First-run onboarding overlay — self-managed via localStorage */}
       <OnboardingWalkthrough />
     </div>
   );

@@ -25,6 +25,7 @@ import { ClipboardList, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTimeByLocale } from "@/lib/i18n";
 import type { ShiftHandoverSummary } from "@/types";
+import { cn } from "@/lib/utils";
 
 function formatIls(cents: number): string {
   return (cents / 100).toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -65,6 +66,17 @@ function buildHebrewSummary(data: ShiftHandoverSummary): string {
   ];
   return lines.join("\n");
 }
+
+const SECTION_SHELL = {
+  unreturned:
+    "rounded-xl border border-orange-200/90 bg-orange-50/80 dark:bg-orange-950/25 dark:border-orange-900/50 mb-2 px-1 shadow-sm",
+  revenue:
+    "rounded-xl border border-emerald-200/90 bg-emerald-50/80 dark:bg-emerald-950/25 dark:border-emerald-900/50 mb-2 px-1 shadow-sm",
+  activity:
+    "rounded-xl border border-blue-200/90 bg-blue-50/80 dark:bg-blue-950/25 dark:border-blue-900/50 mb-2 px-1 shadow-sm",
+  expiring:
+    "rounded-xl border border-amber-200/90 bg-amber-50/80 dark:bg-amber-950/25 dark:border-amber-900/50 mb-2 px-1 shadow-sm border-b-0",
+};
 
 export default function ShiftHandoverPage() {
   const search = useSearch();
@@ -123,6 +135,7 @@ export default function ShiftHandoverPage() {
     if (!q.data) return;
     try {
       await navigator.clipboard.writeText(buildHebrewSummary(q.data));
+      navigator.vibrate?.([35, 25, 50]);
       toast.success(t.shiftHandoverPage.copied);
     } catch {
       toast.error(t.shiftHandoverPage.loadError);
@@ -165,32 +178,31 @@ export default function ShiftHandoverPage() {
       </Dialog>
 
       <div className="max-w-3xl mx-auto p-4 space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <ClipboardList className="w-7 h-7" aria-hidden />
+            <h1 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
+              <ClipboardList className="w-7 h-7 text-primary shrink-0" aria-hidden />
               {p.title}
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">{p.subtitle}</p>
+            <p className="text-muted-foreground text-sm mt-1 leading-relaxed">{p.subtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="outline"
-              size="sm"
+              size="default"
+              className="gap-2 min-h-[44px] rounded-xl font-semibold shadow-sm"
               onClick={() => copySummary()}
               disabled={!data || q.isLoading}
-              className="gap-1"
             >
-              <Copy className="w-4 h-4" />
+              <Copy className="w-4 h-4 shrink-0" />
               {p.copySummary}
             </Button>
             {!data?.openShiftSession ? (
-              <Button size="sm" onClick={() => startMut.mutate()} disabled={startMut.isPending}>
+              <Button variant="outline" size="default" className="min-h-[44px] rounded-xl" onClick={() => startMut.mutate()} disabled={startMut.isPending}>
                 {startMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {p.startShift}
               </Button>
             ) : (
-              <Button variant="secondary" size="sm" onClick={() => endMut.mutate()} disabled={endMut.isPending}>
+              <Button variant="secondary" size="default" className="min-h-[44px] rounded-xl" onClick={() => endMut.mutate()} disabled={endMut.isPending}>
                 {endMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {p.endShift}
               </Button>
@@ -200,26 +212,32 @@ export default function ShiftHandoverPage() {
 
         {q.isLoading && (
           <div className="space-y-3">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-40 w-full rounded-xl" />
           </div>
         )}
 
         {q.isError && (
-          <Card className="border-destructive/50">
+          <Card className="border-destructive/50 rounded-xl">
             <CardContent className="pt-6 text-destructive">{p.loadError}</CardContent>
           </Card>
         )}
 
         {data && (
-          <Accordion type="multiple" defaultValue={["unreturned", "revenue", "activity", "expiring"]} className="w-full border rounded-xl px-3 bg-card">
-            <AccordionItem value="unreturned">
-              <AccordionTrigger className="text-base font-semibold">{p.unreturnedTitle}</AccordionTrigger>
-              <AccordionContent>
+          <Accordion
+            type="multiple"
+            defaultValue={["unreturned", "revenue", "activity", "expiring"]}
+            className="w-full space-y-2"
+          >
+            <AccordionItem value="unreturned" className={cn("border-0", SECTION_SHELL.unreturned)}>
+              <AccordionTrigger className="text-base font-semibold px-3 hover:no-underline text-orange-950 dark:text-orange-100">
+                {p.unreturnedTitle}
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3">
                 {data.unreturned.length === 0 ? (
                   <p className="text-muted-foreground text-sm">{p.noItems}</p>
                 ) : (
-                  <ul className="list-disc list-inside space-y-1 text-sm">
+                  <ul className="list-disc list-inside space-y-1 text-sm leading-relaxed">
                     {data.unreturned.map((u) => (
                       <li key={u.id}>
                         <span className="font-medium">{u.name}</span>
@@ -232,24 +250,28 @@ export default function ShiftHandoverPage() {
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="revenue">
-              <AccordionTrigger className="text-base font-semibold">{p.revenueSectionTitle}</AccordionTrigger>
-              <AccordionContent className="text-sm space-y-2">
+            <AccordionItem value="revenue" className={cn("border-0", SECTION_SHELL.revenue)}>
+              <AccordionTrigger className="text-base font-semibold px-3 hover:no-underline text-emerald-950 dark:text-emerald-100">
+                {p.revenueSectionTitle}
+              </AccordionTrigger>
+              <AccordionContent className="text-sm space-y-2 px-3 pb-3">
                 <p>
                   {formatDateTimeByLocale(new Date(data.windowStart))} — {formatDateTimeByLocale(new Date(data.windowEnd))}
                 </p>
                 <p className="text-muted-foreground">
                   {data.windowSource === "open_shift" ? p.windowOpenShift : p.windowFallback}
                 </p>
-                <p className="text-lg font-semibold pt-1">
+                <p className="text-xl font-bold pt-1 text-emerald-900 dark:text-emerald-200 tabular-nums">
                   {p.revenue}: ₪{formatIls(data.revenueCents)}
                 </p>
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="activity">
-              <AccordionTrigger className="text-base font-semibold">{p.activityTitle}</AccordionTrigger>
-              <AccordionContent>
+            <AccordionItem value="activity" className={cn("border-0", SECTION_SHELL.activity)}>
+              <AccordionTrigger className="text-base font-semibold px-3 hover:no-underline text-blue-950 dark:text-blue-100">
+                {p.activityTitle}
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3">
                 {data.hotAssets.length === 0 ? (
                   <p className="text-muted-foreground text-sm">{p.noItems}</p>
                 ) : (
@@ -264,9 +286,11 @@ export default function ShiftHandoverPage() {
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="expiring" className="border-b-0">
-              <AccordionTrigger className="text-base font-semibold">{p.expiringTitle}</AccordionTrigger>
-              <AccordionContent>
+            <AccordionItem value="expiring" className={cn("border-0", SECTION_SHELL.expiring)}>
+              <AccordionTrigger className="text-base font-semibold px-3 hover:no-underline text-amber-950 dark:text-amber-100">
+                {p.expiringTitle}
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3">
                 {data.expiringAssets.length === 0 ? (
                   <p className="text-muted-foreground text-sm">{p.noItems}</p>
                 ) : (

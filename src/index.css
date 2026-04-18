@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -110,7 +110,7 @@
   }
   /* Main content: clears the fixed bottom nav (3.5rem = 56px) + home indicator */
   .pb-nav-safe {
-    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom) + 0.75rem);
+    padding-bottom: calc(6.25rem + env(safe-area-inset-bottom) + 0.5rem);
   }
 }
 

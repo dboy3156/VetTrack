@@ -51,19 +51,21 @@ function toInitials(name: string | null | undefined): string {
 }
 
 function activityActionLabel(entry: RoomActivityEntry): string {
-  if (entry.note?.startsWith("Room verified:")) return t.roomRadarPage.verifiedReset;
-  if (entry.status === "ok") return "scanned — OK";
-  if (entry.status === "issue") return "flagged issue on";
-  if (entry.status === "maintenance") return "logged maintenance for";
-  return `scanned (${entry.status})`;
+  const rr = t.roomRadarPage;
+  if (entry.note?.startsWith("Room verified:")) return rr.verifiedReset;
+  if (entry.status === "ok") return rr.activityScannedOk;
+  if (entry.status === "issue") return rr.activityIssue;
+  if (entry.status === "maintenance") return rr.activityMaintenance;
+  return rr.activityScannedStatus.replace("{status}", entry.status);
 }
 
 function SyncBadge({ status }: { status: string }) {
+  const rr = t.roomRadarPage;
   if (status === "synced") {
     return (
       <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300 rounded-full px-2.5 py-1">
         <CheckCircle2 className="w-3 h-3" />
-        Synced
+        {rr.syncedBadge}
       </div>
     );
   }
@@ -71,14 +73,14 @@ function SyncBadge({ status }: { status: string }) {
     return (
       <div className="flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 dark:bg-red-950/50 dark:border-red-800 dark:text-red-300 rounded-full px-2.5 py-1">
         <AlertTriangle className="w-3 h-3" />
-        Needs Audit
+        {rr.auditBadge}
       </div>
     );
   }
   return (
     <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 dark:bg-amber-950/50 dark:border-amber-800 dark:text-amber-300 rounded-full px-2.5 py-1">
       <Clock className="w-3 h-3" />
-      Stale
+      {rr.staleBadge}
     </div>
   );
 }
@@ -478,7 +480,7 @@ export default function RoomRadarPage() {
             </div>
           ) : room ? (
             <div className="flex items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-2xl font-bold leading-tight">{room.name}</h1>
                   <SyncBadge status={room.syncStatus} />
@@ -488,6 +490,16 @@ export default function RoomRadarPage() {
                     <MapPin className="w-3 h-3" />
                     {room.floor}
                   </p>
+                )}
+                {room.linkedPatientName ? (
+                  <p className="flex items-center gap-2 text-sm font-semibold text-violet-800 dark:text-violet-200 mt-2">
+                    <PawPrint className="w-4 h-4 shrink-0" aria-hidden />
+                    <span>
+                      {t.roomRadarPage.patientActive}: {room.linkedPatientName}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-2">{t.roomRadarPage.roomVacant}</p>
                 )}
               </div>
             </div>

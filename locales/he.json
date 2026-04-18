@@ -101,14 +101,14 @@
     "windowOpenShift": "משמרת פתוחה",
     "windowFallback": "12 שעות אחרונות",
     "revenue": "הכנסות מצטברות",
-    "unreturnedTitle": "ציוד שלא הוחזר",
-    "revenueSectionTitle": "הכנסות",
-    "activityTitle": "פעילות (סריקות)",
+    "unreturnedTitle": "לא הוחזר",
+    "revenueSectionTitle": "הכנסות משמרת",
+    "activityTitle": "פעילות משמרת",
     "expiringTitle": "פגי תוקף בקרוב",
     "expiryLabel": "תאריך תוקף",
     "hotTitle": "ציוד עם הכי הרבה סריקות",
     "copySummary": "ייצוא סיכום",
-    "copied": "הועתק ללוח",
+    "copied": "הסיכום הועתק בהצלחה",
     "startShift": "התחל משמרת",
     "endShift": "סיים משמרת",
     "noItems": "אין פריטים",
@@ -123,6 +123,7 @@
 
   "inventoryPage": {
     "title": "מלאי ומתכלים",
+    "targetHeading": "יעד מלאי",
     "target": "יעד",
     "current": "במלאי",
     "restock": "מילוי",
@@ -135,7 +136,13 @@
     "empty": "אין מיכלים מוגדרים. השתמש בהוספה מהירה או פנה למנהל.",
     "quickAdd": "הוספה מהירה (ICU / פנימה)",
     "quickAddSuccess": "נוספו עגלות ומגירות ברירת מחדל",
-    "quickAddNothing": "כבר קיימים מיכלים — לא נדרש שיבוץ."
+    "quickAddNothing": "כבר קיימים מיכלים — לא נדרש שיבוץ.",
+    "billingHint": "חיוב יבוצע עבור המטופל ב-{roomName}",
+    "billingHintNoRoom": "חיוב יתבצע רק כשקיים מטופל פעיל בחדר המיכל.",
+    "tapToSelect": "לחץ לבחירה",
+    "selected": "נבחר",
+    "decreaseAdded": "הפחת כמות שנוספה",
+    "increaseAdded": "הוסף כמות"
   },
 
   "equipmentDetail": {
@@ -685,6 +692,15 @@
   },
 
   "roomRadarPage": {
+    "roomVacant": "חדר פנוי",
+    "patientActive": "מטופל פעיל",
+    "syncedBadge": "מסונכרן",
+    "auditBadge": "נדרש אימות",
+    "staleBadge": "לא עודכן",
+    "activityScannedOk": "סריקה — תקין",
+    "activityIssue": "סימון תקלה על",
+    "activityMaintenance": "רישום תחזוקה ל־",
+    "activityScannedStatus": "סריקה ({status})",
     "verifiedReset": "אומת (חדר אופס)",
     "verifiedNow": "אומת עכשיו",
     "verifyFailed": "האימות נכשל",
@@ -881,6 +897,11 @@
 
   "layoutHebrew": {
     "home": "ראשי",
+    "bottomHome": "בית",
+    "bottomEquipment": "ציוד",
+    "bottomScan": "סריקה",
+    "bottomRooms": "רדאר חדרים",
+    "bottomMenu": "תפריט",
     "radar": "רדאר",
     "shiftHandover": "חפיפת משמרת",
     "inventory": "מלאי ומתכלים",

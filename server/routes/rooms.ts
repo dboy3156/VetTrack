@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { db, rooms, equipment, scanLogs, users } from "../db.js";
+import { animals, db, equipment, patientRoomAssignments, rooms, scanLogs, users } from "../db.js";
 import { eq, and, isNull, isNotNull, sql, desc, gt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
@@ -164,6 +164,20 @@ router.get("/:id", requireAuth, async (req, res) => {
     const issue = counts?.issue ?? 0;
     const recentlyVerified = counts?.recentlyVerified ?? 0;
 
+    const [occupant] = await db
+      .select({ name: animals.name })
+      .from(patientRoomAssignments)
+      .innerJoin(animals, eq(patientRoomAssignments.animalId, animals.id))
+      .where(
+        and(
+          eq(patientRoomAssignments.clinicId, clinicId),
+          eq(patientRoomAssignments.roomId, room.id),
+          isNull(patientRoomAssignments.endedAt),
+          eq(animals.clinicId, clinicId),
+        ),
+      )
+      .limit(1);
+
     res.json({
       ...room,
       totalEquipment: total,
@@ -171,6 +185,7 @@ router.get("/:id", requireAuth, async (req, res) => {
       inUseCount: inUse,
       issueCount: issue,
       recentlyVerifiedCount: recentlyVerified,
+      linkedPatientName: occupant?.name ?? null,
     });
   } catch (err) {
     console.error(err);
