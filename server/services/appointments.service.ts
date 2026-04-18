@@ -3,7 +3,7 @@ import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, billingItems, billingLedger, db, owners, shifts, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
-import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
+import { markIdempotentAsync } from "../lib/idempotency.js";
 import { validateJustificationText, MedJustificationError, resolvePresetLabel } from "../lib/med-justification.js";
 import { incrementMetric } from "../lib/metrics.js";
 import { broadcast } from "../lib/realtime.js";
@@ -1112,7 +1112,6 @@ export async function completeTask(
   const previousSnapshot = { ...serializeAppointment(existing) };
   const completedAt = new Date();
   const completionIdempotencyKey = `medication-task-complete:${taskId}`;
-  const redisMarkedComplete = isMedicationTask ? await checkIdempotentAsync(completionIdempotencyKey) : false;
   const normalizedExecution = normalizeMedicationExecutionInput(executionInput);
   const [updated] = await db.transaction(async (tx) => {
     const existingMetadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
@@ -1151,27 +1150,19 @@ export async function completeTask(
 
     if (isMedicationTask && row.animalId) {
       const idempotencyKey = completionIdempotencyKey;
-      const [existingLedger] = await tx
-        .select({ id: billingLedger.id })
-        .from(billingLedger)
-        .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, idempotencyKey)))
-        .limit(1);
-
-      if (!existingLedger && !redisMarkedComplete) {
-        const billing = await resolveMedicationBillingItemId(tx, clinicId);
-        await tx.insert(billingLedger).values({
-          id: randomUUID(),
-          clinicId,
-          animalId: row.animalId,
-          itemType: "CONSUMABLE",
-          itemId: billing.id,
-          quantity: 1,
-          unitPriceCents: billing.unitPriceCents,
-          totalAmountCents: billing.unitPriceCents,
-          idempotencyKey,
-          status: "pending",
-        });
-      }
+      const billing = await resolveMedicationBillingItemId(tx, clinicId);
+      await tx.insert(billingLedger).values({
+        id: randomUUID(),
+        clinicId,
+        animalId: row.animalId,
+        itemType: "CONSUMABLE",
+        itemId: billing.id,
+        quantity: 1,
+        unitPriceCents: billing.unitPriceCents,
+        totalAmountCents: billing.unitPriceCents,
+        idempotencyKey,
+        status: "pending",
+      }).onConflictDoNothing();
     }
 
     return [row] as const;

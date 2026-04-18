@@ -208,7 +208,7 @@ export const billingLedger = pgTable("vt_billing_ledger", {
   quantity: integer("quantity").notNull().default(1),
   unitPriceCents: integer("unit_price_cents").notNull(),
   totalAmountCents: integer("total_amount_cents").notNull(),
-  idempotencyKey: text("idempotency_key").notNull(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
   status: billingLedgerStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
