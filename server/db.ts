@@ -14,6 +14,7 @@ import {
   date,
   time,
   uuid,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -78,6 +79,8 @@ export const appointments = pgTable("vt_appointments", {
   metadata: jsonb("metadata"),
   priority: varchar("priority", { length: 20 }).notNull().default("normal"),
   taskType: varchar("task_type", { length: 20 }),
+  /** Medication: inventory container for billing + stock deduction (see also metadata.containerId legacy). */
+  containerId: text("container_id"),
   /** Automation: overdue escalation target — does not replace vet_id (technician ownership). */
   escalatedTo: text("escalated_to").references(() => users.id, { onDelete: "set null" }),
   escalatedAt: timestamp("escalated_at", { withTimezone: true }),
@@ -241,26 +244,59 @@ export const containers = pgTable("vt_containers", {
   nfcTagId: text("nfc_tag_id").unique(),
 });
 
-export const inventoryLogs = pgTable("vt_inventory_logs", {
-  id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
-  containerId: text("container_id")
-    .notNull()
-    .references(() => containers.id, { onDelete: "cascade" }),
-  logType: inventoryLogTypeEnum("log_type").notNull(),
-  quantityBefore: integer("quantity_before").notNull(),
-  quantityAdded: integer("quantity_added").notNull().default(0),
-  quantityAfter: integer("quantity_after").notNull(),
-  consumedDerived: integer("consumed_derived"),
-  variance: integer("variance"),
-  animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
-  roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
-  note: text("note"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  createdByUserId: text("created_by_user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "restrict" }),
-});
+export const inventoryLogs = pgTable(
+  "vt_inventory_logs",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    containerId: text("container_id")
+      .notNull()
+      .references(() => containers.id, { onDelete: "cascade" }),
+    taskId: text("task_id"),
+    logType: inventoryLogTypeEnum("log_type").notNull(),
+    quantityBefore: integer("quantity_before").notNull(),
+    quantityAdded: integer("quantity_added").notNull().default(0),
+    quantityAfter: integer("quantity_after").notNull(),
+    consumedDerived: integer("consumed_derived"),
+    variance: integer("variance"),
+    animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
+    roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+  },
+  (table) => ({
+    taskClinicIdx: index("vt_inventory_logs_task_clinic_idx").on(table.taskId, table.clinicId),
+    taskClinicTypeUnique: uniqueIndex("inventory_logs_task_clinic_type_idx").on(
+      table.taskId,
+      table.clinicId,
+      table.logType,
+    ),
+  }),
+);
+
+export const inventoryJobs = pgTable(
+  "vt_inventory_jobs",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    taskId: text("task_id").notNull(),
+    containerId: text("container_id").notNull(),
+    requiredVolumeMl: numeric("required_volume_ml").notNull(),
+    animalId: text("animal_id"),
+    status: text("status").notNull().default("pending"),
+    retryCount: integer("retry_count").notNull().default(0),
+    failureReason: text("failure_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    resolvedAt: timestamp("resolved_at"),
+  },
+  (table) => ({
+    taskUnique: uniqueIndex("vt_inventory_jobs_task_unique").on(table.taskId),
+  }),
+);
 
 export const shiftSessions = pgTable("vt_shift_sessions", {
   id: text("id").primaryKey(),

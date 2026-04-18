@@ -109,6 +109,13 @@
       "version": "018",
       "when": 1775833903846,
       "tag": "018_asset_radar_nfc"
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776513599940,
+      "tag": "0018_striped_valkyrie",
+      "breakpoints": true
     }
   ]
 }
