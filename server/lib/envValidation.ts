@@ -1,9 +1,10 @@
+import { isPostgresqlConfigured } from "./postgresql.js";
+
 const INSECURE_FALLBACKS: Record<string, string[]> = {
   SESSION_SECRET: ["vettrack-dev-secret", "dev-secret", "secret", "changeme", "password"],
 };
 
 const REQUIRED_IN_PRODUCTION: string[] = [
-  "DATABASE_URL",
   "REDIS_URL",
   "SESSION_SECRET",
   "CLERK_SECRET_KEY",
@@ -42,6 +43,12 @@ export function validateEnv(): void {
   if (process.env.NODE_ENV !== "production") return;
 
   const errors: string[] = [];
+
+  if (!isPostgresqlConfigured()) {
+    errors.push(
+      "  - DATABASE_URL or POSTGRES_URL is required in production but is missing or empty",
+    );
+  }
 
   for (const varName of REQUIRED_IN_PRODUCTION) {
     const value = process.env[varName];

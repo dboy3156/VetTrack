@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
+import { getPostgresqlConnectionString } from "./lib/postgresql.js";
 import {
   pgTable,
   pgEnum,
@@ -18,12 +19,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
-
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: getPostgresqlConnectionString(),
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 

@@ -119,6 +119,20 @@ export function assertSessionOwned(
   }
 }
 
+function postgresErrorCode(err: unknown): string | undefined {
+  let current: unknown = err;
+  const seen = new Set<unknown>();
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if ("code" in current && typeof (current as { code: unknown }).code === "string") {
+      return (current as { code: string }).code;
+    }
+    if (!("cause" in current)) break;
+    current = (current as { cause: unknown }).cause;
+  }
+  return undefined;
+}
+
 export async function startRestockSession(params: {
   clinicId: string;
   containerId: string;
@@ -134,34 +148,36 @@ export async function startRestockSession(params: {
       throw new RestockServiceError("CONTAINER_NOT_FOUND", 404, "Container not found");
     }
 
-    const [active] = await tx
-      .select({ id: restockSessions.id })
-      .from(restockSessions)
-      .where(
-        and(
-          eq(restockSessions.clinicId, params.clinicId),
-          eq(restockSessions.containerId, params.containerId),
-          eq(restockSessions.status, "active"),
-        ),
-      )
-      .limit(1);
-    if (active) {
-      throw new RestockServiceError("SESSION_ALREADY_ACTIVE", 409, "Container already has an active session");
-    }
-
     await ensureTemplateItemsSeededInTx(tx, params.clinicId, container.name, params.containerId);
 
     const id = randomUUID();
-    const [session] = await tx
-      .insert(restockSessions)
-      .values({
-        id,
-        clinicId: params.clinicId,
-        containerId: params.containerId,
-        ownedByUserId: params.userId,
-        status: "active",
-      })
-      .returning();
+    let session;
+    try {
+      [session] = await tx
+        .insert(restockSessions)
+        .values({
+          id,
+          clinicId: params.clinicId,
+          containerId: params.containerId,
+          ownedByUserId: params.userId,
+          status: "active",
+        })
+        .returning();
+    } catch (err) {
+      const code = postgresErrorCode(err);
+      if (code === "23505") {
+        throw new RestockServiceError(
+          "SESSION_ALREADY_ACTIVE",
+          409,
+          "An active restock session already exists for this container",
+        );
+      }
+      throw err;
+    }
+
+    if (!session) {
+      throw new Error("unexpected empty insert returning");
+    }
 
     return session;
   });
@@ -206,40 +222,82 @@ export async function scanItem(params: {
       throw new RestockServiceError("ITEM_NOT_IN_TEMPLATE", 400, "Item does not belong to container template");
     }
 
-    const [line] = await tx
-      .select()
-      .from(containerItems)
+    const now = new Date();
+
+    const [updatedRow] = await tx
+      .update(containerItems)
+      .set({
+        quantity: sql`${containerItems.quantity} + ${params.delta}`,
+        updatedAt: now,
+      })
       .where(
         and(
-          eq(containerItems.clinicId, params.clinicId),
           eq(containerItems.containerId, session.containerId),
           eq(containerItems.itemId, item.id),
+          sql`${containerItems.quantity} + ${params.delta} >= 0`,
         ),
       )
-      .limit(1);
+      .returning({ quantity: containerItems.quantity });
 
-    const beforeQuantity = line?.quantity ?? 0;
-    const nextQuantity = beforeQuantity + params.delta;
-    if (nextQuantity < 0) {
-      throw new RestockServiceError("INSUFFICIENT_STOCK", 400, "Scan would move quantity below zero");
+    let nextQuantity = updatedRow?.quantity;
+
+    if (nextQuantity === undefined && params.delta > 0) {
+      try {
+        const [insertedRow] = await tx
+          .insert(containerItems)
+          .values({
+            id: randomUUID(),
+            clinicId: params.clinicId,
+            containerId: session.containerId,
+            itemId: item.id,
+            quantity: params.delta,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [containerItems.containerId, containerItems.itemId],
+            set: {
+              quantity: sql`${containerItems.quantity} + ${params.delta}`,
+              updatedAt: now,
+            },
+            setWhere: sql`${containerItems.quantity} + ${params.delta} >= 0`,
+          })
+          .returning({ quantity: containerItems.quantity });
+        nextQuantity = insertedRow?.quantity;
+      } catch (err) {
+        if (err instanceof RestockServiceError) throw err;
+        throw new RestockServiceError(
+          "SCAN_UPDATE_FAILED",
+          500,
+          "Scan storage update failed",
+        );
+      }
     }
 
-    await tx
-      .insert(containerItems)
-      .values({
-        id: randomUUID(),
-        clinicId: params.clinicId,
-        containerId: session.containerId,
-        itemId: item.id,
-        quantity: nextQuantity,
-      })
-      .onConflictDoUpdate({
-        target: [containerItems.containerId, containerItems.itemId],
-        set: {
-          quantity: nextQuantity,
-          updatedAt: new Date(),
-        },
-      });
+    if (nextQuantity === undefined) {
+      const [existing] = await tx
+        .select({ quantity: containerItems.quantity })
+        .from(containerItems)
+        .where(
+          and(
+            eq(containerItems.containerId, session.containerId),
+            eq(containerItems.itemId, item.id),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        throw new RestockServiceError(
+          "ITEM_NOT_IN_CONTAINER",
+          409,
+          "Cannot decrement quantity for an item not present in the container.",
+        );
+      }
+      throw new RestockServiceError(
+        "NEGATIVE_QUANTITY_NOT_ALLOWED",
+        409,
+        "Scan would produce a negative quantity.",
+      );
+    }
 
     const [event] = await tx
       .insert(restockEvents)

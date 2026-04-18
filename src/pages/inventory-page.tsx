@@ -5,20 +5,27 @@ import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, Loader2, Minus, Plus } from "lucide-react";
+import { Package, Loader2, Minus, Plus, CheckCircle2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import type { InventoryContainer } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import {
+  initialRestockSessionState,
+  restockSessionReducer,
+} from "@/features/inventory/restock-session-reducer";
+import { useLocation } from "wouter";
+import { getCurrentUserId } from "@/lib/auth-store";
 
 export default function InventoryPage() {
   const qc = useQueryClient();
   const p = t.inventoryPage;
+  const [location] = useLocation();
+  const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
 
-  const q = useQuery({
+  const containersQ = useQuery({
     queryKey: ["/api/containers"],
     queryFn: () => api.containers.list(),
   });
@@ -30,66 +37,57 @@ export default function InventoryPage() {
   });
 
   const roomNameById = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const r of roomsQ.data ?? []) {
-      m.set(r.id, r.name);
+    const map = new Map<string, string>();
+    for (const room of roomsQ.data ?? []) {
+      map.set(room.id, room.name);
     }
-    return m;
+    return map;
   }, [roomsQ.data]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [addedById, setAddedById] = useState<Record<string, number>>({});
-  const [addedBySupplyByContainer, setAddedBySupplyByContainer] = useState<Record<string, Record<string, number>>>({});
-  const [auditById, setAuditById] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!q.data?.length) {
+    if (sessionState.activeSessionId && sessionState.activeContainerId) {
+      localStorage.setItem(
+        "vt_active_restock_session",
+        JSON.stringify({
+          sessionId: sessionState.activeSessionId,
+          containerId: sessionState.activeContainerId,
+        }),
+      );
+      return;
+    }
+    localStorage.removeItem("vt_active_restock_session");
+  }, [sessionState.activeSessionId, sessionState.activeContainerId]);
+
+  useEffect(() => {
+    if (!containersQ.data?.length) {
       setSelectedId(null);
       return;
     }
+    const search = location.includes("?") ? location.slice(location.indexOf("?")) : "";
+    const fromQuery = new URLSearchParams(search).get("container");
     setSelectedId((prev) => {
-      if (prev && q.data.some((c) => c.id === prev)) return prev;
-      return q.data[0].id;
+      if (fromQuery && containersQ.data.some((c) => c.id === fromQuery)) return fromQuery;
+      if (prev && containersQ.data.some((c) => c.id === prev)) return prev;
+      return containersQ.data[0].id;
     });
-  }, [q.data]);
+  }, [containersQ.data, location]);
 
-  const selected = q.data?.find((c) => c.id === selectedId) ?? null;
+  const selected = containersQ.data?.find((container) => container.id === selectedId) ?? null;
 
-  const setAdded = (id: string, value: number) => {
-    const n = Math.max(0, Math.min(999, Math.round(value)));
-    setAddedById((s) => ({ ...s, [id]: n }));
-  };
-
-  const setSupplyAdded = (containerId: string, supplyCode: string, value: number) => {
-    const n = Math.max(0, Math.min(999, Math.round(value)));
-    setAddedBySupplyByContainer((prev) => ({
-      ...prev,
-      [containerId]: {
-        ...(prev[containerId] ?? {}),
-        [supplyCode]: n,
-      },
-    }));
-  };
-
-  const restockMut = useMutation({
-    mutationFn: ({ id, added }: { id: string; added: number }) => api.containers.restock(id, added),
-    onSuccess: () => {
-      navigator.vibrate?.([30, 20, 40]);
-      toast.success(p.submitRestock);
-      qc.invalidateQueries({ queryKey: ["/api/containers"] });
-    },
-    onError: () => toast.error(p.loadError),
+  const detailsQ = useQuery({
+    queryKey: ["/api/restock/container-items", selectedId],
+    queryFn: () => api.restock.containerItems(selectedId!),
+    enabled: Boolean(selectedId),
   });
 
-  const auditMut = useMutation({
-    mutationFn: ({ id, count }: { id: string; count: number }) => api.containers.blindAudit(id, count),
-    onSuccess: () => {
-      navigator.vibrate?.([25, 15, 25]);
-      toast.success(p.submitAudit);
-      qc.invalidateQueries({ queryKey: ["/api/containers"] });
-    },
-    onError: () => toast.error(p.loadError),
-  });
+  useEffect(() => {
+    const active = detailsQ.data?.activeSession;
+    const currentUserId = getCurrentUserId();
+    if (!active || !selectedId || active.ownedByUserId !== currentUserId) return;
+    dispatch({ type: "start-success", payload: { sessionId: active.id, containerId: selectedId } });
+  }, [detailsQ.data?.activeSession, selectedId]);
 
   const bootstrapMut = useMutation({
     mutationFn: () => api.containers.bootstrapDefaults(),
@@ -98,9 +96,72 @@ export default function InventoryPage() {
       if (res.inserted > 0) {
         navigator.vibrate?.(40);
         toast.success(p.quickAddSuccess);
-      } else toast(p.quickAddNothing);
+      } else {
+        toast(p.quickAddNothing);
+      }
     },
     onError: () => toast.error(p.loadError),
+  });
+
+  const startSessionMut = useMutation({
+    mutationFn: (containerId: string) => api.restock.start(containerId),
+    onSuccess: (session) => {
+      dispatch({
+        type: "start-success",
+        payload: { sessionId: session.id, containerId: session.containerId },
+      });
+      if (selectedId) {
+        qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
+      }
+      toast.success("Restock session started");
+      navigator.vibrate?.([30, 20, 30]);
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Failed to start restock session";
+      dispatch({ type: "failure", payload: { message } });
+      toast.error(message);
+    },
+  });
+
+  const scanMut = useMutation({
+    mutationFn: (payload: { sessionId: string; itemId: string; delta: number }) =>
+      api.restock.scan(payload.sessionId, { itemId: payload.itemId, delta: payload.delta }),
+    onSuccess: () => {
+      dispatch({ type: "scan-success" });
+      if (selectedId) {
+        qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
+      }
+      navigator.vibrate?.(15);
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Failed to apply scan";
+      dispatch({ type: "failure", payload: { message } });
+      toast.error(message);
+    },
+  });
+
+  const finishMut = useMutation({
+    mutationFn: (sessionId: string) => api.restock.finish(sessionId),
+    onSuccess: (summary) => {
+      dispatch({
+        type: "finish-success",
+        payload: {
+          totalAdded: summary.totalAdded,
+          totalRemoved: summary.totalRemoved,
+          itemsMissingCount: summary.itemsMissingCount,
+        },
+      });
+      if (selectedId) {
+        qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
+      }
+      toast.success("Restock session finished");
+      navigator.vibrate?.([20, 40, 20]);
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Failed to finish restock session";
+      dispatch({ type: "failure", payload: { message } });
+      toast.error(message);
+    },
   });
 
   const billingHint = selected
@@ -108,14 +169,37 @@ export default function InventoryPage() {
       ? interpolateBilling(p.billingHint, roomNameById.get(selected.roomId)!)
       : p.billingHintNoRoom
     : "";
-  const selectedSupplyTargets = selected?.supplyTargets ?? [];
-  const hasSupplyTargets = selectedSupplyTargets.length > 0;
-  const selectedSupplyAdded = selected ? addedBySupplyByContainer[selected.id] ?? {} : {};
-  const selectedAddedQuantity = selected
-    ? hasSupplyTargets
-      ? selectedSupplyTargets.reduce((sum, target) => sum + (selectedSupplyAdded[target.code] ?? 0), 0)
-      : (addedById[selected.id] ?? 0)
-    : 0;
+
+  const activeSessionOwnedByMe = Boolean(
+    sessionState.activeSessionId &&
+      selectedId &&
+      sessionState.activeContainerId === selectedId,
+  );
+
+  const startSession = () => {
+    if (!selectedId) return;
+    dispatch({ type: "start-request" });
+    startSessionMut.mutate(selectedId);
+  };
+
+  const finishSession = () => {
+    if (!sessionState.activeSessionId) return;
+    dispatch({ type: "finish-request" });
+    finishMut.mutate(sessionState.activeSessionId);
+  };
+
+  const scanLine = (itemId: string | null, delta: number) => {
+    if (!itemId) {
+      toast.error("This blueprint item is not seeded in vt_items");
+      return;
+    }
+    if (!sessionState.activeSessionId) {
+      toast.error("Start a restock session before scanning");
+      return;
+    }
+    dispatch({ type: "scan-request" });
+    scanMut.mutate({ sessionId: sessionState.activeSessionId, itemId, delta });
+  };
 
   return (
     <Layout title={p.title}>
@@ -130,16 +214,16 @@ export default function InventoryPage() {
           </h1>
         </div>
 
-        {q.isLoading && (
+        {containersQ.isLoading && (
           <div className="space-y-2">
             <Skeleton className="h-24 w-full rounded-xl" />
             <Skeleton className="h-24 w-full rounded-xl" />
           </div>
         )}
 
-        {q.isError && <p className="text-destructive text-sm">{p.loadError}</p>}
+        {containersQ.isError && <p className="text-destructive text-sm">{p.loadError}</p>}
 
-        {q.data && q.data.length === 0 && !q.isLoading && (
+        {containersQ.data && containersQ.data.length === 0 && !containersQ.isLoading && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -159,30 +243,30 @@ export default function InventoryPage() {
           </motion.div>
         )}
 
-        {q.data && q.data.length > 0 && (
+        {containersQ.data && containersQ.data.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-2">
-            {q.data.map((c: InventoryContainer) => {
-              const isSel = selectedId === c.id;
+            {containersQ.data.map((container: InventoryContainer) => {
+              const isSelected = selectedId === container.id;
               return (
                 <motion.button
-                  key={c.id}
+                  key={container.id}
                   type="button"
                   layout
-                  onClick={() => setSelectedId(c.id)}
+                  onClick={() => setSelectedId(container.id)}
                   className={cn(
                     "text-right rounded-2xl border p-4 transition-all text-start w-full",
                     "hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isSel
+                    isSelected
                       ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/20"
-                      : "border-border bg-card"
+                      : "border-border bg-card",
                   )}
                 >
-                  <p className="font-semibold text-base leading-snug">{c.name}</p>
-                  {c.department ? (
-                    <p className="text-xs text-muted-foreground mt-1">{c.department}</p>
+                  <p className="font-semibold text-base leading-snug">{container.name}</p>
+                  {container.department ? (
+                    <p className="text-xs text-muted-foreground mt-1">{container.department}</p>
                   ) : null}
                   <p className="text-[11px] font-medium text-primary mt-2">
-                    {isSel ? p.selected : p.tapToSelect}
+                    {isSelected ? p.selected : p.tapToSelect}
                   </p>
                 </motion.button>
               );
@@ -201,6 +285,12 @@ export default function InventoryPage() {
             >
               <Card className="overflow-hidden border-border/80 shadow-sm">
                 <CardContent className="p-5 space-y-5">
+                  {sessionState.errorMessage && (
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {sessionState.errorMessage}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -211,24 +301,64 @@ export default function InventoryPage() {
                       </p>
                       <p className="text-sm text-muted-foreground mt-2">
                         {p.current}:{" "}
-                        <span className="font-semibold text-foreground">{selected.currentQuantity}</span>
+                        <span className="font-semibold text-foreground">
+                          {detailsQ.data?.lines.reduce((sum, line) => sum + line.actual, 0) ?? 0}
+                        </span>
                       </p>
                     </div>
+                    {!activeSessionOwnedByMe ? (
+                      <Button
+                        className="rounded-xl min-h-[44px]"
+                        onClick={startSession}
+                        disabled={startSessionMut.isPending || detailsQ.isLoading}
+                      >
+                        {startSessionMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        Start Session
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="rounded-xl min-h-[44px]"
+                        onClick={finishSession}
+                        disabled={finishMut.isPending}
+                      >
+                        {finishMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        Finish Session
+                      </Button>
+                    )}
                   </div>
 
                   <p className="text-xs text-muted-foreground leading-relaxed border-s-2 border-primary/40 ps-3 py-1">
                     {billingHint}
                   </p>
 
-                  {hasSupplyTargets ? (
+                  {detailsQ.isLoading && (
+                    <div className="space-y-2">
+                      <Skeleton className="h-14 w-full rounded-xl" />
+                      <Skeleton className="h-14 w-full rounded-xl" />
+                    </div>
+                  )}
+
+                  {detailsQ.data && (
                     <div className="space-y-3">
-                      <p className="text-sm font-medium">Refill checklist</p>
+                      <p className="text-sm font-medium">Blueprint checklist</p>
                       <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
-                        {selectedSupplyTargets.map((target) => (
-                          <div key={target.code} className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background p-3 md:flex-row md:items-center md:justify-between">
+                        {detailsQ.data.lines.map((line) => (
+                          <div
+                            key={line.code}
+                            className={cn(
+                              "flex flex-col gap-2 rounded-lg border bg-background p-3 md:flex-row md:items-center md:justify-between",
+                              line.missing > 0 ? "border-destructive/40" : "border-emerald-500/40",
+                            )}
+                          >
                             <div>
-                              <p className="text-sm font-semibold">{target.label}</p>
-                              <p className="text-xs text-muted-foreground">Target: {target.targetUnits}</p>
+                              <p className="text-sm font-semibold">{line.label}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Expected: {line.expected} · Actual: {line.actual} · Missing:{" "}
+                                <span className={line.missing > 0 ? "text-destructive font-semibold" : "text-emerald-600 font-semibold"}>
+                                  {line.missing}
+                                </span>
+                              </p>
                             </div>
                             <div className="flex items-center gap-2 self-end md:self-auto">
                               <Button
@@ -236,26 +366,20 @@ export default function InventoryPage() {
                                 variant="outline"
                                 size="icon"
                                 className="h-10 w-10 rounded-xl border-2"
-                                aria-label={`${p.decreaseAdded} ${target.label}`}
-                                onClick={() => setSupplyAdded(selected.id, target.code, (selectedSupplyAdded[target.code] ?? 0) - 1)}
+                                disabled={!activeSessionOwnedByMe || scanMut.isPending}
+                                onClick={() => scanLine(line.itemId, -1)}
+                                aria-label={`Decrement ${line.label}`}
                               >
                                 <Minus className="w-5 h-5" />
                               </Button>
-                              <Input
-                                type="number"
-                                min={0}
-                                inputMode="numeric"
-                                className="h-10 w-24 text-center font-semibold"
-                                value={selectedSupplyAdded[target.code] ?? 0}
-                                onChange={(e) => setSupplyAdded(selected.id, target.code, Number.parseInt(e.target.value || "0", 10))}
-                              />
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="icon"
                                 className="h-10 w-10 rounded-xl border-2"
-                                aria-label={`${p.increaseAdded} ${target.label}`}
-                                onClick={() => setSupplyAdded(selected.id, target.code, (selectedSupplyAdded[target.code] ?? 0) + 1)}
+                                disabled={!activeSessionOwnedByMe || scanMut.isPending}
+                                onClick={() => scanLine(line.itemId, +1)}
+                                aria-label={`Increment ${line.label}`}
                               >
                                 <Plus className="w-5 h-5" />
                               </Button>
@@ -263,86 +387,31 @@ export default function InventoryPage() {
                           </div>
                         ))}
                       </div>
-                      <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-center">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{p.addedLabel}</p>
-                        <p className="text-4xl font-bold tabular-nums leading-none tracking-tight">{selectedAddedQuantity}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">{p.addedLabel}</p>
-                      <div className="flex items-center justify-center gap-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-14 w-14 shrink-0 rounded-2xl border-2 text-xl"
-                          aria-label={p.decreaseAdded}
-                          onClick={() =>
-                            setAdded(selected.id, (addedById[selected.id] ?? 0) - 1)
-                          }
-                        >
-                          <Minus className="w-7 h-7" />
-                        </Button>
-                        <div className="flex flex-col items-center gap-1 min-w-[6rem]">
-                          <span className="text-5xl font-bold tabular-nums leading-none tracking-tight">
-                            {selectedAddedQuantity}
-                          </span>
+
+                      {sessionState.lastSummary && (
+                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm space-y-1">
+                          <div className="flex items-center gap-2 font-semibold">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            Last session summary
+                          </div>
+                          <p>Total added: {sessionState.lastSummary.totalAdded}</p>
+                          <p>Total removed: {sessionState.lastSummary.totalRemoved}</p>
+                          <p>Items still missing: {sessionState.lastSummary.itemsMissingCount}</p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-14 w-14 shrink-0 rounded-2xl border-2 text-xl"
-                          aria-label={p.increaseAdded}
-                          onClick={() =>
-                            setAdded(selected.id, (addedById[selected.id] ?? 0) + 1)
-                          }
-                        >
-                          <Plus className="w-7 h-7" />
-                        </Button>
-                      </div>
+                      )}
+
+                      {!activeSessionOwnedByMe &&
+                        detailsQ.data.activeSession &&
+                        detailsQ.data.activeSession.ownedByUserId !== getCurrentUserId() && (
+                          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4" />
+                              This container has an active session owned by another user.
+                            </div>
+                          </div>
+                        )}
                     </div>
                   )}
-
-                  <Button
-                    className="w-full min-h-[48px] rounded-xl font-semibold text-base"
-                    disabled={restockMut.isPending}
-                    onClick={() => {
-                      const n = selectedAddedQuantity;
-                      restockMut.mutate({ id: selected.id, added: n });
-                    }}
-                  >
-                    {restockMut.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-                    {p.submitRestock}
-                  </Button>
-
-                  <div className="border-t border-border pt-5 space-y-3">
-                    <p className="text-sm font-medium">{p.physicalCount}</p>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <Input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        className="max-w-[10rem] h-12 text-lg font-semibold"
-                        value={auditById[selected.id] ?? ""}
-                        onChange={(e) => setAuditById((s) => ({ ...s, [selected.id]: e.target.value }))}
-                      />
-                      <Button
-                        variant="secondary"
-                        className="h-12 rounded-xl font-semibold"
-                        disabled={auditMut.isPending}
-                        onClick={() => {
-                          const n = parseInt(auditById[selected.id] ?? "", 10);
-                          if (Number.isNaN(n) || n < 0) return;
-                          auditMut.mutate({ id: selected.id, count: n });
-                        }}
-                      >
-                        {auditMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        {p.submitAudit}
-                      </Button>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </motion.div>

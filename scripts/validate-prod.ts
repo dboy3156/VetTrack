@@ -1,5 +1,6 @@
 import { spawnSync, spawn } from "child_process";
 import * as http from "http";
+import { isPostgresqlConfigured } from "../server/lib/postgresql.js";
 
 interface CheckResult {
   name: string;
@@ -19,7 +20,6 @@ function fail(name: string, message: string) {
 
 function checkEnvVars() {
   const REQUIRED = [
-    "DATABASE_URL",
     "SESSION_SECRET",
     "CLERK_SECRET_KEY",
     "VITE_CLERK_PUBLISHABLE_KEY",
@@ -30,6 +30,10 @@ function checkEnvVars() {
 
   const missing: string[] = [];
   const insecure: string[] = [];
+
+  if (!isPostgresqlConfigured()) {
+    missing.push("DATABASE_URL or POSTGRES_URL");
+  }
 
   for (const varName of REQUIRED) {
     const val = process.env[varName];
@@ -52,7 +56,7 @@ function checkEnvVars() {
   if (issues.length > 0) {
     fail("Environment Variables", issues.join(" | "));
   } else {
-    pass("Environment Variables", `All ${REQUIRED.length} required variables present and valid`);
+    pass("Environment Variables", "All required variables present and valid");
   }
 }
 

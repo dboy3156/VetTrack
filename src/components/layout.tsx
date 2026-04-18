@@ -134,6 +134,43 @@ export function Layout({ children, title: _title, onScan }: LayoutProps) {
   };
 
   useQRScanner(async (assetId) => {
+    if (assetId.startsWith("inv-container:")) {
+      const containerId = assetId.slice("inv-container:".length).trim();
+      if (!containerId) {
+        toast.error("Invalid container NFC tag");
+        return;
+      }
+      navigate(`/inventory?container=${encodeURIComponent(containerId)}`);
+      return;
+    }
+
+    if (assetId.startsWith("inv-item:")) {
+      const nfcTagId = assetId.slice("inv-item:".length).trim();
+      if (!nfcTagId) {
+        toast.error("Invalid inventory item NFC tag");
+        return;
+      }
+      const raw = localStorage.getItem("vt_active_restock_session");
+      if (!raw) {
+        toast.error("Start a restock session before scanning item tags");
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as { sessionId?: string };
+        if (!parsed.sessionId) {
+          toast.error("No active restock session found");
+          return;
+        }
+        await api.restock.scan(parsed.sessionId, { nfcTagId, delta: 1 });
+        toast.success("Inventory item scanned");
+        navigate("/inventory");
+        return;
+      } catch {
+        toast.error("Inventory scan failed");
+        return;
+      }
+    }
+
     try {
       await api.equipment.get(assetId);
       navigate(`/equipment/${assetId}`);

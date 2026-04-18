@@ -1,11 +1,13 @@
 /**
- * One-time backfill: set missing user emails / names from Clerk by clerkId.
+ * Backfill missing email / name / displayName on existing vt_users rows (by clerkId).
+ * Does not create users; to import org members into the DB use POST /api/users/backfill-clerk (admin).
  *
- * Requires DATABASE_URL and CLERK_SECRET_KEY (see .env or your shell).
+ * Requires DATABASE_URL or POSTGRES_URL and CLERK_SECRET_KEY (see .env or your shell).
  *
  * Run: npx tsx scripts/backfill-users-email.ts
  */
 import "dotenv/config";
+import { isPostgresqlConfigured } from "../server/lib/postgresql.js";
 
 const CLERK_DELAY_MS = 100;
 const MAX_ATTEMPTS = 3;
@@ -20,11 +22,11 @@ function isEmpty(value: string | null | undefined): boolean {
 
 async function main(): Promise<void> {
   console.log("Starting backfill…");
-  console.log("DATABASE_URL:", process.env.DATABASE_URL ? "set" : "MISSING");
+  console.log("PostgreSQL URL:", isPostgresqlConfigured() ? "set" : "MISSING");
   console.log("CLERK_SECRET_KEY:", process.env.CLERK_SECRET_KEY ? "set" : "MISSING");
 
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not set");
+  if (!isPostgresqlConfigured()) {
+    throw new Error("DATABASE_URL or POSTGRES_URL is not set");
   }
   if (!process.env.CLERK_SECRET_KEY) {
     throw new Error("CLERK_SECRET_KEY is not set");
@@ -36,15 +38,29 @@ async function main(): Promise<void> {
 
   type ClerkUser = Awaited<ReturnType<typeof clerkClient.users.getUser>>;
 
-  function getPrimaryClerkEmail(clerkUser: ClerkUser): string {
+  /** Prefer primary; otherwise first verified; otherwise any address (accounts often lack a marked primary). */
+  function getBestClerkEmail(clerkUser: ClerkUser): string {
+    const addresses = clerkUser.emailAddresses ?? [];
     const primaryId = clerkUser.primaryEmailAddressId;
-    if (!primaryId) return "";
-    const addr = clerkUser.emailAddresses?.find((e) => e.id === primaryId);
-    return addr?.emailAddress?.trim() ?? "";
+    if (primaryId) {
+      const primary = addresses.find((e) => e.id === primaryId);
+      const s = primary?.emailAddress?.trim();
+      if (s) return s;
+    }
+    const verified = addresses.find((e) => {
+      const st = (e as { verification?: { status?: string } }).verification?.status;
+      return st === "verified";
+    });
+    if (verified?.emailAddress?.trim()) return verified.emailAddress.trim();
+    const first = addresses.find((e) => e.emailAddress?.trim());
+    return first?.emailAddress?.trim() ?? "";
   }
 
   function getClerkName(clerkUser: ClerkUser): string {
-    return `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
+    const fromNames = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
+    if (fromNames) return fromNames;
+    const username = (clerkUser as { username?: string | null }).username?.trim();
+    return username ?? "";
   }
 
   try {
@@ -68,6 +84,15 @@ async function main(): Promise<void> {
       `Found ${rows.length} user row(s); ${needsBackfill.length} need backfill (missing email, name, or displayName).\n`,
     );
 
+    if (needsBackfill.length === 0) {
+      console.log(
+        "Every row already has email, name, and displayName — nothing for this script to update.",
+      );
+      console.log(
+        "This script does not create new users. To sync your Clerk organization roster into the DB, call POST /api/users/backfill-clerk as an admin.\n",
+      );
+    }
+
     let updated = 0;
     let skipped = 0;
     let clerkCallIndex = 0;
@@ -84,7 +109,7 @@ async function main(): Promise<void> {
         }
         try {
           const clerkUser = await clerkClient.users.getUser(user.clerkId);
-          const clerkEmail = getPrimaryClerkEmail(clerkUser);
+          const clerkEmail = getBestClerkEmail(clerkUser);
           const clerkName = getClerkName(clerkUser);
 
           const patch: Record<string, string> = {};
@@ -97,7 +122,7 @@ async function main(): Promise<void> {
           if (Object.keys(patch).length === 0) {
             skipped += 1;
             console.warn(
-              `[skipped] id=${user.id} clerkId=${user.clerkId} — Clerk has no data to fill`,
+              `[skipped] id=${user.id} clerkId=${user.clerkId} — nothing to apply (Clerk email=${clerkEmail ? `"${clerkEmail}"` : "none"} name=${clerkName ? `"${clerkName}"` : "none"}; DB still missing: email=${isEmpty(user.email)} name=${isEmpty(user.name)} displayName=${isEmpty(user.displayName)})`,
             );
           } else {
             await db.update(users).set(patch).where(eq(users.id, user.id));
@@ -123,7 +148,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `\nDone. Updated: ${updated}; skipped (no Clerk data): ${skipped}; total checked: ${needsBackfill.length}`,
+      `\nDone. Updated: ${updated}; skipped (no Clerk data): ${skipped}; rows needing backfill: ${needsBackfill.length}`,
     );
   } finally {
     await pool.end();
