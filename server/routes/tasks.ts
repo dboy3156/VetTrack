@@ -10,7 +10,12 @@ import {
 } from "../services/appointments.service.js";
 import { getTaskRecommendations } from "../services/task-intelligence.service.js";
 import { getTaskDashboard } from "../services/task-recall.service.js";
-import { canPerformTaskAction, type TaskAction } from "../lib/task-rbac.js";
+import {
+  canPerformMedicationTaskAction,
+  canPerformTaskAction,
+  type MedicationTaskAction,
+  type TaskAction,
+} from "../lib/task-rbac.js";
 
 const router = Router();
 
@@ -81,6 +86,26 @@ function requireTaskActionPermission(
   return false;
 }
 
+function requireTaskOrMedicationActionPermission(
+  req: { authUser?: { role?: string }; effectiveRole?: string },
+  res: Response,
+  taskAction: TaskAction,
+  medicationAction: MedicationTaskAction,
+): boolean {
+  const role = resolveTaskAuthRole(req);
+  if (canPerformTaskAction(role, taskAction) || canPerformMedicationTaskAction(role, medicationAction)) return true;
+  const requestId = resolveRequestId(res, null);
+  res.status(403).json(
+    apiError({
+      code: "INSUFFICIENT_ROLE",
+      reason: "INSUFFICIENT_ROLE",
+      message: "Insufficient task permissions",
+      requestId,
+    }),
+  );
+  return false;
+}
+
 router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskActionPermission(req, res, "task.read")) return;
@@ -123,7 +148,7 @@ router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async 
 
 router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-  if (!requireTaskActionPermission(req, res, "task.start")) return;
+  if (!requireTaskOrMedicationActionPermission(req, res, "task.start", "med.start")) return;
   if (!req.params.id?.trim()) {
     return res.status(400).json(
       apiError({
@@ -148,6 +173,7 @@ router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async
     const task = await startTask(req.clinicId!, req.params.id, {
       userId: req.authUser.id,
       email: req.authUser.email,
+      role: resolveTaskAuthRole(req),
     });
     return res.json({ task });
   } catch (err) {
@@ -166,7 +192,7 @@ router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async
 
 router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-  if (!requireTaskActionPermission(req, res, "task.complete")) return;
+  if (!requireTaskOrMedicationActionPermission(req, res, "task.complete", "med.complete")) return;
   if (!req.params.id?.trim()) {
     return res.status(400).json(
       apiError({
@@ -191,6 +217,7 @@ router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), as
     const task = await completeTask(req.clinicId!, req.params.id, {
       userId: req.authUser.id,
       email: req.authUser.email,
+      role: resolveTaskAuthRole(req),
     });
     return res.json({ task });
   } catch (err) {

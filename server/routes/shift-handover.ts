@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, desc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
-import { billingLedger, db, equipment, scanLogs, shiftSessions, usageSessions } from "../db.js";
+import { appointments, billingLedger, db, equipment, scanLogs, shiftSessions, usageSessions } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 
@@ -124,6 +124,22 @@ router.get("/summary", requireAuth, requireEffectiveRole("technician"), async (r
       .where(
         and(eq(billingLedger.clinicId, clinicId), gte(billingLedger.createdAt, windowStart)),
       );
+    const [medicationDelay] = await db
+      .select({
+        avgDelaySeconds:
+          sql<number>`coalesce(avg(extract(epoch from (${appointments.completedAt} - ${appointments.scheduledAt}))), 0)::int`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.taskType, "medication"),
+          eq(appointments.status, "completed"),
+          gte(appointments.completedAt, windowStart),
+          isNotNull(appointments.completedAt),
+          isNotNull(appointments.scheduledAt),
+        ),
+      );
 
     const revenueCents = revenueRows[0]?.total ?? 0;
 
@@ -201,6 +217,7 @@ router.get("/summary", requireAuth, requireEffectiveRole("technician"), async (r
       windowEnd: now.toISOString(),
       windowSource: source,
       revenueCents,
+      averageMedicationDelaySeconds: medicationDelay?.avgDelaySeconds ?? 0,
       unreturned,
       expiringAssets,
       hotAssets,

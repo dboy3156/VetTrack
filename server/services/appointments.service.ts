@@ -1,11 +1,14 @@
 import { randomUUID } from "crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
-import { animals, appointments, db, owners, shifts, users } from "../db.js";
+import { animals, appointments, billingItems, billingLedger, db, owners, shifts, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
+import { validateJustificationText, MedJustificationError, resolvePresetLabel } from "../lib/med-justification.js";
 import { incrementMetric } from "../lib/metrics.js";
 import { broadcast } from "../lib/realtime.js";
 import { sendTaskNotification } from "../lib/task-notification.js";
+import { canPerformMedicationTaskAction } from "../lib/task-rbac.js";
+import { doseDeviationRatio, justificationTier, requiresDoseJustification } from "../../shared/medication-justification.js";
 
 export type AppointmentStatus =
   | "pending"
@@ -20,6 +23,7 @@ export type AppointmentStatus =
 export interface TaskAuditActor {
   userId: string;
   email: string;
+  role?: string;
 }
 
 export type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
@@ -27,7 +31,7 @@ export type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 type AppointmentRecord = typeof appointments.$inferSelect;
 
 const PRIORITIES: TaskPriority[] = ["critical", "high", "normal"];
-const TASK_TYPES: TaskType[] = ["maintenance", "repair", "inspection"];
+const TASK_TYPES: TaskType[] = ["maintenance", "repair", "inspection", "medication"];
 
 export interface AppointmentInput {
   animalId?: string | null;
@@ -36,10 +40,12 @@ export interface AppointmentInput {
   vetId?: string | null;
   startTime: string | Date;
   endTime: string | Date;
+  scheduledAt?: string | Date | null;
   status?: AppointmentStatus;
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  metadata?: Record<string, unknown> | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
 }
@@ -50,10 +56,12 @@ export interface AppointmentUpdateInput {
   vetId?: string | null;
   startTime?: string | Date;
   endTime?: string | Date;
+  scheduledAt?: string | Date | null;
   status?: AppointmentStatus;
   conflictOverride?: boolean;
   overrideReason?: string | null;
   notes?: string | null;
+  metadata?: Record<string, unknown> | null;
   priority?: TaskPriority;
   taskType?: TaskType | null;
 }
@@ -96,6 +104,143 @@ const VALID_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> =
 
 const DB_ACTIVE_STATUSES: AppointmentStatus[] = ["pending", "assigned", "scheduled", "arrived", "in_progress"];
 
+type MedicationJustificationKind = "preset" | "custom";
+
+interface MedicationMetadata {
+  kind?: "medication";
+  createdBy?: string;
+  acknowledgedBy?: string;
+  completedBy?: string;
+  acknowledged_at?: string;
+  completed_at?: string;
+  prescribedByName?: string;
+  doseMgPerKg?: number;
+  defaultDoseMgPerKg?: number;
+  concentrationMgPerMl?: number;
+  calculatedVolumeMl?: number;
+  doseJustification?: string;
+  doseJustificationKind?: MedicationJustificationKind;
+  doseJustificationPresetCode?: string;
+  [key: string]: unknown;
+}
+
+function normalizeRole(roleInput: string | null | undefined): string {
+  return (roleInput ?? "").trim().toLowerCase();
+}
+
+function isMedicationTaskType(taskType: TaskType | null | undefined): boolean {
+  return taskType === "medication";
+}
+
+function asMetadataRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function medicationMetadataFromUnknown(value: unknown): MedicationMetadata {
+  const record = asMetadataRecord(value);
+  return record ? ({ ...record } as MedicationMetadata) : {};
+}
+
+function computeDoseDeviation(meta: MedicationMetadata): number {
+  if (!Number.isFinite(meta.doseMgPerKg) || !Number.isFinite(meta.defaultDoseMgPerKg)) return 0;
+  return doseDeviationRatio(meta.doseMgPerKg as number, meta.defaultDoseMgPerKg as number);
+}
+
+function normalizeMedicationMetadata(
+  metadataInput: unknown,
+  actor: TaskAuditActor | undefined,
+): MedicationMetadata {
+  const metadata = medicationMetadataFromUnknown(metadataInput);
+  metadata.kind = "medication";
+
+  if (actor?.userId && !metadata.createdBy) {
+    metadata.createdBy = actor.userId;
+  }
+
+  const hasDoseInputs =
+    Number.isFinite(metadata.doseMgPerKg) && Number.isFinite(metadata.defaultDoseMgPerKg);
+  if (!hasDoseInputs) {
+    delete metadata.doseJustification;
+    delete metadata.doseJustificationKind;
+    delete metadata.doseJustificationPresetCode;
+    return metadata;
+  }
+
+  const deviation = computeDoseDeviation(metadata);
+  const tier = justificationTier(deviation);
+  const needsJustification = requiresDoseJustification(
+    metadata.doseMgPerKg as number,
+    metadata.defaultDoseMgPerKg as number,
+  );
+
+  if (!needsJustification) {
+    delete metadata.doseJustification;
+    delete metadata.doseJustificationKind;
+    delete metadata.doseJustificationPresetCode;
+    return metadata;
+  }
+
+  if (metadata.doseJustificationKind === "preset") {
+    const presetCode = String(metadata.doseJustificationPresetCode ?? "").trim();
+    if (!presetCode) {
+      throw new AppointmentServiceError("JUSTIFICATION_TOO_SHORT", 400, "Justification preset is required");
+    }
+    const label = resolvePresetLabel(presetCode);
+    metadata.doseJustification = validateJustificationText(label, tier);
+    metadata.doseJustificationPresetCode = presetCode;
+    return metadata;
+  }
+
+  const rawText = String(metadata.doseJustification ?? "");
+  metadata.doseJustification = validateJustificationText(rawText, tier);
+  metadata.doseJustificationKind = "custom";
+  delete metadata.doseJustificationPresetCode;
+  return metadata;
+}
+
+function actorCanOverrideMedicationOwnership(roleInput: string | null | undefined): boolean {
+  const role = normalizeRole(roleInput);
+  return role === "admin" || role === "vet" || role === "senior_technician";
+}
+
+const MEDICATION_TASK_BILLING_CODE = "MEDICATION_TASK";
+
+async function resolveMedicationBillingItemId(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  clinicId: string,
+): Promise<{ id: string; unitPriceCents: number }> {
+  const [existing] = await tx
+    .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
+    .from(billingItems)
+    .where(and(eq(billingItems.clinicId, clinicId), eq(billingItems.code, MEDICATION_TASK_BILLING_CODE)))
+    .limit(1);
+  if (existing) return existing;
+
+  const id = randomUUID();
+  const unitPriceCents = 0;
+  await tx.insert(billingItems).values({
+    id,
+    clinicId,
+    code: MEDICATION_TASK_BILLING_CODE,
+    description: "Medication administration task",
+    unitPriceCents,
+    chargeKind: "per_unit",
+  });
+  return { id, unitPriceCents };
+}
+
+function normalizeMedicationMetadataOrThrow(metadataInput: unknown, actor: TaskAuditActor | undefined): MedicationMetadata {
+  try {
+    return normalizeMedicationMetadata(metadataInput, actor);
+  } catch (error) {
+    if (error instanceof MedJustificationError) {
+      throw new AppointmentServiceError(error.code, 400, error.message);
+    }
+    throw error;
+  }
+}
+
 function assertClinicId(clinicId: string): string {
   const normalized = clinicId.trim();
   if (!normalized) {
@@ -104,7 +249,7 @@ function assertClinicId(clinicId: string): string {
   return normalized;
 }
 
-function toUtcDate(value: string | Date, field: "startTime" | "endTime"): Date {
+function toUtcDate(value: string | Date, field: string): Date {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
       throw new AppointmentServiceError("INVALID_TIME", 400, `${field} must be a valid UTC timestamp`);
@@ -420,6 +565,9 @@ function serializeAppointment(row: AppointmentRecord) {
     vetId: row.vetId ?? null,
     startTime: new Date(row.startTime).toISOString(),
     endTime: new Date(row.endTime).toISOString(),
+    scheduledAt: row.scheduledAt ? new Date(row.scheduledAt).toISOString() : null,
+    completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
+    metadata: row.metadata ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -429,6 +577,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
   const clinicId = assertClinicId(clinicIdInput);
   const startTime = toUtcDate(payload.startTime, "startTime");
   const endTime = toUtcDate(payload.endTime, "endTime");
+  const scheduledAt = payload.scheduledAt ? toUtcDate(payload.scheduledAt, "scheduledAt") : startTime;
   ensureTimeWindow(startTime, endTime);
 
   const notes = normalizeNotes(payload.notes);
@@ -436,6 +585,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
   const overrideReason = normalizeNotes(payload.overrideReason);
   const priority = normalizePriority(payload.priority);
   const taskType = normalizeTaskType(payload.taskType);
+  const metadataInput = payload.metadata ?? null;
   const ownerId = payload.ownerId?.trim() || null;
   const animalId = payload.animalId?.trim() || null;
   const vetId = payload.vetId?.trim() ? payload.vetId.trim() : null;
@@ -454,6 +604,14 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
   }
   let finalConflictOverride = conflictOverride;
   let finalOverrideReason = overrideReason;
+  let metadataRecord = asMetadataRecord(metadataInput);
+
+  if (isMedicationTaskType(taskType)) {
+    if (actor && !canPerformMedicationTaskAction(actor.role, "med.task.create")) {
+      throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
+    }
+    metadataRecord = normalizeMedicationMetadataOrThrow(metadataInput, actor);
+  }
 
   if (status !== "cancelled" && status !== "no_show") {
     await assertWithinVetShift({ clinicId, vetId, startTime, endTime });
@@ -498,10 +656,13 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       vetId,
       startTime,
       endTime,
+      scheduledAt,
+      completedAt: status === "completed" ? now : null,
       status,
       conflictOverride: finalConflictOverride,
       overrideReason: finalOverrideReason,
       notes,
+      metadata: metadataRecord,
       priority,
       taskType,
       createdAt: now,
@@ -551,6 +712,11 @@ export async function updateAppointment(
   if (!existing) {
     throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
   }
+  if (isMedicationTaskType(existing.taskType as TaskType | null) && actor) {
+    if (!canPerformMedicationTaskAction(actor.role, "med.task.cancel")) {
+      throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
+    }
+  }
 
   const previousSnapshot = { ...serializeAppointment(existing) };
 
@@ -558,6 +724,12 @@ export async function updateAppointment(
     payload.vetId === undefined ? existing.vetId : payload.vetId?.trim() ? payload.vetId.trim() : null;
   const nextStartTime = payload.startTime ? toUtcDate(payload.startTime, "startTime") : existing.startTime;
   const nextEndTime = payload.endTime ? toUtcDate(payload.endTime, "endTime") : existing.endTime;
+  const nextScheduledAt =
+    payload.scheduledAt === undefined
+      ? (existing.scheduledAt ?? nextStartTime)
+      : payload.scheduledAt === null
+        ? null
+        : toUtcDate(payload.scheduledAt, "scheduledAt");
   const nextStatus = payload.status ? normalizeStatus(payload.status) : (existing.status as AppointmentStatus);
   const nextConflictOverride =
     payload.conflictOverride === undefined ? existing.conflictOverride : payload.conflictOverride === true;
@@ -566,6 +738,7 @@ export async function updateAppointment(
   const nextOwnerId = payload.ownerId === undefined ? existing.ownerId : (payload.ownerId?.trim() || null);
   const nextAnimalId = payload.animalId === undefined ? existing.animalId : (payload.animalId?.trim() || null);
   const nextNotes = payload.notes === undefined ? existing.notes : normalizeNotes(payload.notes);
+  const nextMetadataInput = payload.metadata === undefined ? existing.metadata : payload.metadata;
   const nextPriority =
     payload.priority !== undefined
       ? normalizePriority(payload.priority)
@@ -574,6 +747,14 @@ export async function updateAppointment(
     payload.taskType !== undefined
       ? normalizeTaskType(payload.taskType)
       : normalizeTaskType((existing as { taskType?: TaskType | null }).taskType);
+  let nextMetadata = asMetadataRecord(nextMetadataInput);
+
+  if (isMedicationTaskType(nextTaskType)) {
+    if (actor && !canPerformMedicationTaskAction(actor.role, "med.dose.edit")) {
+      throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
+    }
+    nextMetadata = normalizeMedicationMetadataOrThrow(nextMetadataInput, actor);
+  }
 
   if (!nextVetId && nextStatus !== "pending" && nextStatus !== "cancelled") {
     throw new AppointmentServiceError(
@@ -661,10 +842,13 @@ export async function updateAppointment(
       ownerId: nextOwnerId,
       startTime: nextStartTime,
       endTime: nextEndTime,
+      scheduledAt: nextScheduledAt,
+      completedAt: nextStatus === "completed" ? (existing.completedAt ?? new Date()) : existing.completedAt,
       status: nextStatus,
       conflictOverride: finalConflictOverride,
       overrideReason: finalOverrideReason,
       notes: nextNotes,
+      metadata: nextMetadata,
       priority: nextPriority,
       taskType: nextTaskType,
       updatedAt: new Date(),
@@ -747,11 +931,17 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
   }
 
+  const isMedicationTask = isMedicationTaskType(existing.taskType as TaskType | null);
+  const actorRole = normalizeRole(actor.role);
+  if (isMedicationTask && !canPerformMedicationTaskAction(actorRole, "med.start")) {
+    throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
+  }
+
   const vetId = existing.vetId;
   if (!vetId) {
     throw new AppointmentServiceError("TASK_NOT_ASSIGNED", 400, "Task has no technician assigned");
   }
-  if (vetId !== actor.userId) {
+  if (vetId !== actor.userId && actorRole !== "admin") {
     throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can start this task");
   }
 
@@ -765,10 +955,21 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
 
   await assertVetInClinic(clinicId, vetId);
 
+  const now = new Date();
+  const metadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
+  if (metadata) {
+    metadata.acknowledgedBy = actor.userId;
+    metadata.acknowledged_at = now.toISOString();
+  }
   const previousSnapshot = { ...serializeAppointment(existing) };
   const [updated] = await db
     .update(appointments)
-    .set({ status: "in_progress", updatedAt: new Date() })
+    .set({
+      status: "in_progress",
+      ...(metadata ? { metadata } : {}),
+      scheduledAt: existing.scheduledAt ?? existing.startTime,
+      updatedAt: now,
+    })
     .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
     .returning();
 
@@ -800,8 +1001,29 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
     throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
   }
 
+  const isMedicationTask = isMedicationTaskType(existing.taskType as TaskType | null);
+  const actorRole = normalizeRole(actor.role);
+  if (isMedicationTask && !canPerformMedicationTaskAction(actorRole, "med.complete")) {
+    throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
+  }
+
   const vetId = existing.vetId;
-  if (!vetId || vetId !== actor.userId) {
+  if (!vetId) {
+    throw new AppointmentServiceError("TASK_NOT_ASSIGNED", 400, "Task has no technician assigned");
+  }
+
+  if (isMedicationTask) {
+    const metadata = medicationMetadataFromUnknown(existing.metadata);
+    const acknowledgedBy = typeof metadata.acknowledgedBy === "string" ? metadata.acknowledgedBy : null;
+    const canOverride = actorCanOverrideMedicationOwnership(actorRole);
+    if (!canOverride && acknowledgedBy !== actor.userId) {
+      throw new AppointmentServiceError(
+        "TASK_NOT_OWNED_BY_TECH",
+        403,
+        "Medication tasks can only be completed by the acknowledging technician or vet/admin",
+      );
+    }
+  } else if (vetId !== actor.userId) {
     throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can complete this task");
   }
 
@@ -816,11 +1038,56 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
   await assertVetInClinic(clinicId, vetId);
 
   const previousSnapshot = { ...serializeAppointment(existing) };
-  const [updated] = await db
-    .update(appointments)
-    .set({ status: "completed", updatedAt: new Date() })
-    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
-    .returning();
+  const completedAt = new Date();
+  const [updated] = await db.transaction(async (tx) => {
+    const existingMetadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
+    if (existingMetadata) {
+      existingMetadata.completedBy = actor.userId;
+      existingMetadata.completed_at = completedAt.toISOString();
+    }
+
+    const [row] = await tx
+      .update(appointments)
+      .set({
+        status: "completed",
+        completedAt,
+        ...(existingMetadata ? { metadata: existingMetadata } : {}),
+        updatedAt: completedAt,
+      })
+      .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+      .returning();
+
+    if (!row) {
+      throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+    }
+
+    if (isMedicationTask && row.animalId) {
+      const idempotencyKey = `medication-task-complete:${row.id}`;
+      const [existingLedger] = await tx
+        .select({ id: billingLedger.id })
+        .from(billingLedger)
+        .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, idempotencyKey)))
+        .limit(1);
+
+      if (!existingLedger) {
+        const billing = await resolveMedicationBillingItemId(tx, clinicId);
+        await tx.insert(billingLedger).values({
+          id: randomUUID(),
+          clinicId,
+          animalId: row.animalId,
+          itemType: "CONSUMABLE",
+          itemId: billing.id,
+          quantity: 1,
+          unitPriceCents: billing.unitPriceCents,
+          totalAmountCents: billing.unitPriceCents,
+          idempotencyKey,
+          status: "pending",
+        });
+      }
+    }
+
+    return [row] as const;
+  });
 
   const serialized = serializeAppointment(updated);
   incrementMetric("tasks_completed");

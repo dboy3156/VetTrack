@@ -4,7 +4,7 @@
  */
 
 export type TaskPriority = "critical" | "high" | "normal";
-export type TaskType = "maintenance" | "repair" | "inspection";
+export type TaskType = "maintenance" | "repair" | "inspection" | "medication";
 
 /** Canonical task status (execution engine). */
 export type ServiceTaskStatus = "pending" | "assigned" | "in_progress" | "completed" | "cancelled";
@@ -43,12 +43,15 @@ export type AppointmentLike = {
   vetId: string | null;
   startTime: string;
   endTime: string;
+  scheduledAt?: string | null;
+  completedAt?: string | null;
   status: DbAppointmentStatus;
   conflictOverride: boolean;
   overrideReason?: string | null;
   notes?: string | null;
   priority?: TaskPriority | null;
   taskType?: TaskType | null;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };

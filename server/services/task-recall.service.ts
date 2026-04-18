@@ -30,6 +30,9 @@ function serializeAppointment(row: AppointmentRow) {
     vetId: row.vetId ?? null,
     startTime: new Date(row.startTime).toISOString(),
     endTime: new Date(row.endTime).toISOString(),
+    scheduledAt: row.scheduledAt ? new Date(row.scheduledAt).toISOString() : null,
+    completedAt: row.completedAt ? new Date(row.completedAt).toISOString() : null,
+    metadata: row.metadata ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };

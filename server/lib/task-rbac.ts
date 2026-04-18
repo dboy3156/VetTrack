@@ -7,6 +7,14 @@ export type TaskAction =
   | "task.start"
   | "task.complete";
 
+export type MedicationTaskAction =
+  | "med.read"
+  | "med.task.create"
+  | "med.task.cancel"
+  | "med.dose.edit"
+  | "med.start"
+  | "med.complete";
+
 function normalizedRole(role: string | null | undefined): string {
   return (role ?? "").trim().toLowerCase();
 }
@@ -36,6 +44,35 @@ export function canPerformTaskAction(roleInput: string | null | undefined, actio
 
   if (role === "viewer") {
     return action === "task.read";
+  }
+
+  return false;
+}
+
+export function canPerformMedicationTaskAction(
+  roleInput: string | null | undefined,
+  action: MedicationTaskAction,
+): boolean {
+  const role = normalizedRole(roleInput);
+
+  if (role === "admin") return true;
+
+  if (role === "vet" || role === "senior_technician") {
+    return (
+      action === "med.read" ||
+      action === "med.task.create" ||
+      action === "med.task.cancel" ||
+      action === "med.dose.edit" ||
+      action === "med.complete"
+    );
+  }
+
+  if (role === "technician") {
+    return action === "med.read" || action === "med.start" || action === "med.complete";
+  }
+
+  if (role === "viewer") {
+    return action === "med.read";
   }
 
   return false;
