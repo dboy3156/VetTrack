@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { billingLedger, containers, db, inventoryLogs } from "../db.js";
+import { billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs } from "../db.js";
 import {
   consumedFromBlueprint,
   INVENTORY_BLUEPRINT,
@@ -9,6 +9,7 @@ import {
   targetQuantityFromSupplies,
 } from "../config/inventoryBlueprint.js";
 import { findActiveAnimalInRoom, resolveBillingItemForContainer, restockLedgerIdempotencyKey } from "../lib/container-billing.js";
+import { RestockServiceError } from "./restock.service.js";
 
 /**
  * Aligns persisted `vt_containers.target_quantity` with the current blueprint for that
@@ -233,4 +234,37 @@ export async function restockContainerInTx(
 export async function restockContainer(params: RestockContainerParams): Promise<RestockContainerResult> {
   const now = new Date();
   return db.transaction(async (tx) => restockContainerInTx(tx, params, now));
+}
+
+/**
+ * Resolves inventory item identity from NFC tag id.
+ * Used by restock/NFC flows that must map through vt_items canonical identity.
+ */
+export async function resolveItemByNFCTag(params: { clinicId: string; nfcTagId: string }) {
+  const normalizedTag = params.nfcTagId.trim();
+  if (!normalizedTag) {
+    throw new RestockServiceError("NFC_TAG_REQUIRED", 400, "nfcTagId is required");
+  }
+  const [item] = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.clinicId, params.clinicId), eq(inventoryItems.nfcTagId, normalizedTag)))
+    .limit(1);
+  if (!item) {
+    throw new RestockServiceError("ITEM_NOT_FOUND", 404, "No item found for this NFC tag");
+  }
+  return item;
+}
+
+/**
+ * Aggregates container quantity from vt_container_items (single source of truth).
+ */
+export async function getContainerQuantityFromItems(params: { clinicId: string; containerId: string }): Promise<number> {
+  const rows = await db
+    .select({
+      qty: sql<number>`COALESCE(SUM(${containerItems.quantity}), 0)`,
+    })
+    .from(containerItems)
+    .where(and(eq(containerItems.clinicId, params.clinicId), eq(containerItems.containerId, params.containerId)));
+  return Number(rows[0]?.qty ?? 0);
 }

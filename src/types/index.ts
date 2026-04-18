@@ -475,6 +475,38 @@ export interface InventoryContainer {
   }>;
 }
 
+export interface RestockSession {
+  id: string;
+  clinicId: string;
+  containerId: string;
+  ownedByUserId: string;
+  status: "active" | "finished";
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface RestockContainerLine {
+  itemId: string | null;
+  code: string;
+  label: string;
+  expected: number;
+  actual: number;
+  missing: number;
+}
+
+export interface RestockContainerView {
+  container: InventoryContainer;
+  lines: RestockContainerLine[];
+  activeSession: RestockSession | null;
+}
+
+export interface RestockFinishSummary {
+  session: RestockSession;
+  totalAdded: number;
+  totalRemoved: number;
+  itemsMissingCount: number;
+}
+
 export interface ShiftHandoverSession {
   id: string;
   clinicId: string;

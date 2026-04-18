@@ -244,6 +244,87 @@ export const containers = pgTable("vt_containers", {
   nfcTagId: text("nfc_tag_id").unique(),
 });
 
+export const inventoryItems = pgTable(
+  "vt_items",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    nfcTagId: text("nfc_tag_id").unique(),
+    category: text("category"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicCodeUnique: uniqueIndex("vt_items_clinic_code_unique").on(table.clinicId, table.code),
+    clinicIdx: index("idx_items_clinic").on(table.clinicId),
+  }),
+);
+
+export const containerItems = pgTable(
+  "vt_container_items",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    containerId: text("container_id")
+      .notNull()
+      .references(() => containers.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    containerItemUnique: uniqueIndex("vt_container_items_container_item_unique").on(table.containerId, table.itemId),
+    clinicIdx: index("idx_container_items_clinic").on(table.clinicId),
+  }),
+);
+
+export const restockSessions = pgTable(
+  "vt_restock_sessions",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    containerId: text("container_id")
+      .notNull()
+      .references(() => containers.id, { onDelete: "cascade" }),
+    ownedByUserId: text("owned_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: text("status").notNull().default("active"),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (table) => ({
+    clinicContainerIdx: index("idx_restock_sessions_clinic_container").on(table.clinicId, table.containerId),
+    ownerIdx: index("idx_restock_sessions_owner").on(table.ownedByUserId),
+  }),
+);
+
+export const restockEvents = pgTable(
+  "vt_restock_events",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => restockSessions.id, { onDelete: "cascade" }),
+    containerId: text("container_id")
+      .notNull()
+      .references(() => containers.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "restrict" }),
+    delta: integer("delta").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionIdx: index("idx_restock_events_session").on(table.sessionId),
+    containerIdx: index("idx_restock_events_container").on(table.containerId),
+  }),
+);
+
 export const inventoryLogs = pgTable(
   "vt_inventory_logs",
   {
