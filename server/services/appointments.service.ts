@@ -9,6 +9,7 @@ import { incrementMetric } from "../lib/metrics.js";
 import { broadcast } from "../lib/realtime.js";
 import { sendTaskNotification } from "../lib/task-notification.js";
 import { canPerformMedicationTaskAction } from "../lib/task-rbac.js";
+import { deductMedicationInventoryInTx } from "./inventory.service.js";
 import { doseDeviationRatio, justificationTier, requiresDoseJustification } from "../../shared/medication-justification.js";
 
 export type AppointmentStatus =
@@ -1202,6 +1203,34 @@ export async function completeTask(
         idempotencyKey,
         status: "pending",
       }).onConflictDoNothing();
+
+      if (containerId && row.animalId && normalizedExecution?.calculatedVolumeMl) {
+        try {
+          const deductResult = await deductMedicationInventoryInTx(tx, {
+            clinicId,
+            containerId,
+            volumeMl: normalizedExecution.calculatedVolumeMl,
+            actorUserId: actor.userId,
+            taskId,
+            animalId: row.animalId,
+          });
+          if ("error" in deductResult) {
+            console.warn("[completeTask] inventory deduction failed", {
+              clinicId,
+              taskId,
+              containerId,
+              error: deductResult.error,
+            });
+          }
+        } catch (error) {
+          console.warn("[completeTask] inventory deduction failed", {
+            clinicId,
+            taskId,
+            containerId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     }
 
     return [row] as const;
