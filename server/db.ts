@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import {
   pgTable,
@@ -13,6 +14,7 @@ import {
   date,
   time,
   uuid,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 if (!process.env.DATABASE_URL) {
@@ -125,6 +127,27 @@ export const billingItems = pgTable("vt_billing_items", {
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const drugFormulary = pgTable(
+  "vt_drug_formulary",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    name: text("name").notNull(),
+    concentrationMgMl: numeric("concentration_mg_ml", { precision: 10, scale: 4 }).notNull(),
+    standardDose: numeric("standard_dose", { precision: 10, scale: 4 }).notNull(),
+    doseUnit: varchar("dose_unit", { length: 20 }).notNull().default("mg_per_kg"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (table) => ({
+    clinicNameUnique: uniqueIndex("vt_drug_formulary_clinic_name_unique").on(
+      table.clinicId,
+      sql`lower(${table.name})`,
+    ),
+  }),
+);
 
 export const equipment = pgTable("vt_equipment", {
   id: text("id").primaryKey(),

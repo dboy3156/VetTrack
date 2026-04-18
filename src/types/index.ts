@@ -328,6 +328,24 @@ export interface MedicationExecutionTask extends Appointment {
   animalWeightKg: number | null;
 }
 
+export interface DrugFormularyEntry {
+  id: string;
+  clinicId: string;
+  name: string;
+  concentrationMgMl: number;
+  standardDose: number;
+  doseUnit: "mg_per_kg" | "mcg_per_kg";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDrugFormularyRequest {
+  name: string;
+  concentrationMgMl: number;
+  standardDose: number;
+  doseUnit: "mg_per_kg" | "mcg_per_kg";
+}
+
 /** GET /api/tasks/dashboard — single payload for Daily Recall UI. */
 export interface TaskDashboard {
   today: Appointment[];

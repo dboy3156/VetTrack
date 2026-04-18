@@ -45,6 +45,8 @@ import type {
   UpdateAppointmentRequest,
   TaskDashboard,
   TaskRecommendations,
+  DrugFormularyEntry,
+  CreateDrugFormularyRequest,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -920,6 +922,13 @@ export const api = {
         `/api/tasks/${id}/complete`,
         { method: "POST", body: JSON.stringify(payload ?? {}) },
       ).then((r) => r.task),
+  },
+  formulary: {
+    list: () => request<DrugFormularyEntry[]>("/api/formulary"),
+    upsert: (data: CreateDrugFormularyRequest) =>
+      request<DrugFormularyEntry>("/api/formulary", { method: "POST", body: JSON.stringify(data) }),
+    remove: (id: string) =>
+      request<void>(`/api/formulary/${id}`, { method: "DELETE" }),
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),

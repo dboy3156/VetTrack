@@ -1,4 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import type { DrugFormularyEntry as ApiDrugFormularyEntry } from "@/types";
+import { SEEDED_FORMULARY as SHARED_SEEDED_FORMULARY } from "../../shared/drug-formulary-seed";
 
 export type DrugDoseUnit = "mg_per_kg" | "mcg_per_kg";
 
@@ -11,28 +15,15 @@ export interface DrugFormularyEntry {
 
 type DrugFormularyStore = Record<string, DrugFormularyEntry>;
 
-const STORAGE_KEY = "vettrack-drug-formulary";
-
-const SEEDED_FORMULARY: DrugFormularyEntry[] = [
-  // Seed defaults should be validated against each clinic's approved formulary.
-  { name: "Ketamine", concentrationMgMl: 100, standardDose: 5, doseUnit: "mg_per_kg" },
-  { name: "Propofol", concentrationMgMl: 10, standardDose: 4, doseUnit: "mg_per_kg" },
-  { name: "Dexdomitor", concentrationMgMl: 0.5, standardDose: 5, doseUnit: "mcg_per_kg" },
-  { name: "Cerenia", concentrationMgMl: 10, standardDose: 1, doseUnit: "mg_per_kg" },
-  { name: "Morphine", concentrationMgMl: 10, standardDose: 0.2, doseUnit: "mg_per_kg" },
-  { name: "Optalgin", concentrationMgMl: 500, standardDose: 25, doseUnit: "mg_per_kg" },
-  { name: "Pramin", concentrationMgMl: 5, standardDose: 0.5, doseUnit: "mg_per_kg" },
-];
+export const SEEDED_FORMULARY: DrugFormularyEntry[] = SHARED_SEEDED_FORMULARY.map((entry) => ({
+  name: entry.name,
+  concentrationMgMl: entry.concentrationMgMl,
+  standardDose: entry.standardDose,
+  doseUnit: entry.doseUnit,
+}));
 
 function normalizeDrugKey(name: string): string {
   return name.trim().toLowerCase();
-}
-
-function toSeededStore(): DrugFormularyStore {
-  return SEEDED_FORMULARY.reduce<DrugFormularyStore>((acc, entry) => {
-    acc[normalizeDrugKey(entry.name)] = entry;
-    return acc;
-  }, {});
 }
 
 function isFinitePositiveNumber(value: unknown): value is number {
@@ -55,43 +46,13 @@ function sanitizeEntry(raw: unknown): DrugFormularyEntry | null {
   };
 }
 
-function loadFormulary(): DrugFormularyStore {
-  if (typeof window === "undefined") return toSeededStore();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const seeded = toSeededStore();
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const sanitized: DrugFormularyStore = {};
-    for (const value of Object.values(parsed ?? {})) {
-      const entry = sanitizeEntry(value);
-      if (!entry) continue;
-      sanitized[normalizeDrugKey(entry.name)] = entry;
-    }
-    const merged = { ...toSeededStore(), ...sanitized };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    return merged;
-  } catch {
-    const seeded = toSeededStore();
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-    } catch {
-      // Ignore storage failures and keep in-memory defaults.
-    }
-    return seeded;
-  }
-}
-
-function persistFormulary(formulary: DrugFormularyStore): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(formulary));
-  } catch {
-    // Ignore localStorage write failures in private mode / quota pressure.
-  }
+function fromApiEntry(entry: ApiDrugFormularyEntry): DrugFormularyEntry | null {
+  return sanitizeEntry({
+    name: entry.name,
+    concentrationMgMl: entry.concentrationMgMl,
+    standardDose: entry.standardDose,
+    doseUnit: entry.doseUnit,
+  });
 }
 
 export function convertDoseToMgPerKg(dosePerKg: number, unit: DrugDoseUnit): number {
@@ -117,34 +78,57 @@ export function calculateMedicationVolumeMl(params: {
 }
 
 export function useDrugFormulary() {
-  const [formulary, setFormulary] = useState<DrugFormularyStore>(() => loadFormulary());
+  const queryClient = useQueryClient();
+  const formularyQuery = useQuery({
+    queryKey: ["/api/formulary"],
+    queryFn: api.formulary.list,
+  });
 
   const list = useMemo(() => {
-    return Object.values(formulary).sort((a, b) => a.name.localeCompare(b.name));
-  }, [formulary]);
+    return (formularyQuery.data ?? [])
+      .map(fromApiEntry)
+      .filter((entry): entry is DrugFormularyEntry => entry !== null)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [formularyQuery.data]);
+
+  const formulary = useMemo(
+    () =>
+      list.reduce<DrugFormularyStore>((acc, entry) => {
+        acc[normalizeDrugKey(entry.name)] = entry;
+        return acc;
+      }, {}),
+    [list],
+  );
 
   const getByDrugName = useCallback(
     (drugName: string | null | undefined): DrugFormularyEntry | null => {
       if (!drugName) return null;
-      return formulary[normalizeDrugKey(drugName)] ?? null;
+      const normalized = normalizeDrugKey(drugName);
+      return list.find((entry) => normalizeDrugKey(entry.name) === normalized) ?? null;
     },
-    [formulary],
+    [list],
   );
 
+  const upsertMutation = useMutation({
+    mutationFn: (entry: DrugFormularyEntry) =>
+      api.formulary.upsert({
+        name: entry.name,
+        concentrationMgMl: entry.concentrationMgMl,
+        standardDose: entry.standardDose,
+        doseUnit: entry.doseUnit,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/formulary"], exact: true });
+    },
+  });
+
   const upsertDrug = useCallback(
-    (entry: DrugFormularyEntry) => {
+    async (entry: DrugFormularyEntry) => {
       const sanitized = sanitizeEntry(entry);
       if (!sanitized) return;
-      setFormulary((prev) => {
-        const next = {
-          ...prev,
-          [normalizeDrugKey(sanitized.name)]: sanitized,
-        };
-        persistFormulary(next);
-        return next;
-      });
+      await upsertMutation.mutateAsync(sanitized);
     },
-    [],
+    [upsertMutation],
   );
 
   return {
@@ -152,5 +136,7 @@ export function useDrugFormulary() {
     list,
     getByDrugName,
     upsertDrug,
+    isLoading: formularyQuery.isLoading,
+    isError: formularyQuery.isError || upsertMutation.isError,
   };
 }
