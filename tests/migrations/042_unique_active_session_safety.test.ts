@@ -12,29 +12,13 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFETY_DO_BLOCK = `
-DO $$
-DECLARE
-    dup_count INT;
-    dup_details TEXT;
-BEGIN
-    SELECT COALESCE(COUNT(*)::INT, 0), COALESCE(string_agg(d.container_id::text, ', ' ORDER BY d.container_id), '')
-    INTO dup_count, dup_details
-    FROM (
-        SELECT container_id
-        FROM vt_restock_sessions
-        WHERE status = 'active'
-        GROUP BY container_id
-        HAVING COUNT(*) > 1
-    ) AS d;
-
-    IF dup_count > 0 THEN
-        RAISE EXCEPTION
-            'Migration aborted: % container(s) have multiple active restock sessions: [%]. Resolution: for each container, keep the most recent session (MAX(started_at)) active and set the others to status ''finished'' with finished_at=NOW(). Run the resolution manually (see migrations/manual/resolve_duplicate_active_sessions.sql), then re-run this migration.',
-            dup_count, dup_details;
-    END IF;
-END $$;
-`;
+function loadSafetyDoBlockFromMigration(): string {
+  const migrationPath = path.join(__dirname, "../../migrations/042_uniq_active_restock_session_per_container.sql");
+  const sql = fs.readFileSync(migrationPath, "utf-8");
+  const match = sql.match(/DO\s*\$\$[\s\S]*?END\s*\$\$\s*;/);
+  assert(match, "expected PRE-MIGRATION SAFETY CHECK DO block in 042 migration");
+  return match[0];
+}
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -51,45 +35,59 @@ async function main() {
     const sess1 = randomUUID();
     const sess2 = randomUUID();
 
-    await pool.query(
-      `INSERT INTO vt_users (id, clinic_id, clerk_id, email, name)
-       VALUES ($1, $2, $3, $4, 'safety test')`,
-      [userId, clinicId, `clerk_${randomUUID()}`, `u_${randomUUID()}@example.com`],
-    );
-    await pool.query(
-      `INSERT INTO vt_containers (id, clinic_id, name, department)
-       VALUES ($1, $2, 'Hospital Supply Cart', 'Hospital')`,
-      [containerId, clinicId],
-    );
+    const restoreIndexSql = `
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_restock_session_active_container
+ON vt_restock_sessions (container_id)
+WHERE status = 'active';
+`;
 
-    await pool.query(
-      `INSERT INTO vt_restock_sessions (id, clinic_id, container_id, owned_by_user_id, status)
-       VALUES ($1, $2, $3, $4, 'active'), ($5, $2, $3, $4, 'active')`,
-      [sess1, clinicId, containerId, userId, sess2],
-    );
-
-    let aborted = false;
     try {
-      await pool.query(SAFETY_DO_BLOCK);
-    } catch (e: unknown) {
-      aborted =
-        e instanceof Error &&
-        /Migration aborted/i.test(e.message) &&
-        /multiple active restock sessions/i.test(e.message);
-      if (!aborted) throw e;
+      await pool.query(`DROP INDEX IF EXISTS uniq_restock_session_active_container`);
+
+      await pool.query(
+        `INSERT INTO vt_users (id, clinic_id, clerk_id, email, name)
+       VALUES ($1, $2, $3, $4, 'safety test')`,
+        [userId, clinicId, `clerk_${randomUUID()}`, `u_${randomUUID()}@example.com`],
+      );
+      await pool.query(
+        `INSERT INTO vt_containers (id, clinic_id, name, department)
+       VALUES ($1, $2, 'Hospital Supply Cart', 'Hospital')`,
+        [containerId, clinicId],
+      );
+
+      await pool.query(
+        `INSERT INTO vt_restock_sessions (id, clinic_id, container_id, owned_by_user_id, status)
+       VALUES ($1, $2, $3, $4, 'active'), ($5, $2, $3, $4, 'active')`,
+        [sess1, clinicId, containerId, userId, sess2],
+      );
+
+      const safetyDoBlock = loadSafetyDoBlockFromMigration();
+
+      let aborted = false;
+      try {
+        await pool.query(safetyDoBlock);
+      } catch (e: unknown) {
+        aborted =
+          e instanceof Error &&
+          /Migration aborted/i.test(e.message) &&
+          /multiple active restock sessions/i.test(e.message);
+        if (!aborted) throw e;
+      }
+      assert(aborted, "expected duplicate-active safety check to raise Migration aborted");
+
+      await pool.query(`DELETE FROM vt_restock_sessions WHERE clinic_id = $1`, [clinicId]);
+      await pool.query(`DELETE FROM vt_containers WHERE clinic_id = $1`, [clinicId]);
+      await pool.query(`DELETE FROM vt_users WHERE clinic_id = $1`, [clinicId]);
+
+      await pool.query(loadSafetyDoBlockFromMigration());
+    } finally {
+      await pool.query(restoreIndexSql);
     }
-    assert(aborted, "expected duplicate-active safety check to raise Migration aborted");
-
-    await pool.query(`DELETE FROM vt_restock_sessions WHERE clinic_id = $1`, [clinicId]);
-    await pool.query(`DELETE FROM vt_containers WHERE clinic_id = $1`, [clinicId]);
-    await pool.query(`DELETE FROM vt_users WHERE clinic_id = $1`, [clinicId]);
-
-    await pool.query(SAFETY_DO_BLOCK);
 
     const migrationPath = path.join(__dirname, "../../migrations/042_uniq_active_restock_session_per_container.sql");
     const migrationSql = fs.readFileSync(migrationPath, "utf-8");
     assert.match(migrationSql, /PRE-MIGRATION SAFETY CHECK/s);
-    assert.match(migrationSql, /ux_vt_restock_sessions_active_container/s);
+    assert.match(migrationSql, /uniq_restock_session_active_container/s);
 
     console.log("✅ 042_unique_active_session_safety.test.ts passed");
   } finally {

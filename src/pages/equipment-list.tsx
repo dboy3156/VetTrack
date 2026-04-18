@@ -107,9 +107,9 @@ export default function EquipmentListPage() {
   const [folderSearch, setFolderSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // 1.2-second minimum skeleton — guarantees the shimmer phase is always visible.
   const [showSkeleton, setShowSkeleton] = useState(true);
   const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skeletonPhaseStartedAtRef = useRef<number | null>(null);
 
   const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
   const search = params.get("q") ?? "";
@@ -199,6 +199,7 @@ export default function EquipmentListPage() {
     setSelectMode(false);
     setPage(1);
     setShowSkeleton(false);
+    skeletonPhaseStartedAtRef.current = null;
     if (skeletonTimerRef.current) {
       clearTimeout(skeletonTimerRef.current);
       skeletonTimerRef.current = null;
@@ -224,12 +225,15 @@ export default function EquipmentListPage() {
     locationFilter,
   ]);
 
-  // Enforce minimum skeleton visibility: keep showSkeleton=true for at least SKELETON_MIN_MS
-  // after the query starts, so the shimmer phase is always visible on every refresh.
-  // On error, drop the skeleton immediately so we never pair "load failed" with an endless shimmer (deadlock UX).
+  // Minimum skeleton time is measured from when loading *starts*, not after data lands — avoids an extra
+  // fixed SKELETON_MIN_MS delay after every fetch (felt like flicker / deadlock when the API was slow).
+  // On error, hide immediately so we never pair "load failed" with a long shimmer.
   useEffect(() => {
+    if (!userId) return;
+
     if (isError) {
       setShowSkeleton(false);
+      skeletonPhaseStartedAtRef.current = null;
       if (skeletonTimerRef.current) {
         clearTimeout(skeletonTimerRef.current);
         skeletonTimerRef.current = null;
@@ -237,15 +241,40 @@ export default function EquipmentListPage() {
       return;
     }
     if (isQueryLoading) {
+      if (skeletonPhaseStartedAtRef.current === null) {
+        skeletonPhaseStartedAtRef.current = Date.now();
+      }
       setShowSkeleton(true);
-      if (skeletonTimerRef.current) clearTimeout(skeletonTimerRef.current);
-    } else {
-      skeletonTimerRef.current = setTimeout(() => setShowSkeleton(false), SKELETON_MIN_MS);
+      if (skeletonTimerRef.current) {
+        clearTimeout(skeletonTimerRef.current);
+        skeletonTimerRef.current = null;
+      }
+      return;
     }
+    const startedAt = skeletonPhaseStartedAtRef.current;
+    skeletonPhaseStartedAtRef.current = null;
+    // Cached / placeholder path can skip an isQueryLoading=true paint — don't invent a min-delay window.
+    if (startedAt === null) {
+      setShowSkeleton(false);
+      return;
+    }
+    const elapsed = Date.now() - startedAt;
+    const remaining = Math.max(0, SKELETON_MIN_MS - elapsed);
+    if (remaining === 0) {
+      setShowSkeleton(false);
+      return;
+    }
+    skeletonTimerRef.current = setTimeout(() => {
+      skeletonTimerRef.current = null;
+      setShowSkeleton(false);
+    }, remaining);
     return () => {
-      if (skeletonTimerRef.current) clearTimeout(skeletonTimerRef.current);
+      if (skeletonTimerRef.current) {
+        clearTimeout(skeletonTimerRef.current);
+        skeletonTimerRef.current = null;
+      }
     };
-  }, [isQueryLoading, isError]);
+  }, [isQueryLoading, isError, userId]);
 
   // Block the list while initial load runs, during the minimum skeleton window, or while retrying after an error.
   // Avoid treating unrelated background refetches (when data already loaded) as full-page blocking load.
@@ -350,6 +379,18 @@ export default function EquipmentListPage() {
       setSelected(new Set(filtered.map((e) => e.id)));
     }
   };
+
+  const renderVirtualizedRow = useCallback((eq: Equipment) => (
+    <div className="pb-3">
+      <EquipmentItem
+        equipment={eq}
+        selectMode={false}
+        selected={false}
+        onToggleSelect={() => {}}
+        virtualized
+      />
+    </div>
+  ), []);
 
   const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
 
@@ -730,18 +771,7 @@ export default function EquipmentListPage() {
                 items={filtered}
                 height={600}
                 itemHeight={112}
-                renderItem={(eq) => (
-                  <div className="pb-3">
-                    <EquipmentItem
-                      key={eq.id}
-                      equipment={eq}
-                      selectMode={false}
-                      selected={false}
-                      onToggleSelect={() => {}}
-                      virtualized
-                    />
-                  </div>
-                )}
+                renderItem={renderVirtualizedRow}
               />
             </div>
           ) : (

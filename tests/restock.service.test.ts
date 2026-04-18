@@ -276,6 +276,106 @@ async function main() {
       }
     }
 
+    // ─── Concurrent +1 and -1 on same line (final quantity unchanged) ─────
+    {
+      const { clinicId, userA, containerId } = await seedHospitalCart();
+      try {
+        const session = await startRestockSession({ clinicId, containerId, userId: userA });
+        const [syringe] = await db
+          .select({ id: inventoryItems.id })
+          .from(inventoryItems)
+          .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.code, "SYRINGE_5ML")))
+          .limit(1);
+        assert(syringe);
+
+        await db
+          .update(containerItems)
+          .set({ quantity: 5, updatedAt: new Date() })
+          .where(
+            and(
+              eq(containerItems.clinicId, clinicId),
+              eq(containerItems.containerId, containerId),
+              eq(containerItems.itemId, syringe.id),
+            ),
+          );
+
+        const [resPlus, resMinus] = await Promise.all([
+          scanItem({
+            clinicId,
+            sessionId: session.id,
+            itemId: syringe.id,
+            delta: 1,
+            userId: userA,
+          }),
+          scanItem({
+            clinicId,
+            sessionId: session.id,
+            itemId: syringe.id,
+            delta: -1,
+            userId: userA,
+          }),
+        ]);
+
+        assert(resPlus?.event?.id);
+        assert(resMinus?.event?.id);
+
+        const [line] = await db
+          .select({ quantity: containerItems.quantity })
+          .from(containerItems)
+          .where(
+            and(
+              eq(containerItems.clinicId, clinicId),
+              eq(containerItems.containerId, containerId),
+              eq(containerItems.itemId, syringe.id),
+            ),
+          )
+          .limit(1);
+        assert.strictEqual(line?.quantity, 5);
+        assert.ok((line?.quantity ?? 0) >= 0);
+      } finally {
+        await purgeClinic(clinicId);
+      }
+    }
+
+    // ─── SCAN_CONFLICT_FAILED (upsert RETURNING empty: guard fails on conflict) ───
+    {
+      const { clinicId, userA, containerId } = await seedHospitalCart();
+      try {
+        const session = await startRestockSession({ clinicId, containerId, userId: userA });
+        const [syringe] = await db
+          .select({ id: inventoryItems.id })
+          .from(inventoryItems)
+          .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.code, "SYRINGE_5ML")))
+          .limit(1);
+        assert(syringe);
+
+        await pool.query(
+          `UPDATE vt_container_items SET quantity = $1, updated_at = NOW()
+           WHERE clinic_id = $2 AND container_id = $3 AND item_id = $4`,
+          [-100, clinicId, containerId, syringe.id],
+        );
+
+        let caught: RestockServiceError | undefined;
+        try {
+          await scanItem({
+            clinicId,
+            sessionId: session.id,
+            itemId: syringe.id,
+            delta: 1,
+            userId: userA,
+          });
+        } catch (e) {
+          if (e instanceof RestockServiceError) caught = e;
+          else throw e;
+        }
+        assert.ok(caught, "expected SCAN_CONFLICT_FAILED");
+        assert.strictEqual(caught.code, "SCAN_CONFLICT_FAILED");
+        assert.strictEqual(caught.status, 409);
+      } finally {
+        await purgeClinic(clinicId);
+      }
+    }
+
     console.log("✅ restock.service.test.ts passed");
   } finally {
     await pool.end();
