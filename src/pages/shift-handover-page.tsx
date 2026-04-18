@@ -84,9 +84,11 @@ export default function ShiftHandoverPage() {
   const [dischargeOpen, setDischargeOpen] = useState(false);
 
   const dischargeQ = useQuery({
-    queryKey: ["/api/shift-handover/discharge", dischargeAnimalId],
+    queryKey: ["/api/shift-handover/discharge", dischargeAnimalId ?? ""],
     queryFn: () => api.shiftHandover.getDischargeItems(dischargeAnimalId!),
     enabled: Boolean(dischargeAnimalId),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -97,6 +99,8 @@ export default function ShiftHandoverPage() {
   const q = useQuery({
     queryKey: ["/api/shift-handover/summary"],
     queryFn: () => api.shiftHandover.getSummary(),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const startMut = useMutation({

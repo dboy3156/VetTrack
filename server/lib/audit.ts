@@ -38,6 +38,9 @@ export type AuditActionType =
   | "TASK_ESCALATED"
   | "TASK_AUTO_ASSIGNED"
   | "TASK_STUCK_NOTIFIED"
+  | "medication_task_created"
+  | "medication_task_taken"
+  | "medication_task_completed"
   | "users_backfilled_from_clerk";
 
 export interface LogAuditParams {
@@ -51,21 +54,30 @@ export interface LogAuditParams {
 }
 
 export function logAudit(params: LogAuditParams): void {
-  if (!params.clinicId) {
-    throw new Error("clinicId is required for audit logging");
-  }
-  db.insert(auditLogs)
-    .values({
-      id: randomUUID(),
-      clinicId: params.clinicId,
-      actionType: params.actionType,
-      performedBy: params.performedBy,
-      performedByEmail: params.performedByEmail,
-      targetId: params.targetId ?? null,
-      targetType: params.targetType ?? null,
-      metadata: params.metadata ?? null,
-    })
-    .catch((err) => {
-      console.error("[audit] Failed to write audit log:", err);
+  try {
+    if (!params.clinicId) {
+      console.error("[audit] skipped: missing clinicId", { actionType: params.actionType });
+      return;
+    }
+    db.insert(auditLogs)
+      .values({
+        id: randomUUID(),
+        clinicId: params.clinicId,
+        actionType: params.actionType,
+        performedBy: params.performedBy,
+        performedByEmail: params.performedByEmail,
+        targetId: params.targetId ?? null,
+        targetType: params.targetType ?? null,
+        metadata: params.metadata ?? null,
+      })
+      .catch((err) => {
+        console.error("[audit] Failed to write audit log:", err);
+      });
+  } catch (err) {
+    console.error("[audit] write failed (non-fatal):", {
+      action: params.actionType,
+      targetId: params.targetId,
+      err: err instanceof Error ? err.message : err,
     });
+  }
 }

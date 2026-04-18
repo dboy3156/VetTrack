@@ -24,6 +24,7 @@ import { registerApiRoutes } from "./app/routes.js";
 import { startBackgroundSchedulers } from "./app/start-schedulers.js";
 import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.js";
 import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
+import { releaseStaleMedicationTasks } from "./services/medication-tasks.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
@@ -227,6 +228,13 @@ app.listen(PORT, "0.0.0.0", () => {
 runMigrations()
   .then(async () => {
     try {
+      const releasedStaleTasks = await releaseStaleMedicationTasks();
+      console.log(`[startup] Released ${releasedStaleTasks} stale medication task(s)`);
+    } catch (err) {
+      console.error("[startup] releaseStaleMedicationTasks failed:", err);
+    }
+
+    try {
       await ensureClinicPhase2Defaults();
       console.log("✅ Clinic billing / inventory defaults ensured");
     } catch (err) {
@@ -247,6 +255,10 @@ runMigrations()
 
     runInventoryRecovery();
     setInterval(runInventoryRecovery, 10 * 60 * 1000);
+
+    setInterval(() => {
+      releaseStaleMedicationTasks().catch(console.error);
+    }, 5 * 60 * 1000);
   })
   .catch((err) => {
     console.error("💥 Migration failed, aborting scheduler start", err);

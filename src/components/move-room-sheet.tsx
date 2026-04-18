@@ -27,6 +27,8 @@ export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRo
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
     staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const moveMut = useMutation({

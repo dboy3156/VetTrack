@@ -62,11 +62,15 @@ export default function HomePage() {
   const { data: equipment, isLoading, isError: equipmentError, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: activityData } = useQuery({
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const alerts = equipment ? computeAlerts(equipment) : [];

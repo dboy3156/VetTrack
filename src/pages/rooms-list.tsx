@@ -212,6 +212,8 @@ export default function RoomsListPage() {
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
     staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const zoneCounts: Record<Zone, number> = { all: 0, icu: 0, er: 0, surgery: 0, other: 0 };

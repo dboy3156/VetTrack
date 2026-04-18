@@ -332,6 +332,8 @@ export default function RoomRadarPage() {
     queryFn: () => api.rooms.activity(id!),
     enabled: !!id && activityOpen,
     staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: room, isLoading: roomLoading } = useQuery({
@@ -339,12 +341,16 @@ export default function RoomRadarPage() {
     queryFn: () => api.rooms.get(id!),
     enabled: !!id,
     staleTime: 15_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: allEquipment, isLoading: equipLoading } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
     staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const roomEquipment = allEquipment?.filter((e) => e.roomId === id) ?? [];

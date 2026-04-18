@@ -116,6 +116,20 @@
       "when": 1776513599940,
       "tag": "0018_striped_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776530332572,
+      "tag": "0019_puzzling_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776531417255,
+      "tag": "0020_abnormal_iron_monger",
+      "breakpoints": true
     }
   ]
 }

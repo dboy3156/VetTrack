@@ -100,12 +100,16 @@ export default function NewEquipmentPage() {
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: existingEquipment, isLoading: editLoading } = useQuery({
     queryKey: [`/api/equipment/${editId}`],
     queryFn: () => api.equipment.get(editId!),
     enabled: isEditing,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const {

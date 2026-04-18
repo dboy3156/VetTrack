@@ -84,11 +84,15 @@ export default function AlertsPage() {
   const { data: equipment, isLoading: eqLoading, isError: eqError, refetch: refetchEq } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: acks, isLoading: acksLoading, isError: acksError, refetch: refetchAcks } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const ackMut = useMutation({

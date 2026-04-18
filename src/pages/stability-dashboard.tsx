@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n";
+import { isLeader, leaderPoll } from "@/lib/leader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -274,20 +275,33 @@ export default function StabilityDashboardPage() {
   const { data: statusData, isLoading: statusLoading } = useQuery<StabilityStatus>({
     queryKey: ["/api/stability/status"],
     queryFn: fetchStatus,
-    refetchInterval: 5000,
+    refetchInterval: leaderPoll(5000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const { data: results } = useQuery<TestReport>({
     queryKey: ["/api/stability/results"],
     queryFn: fetchResults,
-    refetchInterval: statusData?.running ? 3000 : 10000,
+    refetchInterval: () => {
+      if (document.hidden) return false;
+      if (!isLeader()) return false;
+      return statusData?.running ? 3000 : 10000;
+    },
+    refetchIntervalInBackground: false,
     enabled: !statusLoading,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const { data: logs = [], isLoading: logsLoading } = useQuery<LogEntry[]>({
     queryKey: ["/api/stability/logs", logLimit, logSearch],
     queryFn: () => fetchLogs(logLimit, logSearch),
-    refetchInterval: 5000,
+    refetchInterval: leaderPoll(5000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const runMutation = useMutation({

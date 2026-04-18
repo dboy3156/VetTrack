@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorCard } from "@/components/ui/error-card";
 import { api } from "@/lib/api";
+import { leaderPoll } from "@/lib/leader";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -185,12 +186,17 @@ export default function MedicationHubPage() {
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
     queryFn: api.users.me,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const tasksQuery = useQuery({
     queryKey: ["/api/tasks/medication-active"],
     queryFn: api.tasks.medicationActive,
-    refetchInterval: 30_000,
+    refetchInterval: leaderPoll(30_000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const startMutation = useMutation({

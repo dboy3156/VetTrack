@@ -80,6 +80,8 @@ export function calculateMedicationVolumeMl(params: {
 export function useDrugFormulary() {
   const queryClient = useQueryClient();
   const formularyQuery = useQuery({
+    retry: false,
+    refetchOnWindowFocus: false,
     queryKey: ["/api/formulary"],
     queryFn: api.formulary.list,
   });

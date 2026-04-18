@@ -149,6 +149,35 @@ export const drugFormulary = pgTable(
   }),
 );
 
+export const medicationTasks = pgTable(
+  "vt_medication_tasks",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    animalId: text("animal_id").notNull(),
+    drugId: text("drug_id").notNull(),
+    route: text("route").notNull(),
+    calculationSnapshot: jsonb("calculation_snapshot").notNull(),
+    safetyLevel: varchar("safety_level", { length: 20 }).notNull(),
+    overrideReason: text("override_reason"),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    assignedTo: text("assigned_to"),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => ({
+    clinicIdx: index("vt_medication_tasks_clinic_idx").on(table.clinicId),
+    statusIdx: index("vt_medication_tasks_status_idx").on(table.status),
+    assignedIdx: index("vt_medication_tasks_assigned_idx").on(table.assignedTo),
+    clinicStatusIdx: index("vt_med_tasks_clinic_status_idx").on(table.clinicId, table.status),
+  }),
+);
+
+export type MedicationTask = typeof medicationTasks.$inferSelect;
+export type NewMedicationTask = typeof medicationTasks.$inferInsert;
+
 export const equipment = pgTable("vt_equipment", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),

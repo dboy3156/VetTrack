@@ -181,17 +181,23 @@ export function SharedAuditLogsPanel({
   // Client-side page within the current server page's result set
   const [clientPage, setClientPage] = useState(1);
 
-  const serverParams = {
-    actionType: actionType || undefined,
-    performedBy: performedBy.trim() || undefined,
-    from: from || undefined,
-    to: to || undefined,
-    page: serverPage,
-  };
+  const actionKey = actionType || "";
+  const performedKey = performedBy.trim() || "";
+  const fromKey = from || "";
+  const toKey = to || "";
 
   const { data, isLoading, isError, isRefetching, refetch } = useQuery({
-    queryKey: ["/api/audit-logs", serverParams],
-    queryFn: () => api.auditLogs.list(serverParams),
+    queryKey: ["/api/audit-logs", actionKey, performedKey, fromKey, toKey, serverPage],
+    queryFn: () =>
+      api.auditLogs.list({
+        actionType: actionKey || undefined,
+        performedBy: performedKey || undefined,
+        from: fromKey || undefined,
+        to: toKey || undefined,
+        page: serverPage,
+      }),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   // All items returned by the server for this page

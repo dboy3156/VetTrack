@@ -50,6 +50,8 @@ export default function MyEquipmentPage() {
   const { data: items, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const returnMut = useMutation({

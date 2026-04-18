@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
+import { leaderPoll } from "@/lib/leader";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
 import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
@@ -378,11 +379,17 @@ export default function AppointmentsPage() {
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
     queryFn: api.users.me,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
+
+  const meUserId = meQuery.data?.id;
 
   const metaQuery = useQuery({
     queryKey: ["/api/appointments/meta", day],
     queryFn: () => api.appointments.meta(day),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -404,18 +411,22 @@ export default function AppointmentsPage() {
   const listQuery = useQuery({
     queryKey: ["/api/appointments", day],
     queryFn: () => api.appointments.list({ day }),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const dashboardQuery = useQuery({
-    queryKey: ["/api/tasks/dashboard", meQuery.data?.id],
+    queryKey: ["/api/tasks/dashboard", meUserId ?? ""],
     queryFn: () => api.tasks.dashboard(),
-    enabled: !!meQuery.data?.id,
-    refetchInterval: 90_000,
+    enabled: Boolean(meUserId),
+    refetchInterval: leaderPoll(90_000),
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
+    retry: false,
   });
-  const recommendationsQuery = useTaskRecommendations(Boolean(meQuery.data?.id));
+  const recommendationsQuery = useTaskRecommendations(Boolean(meUserId));
 
   const vetNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -435,7 +446,7 @@ export default function AppointmentsPage() {
     onSuccess: () => {
       toast.success("Task created");
       queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
       setBookingOpen(false);
       setFormNotes("");
       setFormAnimalId("");
@@ -472,7 +483,7 @@ export default function AppointmentsPage() {
       api.appointments.update(id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
     },
     onError: (error: Error) => {
       toast.error(toErrorMessage(error));
@@ -483,7 +494,7 @@ export default function AppointmentsPage() {
     mutationFn: (id: string) => api.tasks.start(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
       toast.success("Task started");
     },
     onError: (error: Error) => {
@@ -495,7 +506,7 @@ export default function AppointmentsPage() {
     mutationFn: (id: string) => api.tasks.complete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
       toast.success("Task completed");
     },
     onError: (error: Error) => {
@@ -511,18 +522,18 @@ export default function AppointmentsPage() {
       event.type === "TASK_UPDATED"
     ) {
       queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
       return;
     }
     if (event.type === "AUTOMATION_TRIGGERED") {
       toast.info("Task auto-updated by automation rule");
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meQuery.data?.id], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
       return;
     }
     if (event.type === "NOTIFICATION_SENT") return;
-  }, [day, meQuery.data?.id, queryClient]);
+  }, [day, meUserId, queryClient]);
 
   useRealtime(handleRealtimeEvent);
 

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
+import { leaderPoll } from "@/lib/leader";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,14 +81,20 @@ export default function AdminPage() {
     queryKey: ["/api/support/unresolved-count"],
     queryFn: api.support.unresolvedCount,
     enabled: isAdmin,
-    refetchInterval: 60_000,
+    refetchInterval: leaderPoll(60_000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const { data: pendingUsers } = useQuery({
     queryKey: ["/api/users/pending"],
     queryFn: api.users.listPending,
     enabled: isAdmin,
-    refetchInterval: 30_000,
+    refetchInterval: leaderPoll(30_000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   if (!isAdmin) {
@@ -292,6 +299,8 @@ function FoldersSection() {
   const { data: folders, isLoading } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const createMut = useMutation({
@@ -488,6 +497,8 @@ function PendingUsersSection() {
   const { data: pendingUsers, isLoading } = useQuery({
     queryKey: ["/api/users/pending"],
     queryFn: api.users.listPending,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const updateStatusMut = useMutation({
@@ -686,6 +697,8 @@ function UsersSection() {
       api.users.listPaginated(pageParam as number, 100, effectiveStatus),
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     initialPageParam: 1,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const users = useMemo(
@@ -1108,11 +1121,15 @@ function DeletedItemsSection() {
   const { data: deletedEquipment, isLoading: equipLoading } = useQuery({
     queryKey: ["/api/equipment/deleted"],
     queryFn: api.equipment.listDeleted,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: deletedUsers, isLoading: usersLoading } = useQuery({
     queryKey: ["/api/users/deleted"],
     queryFn: api.users.listDeleted,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const restoreEquipMut = useMutation({
@@ -1289,6 +1306,8 @@ function SupportSection() {
   const { data: tickets, isLoading } = useQuery({
     queryKey: ["/api/support"],
     queryFn: api.support.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const updateMut = useMutation({

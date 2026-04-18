@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { AlertTriangle, Siren, Stethoscope, Wrench, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { leaderPoll } from "@/lib/leader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,10 @@ export default function CodeBluePage() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["/api/equipment/critical"],
     queryFn: api.equipment.getCriticalEquipment,
-    refetchInterval: 15_000,
+    refetchInterval: leaderPoll(15_000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const items = useMemo(() => data ?? [], [data]);
