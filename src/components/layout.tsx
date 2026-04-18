@@ -219,12 +219,16 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
     staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: myEquipment } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
     staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

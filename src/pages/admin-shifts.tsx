@@ -20,6 +20,8 @@ export default function AdminShiftsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const importsQuery = useQuery({
+    retry: false,
+    refetchOnWindowFocus: false,
     queryKey: ["/api/shifts/imports"],
     queryFn: api.shifts.imports,
     enabled: isAdmin,

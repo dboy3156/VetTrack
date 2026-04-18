@@ -9,6 +9,7 @@ import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { logAudit } from "../lib/audit.js";
 import { resolveCurrentRole } from "../lib/role-resolution.js";
+import { ensureUserEmail } from "../services/user-sync.service.js";
 
 /*
  * PERMISSIONS MATRIX — /api/users
@@ -60,6 +61,12 @@ const userFields = {
   role: users.role,
   status: users.status,
   createdAt: users.createdAt,
+};
+
+/** Admin list only: includes clerkId for self-healing missing emails from Clerk. */
+const adminListUserFields = {
+  ...userFields,
+  clerkId: users.clerkId,
 };
 
 const VALID_ROLES = ["admin", "vet", "technician", "viewer"] as const;
@@ -194,10 +201,15 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
 
     const baseQuery = status
       ? db
-          .select(userFields)
+          .select(adminListUserFields)
           .from(users)
           .where(and(eq(users.clinicId, clinicId), eq(users.status, status as string), isNull(users.deletedAt)))
-      : db.select(userFields).from(users).where(and(eq(users.clinicId, clinicId), isNull(users.deletedAt))).orderBy(users.createdAt);
+          .orderBy(desc(users.createdAt))
+      : db
+          .select(adminListUserFields)
+          .from(users)
+          .where(and(eq(users.clinicId, clinicId), isNull(users.deletedAt)))
+          .orderBy(desc(users.createdAt));
 
     const whereClause = status
       ? and(eq(users.clinicId, clinicId), eq(users.status, status as string), isNull(users.deletedAt))
@@ -207,7 +219,23 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       .from(users)
       .where(whereClause);
     const items = await baseQuery.limit(resolvedLimit).offset(resolvedOffset);
-    res.json({ items, total, page, pageSize: resolvedLimit, hasMore: resolvedOffset + items.length < total });
+    const healedRows = await Promise.all(items.map((u) => ensureUserEmail(u)));
+    const healedItems = healedRows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      displayName: row.displayName,
+      role: row.role,
+      status: row.status,
+      createdAt: row.createdAt,
+    }));
+    res.json({
+      items: healedItems,
+      total,
+      page,
+      pageSize: resolvedLimit,
+      hasMore: resolvedOffset + healedItems.length < total,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json(

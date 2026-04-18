@@ -286,6 +286,8 @@ export default function EquipmentListPage() {
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const bulkDeleteMut = useMutation({

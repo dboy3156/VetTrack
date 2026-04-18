@@ -31,6 +31,8 @@ export default function QrPrintPage() {
   const { data: equipment, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const filtered = equipment?.filter(

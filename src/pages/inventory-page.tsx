@@ -28,12 +28,16 @@ export default function InventoryPage() {
   const containersQ = useQuery({
     queryKey: ["/api/containers"],
     queryFn: () => api.containers.list(),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const roomsQ = useQuery({
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
     staleTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const roomNameById = useMemo(() => {
@@ -102,6 +106,8 @@ export default function InventoryPage() {
     queryKey: ["/api/restock/container-items", selectedId],
     queryFn: () => api.restock.containerItems(selectedId!),
     enabled: Boolean(selectedId),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

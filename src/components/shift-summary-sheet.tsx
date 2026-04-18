@@ -56,24 +56,32 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
     enabled: open,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: equipment, isLoading: eqLoading, isError: eqError, refetch: refetchEq } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
     enabled: open,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: activityData, isLoading: actLoading, isError: actError, refetch: refetchAct } = useQuery({
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
     enabled: open,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: acks, refetch: refetchAcks } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
     enabled: open,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const isLoading = myLoading || eqLoading || actLoading;

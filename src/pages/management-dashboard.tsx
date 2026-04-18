@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
+import { leaderPoll } from "@/lib/leader";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,14 +50,19 @@ export default function ManagementDashboardPage() {
   const { data: equipment, isLoading, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
-    refetchInterval: 30_000,
+    refetchInterval: leaderPoll(30_000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ["/api/metrics"],
     queryFn: api.metrics.get,
-    refetchInterval: 60_000,
+    refetchInterval: leaderPoll(60_000),
+    refetchIntervalInBackground: false,
     retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const dashData = equipment ? computeDashboardData(equipment) : null;

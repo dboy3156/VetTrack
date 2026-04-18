@@ -53,5 +53,7 @@ export function usePaginatedEquipment(
     enabled: opts.enabled ?? true,
     /** Avoid churn / flicker from treating fresh list data as immediately stale on large pages. */
     staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }

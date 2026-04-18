@@ -264,6 +264,8 @@ export default function EquipmentDetailPage() {
     queryKey: [`/api/equipment/${id}`],
     queryFn: () => api.equipment.get(id!),
     enabled: !!id,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const {
@@ -278,6 +280,8 @@ export default function EquipmentDetailPage() {
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     initialPageParam: 1,
     enabled: !!id,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const scanLogs = scanLogsPages?.pages.flatMap((p) => p.items);
@@ -286,6 +290,8 @@ export default function EquipmentDetailPage() {
     queryKey: [`/api/equipment/${id}/transfers`],
     queryFn: () => api.equipment.transfers(id!),
     enabled: !!id,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   function invalidateAll() {

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "vt_med_tasks_clinic_status_idx" ON "vt_medication_tasks" USING btree ("clinic_id","status");

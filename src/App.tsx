@@ -1,6 +1,7 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { AppRoutes } from "@/app/routes";
 import { useAutoSelectOrg } from "@/features/auth/hooks/useAutoSelectOrg";
+import { startLeaderHeartbeat } from "@/lib/leader";
 import { t } from "@/lib/i18n";
 
 function AutoSelectOrg() {
@@ -10,6 +11,10 @@ function AutoSelectOrg() {
 }
 
 export default function App() {
+  useEffect(() => {
+    startLeaderHeartbeat();
+  }, []);
+
   return (
     <>
       <AutoSelectOrg />

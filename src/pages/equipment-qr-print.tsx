@@ -10,8 +10,11 @@ export default function EquipmentQRPrint() {
   const url = generateQrUrl(id!);
 
   const { data: equipment, isSuccess } = useQuery({
-    queryKey: ['/api/equipment', id],
+    queryKey: ['/api/equipment', id ?? ''],
     queryFn: () => fetch(`/api/equipment/${id}`, { credentials: 'include' }).then(r => r.json()),
+    enabled: Boolean(id),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
