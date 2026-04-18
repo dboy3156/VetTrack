@@ -94,6 +94,7 @@ CREATE TABLE vt_inventory_logs (
   id TEXT PRIMARY KEY,
   clinic_id TEXT NOT NULL,
   container_id TEXT NOT NULL REFERENCES vt_containers(id) ON DELETE CASCADE,
+  task_id TEXT,
   log_type vt_inventory_log_type NOT NULL,
   quantity_before INTEGER NOT NULL,
   quantity_added INTEGER NOT NULL DEFAULT 0,
@@ -108,6 +109,10 @@ CREATE TABLE vt_inventory_logs (
 );
 
 CREATE INDEX idx_inventory_logs_container ON vt_inventory_logs (clinic_id, container_id, created_at);
+
+CREATE INDEX IF NOT EXISTS vt_inventory_logs_task_clinic_idx ON vt_inventory_logs USING btree (task_id, clinic_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS inventory_logs_task_clinic_type_idx ON vt_inventory_logs USING btree (task_id, clinic_id, log_type);
 
 CREATE TABLE vt_shift_sessions (
   id TEXT PRIMARY KEY,
