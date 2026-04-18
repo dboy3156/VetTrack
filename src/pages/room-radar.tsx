@@ -32,6 +32,7 @@ import {
   User,
   LogIn,
   LogOut,
+  PawPrint,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
@@ -194,6 +195,12 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
                     {eq.name}
                   </p>
                 </Link>
+                {eq.linkedAnimalName && (
+                  <p className="flex items-center gap-1 text-xs font-medium text-violet-700 dark:text-violet-300 mt-0.5">
+                    <PawPrint className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                    {t.equipmentList.linkedInUse(eq.linkedAnimalName)}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <Badge variant={statusVariant} className="text-[10px] py-0 px-2 h-5">
                     {STATUS_LABELS[eq.status as keyof typeof STATUS_LABELS] ?? eq.status}

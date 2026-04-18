@@ -13,6 +13,8 @@ const AlertsPage = lazy(() => import("@/pages/alerts"));
 const MyEquipmentPage = lazy(() => import("@/pages/my-equipment"));
 const RoomsListPage = lazy(() => import("@/pages/rooms-list"));
 const RoomRadarPage = lazy(() => import("@/pages/room-radar"));
+const ShiftHandoverPage = lazy(() => import("@/pages/shift-handover-page"));
+const InventoryPage = lazy(() => import("@/pages/inventory-page"));
 const AnalyticsPage = lazy(() => import("@/pages/analytics"));
 const ManagementDashboardPage = lazy(() => import("@/pages/management-dashboard"));
 const QrPrintPage = lazy(() => import("@/pages/qr-print"));
@@ -46,6 +48,8 @@ export function AppRoutes() {
       <Route path="/my-equipment"><AuthGuard><MyEquipmentPage /></AuthGuard></Route>
       <Route path="/rooms"><AuthGuard><RoomsListPage /></AuthGuard></Route>
       <Route path="/rooms/:id"><AuthGuard><RoomRadarPage /></AuthGuard></Route>
+      <Route path="/shift-handover"><AuthGuard><ShiftHandoverPage /></AuthGuard></Route>
+      <Route path="/inventory"><AuthGuard><InventoryPage /></AuthGuard></Route>
       <Route path="/analytics"><AuthGuard><AnalyticsPage /></AuthGuard></Route>
       <Route path="/dashboard"><AuthGuard><ManagementDashboardPage /></AuthGuard></Route>
       <Route path="/print"><AuthGuard><QrPrintPage /></AuthGuard></Route>

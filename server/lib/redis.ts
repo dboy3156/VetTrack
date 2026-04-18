@@ -135,10 +135,16 @@ function redisOptions(): Redis.RedisOptions {
   };
 }
 
-/** BullMQ uses blocking commands; ioredis must not cap per-command retries on queue connections. */
+/**
+ * BullMQ uses blocking commands (e.g. BLPOP) that can wait longer than normal cache ops.
+ * ioredis `commandTimeout` applies to every command including blocking ones — if set, workers
+ * throw `Error: Command timed out` on each block longer than the cap (default 4000ms).
+ * Omit per-command timeout here; keep `connectTimeout` / retry behavior from `redisOptions()`.
+ */
 function redisQueueOptions(): Redis.RedisOptions {
+  const { commandTimeout: _omitCommandTimeout, ...rest } = redisOptions();
   return {
-    ...redisOptions(),
+    ...rest,
     maxRetriesPerRequest: null,
   };
 }

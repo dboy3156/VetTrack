@@ -144,6 +144,8 @@ export interface Equipment {
   plugInDeadlineMinutes?: number | null;
   plugInAlertSentAt?: string | null;
   createdAt: string;
+  linkedAnimalId?: string | null;
+  linkedAnimalName?: string | null;
 }
 
 export type CodeBlueStatus = "critical" | "needs_attention";
@@ -388,6 +390,65 @@ export interface AppointmentVetMeta {
   role: UserRole;
   shifts: VetShiftWindow[];
 }
+
+/** Response from POST /api/equipment/:id/seen */
+export interface ShiftHandoverSummary {
+  windowStart: string;
+  windowEnd: string;
+  windowSource: "open_shift" | "fallback_12h";
+  revenueCents: number;
+  unreturned: Array<{
+    id: string;
+    name: string;
+    checkedOutAt: string | null;
+    checkedOutByEmail: string | null;
+    checkedOutLocation: string | null;
+  }>;
+  deadAssets: Array<{ id: string; name: string }>;
+  hotAssets: Array<{ id: string; name: string; scans: number }>;
+  openShiftSession: {
+    id: string;
+    startedAt: string;
+    startedByUserId: string;
+    note: string | null;
+  } | null;
+}
+
+export interface InventoryContainer {
+  id: string;
+  clinicId: string;
+  name: string;
+  department: string;
+  targetQuantity: number;
+  currentQuantity: number;
+  roomId: string | null;
+  billingItemId: string | null;
+  nfcTagId: string | null;
+}
+
+export interface ShiftHandoverSession {
+  id: string;
+  clinicId: string;
+  startedAt: string;
+  endedAt: string | null;
+  startedByUserId: string;
+  note: string | null;
+}
+
+export type EquipmentSeenResponse =
+  | {
+      linked: true;
+      animal: { id: string; name: string };
+      roomId: string;
+      usageSessionId: string;
+      ledgerId: string;
+      idempotentReplay: boolean;
+    }
+  | {
+      linked: false;
+      reason: "no_room" | "no_patient_in_room";
+      roomId: string | null;
+    };
 
 export interface ScanEquipmentRequest {
   status: EquipmentStatus;

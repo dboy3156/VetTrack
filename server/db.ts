@@ -103,6 +103,24 @@ export const rooms = pgTable("vt_rooms", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const occupancySourceEnum = pgEnum("vt_occupancy_source", ["smartflow", "manual"]);
+export const billingChargeKindEnum = pgEnum("vt_billing_charge_kind", ["per_scan_hour", "per_unit"]);
+export const billingLedgerItemTypeEnum = pgEnum("vt_billing_ledger_item_type", ["EQUIPMENT", "CONSUMABLE"]);
+export const billingLedgerStatusEnum = pgEnum("vt_billing_ledger_status", ["pending", "synced"]);
+export const usageSessionStatusEnum = pgEnum("vt_usage_session_status", ["open", "closed"]);
+export const inventoryLogTypeEnum = pgEnum("vt_inventory_log_type", ["restock", "blind_audit", "adjustment"]);
+
+export const billingItems = pgTable("vt_billing_items", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  code: text("code").notNull(),
+  description: text("description").notNull(),
+  unitPriceCents: integer("unit_price_cents").notNull(),
+  chargeKind: billingChargeKindEnum("charge_kind").notNull().default("per_unit"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const equipment = pgTable("vt_equipment", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),
@@ -124,6 +142,7 @@ export const equipment = pgTable("vt_equipment", {
   maintenanceIntervalDays: integer("maintenance_interval_days"),
   imageUrl: text("image_url"),
   nfcTagId: text("nfc_tag_id").unique(),
+  billingItemId: text("billing_item_id").references(() => billingItems.id, { onDelete: "set null" }),
   lastVerifiedAt: timestamp("last_verified_at"),
   lastVerifiedById: text("last_verified_by_id"),
   // Checkout / ownership
@@ -136,6 +155,111 @@ export const equipment = pgTable("vt_equipment", {
   version: integer("version").notNull().default(1),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
+});
+
+export const patientRoomAssignments = pgTable("vt_patient_room_assignments", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  animalId: text("animal_id")
+    .notNull()
+    .references(() => animals.id, { onDelete: "cascade" }),
+  roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  source: occupancySourceEnum("source").notNull(),
+});
+
+export const billingLedger = pgTable("vt_billing_ledger", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  animalId: text("animal_id")
+    .notNull()
+    .references(() => animals.id, { onDelete: "restrict" }),
+  itemType: billingLedgerItemTypeEnum("item_type").notNull(),
+  itemId: text("item_id").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceCents: integer("unit_price_cents").notNull(),
+  totalAmountCents: integer("total_amount_cents").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  status: billingLedgerStatusEnum("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const usageSessions = pgTable("vt_usage_sessions", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  animalId: text("animal_id")
+    .notNull()
+    .references(() => animals.id, { onDelete: "cascade" }),
+  equipmentId: text("equipment_id").references(() => equipment.id, { onDelete: "set null" }),
+  billingItemId: text("billing_item_id")
+    .notNull()
+    .references(() => billingItems.id, { onDelete: "restrict" }),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  lastBilledThrough: timestamp("last_billed_through", { withTimezone: true }),
+  status: usageSessionStatusEnum("status").notNull().default("open"),
+});
+
+export const containers = pgTable("vt_containers", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  name: text("name").notNull(),
+  department: text("department").notNull().default(""),
+  targetQuantity: integer("target_quantity").notNull().default(0),
+  currentQuantity: integer("current_quantity").notNull().default(0),
+  roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
+  billingItemId: text("billing_item_id").references(() => billingItems.id, { onDelete: "set null" }),
+  nfcTagId: text("nfc_tag_id").unique(),
+});
+
+export const inventoryLogs = pgTable("vt_inventory_logs", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  containerId: text("container_id")
+    .notNull()
+    .references(() => containers.id, { onDelete: "cascade" }),
+  logType: inventoryLogTypeEnum("log_type").notNull(),
+  quantityBefore: integer("quantity_before").notNull(),
+  quantityAdded: integer("quantity_added").notNull().default(0),
+  quantityAfter: integer("quantity_after").notNull(),
+  consumedDerived: integer("consumed_derived"),
+  variance: integer("variance"),
+  animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
+  roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdByUserId: text("created_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+});
+
+export const shiftSessions = pgTable("vt_shift_sessions", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  startedByUserId: text("started_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  note: text("note"),
+});
+
+export const smartflowSyncState = pgTable("vt_smartflow_sync_state", {
+  clinicId: text("clinic_id").primaryKey(),
+  cursorText: text("cursor_text"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const animalExternalIds = pgTable("vt_animal_external_ids", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  animalId: text("animal_id")
+    .notNull()
+    .references(() => animals.id, { onDelete: "cascade" }),
+  system: text("system").notNull().default("smartflow"),
+  externalId: text("external_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const equipmentReturns = pgTable("vt_equipment_returns", {

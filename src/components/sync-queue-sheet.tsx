@@ -26,12 +26,15 @@ type SyncQueueItemType = SyncQueueItemModel["type"];
 
 const TYPE_LABELS: Record<SyncQueueItemType, string> = {
   scan: t.syncQueueSheet.typeScan,
+  seen: t.syncQueueSheet.typeSeen,
   create: t.syncQueueSheet.typeCreate,
   update: t.syncQueueSheet.typeUpdate,
   delete: t.syncQueueSheet.typeDelete,
   checkout: t.syncQueueSheet.typeCheckout,
   return: t.syncQueueSheet.typeReturn,
   return_with_charge: t.syncQueueSheet.typeReturn,
+  restock: t.syncQueueSheet.typeRestock,
+  shift_session: t.syncQueueSheet.typeShiftSession,
 };
 
 function extractEquipmentIdFromEndpoint(endpoint: string): string | null {

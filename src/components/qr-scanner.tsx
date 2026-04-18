@@ -449,6 +449,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.scan(scannedEquipment.id, { status: "ok" });
+      void api.equipment.seen(scannedEquipment.id, { roomId: scannedEquipment.roomId }).catch(() => {});
       navigator.vibrate?.(50);
       toast.success(`${scannedEquipment.name} marked as OK`);
       onClose();
