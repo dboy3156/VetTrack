@@ -105,6 +105,7 @@ export default function EquipmentDetailPage() {
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const { isAdmin, email, userId, role } = useAuth();
+  const queryEnabled = !!userId;
   const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, technician: 20, viewer: 10 };
   const canDuplicate = (ROLE_LEVEL[role] ?? 0) >= 20;
   const { settings } = useSettings();
@@ -263,7 +264,7 @@ export default function EquipmentDetailPage() {
   const { data: equipment, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: [`/api/equipment/${id}`],
     queryFn: () => api.equipment.get(id!),
-    enabled: !!id,
+    enabled: !!id && queryEnabled,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -279,7 +280,7 @@ export default function EquipmentDetailPage() {
     queryFn: ({ pageParam = 1 }) => api.equipment.logsPaginated(id!, pageParam as number, 50),
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     initialPageParam: 1,
-    enabled: !!id,
+    enabled: !!id && queryEnabled,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -289,7 +290,7 @@ export default function EquipmentDetailPage() {
   const { data: transfers, isLoading: transfersLoading } = useQuery({
     queryKey: [`/api/equipment/${id}/transfers`],
     queryFn: () => api.equipment.transfers(id!),
-    enabled: !!id,
+    enabled: !!id && queryEnabled,
     retry: false,
     refetchOnWindowFocus: false,
   });

@@ -33,6 +33,7 @@ import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { QrScanner } from "@/components/qr-scanner";
+import { useAuth } from "@/hooks/use-auth";
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -46,10 +47,12 @@ function formatUptime(seconds: number): string {
 export default function ManagementDashboardPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [scannerOpen, setScannerOpen] = useState(false);
+  const { userId } = useAuth();
 
   const { data: equipment, isLoading, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    enabled: !!userId,
     refetchInterval: leaderPoll(30_000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
@@ -59,6 +62,7 @@ export default function ManagementDashboardPage() {
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ["/api/metrics"],
     queryFn: api.metrics.get,
+    enabled: !!userId,
     refetchInterval: leaderPoll(60_000),
     refetchIntervalInBackground: false,
     retry: false,

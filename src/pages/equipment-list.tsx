@@ -286,6 +286,7 @@ export default function EquipmentListPage() {
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

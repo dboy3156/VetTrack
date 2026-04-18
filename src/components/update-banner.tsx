@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { t } from "@/lib/i18n";
+import { authFetch } from "@/lib/auth-fetch";
 
 const STORAGE_KEY = "vettrack-last-seen-version";
 
@@ -18,12 +19,12 @@ function compareVersions(a: string, b: string): number {
 }
 
 export function UpdateBanner() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
   const [bannerVersion, setBannerVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isSignedIn) return;
-    fetch("/api/version")
+    if (!isSignedIn || !userId) return;
+    authFetch("/api/version")
       .then((r) => r.json())
       .then((data: { version: string }) => {
         const serverVersion = data.version;
@@ -33,7 +34,7 @@ export function UpdateBanner() {
         }
       })
       .catch(() => {});
-  }, [isSignedIn]);
+  }, [isSignedIn, userId]);
 
   const dismiss = () => {
     if (bannerVersion) {

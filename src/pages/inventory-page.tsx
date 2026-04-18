@@ -18,16 +18,19 @@ import {
 } from "@/features/inventory/restock-session-reducer";
 import { useLocation } from "wouter";
 import { getCurrentUserId } from "@/lib/auth-store";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function InventoryPage() {
   const qc = useQueryClient();
   const p = t.inventoryPage;
   const [location] = useLocation();
+  const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
 
   const containersQ = useQuery({
     queryKey: ["/api/containers"],
     queryFn: () => api.containers.list(),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -35,6 +38,7 @@ export default function InventoryPage() {
   const roomsQ = useQuery({
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
+    enabled: !!userId,
     staleTime: 60_000,
     retry: false,
     refetchOnWindowFocus: false,
@@ -105,7 +109,7 @@ export default function InventoryPage() {
   const detailsQ = useQuery({
     queryKey: ["/api/restock/container-items", selectedId],
     queryFn: () => api.restock.containerItems(selectedId!),
-    enabled: Boolean(selectedId),
+    enabled: !!userId && Boolean(selectedId),
     retry: false,
     refetchOnWindowFocus: false,
   });

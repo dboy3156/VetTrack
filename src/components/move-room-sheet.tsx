@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Sheet,
   SheetContent,
@@ -21,11 +22,13 @@ interface MoveRoomSheetProps {
 
 export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRoomSheetProps) {
   const queryClient = useQueryClient();
+  const { userId } = useAuth();
   const [movingToId, setMovingToId] = useState<string | null | "none">(null);
 
   const { data: rooms } = useQuery({
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
+    enabled: !!userId,
     staleTime: 60_000,
     retry: false,
     refetchOnWindowFocus: false,

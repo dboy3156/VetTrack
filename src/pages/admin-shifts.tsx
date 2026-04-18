@@ -13,7 +13,7 @@ import { t } from "@/lib/i18n";
 import type { ShiftImportPreview } from "@/types";
 
 export default function AdminShiftsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userId } = useAuth();
   const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ShiftImportPreview | null>(null);
@@ -24,7 +24,7 @@ export default function AdminShiftsPage() {
     refetchOnWindowFocus: false,
     queryKey: ["/api/shifts/imports"],
     queryFn: api.shifts.imports,
-    enabled: isAdmin,
+    enabled: isAdmin && !!userId,
   });
 
   const previewMut = useMutation({

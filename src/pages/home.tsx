@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
 import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { QrScanner } from "@/components/qr-scanner";
+import { getCurrentUserId } from "@/lib/auth-store";
 
 const STATUS_ICON_MAP: Record<string, React.ElementType> = {
   ok: CheckCircle2,
@@ -46,6 +47,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
 
 export default function HomePage() {
   const { name, refreshAuth } = useAuth();
+  const userId = getCurrentUserId();
   const queryClient = useQueryClient();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
@@ -62,6 +64,7 @@ export default function HomePage() {
   const { data: equipment, isLoading, isError: equipmentError, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -69,6 +72,7 @@ export default function HomePage() {
   const { data: activityData } = useQuery({
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

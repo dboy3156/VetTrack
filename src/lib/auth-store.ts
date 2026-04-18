@@ -43,3 +43,7 @@ export function getCurrentUserEmail(): string {
 export function getCurrentUserName(): string {
   return authState.name;
 }
+
+export function getStoredBearerToken(): string | null {
+  return authState.bearerToken;
+}
