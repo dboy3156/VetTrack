@@ -5,6 +5,7 @@ import { incrementMetric } from "../lib/metrics.js";
 const ACTIVE_STATUSES = ["pending", "assigned", "scheduled", "arrived", "in_progress"] as const;
 const MAX_SCAN = 100;
 const SOON_WINDOW_MS = 15 * 60 * 1000;
+const INTELLIGENCE_SLOW_THRESHOLD_MS = 500;
 
 export type SuggestionType = "OVERDUE_WARNING" | "START_NOW" | "OVERLOADED" | "PICK_FROM_QUEUE";
 export type SuggestionSeverity = "high" | "medium" | "low";
@@ -264,7 +265,7 @@ export async function getTaskRecommendations(clinicId: string, userId: string): 
     }
 
     const elapsed = Date.now() - t0;
-    if (elapsed > 50) {
+    if (elapsed > INTELLIGENCE_SLOW_THRESHOLD_MS) {
       console.warn("INTELLIGENCE_SLOW", { clinicId: c, userId: uid, elapsedMs: elapsed, taskCount: tasks.length });
     }
 

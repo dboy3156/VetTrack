@@ -76,6 +76,8 @@ check(
 
 check(
   appointmentsService.includes("startTask(") &&
+    appointmentsService.includes("getActiveMedicationTasks(") &&
+    appointmentsService.includes("inArray(appointments.status, DB_ACTIVE_STATUSES)") &&
     appointmentsService.includes("acknowledgedBy") &&
     appointmentsService.includes("acknowledged_at") &&
     appointmentsService.includes("completeTask(") &&
@@ -84,7 +86,7 @@ check(
     appointmentsService.includes("completionIdempotencyKey") &&
     appointmentsService.includes("await tx.insert(billingLedger).values({") &&
     appointmentsService.includes("broadcast(clinicId, { type: \"TASK_UPDATED\""),
-  "Medication create/start/complete flow keeps audit stamps, billing, and realtime updates",
+  "Medication flow keeps active queue statuses aligned with start/complete auditing, billing, and realtime updates",
 );
 
 const expectedLedgerRowsPerScan = 1 + lightweight.length;

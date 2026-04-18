@@ -8,6 +8,7 @@ import { validateBody, validateUuid } from "../middleware/validate.js";
 import { logAudit } from "../lib/audit.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
 import { restockContainerInTx } from "../services/inventory.service.js";
+import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
 
 const router = Router();
 
@@ -76,7 +77,14 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
       .from(containers)
       .where(eq(containers.clinicId, clinicId))
       .orderBy(asc(containers.name));
-    res.json(rows);
+    const withBlueprintTargets = rows.map((row) => {
+      const entry = resolveBlueprintEntryForContainerName(row.name);
+      return {
+        ...row,
+        supplyTargets: entry?.supplyTargets ?? [],
+      };
+    });
+    res.json(withBlueprintTargets);
   } catch (err) {
     console.error(err);
     res.status(500).json(

@@ -1272,7 +1272,7 @@ export async function getActiveMedicationTasks(clinicIdInput: string): Promise<M
       and(
         eq(appointments.clinicId, clinicId),
         eq(appointments.taskType, "medication"),
-        inArray(appointments.status, ["pending", "in_progress"]),
+        inArray(appointments.status, DB_ACTIVE_STATUSES),
       ),
     )
     .orderBy(appointments.startTime);

@@ -45,10 +45,12 @@ if (!rootEl) {
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
         <ClerkAuthProviderInner>
-          <SyncProvider>
-            <AppBootstrap />
-            <Toaster position="top-center" />
-          </SyncProvider>
+          <AppErrorBoundary>
+            <SyncProvider>
+              <AppBootstrap />
+              <Toaster position="top-center" />
+            </SyncProvider>
+          </AppErrorBoundary>
         </ClerkAuthProviderInner>
       </SettingsProvider>
     </QueryClientProvider>
@@ -56,15 +58,13 @@ if (!rootEl) {
 
   createRoot(rootEl).render(
     <HelmetProvider>
-      <AppErrorBoundary>
-        {CLERK_ENABLED ? (
-          <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-            {appShell}
-          </ClerkProvider>
-        ) : (
-          appShell
-        )}
-      </AppErrorBoundary>
+      {CLERK_ENABLED ? (
+        <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+          {appShell}
+        </ClerkProvider>
+      ) : (
+        appShell
+      )}
     </HelmetProvider>
   );
 }

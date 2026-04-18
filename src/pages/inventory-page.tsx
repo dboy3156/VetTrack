@@ -39,6 +39,7 @@ export default function InventoryPage() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addedById, setAddedById] = useState<Record<string, number>>({});
+  const [addedBySupplyByContainer, setAddedBySupplyByContainer] = useState<Record<string, Record<string, number>>>({});
   const [auditById, setAuditById] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -57,6 +58,17 @@ export default function InventoryPage() {
   const setAdded = (id: string, value: number) => {
     const n = Math.max(0, Math.min(999, Math.round(value)));
     setAddedById((s) => ({ ...s, [id]: n }));
+  };
+
+  const setSupplyAdded = (containerId: string, supplyCode: string, value: number) => {
+    const n = Math.max(0, Math.min(999, Math.round(value)));
+    setAddedBySupplyByContainer((prev) => ({
+      ...prev,
+      [containerId]: {
+        ...(prev[containerId] ?? {}),
+        [supplyCode]: n,
+      },
+    }));
   };
 
   const restockMut = useMutation({
@@ -96,6 +108,14 @@ export default function InventoryPage() {
       ? interpolateBilling(p.billingHint, roomNameById.get(selected.roomId)!)
       : p.billingHintNoRoom
     : "";
+  const selectedSupplyTargets = selected?.supplyTargets ?? [];
+  const hasSupplyTargets = selectedSupplyTargets.length > 0;
+  const selectedSupplyAdded = selected ? addedBySupplyByContainer[selected.id] ?? {} : {};
+  const selectedAddedQuantity = selected
+    ? hasSupplyTargets
+      ? selectedSupplyTargets.reduce((sum, target) => sum + (selectedSupplyAdded[target.code] ?? 0), 0)
+      : (addedById[selected.id] ?? 0)
+    : 0;
 
   return (
     <Layout title={p.title}>
@@ -200,46 +220,96 @@ export default function InventoryPage() {
                     {billingHint}
                   </p>
 
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">{p.addedLabel}</p>
-                    <div className="flex items-center justify-center gap-4">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-14 w-14 shrink-0 rounded-2xl border-2 text-xl"
-                        aria-label={p.decreaseAdded}
-                        onClick={() =>
-                          setAdded(selected.id, (addedById[selected.id] ?? 0) - 1)
-                        }
-                      >
-                        <Minus className="w-7 h-7" />
-                      </Button>
-                      <div className="flex flex-col items-center gap-1 min-w-[6rem]">
-                        <span className="text-5xl font-bold tabular-nums leading-none tracking-tight">
-                          {addedById[selected.id] ?? 0}
-                        </span>
+                  {hasSupplyTargets ? (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">Refill checklist</p>
+                      <div className="space-y-2 rounded-xl border border-border/80 bg-muted/20 p-3">
+                        {selectedSupplyTargets.map((target) => (
+                          <div key={target.code} className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background p-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold">{target.label}</p>
+                              <p className="text-xs text-muted-foreground">Target: {target.targetUnits}</p>
+                            </div>
+                            <div className="flex items-center gap-2 self-end md:self-auto">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-10 w-10 rounded-xl border-2"
+                                aria-label={`${p.decreaseAdded} ${target.label}`}
+                                onClick={() => setSupplyAdded(selected.id, target.code, (selectedSupplyAdded[target.code] ?? 0) - 1)}
+                              >
+                                <Minus className="w-5 h-5" />
+                              </Button>
+                              <Input
+                                type="number"
+                                min={0}
+                                inputMode="numeric"
+                                className="h-10 w-24 text-center font-semibold"
+                                value={selectedSupplyAdded[target.code] ?? 0}
+                                onChange={(e) => setSupplyAdded(selected.id, target.code, Number.parseInt(e.target.value || "0", 10))}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-10 w-10 rounded-xl border-2"
+                                aria-label={`${p.increaseAdded} ${target.label}`}
+                                onClick={() => setSupplyAdded(selected.id, target.code, (selectedSupplyAdded[target.code] ?? 0) + 1)}
+                              >
+                                <Plus className="w-5 h-5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-14 w-14 shrink-0 rounded-2xl border-2 text-xl"
-                        aria-label={p.increaseAdded}
-                        onClick={() =>
-                          setAdded(selected.id, (addedById[selected.id] ?? 0) + 1)
-                        }
-                      >
-                        <Plus className="w-7 h-7" />
-                      </Button>
+                      <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-center">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{p.addedLabel}</p>
+                        <p className="text-4xl font-bold tabular-nums leading-none tracking-tight">{selectedAddedQuantity}</p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">{p.addedLabel}</p>
+                      <div className="flex items-center justify-center gap-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-14 w-14 shrink-0 rounded-2xl border-2 text-xl"
+                          aria-label={p.decreaseAdded}
+                          onClick={() =>
+                            setAdded(selected.id, (addedById[selected.id] ?? 0) - 1)
+                          }
+                        >
+                          <Minus className="w-7 h-7" />
+                        </Button>
+                        <div className="flex flex-col items-center gap-1 min-w-[6rem]">
+                          <span className="text-5xl font-bold tabular-nums leading-none tracking-tight">
+                            {selectedAddedQuantity}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-14 w-14 shrink-0 rounded-2xl border-2 text-xl"
+                          aria-label={p.increaseAdded}
+                          onClick={() =>
+                            setAdded(selected.id, (addedById[selected.id] ?? 0) + 1)
+                          }
+                        >
+                          <Plus className="w-7 h-7" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <Button
                     className="w-full min-h-[48px] rounded-xl font-semibold text-base"
                     disabled={restockMut.isPending}
                     onClick={() => {
-                      const n = addedById[selected.id] ?? 0;
+                      const n = selectedAddedQuantity;
                       restockMut.mutate({ id: selected.id, added: n });
                     }}
                   >

@@ -2,6 +2,8 @@ import { Component, type ReactNode } from "react";
 import * as Sentry from "@sentry/react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { queryClient } from "@/lib/queryClient";
 import { t } from "@/lib/i18n";
 
 interface Props {
@@ -11,6 +13,30 @@ interface Props {
 interface State {
   hasError: boolean;
   errorMessage: string;
+}
+
+function RecoveryActions({ onRetry }: { onRetry: () => void }) {
+  const { refreshAuth } = useAuth();
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          queryClient.clear();
+          refreshAuth();
+          onRetry();
+        }}
+      >
+        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+        {t.errorCard.retry}
+      </Button>
+      <Button size="sm" onClick={() => window.location.reload()}>
+        {t.errorCard.refreshPage}
+      </Button>
+    </div>
+  );
 }
 
 export class AppErrorBoundary extends Component<Props, State> {
@@ -50,15 +76,7 @@ export class AppErrorBoundary extends Component<Props, State> {
               <p className="text-xs text-muted-foreground font-mono break-all">{this.state.errorMessage}</p>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={this.reset}>
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-              {t.errorCard.retry}
-            </Button>
-            <Button size="sm" onClick={() => window.location.reload()}>
-              {t.errorCard.refreshPage}
-            </Button>
-          </div>
+          <RecoveryActions onRetry={this.reset} />
         </div>
       </div>
     );

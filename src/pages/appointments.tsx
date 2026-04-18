@@ -1402,8 +1402,8 @@ export default function AppointmentsPage() {
       </div>
 
       <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
-        <DialogContent dir="rtl" className="text-right">
-          <DialogHeader>
+        <DialogContent dir="rtl" className="text-right max-h-[85vh] flex flex-col overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>New Task</DialogTitle>
             <DialogDescription>
               Assign a device and technician.{" "}
@@ -1412,8 +1412,9 @@ export default function AppointmentsPage() {
               </span>
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
               <select
                 dir="ltr"
@@ -1428,8 +1429,8 @@ export default function AppointmentsPage() {
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
+              </div>
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
               <Input
                 dir="ltr"
@@ -1438,8 +1439,8 @@ export default function AppointmentsPage() {
                 onChange={(e) => setFormAnimalId(e.target.value)}
                 placeholder="e.g. Ventilator, Autoclave"
               />
-            </div>
-            <div>
+              </div>
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Location / Department (optional)</label>
               <Input
                 dir="ltr"
@@ -1448,8 +1449,8 @@ export default function AppointmentsPage() {
                 onChange={(e) => setFormOwnerId(e.target.value)}
                 placeholder="ICU / ER / Ward"
               />
-            </div>
-            <div>
+              </div>
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Task type</label>
               <select
                 dir="ltr"
@@ -1472,8 +1473,8 @@ export default function AppointmentsPage() {
                 <option value="inspection">Inspection</option>
                 <option value="medication">Medication</option>
               </select>
-            </div>
-            <div>
+              </div>
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
               <select
                 dir="ltr"
@@ -1490,8 +1491,8 @@ export default function AppointmentsPage() {
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
+              </div>
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Scheduled time</label>
               <Input
                 dir="ltr"
@@ -1500,8 +1501,8 @@ export default function AppointmentsPage() {
                 value={formStartLocal}
                 onChange={(e) => setFormStartLocal(e.target.value)}
               />
-            </div>
-            <div>
+              </div>
+              <div>
               <label className="text-xs text-muted-foreground block text-right">Expected end (manual override allowed)</label>
               <Input
                 dir="ltr"
@@ -1513,14 +1514,14 @@ export default function AppointmentsPage() {
                   setFormEndLocal(e.target.value);
                 }}
               />
-            </div>
-            <div className="md:col-span-2">
+              </div>
+              <div className="md:col-span-2">
               <label className="text-xs text-muted-foreground block text-right">Notes</label>
               <Textarea dir="ltr" className="text-left" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3} />
-            </div>
-            {isMedicationForm ? (
-              <>
-                <div>
+              </div>
+              {isMedicationForm ? (
+                <>
+                  <div>
                   <label className="text-xs text-muted-foreground block text-right">Dose (mg/kg)</label>
                   <Input
                     dir="ltr"
@@ -1530,8 +1531,8 @@ export default function AppointmentsPage() {
                     onChange={(e) => setFormDoseMgPerKg(e.target.value)}
                     placeholder="e.g. 2.5"
                   />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="text-xs text-muted-foreground block text-right">Default dose (mg/kg)</label>
                   <Input
                     dir="ltr"
@@ -1541,8 +1542,8 @@ export default function AppointmentsPage() {
                     onChange={(e) => setFormDefaultDoseMgPerKg(e.target.value)}
                     placeholder="e.g. 2.0"
                   />
-                </div>
-                <div>
+                  </div>
+                  <div>
                   <label className="text-xs text-muted-foreground block text-right">Concentration (mg/ml)</label>
                   <Input
                     dir="ltr"
@@ -1552,15 +1553,15 @@ export default function AppointmentsPage() {
                     onChange={(e) => setFormConcentrationMgPerMl(e.target.value)}
                     placeholder="optional"
                   />
-                </div>
-                <div className="flex items-end">
+                  </div>
+                  <div className="flex items-end">
                   <div className="text-xs text-muted-foreground">
                     {doseInputsValid ? `Deviation: ${(doseDeviation * 100).toFixed(1)}%` : "Enter dose values to calculate deviation"}
                   </div>
-                </div>
-                {requiresJustification ? (
-                  <>
-                    <div className="md:col-span-2">
+                  </div>
+                  {requiresJustification ? (
+                    <>
+                      <div className="md:col-span-2">
                       <label className="text-xs text-muted-foreground block text-right">Dose justification (required)</label>
                       <select
                         dir="ltr"
@@ -1574,9 +1575,9 @@ export default function AppointmentsPage() {
                         ))}
                         <option value={MEDICATION_CUSTOM_JUSTIFICATION}>Other (specify)</option>
                       </select>
-                    </div>
-                    {formJustificationPresetCode === MEDICATION_CUSTOM_JUSTIFICATION ? (
-                      <div className="md:col-span-2">
+                      </div>
+                      {formJustificationPresetCode === MEDICATION_CUSTOM_JUSTIFICATION ? (
+                        <div className="md:col-span-2">
                         <label className="text-xs text-muted-foreground block text-right">
                           Custom justification (minimum {justificationMinLength} chars)
                         </label>
@@ -1587,14 +1588,15 @@ export default function AppointmentsPage() {
                           onChange={(e) => setFormJustificationCustom(e.target.value)}
                           rows={3}
                         />
-                      </div>
-                    ) : null}
-                  </>
-                ) : null}
-              </>
-            ) : null}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
             <Button variant="outline" onClick={() => setBookingOpen(false)}>
               Cancel
             </Button>
@@ -1609,18 +1611,18 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={conflictOpen} onOpenChange={setConflictOpen}>
-        <DialogContent dir="rtl" className="text-right">
-          <DialogHeader>
+        <DialogContent dir="rtl" className="text-right max-h-[85vh] flex flex-col overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Scheduling conflict</DialogTitle>
             <DialogDescription>
               This time overlaps an existing task. Provide a reason to override.
             </DialogDescription>
           </DialogHeader>
-          <div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
               <label className="text-xs text-muted-foreground block text-right">Reason for override</label>
             <Textarea dir="ltr" className="text-left" value={conflictReason} onChange={(e) => setConflictReason(e.target.value)} rows={3} />
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
             <Button variant="outline" onClick={() => setConflictOpen(false)}>
               Keep original
             </Button>

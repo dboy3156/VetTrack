@@ -130,7 +130,7 @@
     "addedLabel": "Quantity added",
     "blindAudit": "Blind count",
     "physicalCount": "Physical count",
-    "submitRestock": "Save restock",
+    "submitRestock": "Confirm Refill",
     "submitAudit": "Save count",
     "loadError": "Load failed",
     "empty": "No containers yet. Use Quick add or ask an admin.",
