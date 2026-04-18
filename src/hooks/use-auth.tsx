@@ -31,7 +31,10 @@ interface AuthState {
   isSignedIn: boolean; isAdmin: boolean; isOfflineSession: boolean;
 }
 
-interface AuthContextType extends AuthState { signOut: () => Promise<void>; }
+interface AuthContextType extends AuthState {
+  signOut: () => Promise<void>;
+  refreshAuth: () => void;
+}
 
 interface SyncedUserResponse {
   id: string;
@@ -53,6 +56,7 @@ const AuthContext = createContext<AuthContextType>({
   effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
   isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
   signOut: async () => {},
+  refreshAuth: () => {},
 });
 
 function DevAuthProviderInner({ children }: { children: ReactNode }) {
@@ -95,6 +99,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     };
   });
+  const [authRefreshNonce, setAuthRefreshNonce] = useState(0);
   const stateRef = useRef(state);
 
   useEffect(() => {
@@ -125,6 +130,11 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
       window.location.assign("/landing");
     }
   }, [queryClient]);
+
+  const refreshAuth = useCallback(() => {
+    setState((prev) => ({ ...prev, isLoaded: false }));
+    setAuthRefreshNonce((v) => v + 1);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -199,9 +209,9 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
 
     syncDevSession();
     return () => controller.abort();
-  }, []);
+  }, [authRefreshNonce]);
 
-  const value = useMemo(() => ({ ...state, signOut }), [state, signOut]);
+  const value = useMemo(() => ({ ...state, signOut, refreshAuth }), [state, signOut, refreshAuth]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
@@ -252,6 +262,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     };
   });
+  const [authRefreshNonce, setAuthRefreshNonce] = useState(0);
   const stateRef = useRef(state);
 
   useEffect(() => {
@@ -275,6 +286,11 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     queryClient.clear();
     await clerkSignOut({ redirectUrl: "/landing" });
   }, [queryClient, clerkSignOut]);
+
+  const refreshAuth = useCallback(() => {
+    setState((prev) => ({ ...prev, isLoaded: false }));
+    setAuthRefreshNonce((v) => v + 1);
+  }, []);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -433,9 +449,9 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     }
 
     syncSession();
-  }, [isLoaded, isSignedIn, user?.id, user?.primaryEmailAddress?.emailAddress, user?.firstName, user?.lastName, getToken]);
+  }, [isLoaded, isSignedIn, user?.id, user?.primaryEmailAddress?.emailAddress, user?.firstName, user?.lastName, getToken, authRefreshNonce]);
 
-  const value = useMemo(() => ({ ...state, signOut }), [state, signOut]);
+  const value = useMemo(() => ({ ...state, signOut, refreshAuth }), [state, signOut, refreshAuth]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
