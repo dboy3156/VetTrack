@@ -90,7 +90,8 @@ export interface DeductMedicationInventoryParams {
 
 type DeductResult =
   | { ok: true; containerId: string; quantityBefore: number; quantityAfter: number }
-  | { error: "NOT_FOUND" | "INSUFFICIENT_STOCK" };
+  | { alreadyApplied: true; containerId: string }
+  | { error: "CONTAINER_NOT_FOUND" | "INSUFFICIENT_STOCK" };
 
 /**
  * Deducts medication volume from container inventory within an existing transaction.
@@ -110,21 +111,16 @@ export async function deductMedicationInventoryInTx(
     .where(and(eq(containers.clinicId, params.clinicId), eq(containers.id, params.containerId)))
     .limit(1);
 
-  if (!c) return { error: "NOT_FOUND" as const };
+  if (!c) return { error: "CONTAINER_NOT_FOUND" as const };
   if (c.currentQuantity <= 0) return { error: "INSUFFICIENT_STOCK" as const };
 
   const quantityBefore = c.currentQuantity;
   const quantityAfter = Math.max(0, quantityBefore - unitsToDeduct);
-
-  await tx
-    .update(containers)
-    .set({ currentQuantity: quantityAfter })
-    .where(and(eq(containers.clinicId, params.clinicId), eq(containers.id, c.id)));
-
-  await tx.insert(inventoryLogs).values({
+  const [logRow] = await tx.insert(inventoryLogs).values({
     id: randomUUID(),
     clinicId: params.clinicId,
     containerId: c.id,
+    taskId: params.taskId,
     logType: "adjustment",
     quantityBefore,
     quantityAdded: -unitsToDeduct,
@@ -135,7 +131,18 @@ export async function deductMedicationInventoryInTx(
     roomId: c.roomId,
     note: `Medication task ${params.taskId} — administered ${params.volumeMl.toFixed(3)} mL`,
     createdByUserId: params.actorUserId,
-  });
+  }).onConflictDoNothing().returning({ id: inventoryLogs.id });
+
+  if (!logRow) {
+    return { alreadyApplied: true as const, containerId: c.id };
+  }
+
+  await tx
+    .update(containers)
+    .set({
+      currentQuantity: sql`GREATEST(0, ${containers.currentQuantity} - ${unitsToDeduct})`,
+    })
+    .where(and(eq(containers.clinicId, params.clinicId), eq(containers.id, c.id)));
 
   return { ok: true as const, containerId: c.id, quantityBefore, quantityAfter };
 }
