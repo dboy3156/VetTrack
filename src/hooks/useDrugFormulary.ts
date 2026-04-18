@@ -1,3 +1,4 @@
+import { useAuth } from "@/hooks/use-auth";
 import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -78,12 +79,14 @@ export function calculateMedicationVolumeMl(params: {
 }
 
 export function useDrugFormulary() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const formularyQuery = useQuery({
     retry: false,
     refetchOnWindowFocus: false,
     queryKey: ["/api/formulary"],
     queryFn: api.formulary.list,
+    enabled: !!userId,
   });
 
   const list = useMemo(() => {

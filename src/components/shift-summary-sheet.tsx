@@ -31,7 +31,7 @@ interface ShiftSummarySheetProps {
 }
 
 export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
-  const { email: userEmail } = useAuth();
+  const { email: userEmail, userId } = useAuth();
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
   const { data: myItems, isLoading: myLoading, isError: myError, refetch: refetchMy } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
-    enabled: open,
+    enabled: open && !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -63,7 +63,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
   const { data: equipment, isLoading: eqLoading, isError: eqError, refetch: refetchEq } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
-    enabled: open,
+    enabled: open && !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -71,7 +71,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
   const { data: activityData, isLoading: actLoading, isError: actError, refetch: refetchAct } = useQuery({
     queryKey: ["/api/activity"],
     queryFn: () => api.activity.feed(),
-    enabled: open,
+    enabled: open && !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -79,7 +79,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
   const { data: acks, refetch: refetchAcks } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
-    enabled: open,
+    enabled: open && !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

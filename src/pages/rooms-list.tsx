@@ -201,7 +201,7 @@ function inferZone(room: Room): Zone {
 }
 
 export default function RoomsListPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userId } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [roomName, setRoomName] = useState("");
@@ -212,6 +212,7 @@ export default function RoomsListPage() {
     queryKey: ["/api/rooms"],
     queryFn: api.rooms.list,
     staleTime: 30_000,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

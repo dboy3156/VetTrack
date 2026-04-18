@@ -24,6 +24,7 @@ import {
 import type { Payload } from "recharts/types/component/DefaultLegendContent";
 import { ErrorCard } from "@/components/ui/error-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useAuth } from "@/hooks/use-auth";
 import {
   BarChart3,
   CheckCircle2,
@@ -43,9 +44,11 @@ const STATUS_COLORS_HEX = {
 };
 
 export default function AnalyticsPage() {
+  const { userId } = useAuth();
   const { data: analytics, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/analytics"],
     queryFn: api.analytics.summary,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

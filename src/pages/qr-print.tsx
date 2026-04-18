@@ -22,8 +22,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Equipment } from "@/types";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function QrPrintPage() {
+  const { userId } = useAuth();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const printRef = useRef<HTMLDivElement>(null);
@@ -31,6 +33,7 @@ export default function QrPrintPage() {
   const { data: equipment, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

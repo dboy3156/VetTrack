@@ -68,10 +68,10 @@ import {
   updateCachedEquipment,
 } from "./offline-db";
 import {
-  getAuthHeaders,
   getCurrentUserId,
   getCurrentUserEmail,
 } from "./auth-store";
+import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
 
 const BASE_HEADERS: Record<string, string> = {
@@ -79,7 +79,7 @@ const BASE_HEADERS: Record<string, string> = {
 };
 
 function buildHeaders(): Record<string, string> {
-  return { ...BASE_HEADERS, ...getAuthHeaders(), "X-Locale": getStoredLocale() };
+  return { ...BASE_HEADERS, "X-Locale": getStoredLocale() };
 }
 
 interface OfflineOptions {
@@ -164,7 +164,7 @@ function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIME
     controller.signal.addEventListener("abort", () => outer.removeEventListener("abort", onAbort), { once: true });
   }
 
-  return fetch(url, { credentials: "include", ...init, signal: controller.signal })
+  return authFetch(url, { ...init, signal: controller.signal })
     .finally(() => clearTimeout(timer))
     .catch((err) => {
       if (timedOut && err instanceof DOMException && err.name === "AbortError") {
@@ -443,7 +443,7 @@ export const api = {
       const form = new FormData();
       form.append("file", file);
       // Do NOT set Content-Type — browser sets it automatically with multipart boundary
-      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const headers: Record<string, string> = { "X-Locale": getStoredLocale() };
       const res = await fetchWithTimeout(
         "/api/equipment/import",
         { method: "POST", body: form, headers },
@@ -845,7 +845,7 @@ export const api = {
     previewImport: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
-      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const headers: Record<string, string> = { "X-Locale": getStoredLocale() };
       const res = await fetchWithTimeout(
         "/api/shifts/import/preview",
         { method: "POST", body: form, headers },
@@ -860,7 +860,7 @@ export const api = {
     confirmImport: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
-      const headers: Record<string, string> = { ...getAuthHeaders() };
+      const headers: Record<string, string> = { "X-Locale": getStoredLocale() };
       const res = await fetchWithTimeout(
         "/api/shifts/import/confirm",
         { method: "POST", body: form, headers },

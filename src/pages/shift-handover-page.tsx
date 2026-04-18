@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { formatDateTimeByLocale } from "@/lib/i18n";
 import type { ShiftHandoverSummary } from "@/types";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 function formatIls(cents: number): string {
   return (cents / 100).toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -79,6 +80,7 @@ const SECTION_SHELL = {
 };
 
 export default function ShiftHandoverPage() {
+  const { userId } = useAuth();
   const search = useSearch();
   const dischargeAnimalId = useMemo(() => new URLSearchParams(search).get("discharge"), [search]);
   const [dischargeOpen, setDischargeOpen] = useState(false);
@@ -99,6 +101,7 @@ export default function ShiftHandoverPage() {
   const q = useQuery({
     queryKey: ["/api/shift-handover/summary"],
     queryFn: () => api.shiftHandover.getSummary(),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

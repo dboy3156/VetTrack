@@ -171,6 +171,7 @@ export function SharedAuditLogsPanel({
 }: {
   compact?: boolean;
 }) {
+  const { userId } = useAuth();
   // Server-side filter state
   const [actionType, setActionType] = useState<string>("");
   const [performedBy, setPerformedBy] = useState("");
@@ -196,6 +197,7 @@ export function SharedAuditLogsPanel({
         to: toKey || undefined,
         page: serverPage,
       }),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

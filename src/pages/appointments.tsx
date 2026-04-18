@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import { leaderPoll } from "@/lib/leader";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
+import { useAuth } from "@/hooks/use-auth";
 import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
 import { toast } from "sonner";
 import {
@@ -343,6 +344,7 @@ function getTaskReasonBullets(scoreBreakdown: {
 }
 
 export default function AppointmentsPage() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const urgentRef = useRef<HTMLDivElement>(null);
   const myTasksRef = useRef<HTMLDivElement>(null);
@@ -379,6 +381,7 @@ export default function AppointmentsPage() {
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
     queryFn: api.users.me,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -388,6 +391,7 @@ export default function AppointmentsPage() {
   const metaQuery = useQuery({
     queryKey: ["/api/appointments/meta", day],
     queryFn: () => api.appointments.meta(day),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -411,6 +415,7 @@ export default function AppointmentsPage() {
   const listQuery = useQuery({
     queryKey: ["/api/appointments", day],
     queryFn: () => api.appointments.list({ day }),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -426,7 +431,7 @@ export default function AppointmentsPage() {
     placeholderData: (prev) => prev,
     retry: false,
   });
-  const recommendationsQuery = useTaskRecommendations(Boolean(meUserId));
+  const recommendationsQuery = useTaskRecommendations(Boolean(userId) && Boolean(meUserId));
 
   const vetNameMap = useMemo(() => {
     const map = new Map<string, string>();

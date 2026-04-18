@@ -71,7 +71,7 @@ import { SharedAuditLogsPanel } from "./audit-log";
 import { t } from "@/lib/i18n";
 
 export default function AdminPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userId } = useAuth();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<
     "folders" | "users" | "pending" | "support" | "audit-logs" | "deleted"
@@ -80,7 +80,7 @@ export default function AdminPage() {
   const { data: supportUnresolved } = useQuery({
     queryKey: ["/api/support/unresolved-count"],
     queryFn: api.support.unresolvedCount,
-    enabled: isAdmin,
+    enabled: isAdmin && !!userId,
     refetchInterval: leaderPoll(60_000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
@@ -90,7 +90,7 @@ export default function AdminPage() {
   const { data: pendingUsers } = useQuery({
     queryKey: ["/api/users/pending"],
     queryFn: api.users.listPending,
-    enabled: isAdmin,
+    enabled: isAdmin && !!userId,
     refetchInterval: leaderPoll(30_000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
@@ -288,6 +288,7 @@ export default function AdminPage() {
 }
 
 function FoldersSection() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editFolder, setEditFolder] = useState<{
@@ -299,6 +300,7 @@ function FoldersSection() {
   const { data: folders, isLoading } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -492,11 +494,13 @@ function FoldersSection() {
 }
 
 function PendingUsersSection() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: pendingUsers, isLoading } = useQuery({
     queryKey: ["/api/users/pending"],
     queryFn: api.users.listPending,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -673,6 +677,7 @@ function StatusBadge({ status }: { status: string }) {
 type UserStatusFilter = "all" | "pending" | "active" | "blocked";
 
 function UsersSection() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
   const effectiveStatus = statusFilter === "all" ? undefined : statusFilter;
@@ -697,6 +702,7 @@ function UsersSection() {
       api.users.listPaginated(pageParam as number, 100, effectiveStatus),
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     initialPageParam: 1,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -1116,11 +1122,13 @@ function UsersSection() {
 }
 
 function DeletedItemsSection() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: deletedEquipment, isLoading: equipLoading } = useQuery({
     queryKey: ["/api/equipment/deleted"],
     queryFn: api.equipment.listDeleted,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -1128,6 +1136,7 @@ function DeletedItemsSection() {
   const { data: deletedUsers, isLoading: usersLoading } = useQuery({
     queryKey: ["/api/users/deleted"],
     queryFn: api.users.listDeleted,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -1295,6 +1304,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function SupportSection() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(
     null,
@@ -1306,6 +1316,7 @@ function SupportSection() {
   const { data: tickets, isLoading } = useQuery({
     queryKey: ["/api/support"],
     queryFn: api.support.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

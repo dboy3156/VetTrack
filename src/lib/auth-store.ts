@@ -12,12 +12,21 @@ let authState: AuthState = {
   bearerToken: null,
 };
 
+function isLikelyJwt(token: string): boolean {
+  const parts = token.split(".");
+  return parts.length === 3 && parts.every((part) => part.trim().length > 0);
+}
+
 export function setAuthState(state: AuthState) {
-  authState = state;
+  const normalizedToken = typeof state.bearerToken === "string" ? state.bearerToken.trim() : "";
+  authState = {
+    ...state,
+    bearerToken: normalizedToken && isLikelyJwt(normalizedToken) ? normalizedToken : null,
+  };
 }
 
 export function getAuthHeaders(): Record<string, string> {
-  if (authState.bearerToken) {
+  if (authState.bearerToken && isLikelyJwt(authState.bearerToken)) {
     return { Authorization: `Bearer ${authState.bearerToken}` };
   }
   return {};
@@ -33,4 +42,8 @@ export function getCurrentUserEmail(): string {
 
 export function getCurrentUserName(): string {
   return authState.name;
+}
+
+export function getStoredBearerToken(): string | null {
+  return authState.bearerToken;
 }

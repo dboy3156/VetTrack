@@ -9,7 +9,7 @@ function isUnauthorizedError(error: unknown): boolean {
   }
   if (error instanceof Error) {
     const m = error.message;
-    if (m === "Session expired" || m === "UNAUTHORIZED") return true;
+    if (m === "Session expired" || m === "UNAUTHORIZED" || m === "AUTH_INVALID") return true;
   }
   return false;
 }

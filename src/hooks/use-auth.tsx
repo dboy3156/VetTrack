@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import type { Shift, ShiftRole, UserRole } from "@/types";
 import { setAuthState } from "@/lib/auth-store";
+import { isValidJwt, setClerkTokenGetter } from "@/lib/auth-fetch";
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { restoreOfflineSession, saveOfflineSession, clearOfflineSession } from "@/lib/offline-session";
@@ -137,6 +138,13 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    setClerkTokenGetter(null);
+    return () => {
+      setClerkTokenGetter(null);
+    };
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     async function syncDevSession() {
@@ -266,6 +274,20 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
 
   useEffect(() => {
+    if (!isSignedIn) {
+      setClerkTokenGetter(null);
+      return;
+    }
+    setClerkTokenGetter(async () => {
+      const token = await getToken();
+      return typeof token === "string" ? token : null;
+    });
+    return () => {
+      setClerkTokenGetter(null);
+    };
+  }, [getToken, isSignedIn]);
+
+  useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
@@ -306,11 +328,11 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     }
 
     async function syncSession() {
-      const token = await getToken();
+      const rawToken = await getToken();
+      const token = typeof rawToken === "string" ? rawToken.trim() : "";
       const email = user?.primaryEmailAddress?.emailAddress || "";
       const name = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
       const clerkId = user?.id || "";
-
       setAuthState({
         userId: "",
         email,
@@ -318,9 +340,9 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         bearerToken: token || null,
       });
 
-      const headers = { 
+      const headers = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        ...(isValidJwt(token) ? { "Authorization": `Bearer ${token}` } : {}),
       };
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);

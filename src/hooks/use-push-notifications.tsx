@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { getAuthHeaders } from "@/lib/auth-store";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface PushState {
   supported: boolean;
@@ -70,19 +70,12 @@ async function waitForServiceWorkerReady(timeoutMs = 8000): Promise<ServiceWorke
   return registration;
 }
 
-function buildHeaders(): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    ...getAuthHeaders(),
-  };
-}
-
 async function getVapidPublicKey(): Promise<string> {
   const envVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
   if (envVapidKey && envVapidKey.trim()) {
     return envVapidKey.trim();
   }
-  const res = await fetch("/api/push/vapid-public-key", { headers: buildHeaders() });
+  const res = await authFetch("/api/push/vapid-public-key");
   if (!res.ok) throw new Error("Failed to fetch VAPID key");
   const { publicKey } = await res.json();
   return publicKey;
@@ -179,9 +172,9 @@ export function usePushNotifications() {
       });
 
       const subJson = subscription.toJSON();
-      const res = await fetch("/api/push/subscribe", {
+      const res = await authFetch("/api/push/subscribe", {
         method: "POST",
-        headers: buildHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           endpoint: subJson.endpoint,
           keys: {
@@ -217,9 +210,9 @@ export function usePushNotifications() {
       const subscription = await registration.pushManager.getSubscription();
 
       if (subscription) {
-        await fetch("/api/push/subscribe", {
+        await authFetch("/api/push/subscribe", {
           method: "DELETE",
-          headers: buildHeaders(),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
         await subscription.unsubscribe();
@@ -250,9 +243,9 @@ export function usePushNotifications() {
       const subscription = await registration.pushManager.getSubscription();
       if (!subscription) return false;
 
-      const res = await fetch("/api/push/subscribe", {
+      const res = await authFetch("/api/push/subscribe", {
         method: "PATCH",
-        headers: buildHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: subscription.endpoint, ...opts }),
       });
       return res.ok;
@@ -264,9 +257,9 @@ export function usePushNotifications() {
   const sendTestNotification = useCallback(async (): Promise<boolean> => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const res = await fetch("/api/push/test", {
+      const res = await authFetch("/api/push/test", {
         method: "POST",
-        headers: buildHeaders(),
+        headers: { "Content-Type": "application/json" },
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; success?: boolean };
       if (!res.ok) {
