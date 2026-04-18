@@ -104,7 +104,7 @@ export class AppointmentServiceError extends Error {
 }
 
 /** Statuses that participate in technician time overlap detection. */
-const ACTIVE_CONFLICT_STATUSES: AppointmentStatus[] = ["scheduled", "assigned", "arrived", "in_progress", "completed"];
+const ACTIVE_CONFLICT_STATUSES: AppointmentStatus[] = ["scheduled", "assigned", "arrived", "in_progress"];
 const ALL_STATUSES: AppointmentStatus[] = [
   "pending",
   "assigned",
