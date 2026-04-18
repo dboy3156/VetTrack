@@ -24,7 +24,7 @@ export async function ensureDefaultBillingItemsForAllClinics(): Promise<void> {
 }
 
 /**
- * Seeds the four default ICU / פנימה containers when the clinic has none.
+ * Seeds the default ICU and internal-medicine containers when the clinic has none.
  * Returns how many rows were inserted.
  */
 export async function seedDefaultContainersIfEmpty(clinicId: string): Promise<number> {
