@@ -26,3 +26,21 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     replaysOnErrorSampleRate: 1.0,
   });
 }
+
+declare global {
+  interface Window {
+    __vettrackGlobalErrorHandlersAttached__?: boolean;
+  }
+}
+
+if (typeof window !== "undefined" && !window.__vettrackGlobalErrorHandlersAttached__) {
+  window.__vettrackGlobalErrorHandlersAttached__ = true;
+
+  window.addEventListener("error", (event) => {
+    Sentry.captureException(event.error ?? new Error(event.message));
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    Sentry.captureException(event.reason ?? new Error("Unhandled promise rejection"));
+  });
+}
