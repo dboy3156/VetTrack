@@ -172,6 +172,7 @@ router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async
   try {
     const task = await startTask(req.clinicId!, req.params.id, {
       userId: req.authUser.id,
+      clerkId: req.authUser.clerkId,
       email: req.authUser.email,
       role: resolveTaskAuthRole(req),
     });
@@ -216,6 +217,7 @@ router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), as
   try {
     const task = await completeTask(req.clinicId!, req.params.id, {
       userId: req.authUser.id,
+      clerkId: req.authUser.clerkId,
       email: req.authUser.email,
       role: resolveTaskAuthRole(req),
     });

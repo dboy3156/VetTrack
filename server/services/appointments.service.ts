@@ -3,6 +3,7 @@ import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, billingItems, billingLedger, db, owners, shifts, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
+import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
 import { validateJustificationText, MedJustificationError, resolvePresetLabel } from "../lib/med-justification.js";
 import { incrementMetric } from "../lib/metrics.js";
 import { broadcast } from "../lib/realtime.js";
@@ -22,6 +23,7 @@ export type AppointmentStatus =
 
 export interface TaskAuditActor {
   userId: string;
+  clerkId?: string;
   email: string;
   role?: string;
 }
@@ -124,6 +126,8 @@ interface MedicationMetadata {
   [key: string]: unknown;
 }
 
+const DOSE_DEVIATION_HARD_CAP = 0.5;
+
 function normalizeRole(roleInput: string | null | undefined): string {
   return (roleInput ?? "").trim().toLowerCase();
 }
@@ -153,9 +157,10 @@ function normalizeMedicationMetadata(
 ): MedicationMetadata {
   const metadata = medicationMetadataFromUnknown(metadataInput);
   metadata.kind = "medication";
+  const actorIdentifier = actor?.clerkId?.trim() || actor?.userId;
 
-  if (actor?.userId && !metadata.createdBy) {
-    metadata.createdBy = actor.userId;
+  if (actorIdentifier && !metadata.createdBy) {
+    metadata.createdBy = actorIdentifier;
   }
 
   const hasDoseInputs =
@@ -168,6 +173,13 @@ function normalizeMedicationMetadata(
   }
 
   const deviation = computeDoseDeviation(metadata);
+  if (deviation > DOSE_DEVIATION_HARD_CAP) {
+    throw new AppointmentServiceError(
+      "DOSE_DEVIATION_EXCEEDS_CAP",
+      403,
+      "Dose deviation above 50% is blocked by clinical policy",
+    );
+  }
   const tier = justificationTier(deviation);
   const needsJustification = requiresDoseJustification(
     metadata.doseMgPerKg as number,
@@ -611,6 +623,9 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
     }
     metadataRecord = normalizeMedicationMetadataOrThrow(metadataInput, actor);
+    if (metadataRecord) {
+      metadataRecord.scheduled_at = scheduledAt.toISOString();
+    }
   }
 
   if (status !== "cancelled" && status !== "no_show") {
@@ -712,12 +727,6 @@ export async function updateAppointment(
   if (!existing) {
     throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
   }
-  if (isMedicationTaskType(existing.taskType as TaskType | null) && actor) {
-    if (!canPerformMedicationTaskAction(actor.role, "med.task.cancel")) {
-      throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
-    }
-  }
-
   const previousSnapshot = { ...serializeAppointment(existing) };
 
   const nextVetId =
@@ -754,6 +763,9 @@ export async function updateAppointment(
       throw new AppointmentServiceError("INSUFFICIENT_ROLE", 403, "Insufficient medication task permissions");
     }
     nextMetadata = normalizeMedicationMetadataOrThrow(nextMetadataInput, actor);
+    if (nextMetadata && nextScheduledAt) {
+      nextMetadata.scheduled_at = new Date(nextScheduledAt).toISOString();
+    }
   }
 
   if (!nextVetId && nextStatus !== "pending" && nextStatus !== "cancelled") {
@@ -957,9 +969,11 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
 
   const now = new Date();
   const metadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
+  const actorIdentifier = actor.clerkId?.trim() || actor.userId;
   if (metadata) {
-    metadata.acknowledgedBy = actor.userId;
+    metadata.acknowledgedBy = actorIdentifier;
     metadata.acknowledged_at = now.toISOString();
+    metadata.scheduled_at = new Date(existing.scheduledAt ?? existing.startTime).toISOString();
   }
   const previousSnapshot = { ...serializeAppointment(existing) };
   const [updated] = await db
@@ -986,6 +1000,7 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
   });
   void sendTaskNotification("TASK_STARTED", serialized, actor).catch(() => {});
   broadcast(clinicId, { type: "TASK_STARTED", payload: serialized });
+  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 
@@ -1016,7 +1031,8 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
     const metadata = medicationMetadataFromUnknown(existing.metadata);
     const acknowledgedBy = typeof metadata.acknowledgedBy === "string" ? metadata.acknowledgedBy : null;
     const canOverride = actorCanOverrideMedicationOwnership(actorRole);
-    if (!canOverride && acknowledgedBy !== actor.userId) {
+    const actorIdentifier = actor.clerkId?.trim() || actor.userId;
+    if (!canOverride && acknowledgedBy !== actorIdentifier) {
       throw new AppointmentServiceError(
         "TASK_NOT_OWNED_BY_TECH",
         403,
@@ -1039,11 +1055,15 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
 
   const previousSnapshot = { ...serializeAppointment(existing) };
   const completedAt = new Date();
+  const completionIdempotencyKey = `medication-task-complete:${taskId}`;
+  const redisMarkedComplete = isMedicationTask ? await checkIdempotentAsync(completionIdempotencyKey) : false;
   const [updated] = await db.transaction(async (tx) => {
     const existingMetadata = isMedicationTask ? medicationMetadataFromUnknown(existing.metadata) : null;
+    const actorIdentifier = actor.clerkId?.trim() || actor.userId;
     if (existingMetadata) {
-      existingMetadata.completedBy = actor.userId;
+      existingMetadata.completedBy = actorIdentifier;
       existingMetadata.completed_at = completedAt.toISOString();
+      existingMetadata.scheduled_at = new Date(existing.scheduledAt ?? existing.startTime).toISOString();
     }
 
     const [row] = await tx
@@ -1062,14 +1082,14 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
     }
 
     if (isMedicationTask && row.animalId) {
-      const idempotencyKey = `medication-task-complete:${row.id}`;
+      const idempotencyKey = completionIdempotencyKey;
       const [existingLedger] = await tx
         .select({ id: billingLedger.id })
         .from(billingLedger)
         .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, idempotencyKey)))
         .limit(1);
 
-      if (!existingLedger) {
+      if (!existingLedger && !redisMarkedComplete) {
         const billing = await resolveMedicationBillingItemId(tx, clinicId);
         await tx.insert(billingLedger).values({
           id: randomUUID(),
@@ -1102,6 +1122,10 @@ export async function completeTask(clinicIdInput: string, taskId: string, actor:
   });
   void sendTaskNotification("TASK_COMPLETED", serialized, actor).catch(() => {});
   broadcast(clinicId, { type: "TASK_COMPLETED", payload: serialized });
+  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
+  if (isMedicationTask) {
+    await markIdempotentAsync(completionIdempotencyKey);
+  }
   return serialized;
 }
 

@@ -87,6 +87,7 @@ const revertSchema = z.object({
 
 const seenSchema = z.object({
   roomId: z.string().uuid().optional().nullable(),
+  packageCode: z.enum(["fluid_protocol"]).optional().nullable(),
 });
 
 const bulkIdsSchema = z.object({
@@ -1241,11 +1242,12 @@ router.post(
     const requestId = resolveRequestId(res, req.headers["x-request-id"]);
     try {
       const clinicId = req.clinicId!;
-      const { roomId } = req.body as z.infer<typeof seenSchema>;
+      const { roomId, packageCode } = req.body as z.infer<typeof seenSchema>;
       const result = await recordEquipmentSeen({
         clinicId,
         equipmentId: req.params.id,
         roomId: roomId ?? null,
+        packageCode: packageCode ?? null,
       });
       if (!result.ok) {
         return res.status(404).json(
@@ -1270,6 +1272,7 @@ router.post(
         roomId: result.roomId,
         usageSessionId: result.usageSessionId,
         ledgerId: result.ledgerId,
+        packageLedgerIds: result.packageLedgerIds ?? [],
         idempotentReplay: result.idempotentReplay ?? false,
       });
     } catch (err) {

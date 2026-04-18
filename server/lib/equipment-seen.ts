@@ -9,6 +9,9 @@ import {
   patientRoomAssignments,
   usageSessions,
 } from "../db.js";
+import type { BillingPackageCode, ExpandedPackageItem } from "../config/billingPackages.js";
+import { expandPackage } from "../config/billingPackages.js";
+import { checkIdempotentAsync, markIdempotentAsync } from "./idempotency.js";
 
 /** Transaction client from `db.transaction` — schema-typed via drizzle inference at call site. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +102,34 @@ export async function findActiveAnimalInRoom(
   return row ?? null;
 }
 
+async function getOrCreateBillingItemByCode(
+  tx: DbTx,
+  clinicId: string,
+  code: string,
+): Promise<{ id: string; unitPriceCents: number }> {
+  const [existing] = await tx
+    .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
+    .from(billingItems)
+    .where(and(eq(billingItems.clinicId, clinicId), eq(billingItems.code, code)))
+    .limit(1);
+  if (existing) return existing;
+
+  const id = randomUUID();
+  await tx.insert(billingItems).values({
+    id,
+    clinicId,
+    code,
+    description: code.replace(/_/g, " ").toLowerCase(),
+    unitPriceCents: 0,
+    chargeKind: "per_unit",
+  });
+  return { id, unitPriceCents: 0 };
+}
+
+function packageItemIdempotencyKey(base: string, item: ExpandedPackageItem): string {
+  return createHash("sha256").update(`${base}|pkg|${item.itemCode}`).digest("hex");
+}
+
 export type SeenResult =
   | {
       ok: true;
@@ -107,6 +138,7 @@ export type SeenResult =
       roomId: string;
       usageSessionId: string;
       ledgerId: string;
+      packageLedgerIds?: string[];
       idempotentReplay?: boolean;
     }
   | { ok: true; linked: false; reason: "no_room" | "no_patient_in_room"; roomId: string | null }
@@ -117,9 +149,10 @@ export async function processEquipmentSeenInTx(params: {
   clinicId: string;
   equipmentId: string;
   bodyRoomId: string | null | undefined;
+  packageCode?: BillingPackageCode | null;
   now: Date;
 }): Promise<SeenResult> {
-  const { tx, clinicId, equipmentId, bodyRoomId, now } = params;
+  const { tx, clinicId, equipmentId, bodyRoomId, packageCode, now } = params;
 
   const [eqRow] = await tx
     .select()
@@ -141,6 +174,7 @@ export async function processEquipmentSeenInTx(params: {
 
   const billing = await resolveBillingItemForEquipment(tx, clinicId, eqRow);
   const idempotencyKey = buildSeenIdempotencyKey(animal.id, equipmentId, now);
+  const redisSeenKey = `equipment-seen:${clinicId}:${idempotencyKey}`;
 
   const [existingLedger] = await tx
     .select({ id: billingLedger.id })
@@ -192,6 +226,52 @@ export async function processEquipmentSeenInTx(params: {
     idempotencyKey,
     status: "pending",
   });
+  await markIdempotentAsync(redisSeenKey);
+
+  const packageLedgerIds: string[] = [];
+  if (packageCode) {
+    const [animalRow] = await tx
+      .select({ weightKg: animals.weightKg })
+      .from(animals)
+      .where(and(eq(animals.clinicId, clinicId), eq(animals.id, animal.id)))
+      .limit(1);
+    const animalWeightKg =
+      animalRow?.weightKg == null ? null : Number.parseFloat(String(animalRow.weightKg));
+
+    const expanded = expandPackage(packageCode, Number.isFinite(animalWeightKg) ? animalWeightKg : null);
+    for (const item of expanded) {
+      const itemIdempotencyKey = packageItemIdempotencyKey(idempotencyKey, item);
+      const redisPackageKey = `equipment-seen-package:${clinicId}:${itemIdempotencyKey}`;
+      const packageAlreadyProcessed = await checkIdempotentAsync(redisPackageKey);
+      const [existingPackageLedger] = await tx
+        .select({ id: billingLedger.id })
+        .from(billingLedger)
+        .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, itemIdempotencyKey)))
+        .limit(1);
+
+      if (existingPackageLedger || packageAlreadyProcessed) {
+        if (existingPackageLedger) packageLedgerIds.push(existingPackageLedger.id);
+        continue;
+      }
+
+      const pkgBilling = await getOrCreateBillingItemByCode(tx, clinicId, item.itemCode);
+      const pkgLedgerId = randomUUID();
+      await tx.insert(billingLedger).values({
+        id: pkgLedgerId,
+        clinicId,
+        animalId: animal.id,
+        itemType: "CONSUMABLE",
+        itemId: pkgBilling.id,
+        quantity: item.quantity,
+        unitPriceCents: pkgBilling.unitPriceCents,
+        totalAmountCents: pkgBilling.unitPriceCents * item.quantity,
+        idempotencyKey: itemIdempotencyKey,
+        status: "pending",
+      });
+      await markIdempotentAsync(redisPackageKey);
+      packageLedgerIds.push(pkgLedgerId);
+    }
+  }
 
   let usageSessionId: string;
   const [open] = await tx
@@ -240,6 +320,7 @@ export async function processEquipmentSeenInTx(params: {
     roomId,
     usageSessionId,
     ledgerId,
+    packageLedgerIds,
   };
 }
 
@@ -248,6 +329,7 @@ export async function recordEquipmentSeen(params: {
   clinicId: string;
   equipmentId: string;
   roomId: string | null | undefined;
+  packageCode?: BillingPackageCode | null;
 }): Promise<SeenResult> {
   const now = new Date();
   return db.transaction(async (tx) =>
@@ -256,6 +338,7 @@ export async function recordEquipmentSeen(params: {
       clinicId: params.clinicId,
       equipmentId: params.equipmentId,
       bodyRoomId: params.roomId,
+      packageCode: params.packageCode ?? null,
       now,
     }),
   );

@@ -220,6 +220,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
       req.authUser
         ? {
             userId: req.authUser.id,
+            clerkId: req.authUser.clerkId,
             email: req.authUser.email,
             role: resolveTaskAuthRole(req),
           }
@@ -425,6 +426,7 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
       req.authUser
         ? {
             userId: req.authUser.id,
+            clerkId: req.authUser.clerkId,
             email: req.authUser.email,
             role: resolveTaskAuthRole(req),
           }
@@ -494,6 +496,7 @@ router.delete("/:id", requireAuth, requireEffectiveRole("technician"), async (re
       req.authUser
         ? {
             userId: req.authUser.id,
+            clerkId: req.authUser.clerkId,
             email: req.authUser.email,
             role: resolveTaskAuthRole(req),
           }
