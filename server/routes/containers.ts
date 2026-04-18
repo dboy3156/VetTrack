@@ -7,7 +7,7 @@ import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { logAudit } from "../lib/audit.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
-import { restockContainer } from "../services/inventory.service.js";
+import { restockContainerInTx } from "../services/inventory.service.js";
 
 const router = Router();
 
@@ -139,12 +139,15 @@ router.post(
     try {
       const clinicId = req.clinicId!;
       const { addedQuantity } = req.body as z.infer<typeof restockSchema>;
-      const result = await restockContainer({
-        clinicId,
-        containerId: req.params.id,
-        addedQuantity,
-        actorUserId: req.authUser!.id,
-      });
+      const now = new Date();
+      const result = await db.transaction(async (tx) =>
+        restockContainerInTx(tx, {
+          clinicId,
+          containerId: req.params.id,
+          addedQuantity,
+          actorUserId: req.authUser!.id,
+        }, now),
+      );
 
       if ("error" in result && result.error === "NOT_FOUND") {
         return res.status(404).json(
