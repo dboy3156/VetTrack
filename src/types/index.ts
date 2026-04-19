@@ -6,7 +6,7 @@ export type EquipmentStatus =
   | "critical"
   | "needs_attention";
 
-export type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "viewer";
+export type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "student";
 export type ShiftRole = "technician" | "senior_technician" | "admin";
 
 export type AlertType = "overdue" | "issue" | "inactive" | "sterilization_due";
@@ -318,7 +318,7 @@ export interface MedicationExecutionPayload {
   prescribedDosePerKg?: number;
   concentrationMgPerMl?: number;
   formularyConcentrationMgPerMl?: number;
-  doseUnit?: "mg_per_kg" | "mcg_per_kg";
+  doseUnit?: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
   convertedDoseMgPerKg?: number;
   calculatedVolumeMl?: number;
   concentrationOverridden?: boolean;
@@ -335,7 +335,10 @@ export interface DrugFormularyEntry {
   name: string;
   concentrationMgMl: number;
   standardDose: number;
-  doseUnit: "mg_per_kg" | "mcg_per_kg";
+  minDose?: number | null;
+  maxDose?: number | null;
+  doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
+  defaultRoute?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -344,7 +347,10 @@ export interface CreateDrugFormularyRequest {
   name: string;
   concentrationMgMl: number;
   standardDose: number;
-  doseUnit: "mg_per_kg" | "mcg_per_kg";
+  minDose?: number | null;
+  maxDose?: number | null;
+  doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
+  defaultRoute?: string | null;
 }
 
 /** GET /api/tasks/dashboard — single payload for Daily Recall UI. */

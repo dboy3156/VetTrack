@@ -22,6 +22,7 @@ export interface MedicationCalculationInput {
 }
 
 export interface CalculationResult {
+  outputUnit?: "ml" | "tablet";
   breakdown: {
     weightKg: number;
     prescribedDosePerKg: number;
@@ -57,6 +58,8 @@ export class MedicationCalculationError extends Error {
 
 function convertDoseToMgPerKg(dosePerKg: number, unit: DrugDoseUnit): number {
   if (unit === "mcg_per_kg") return dosePerKg / 1000;
+  // mEq_per_kg: concentration field stores mEq/mL; treat numerically the same as mg/kg
+  // tablet: dosePerKg = tablets/kg; concentrationMgMl = mg/tablet for safety check
   return dosePerKg;
 }
 
@@ -118,6 +121,42 @@ export async function calculateMedication(input: MedicationCalculationInput): Pr
   const deviationRatio = doseDeviationRatio(prescribedDoseMgPerKg, standardDoseMgPerKg);
   const level = resolveSafetyLevel(deviationRatio);
 
+  // Tablet dosing: result is tablet count, not mL volume.
+  // concentrationMgMl = mg per tablet (used for safety deviation checks only).
+  if (input.doseUnit === "tablet" || standardDoseUnit === "tablet") {
+    const rawTablets = input.weightKg * input.prescribedDosePerKg;
+    if (!Number.isFinite(rawTablets) || rawTablets <= 0) {
+      throw new MedicationCalculationError("INVALID_VOLUME", 400, "Calculated tablet count must be greater than 0.");
+    }
+    // Round to nearest 0.25 fraction
+    const roundedTablets = Math.round(rawTablets * 4) / 4;
+    const totalDoseMgTablet = roundedTablets * concentrationMgPerMl;
+    const tier = justificationTier(deviationRatio);
+    return {
+      breakdown: {
+        weightKg: input.weightKg,
+        prescribedDosePerKg: input.prescribedDosePerKg,
+        prescribedDoseMgPerKg: input.prescribedDosePerKg,
+        standardDosePerKg,
+        standardDoseMgPerKg: standardDosePerKg,
+        concentrationMgPerMl,
+      },
+      final: {
+        volumeMl: roundedTablets,
+        totalDoseMg: totalDoseMgTablet,
+        roundedVolumeMl: roundedTablets,
+      },
+      safety: {
+        level,
+        requiresReason: requiresDoseJustification(prescribedDoseMgPerKg, standardDoseMgPerKg),
+        blocked: level === "blocked",
+        deviationRatio,
+        justificationTier: tier,
+      },
+      outputUnit: "tablet" as const,
+    };
+  }
+
   const volumeMl = calculateMedicationVolumeMl({
     weightKg: input.weightKg,
     prescribedDoseMgPerKg,
@@ -158,5 +197,6 @@ export async function calculateMedication(input: MedicationCalculationInput): Pr
       deviationRatio,
       justificationTier: tier,
     },
+    outputUnit: "ml" as const,
   };
 }

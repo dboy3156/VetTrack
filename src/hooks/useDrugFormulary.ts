@@ -8,16 +8,22 @@ import { SEEDED_FORMULARY as SHARED_SEEDED_FORMULARY } from "../../shared/drug-f
 export interface DrugFormularyPatch {
   concentrationMgMl?: number;
   standardDose?: number;
+  minDose?: number | null;
+  maxDose?: number | null;
   doseUnit?: DrugDoseUnit;
+  defaultRoute?: string | null;
 }
 
-export type DrugDoseUnit = "mg_per_kg" | "mcg_per_kg";
+export type DrugDoseUnit = "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
 
 export interface DrugFormularyEntry {
   name: string;
   concentrationMgMl: number;
   standardDose: number;
+  minDose?: number | null;
+  maxDose?: number | null;
   doseUnit: DrugDoseUnit;
+  defaultRoute?: string | null;
 }
 
 type DrugFormularyStore = Record<string, DrugFormularyEntry>;
@@ -44,12 +50,18 @@ function sanitizeEntry(raw: unknown): DrugFormularyEntry | null {
   if (!name) return null;
   if (!isFinitePositiveNumber(candidate.concentrationMgMl)) return null;
   if (!isFinitePositiveNumber(candidate.standardDose)) return null;
-  if (candidate.doseUnit !== "mg_per_kg" && candidate.doseUnit !== "mcg_per_kg") return null;
+  const validUnits: DrugDoseUnit[] = ["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"];
+  if (!validUnits.includes(candidate.doseUnit as DrugDoseUnit)) return null;
+  const rawMin = typeof candidate.minDose === "number" && Number.isFinite(candidate.minDose) && candidate.minDose > 0 ? candidate.minDose : null;
+  const rawMax = typeof candidate.maxDose === "number" && Number.isFinite(candidate.maxDose) && candidate.maxDose > 0 ? candidate.maxDose : null;
   return {
     name,
-    concentrationMgMl: candidate.concentrationMgMl,
-    standardDose: candidate.standardDose,
-    doseUnit: candidate.doseUnit,
+    concentrationMgMl: candidate.concentrationMgMl as number,
+    standardDose: candidate.standardDose as number,
+    minDose: rawMin,
+    maxDose: rawMax,
+    doseUnit: candidate.doseUnit as DrugDoseUnit,
+    defaultRoute: typeof candidate.defaultRoute === "string" ? candidate.defaultRoute : null,
   };
 }
 
@@ -64,9 +76,8 @@ function fromApiEntry(entry: ApiDrugFormularyEntry): DrugFormularyEntry | null {
 
 export function convertDoseToMgPerKg(dosePerKg: number, unit: DrugDoseUnit): number {
   if (!Number.isFinite(dosePerKg) || dosePerKg <= 0) return 0;
-  if (unit === "mcg_per_kg") {
-    return dosePerKg / 1000;
-  }
+  if (unit === "mcg_per_kg") return dosePerKg / 1000;
+  // mEq_per_kg and tablet: treated numerically as-is (no mg conversion needed)
   return dosePerKg;
 }
 

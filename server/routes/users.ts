@@ -69,7 +69,7 @@ const adminListUserFields = {
   clerkId: users.clerkId,
 };
 
-const VALID_ROLES = ["admin", "vet", "technician", "senior_technician", "viewer"] as const;
+const VALID_ROLES = ["admin", "vet", "technician", "senior_technician", "student"] as const;
 const VALID_STATUSES = ["pending", "active", "blocked"] as const;
 
 const patchRoleSchema = z.object({

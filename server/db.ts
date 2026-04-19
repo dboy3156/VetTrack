@@ -113,7 +113,7 @@ export const rooms = pgTable("vt_rooms", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const occupancySourceEnum = pgEnum("vt_occupancy_source", ["smartflow", "manual"]);
+export const occupancySourceEnum = pgEnum("vt_occupancy_source", ["manual"]);
 export const billingChargeKindEnum = pgEnum("vt_billing_charge_kind", ["per_scan_hour", "per_unit"]);
 export const billingLedgerItemTypeEnum = pgEnum("vt_billing_ledger_item_type", ["EQUIPMENT", "CONSUMABLE"]);
 export const billingLedgerStatusEnum = pgEnum("vt_billing_ledger_status", ["pending", "synced"]);
@@ -139,7 +139,10 @@ export const drugFormulary = pgTable(
     name: text("name").notNull(),
     concentrationMgMl: numeric("concentration_mg_ml", { precision: 10, scale: 4 }).notNull(),
     standardDose: numeric("standard_dose", { precision: 10, scale: 4 }).notNull(),
+    minDose: numeric("min_dose", { precision: 10, scale: 4 }),
+    maxDose: numeric("max_dose", { precision: 10, scale: 4 }),
     doseUnit: varchar("dose_unit", { length: 20 }).notNull().default("mg_per_kg"),
+    defaultRoute: varchar("default_route", { length: 100 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     deletedAt: timestamp("deleted_at"),

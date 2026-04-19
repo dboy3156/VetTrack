@@ -12,7 +12,10 @@ const createOrUpsertFormularySchema = z.object({
   name: z.string().trim().min(1).max(200),
   concentrationMgMl: z.number().finite().positive(),
   standardDose: z.number().finite().positive(),
-  doseUnit: z.enum(["mg_per_kg", "mcg_per_kg"]),
+  minDose: z.number().finite().positive().optional().nullable(),
+  maxDose: z.number().finite().positive().optional().nullable(),
+  doseUnit: z.enum(["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"]),
+  defaultRoute: z.string().trim().max(100).optional().nullable(),
 });
 
 function resolveRequestId(
@@ -44,7 +47,10 @@ function toResponseRow(row: typeof drugFormulary.$inferSelect) {
     name: row.name,
     concentrationMgMl: Number(row.concentrationMgMl),
     standardDose: Number(row.standardDose),
-    doseUnit: row.doseUnit as "mg_per_kg" | "mcg_per_kg",
+    minDose: row.minDose != null ? Number(row.minDose) : null,
+    maxDose: row.maxDose != null ? Number(row.maxDose) : null,
+    doseUnit: row.doseUnit as "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet",
+    defaultRoute: row.defaultRoute ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -67,7 +73,10 @@ async function seedDefaultsIfClinicHasNoRows(clinicId: string): Promise<void> {
         name: entry.name,
         concentrationMgMl: String(entry.concentrationMgMl),
         standardDose: String(entry.standardDose),
+        minDose: entry.minDose != null ? String(entry.minDose) : null,
+        maxDose: entry.maxDose != null ? String(entry.maxDose) : null,
         doseUnit: entry.doseUnit,
+        defaultRoute: entry.defaultRoute ?? null,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -150,7 +159,10 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
             name: normalizedName,
             concentrationMgMl: String(payload.concentrationMgMl),
             standardDose: String(payload.standardDose),
+            minDose: payload.minDose != null ? String(payload.minDose) : null,
+            maxDose: payload.maxDose != null ? String(payload.maxDose) : null,
             doseUnit: payload.doseUnit,
+            defaultRoute: payload.defaultRoute ?? null,
             deletedAt: null,
             updatedAt: now,
           })
@@ -176,7 +188,10 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
         name: normalizedName,
         concentrationMgMl: String(payload.concentrationMgMl),
         standardDose: String(payload.standardDose),
+        minDose: payload.minDose != null ? String(payload.minDose) : null,
+        maxDose: payload.maxDose != null ? String(payload.maxDose) : null,
         doseUnit: payload.doseUnit,
+        defaultRoute: payload.defaultRoute ?? null,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -221,7 +236,10 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
   const patchSchema = z.object({
     concentrationMgMl: z.number().finite().positive().optional(),
     standardDose: z.number().finite().positive().optional(),
-    doseUnit: z.enum(["mg_per_kg", "mcg_per_kg"]).optional(),
+    minDose: z.number().finite().positive().optional().nullable(),
+    maxDose: z.number().finite().positive().optional().nullable(),
+    doseUnit: z.enum(["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"]).optional(),
+    defaultRoute: z.string().trim().max(100).optional().nullable(),
   });
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -242,7 +260,10 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
     const updateFields: Record<string, unknown> = { updatedAt: now };
     if (patch.concentrationMgMl !== undefined) updateFields.concentrationMgMl = String(patch.concentrationMgMl);
     if (patch.standardDose !== undefined) updateFields.standardDose = String(patch.standardDose);
+    if ("minDose" in patch) updateFields.minDose = patch.minDose != null ? String(patch.minDose) : null;
+    if ("maxDose" in patch) updateFields.maxDose = patch.maxDose != null ? String(patch.maxDose) : null;
     if (patch.doseUnit !== undefined) updateFields.doseUnit = patch.doseUnit;
+    if ("defaultRoute" in patch) updateFields.defaultRoute = patch.defaultRoute ?? null;
 
     const [updated] = await db
       .update(drugFormulary)

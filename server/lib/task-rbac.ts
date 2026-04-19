@@ -48,7 +48,7 @@ export function canPerformTaskAction(roleInput: string | null | undefined, actio
     return action === "task.read" || action === "task.start" || action === "task.complete";
   }
 
-  if (role === "viewer") {
+  if (role === "student") {
     return action === "task.read";
   }
 
@@ -84,7 +84,7 @@ export function canPerformMedicationTaskAction(
     return action === "med.read" || action === "med.start" || action === "med.complete";
   }
 
-  if (role === "viewer") {
+  if (role === "student") {
     return action === "med.read";
   }
 

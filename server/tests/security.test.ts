@@ -132,7 +132,7 @@ async function testAlertAckViewerDenied() {
   const r = await post("/api/alert-acks", {}, {
     headers: {
       "Content-Type": "application/json",
-      "x-dev-role-override": "viewer",
+      "x-dev-role-override": "student",
     },
   });
   if (r.status === 403) {
@@ -159,7 +159,7 @@ async function testWhatsAppViewerDenied() {
   const r = await post("/api/whatsapp/alert", {}, {
     headers: {
       "Content-Type": "application/json",
-      "x-dev-role-override": "viewer",
+      "x-dev-role-override": "student",
     },
   });
   if (r.status === 403) {
@@ -208,7 +208,7 @@ async function testAlertAckDeleteViewerDenied() {
   console.log("\n[11] Role Gate — viewer gets 403 on DELETE /api/alert-acks (requires technician+)");
   const r = await fetch(`${BASE}/api/alert-acks?equipmentId=x&alertType=y`, {
     method: "DELETE",
-    headers: { "x-dev-role-override": "viewer" },
+    headers: { "x-dev-role-override": "student" },
   });
   if (r.status === 403) {
     ok("Viewer correctly denied with 403 on DELETE /api/alert-acks");
@@ -223,7 +223,7 @@ async function testStorageUploadViewerDenied() {
   const r = await post("/api/storage/upload-url", { name: "test.jpg", size: 100, contentType: "image/jpeg" }, {
     headers: {
       "Content-Type": "application/json",
-      "x-dev-role-override": "viewer",
+      "x-dev-role-override": "student",
     },
   });
   if (r.status === 403) {
@@ -285,7 +285,7 @@ async function testSpoofedRoleHeaderIgnored() {
   // Using GET /api/users which is admin-only.
   const r = await get("/api/users", {
     headers: {
-      "x-dev-role-override": "viewer",
+      "x-dev-role-override": "student",
       "x-role": "admin",
     },
   });
