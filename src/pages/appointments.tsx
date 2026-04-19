@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, Clock3, Plus, User, Zap } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
+import { MedicationCalculator } from "@/components/MedicationCalculator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -18,12 +19,6 @@ import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
 import { useAuth } from "@/hooks/use-auth";
 import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
 import { toast } from "sonner";
-import {
-  justificationTier,
-  minimumJustificationLength,
-  requiresDoseJustification,
-} from "../../shared/medication-justification";
-import { MED_JUSTIFICATION_PRESETS } from "../../shared/medication-justification-presets";
 
 const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 20;
@@ -88,7 +83,6 @@ const TASK_CARD_STYLES = {
 };
 
 const ACTION_BUTTON_BASE = "h-8 px-3 text-xs";
-const MEDICATION_CUSTOM_JUSTIFICATION = "__custom__";
 
 type MedicationMetadata = {
   createdBy?: string;
@@ -282,26 +276,6 @@ function completeButtonState(args: {
   return { visible: true, disabled: false, tooltip: "" };
 }
 
-function validateCustomJustification(text: string, minLength: number): string | null {
-  const normalized = text.trim().replace(/\s+/g, " ");
-  if (normalized.length < minLength) {
-    return `Justification must be at least ${minLength} characters.`;
-  }
-  if (/(.)\1{4,}/u.test(normalized)) {
-    return "Justification looks repetitive. Please enter a meaningful reason.";
-  }
-  const chars = Array.from(normalized);
-  const maxCount = Math.max(...chars.map((char) => normalized.split(char).length - 1));
-  if (maxCount / normalized.length > 0.4) {
-    return "Justification looks repetitive. Please enter a meaningful reason.";
-  }
-  const letterCount = chars.filter((char) => /\p{L}/u.test(char)).length;
-  if (letterCount / chars.length < 0.5 || !/\p{L}{2,}/u.test(normalized)) {
-    return "Justification must include meaningful words.";
-  }
-  return null;
-}
-
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
   pending: "Pending",
   assigned: "Assigned",
@@ -366,23 +340,12 @@ export default function AppointmentsPage() {
   const [formOwnerId, setFormOwnerId] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formTaskType, setFormTaskType] = useState<Appointment["taskType"]>("maintenance");
-  const [formDoseMgPerKg, setFormDoseMgPerKg] = useState("");
-  const [formDefaultDoseMgPerKg, setFormDefaultDoseMgPerKg] = useState("");
-  const [formConcentrationMgPerMl, setFormConcentrationMgPerMl] = useState("");
-  const [formJustificationPresetCode, setFormJustificationPresetCode] = useState("");
-  const [formJustificationCustom, setFormJustificationCustom] = useState("");
   const [formStartLocal, setFormStartLocal] = useState<string>(() => toLocalDateTimeInputValue(new Date()));
   const [formEndLocal, setFormEndLocal] = useState<string>(() => toLocalDateTimeInputValue(new Date(Date.now() + 20 * 60 * 1000)));
   const [selectedDuration, setSelectedDuration] = useState<number>(20);
   const [manualEndOverride, setManualEndOverride] = useState(false);
 
   const isMedicationForm = formTaskType === "medication";
-  const dose = Number.parseFloat(formDoseMgPerKg);
-  const defaultDose = Number.parseFloat(formDefaultDoseMgPerKg);
-  const doseInputsValid = Number.isFinite(dose) && Number.isFinite(defaultDose) && defaultDose > 0;
-  const doseDeviation = doseInputsValid ? Math.abs(dose - defaultDose) / defaultDose : 0;
-  const requiresJustification = doseInputsValid ? requiresDoseJustification(dose, defaultDose) : false;
-  const justificationMinLength = minimumJustificationLength(justificationTier(doseDeviation));
 
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
@@ -463,11 +426,6 @@ export default function AppointmentsPage() {
       setFormAnimalId("");
       setFormOwnerId("");
       setFormTaskType("maintenance");
-      setFormDoseMgPerKg("");
-      setFormDefaultDoseMgPerKg("");
-      setFormConcentrationMgPerMl("");
-      setFormJustificationPresetCode("");
-      setFormJustificationCustom("");
     },
     onError: (error: Error) => {
       if (error.message === "APPOINTMENT_CONFLICT") {
@@ -639,59 +597,9 @@ export default function AppointmentsPage() {
       return;
     }
 
-    let metadata: Record<string, unknown> | undefined;
     if (isMedicationForm) {
-      const meIdentifier = (meQuery.data?.clerkId ?? "").trim() || meQuery.data?.id;
-      if (!doseInputsValid || dose <= 0) {
-        toast.error("Enter valid dose and default dose values for medication tasks.");
-        return;
-      }
-      if (doseDeviation > 0.5) {
-        toast.error("Dose deviation above 50% is not allowed.");
-        return;
-      }
-
-      const concentration = Number.parseFloat(formConcentrationMgPerMl);
-      const selectedPreset = MED_JUSTIFICATION_PRESETS.find((preset) => preset.code === formJustificationPresetCode);
-      const isCustomJustification = formJustificationPresetCode === MEDICATION_CUSTOM_JUSTIFICATION;
-      let justificationPayload: {
-        doseJustification: string;
-        doseJustificationKind: "preset" | "custom";
-        doseJustificationPresetCode?: string;
-      } | null = null;
-
-      if (requiresJustification) {
-        if (selectedPreset) {
-          justificationPayload = {
-            doseJustification: selectedPreset.label,
-            doseJustificationKind: "preset",
-            doseJustificationPresetCode: selectedPreset.code,
-          };
-        } else if (isCustomJustification) {
-          const validationError = validateCustomJustification(formJustificationCustom, justificationMinLength);
-          if (validationError) {
-            toast.error(validationError);
-            return;
-          }
-          justificationPayload = {
-            doseJustification: formJustificationCustom.trim().replace(/\s+/g, " "),
-            doseJustificationKind: "custom",
-          };
-        } else {
-          toast.error("Choose a justification preset or provide a custom reason.");
-          return;
-        }
-      }
-
-      metadata = {
-        kind: "medication",
-        createdBy: meIdentifier ?? null,
-        scheduled_at: start.toISOString(),
-        doseMgPerKg: dose,
-        defaultDoseMgPerKg: defaultDose,
-        concentrationMgPerMl: Number.isFinite(concentration) && concentration > 0 ? concentration : null,
-        ...justificationPayload,
-      };
+      toast.error("Medication tasks must be created using the medication calculator.");
+      return;
     }
 
     const payload: CreateAppointmentRequest = {
@@ -704,7 +612,6 @@ export default function AppointmentsPage() {
       status: "scheduled",
       taskType: formTaskType,
       scheduledAt: start.toISOString(),
-      metadata,
       conflictOverride,
       overrideReason: overrideReason?.trim() || null,
     };
@@ -1433,209 +1340,211 @@ export default function AppointmentsPage() {
       <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
         <DialogContent dir="rtl" className="text-right max-h-[85vh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="px-6 pt-6">
-            <DialogTitle>New Task</DialogTitle>
-            <DialogDescription>
-              Assign a device and technician.{" "}
-              <span dir="ltr" className="inline-block text-left">
-                Tap a slot to prefill the time.
-              </span>
-            </DialogDescription>
+            <div className="flex items-start gap-2">
+              {isMedicationForm ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-9 w-9"
+                  aria-label="Back to task type selection"
+                  onClick={() => setFormTaskType("maintenance")}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              ) : null}
+              <div className="min-w-0 flex-1 space-y-1 text-right">
+                <DialogTitle>{isMedicationForm ? "Give Medication" : "New Task"}</DialogTitle>
+                <DialogDescription>
+                  {isMedicationForm ? (
+                    <>Confirm weight, dose, and volume in the calculator, then administer.</>
+                  ) : (
+                    <>
+                      Assign a device and technician.{" "}
+                      <span dir="ltr" className="inline-block text-left">
+                        Tap a slot to prefill the time.
+                      </span>
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
-              <select
-                dir="ltr"
-                value={formVetId}
-                onChange={(e) => setFormVetId(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
-              >
-                <option value="">Select technician</option>
-                {(metaQuery.data?.vets ?? []).map((vet) => (
-                  <option key={vet.id} value={vet.id}>
-                    {vet.displayName || vet.name || vet.id}
-                  </option>
-                ))}
-              </select>
-              </div>
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
-              <Input
-                dir="ltr"
-                className="text-left"
-                value={formAnimalId}
-                onChange={(e) => setFormAnimalId(e.target.value)}
-                placeholder="e.g. Ventilator, Autoclave"
-              />
-              </div>
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Location / Department (optional)</label>
-              <Input
-                dir="ltr"
-                className="text-left"
-                value={formOwnerId}
-                onChange={(e) => setFormOwnerId(e.target.value)}
-                placeholder="ICU / ER / Ward"
-              />
-              </div>
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Task type</label>
-              <select
-                dir="ltr"
-                value={formTaskType ?? "maintenance"}
-                onChange={(e) => {
-                  const nextType = (e.target.value || "maintenance") as Appointment["taskType"];
-                  setFormTaskType(nextType);
-                  if (nextType !== "medication") {
-                    setFormDoseMgPerKg("");
-                    setFormDefaultDoseMgPerKg("");
-                    setFormConcentrationMgPerMl("");
-                    setFormJustificationPresetCode("");
-                    setFormJustificationCustom("");
-                  }
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
-              >
-                {ALLOWED_BOOKING_TASK_TYPES.map((taskType) => (
-                  <option key={taskType.value} value={taskType.value}>
-                    {taskType.label}
-                  </option>
-                ))}
-              </select>
-              </div>
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
-              <select
-                dir="ltr"
-                value={String(selectedDuration)}
-                onChange={(e) => {
-                  setSelectedDuration(Number.parseInt(e.target.value, 10));
-                  setManualEndOverride(false);
-                }}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
-              >
-                {DURATION_PRESETS.map((preset) => (
-                  <option key={preset.key} value={preset.minutes}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
-              </div>
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Scheduled time</label>
-              <Input
-                dir="ltr"
-                className="text-left"
-                type="datetime-local"
-                value={formStartLocal}
-                onChange={(e) => setFormStartLocal(e.target.value)}
-              />
-              </div>
-              <div>
-              <label className="text-xs text-muted-foreground block text-right">Expected end (manual override allowed)</label>
-              <Input
-                dir="ltr"
-                className="text-left"
-                type="datetime-local"
-                value={formEndLocal}
-                onChange={(e) => {
-                  setManualEndOverride(true);
-                  setFormEndLocal(e.target.value);
-                }}
-              />
-              </div>
-              <div className="md:col-span-2">
-              <label className="text-xs text-muted-foreground block text-right">Notes</label>
-              <Textarea dir="ltr" className="text-left" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3} />
-              </div>
-              {isMedicationForm ? (
-                <>
-                  <div>
-                  <label className="text-xs text-muted-foreground block text-right">Dose (mg/kg)</label>
-                  <Input
-                    dir="ltr"
-                    className="text-left"
-                    inputMode="decimal"
-                    value={formDoseMgPerKg}
-                    onChange={(e) => setFormDoseMgPerKg(e.target.value)}
-                    placeholder="e.g. 2.5"
-                  />
-                  </div>
-                  <div>
-                  <label className="text-xs text-muted-foreground block text-right">Default dose (mg/kg)</label>
-                  <Input
-                    dir="ltr"
-                    className="text-left"
-                    inputMode="decimal"
-                    value={formDefaultDoseMgPerKg}
-                    onChange={(e) => setFormDefaultDoseMgPerKg(e.target.value)}
-                    placeholder="e.g. 2.0"
-                  />
-                  </div>
-                  <div>
-                  <label className="text-xs text-muted-foreground block text-right">Concentration (mg/ml)</label>
-                  <Input
-                    dir="ltr"
-                    className="text-left"
-                    inputMode="decimal"
-                    value={formConcentrationMgPerMl}
-                    onChange={(e) => setFormConcentrationMgPerMl(e.target.value)}
-                    placeholder="optional"
-                  />
-                  </div>
-                  <div className="flex items-end">
-                  <div className="text-xs text-muted-foreground">
-                    {doseInputsValid ? `Deviation: ${(doseDeviation * 100).toFixed(1)}%` : "Enter dose values to calculate deviation"}
-                  </div>
-                  </div>
-                  {requiresJustification ? (
-                    <>
-                      <div className="md:col-span-2">
-                      <label className="text-xs text-muted-foreground block text-right">Dose justification (required)</label>
-                      <select
-                        dir="ltr"
-                        value={formJustificationPresetCode}
-                        onChange={(e) => setFormJustificationPresetCode(e.target.value)}
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
-                      >
-                        <option value="">Select a reason</option>
-                        {MED_JUSTIFICATION_PRESETS.map((preset) => (
-                          <option key={preset.code} value={preset.code}>{preset.label}</option>
-                        ))}
-                        <option value={MEDICATION_CUSTOM_JUSTIFICATION}>Other (specify)</option>
-                      </select>
-                      </div>
-                      {formJustificationPresetCode === MEDICATION_CUSTOM_JUSTIFICATION ? (
-                        <div className="md:col-span-2">
-                        <label className="text-xs text-muted-foreground block text-right">
-                          Custom justification (minimum {justificationMinLength} chars)
-                        </label>
-                        <Textarea
-                          dir="ltr"
-                          className="text-left"
-                          value={formJustificationCustom}
-                          onChange={(e) => setFormJustificationCustom(e.target.value)}
-                          rows={3}
-                        />
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
+          {formTaskType === "medication" ? (
+  <div className="flex flex-col gap-4">
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        value={formAnimalId}
+        onChange={(e) => setFormAnimalId(e.target.value)}
+        placeholder="e.g. Ventilator, Autoclave"
+      />
+    </div>
+
+    {!formAnimalId.trim() ? (
+      <p
+        role="alert"
+        className="text-sm text-destructive text-center rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2"
+      >
+        Enter Device / Asset before giving medication.
+      </p>
+    ) : (
+      <MedicationCalculator
+        animalId={formAnimalId.trim()}
+        onCancel={() => setFormTaskType("maintenance")}
+        onComplete={() => {
+          toast.success("Medication administered");
+          queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+          queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
+          queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
+
+          setBookingOpen(false);
+          setFormNotes("");
+          setFormAnimalId("");
+          setFormOwnerId("");
+          setFormTaskType("maintenance");
+        }}
+      />
+    )}
+  </div>
+) : (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
+      <select
+        dir="ltr"
+        value={formVetId}
+        onChange={(e) => setFormVetId(e.target.value)}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+      >
+        <option value="">Select technician</option>
+        {(metaQuery.data?.vets ?? []).map((vet) => (
+          <option key={vet.id} value={vet.id}>
+            {vet.displayName || vet.name || vet.id}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        value={formAnimalId}
+        onChange={(e) => setFormAnimalId(e.target.value)}
+        placeholder="e.g. Ventilator, Autoclave"
+      />
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Location / Department (optional)</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        value={formOwnerId}
+        onChange={(e) => setFormOwnerId(e.target.value)}
+        placeholder="ICU / ER / Ward"
+      />
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Task type</label>
+      <select
+        dir="ltr"
+        value={formTaskType ?? "maintenance"}
+        onChange={(e) => {
+          const nextType = (e.target.value || "maintenance") as Appointment["taskType"];
+          setFormTaskType(nextType);
+        }}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+      >
+        {ALLOWED_BOOKING_TASK_TYPES.map((taskType) => (
+          <option key={taskType.value} value={taskType.value}>
+            {taskType.label}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
+      <select
+        dir="ltr"
+        value={String(selectedDuration)}
+        onChange={(e) => {
+          setSelectedDuration(Number.parseInt(e.target.value, 10));
+          setManualEndOverride(false);
+        }}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+      >
+        {DURATION_PRESETS.map((preset) => (
+          <option key={preset.key} value={preset.minutes}>
+            {preset.label}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Scheduled time</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        type="datetime-local"
+        value={formStartLocal}
+        onChange={(e) => setFormStartLocal(e.target.value)}
+      />
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Expected end</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        type="datetime-local"
+        value={formEndLocal}
+        onChange={(e) => {
+          setManualEndOverride(true);
+          setFormEndLocal(e.target.value);
+        }}
+      />
+    </div>
+
+    <div className="md:col-span-2">
+      <label className="text-xs text-muted-foreground block text-right">Notes</label>
+      <Textarea
+        dir="ltr"
+        className="text-left"
+        value={formNotes}
+        onChange={(e) => setFormNotes(e.target.value)}
+        rows={3}
+      />
+    </div>
+  </div>
+)}
           </div>
           <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
             <Button variant="outline" onClick={() => setBookingOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={() => submitCreate(false)}
-              disabled={createMutation.isPending || !formVetId.trim() || !formAnimalId.trim() || !formStartLocal || !formEndLocal}
-            >
-              {createMutation.isPending ? "Saving..." : "Create Task"}
-            </Button>
+            {!isMedicationForm ? (
+              <Button
+                onClick={() => submitCreate(false)}
+                disabled={
+                  createMutation.isPending
+                  || !formVetId.trim()
+                  || !formAnimalId.trim()
+                  || !formStartLocal
+                  || !formEndLocal
+                }
+              >
+                {createMutation.isPending ? "Saving..." : "Create Task"}
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>

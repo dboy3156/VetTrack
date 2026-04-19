@@ -327,24 +327,23 @@ router.get("/active", requireAuth, requireEffectiveRole("technician"), async (re
 
 router.get("/medication-active", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+
   if (!requireTaskOrMedicationActionPermission(req, res, "task.read", "med.read")) return;
+
   let userId: string | null | undefined;
   let orgId: string | null | undefined;
+
   try {
     const auth = getAuth(req);
     userId = auth.userId;
     orgId = auth.orgId;
   } catch {
-    // Dev-bypass mode can run without Clerk middleware; rely on requireAuth-populated context.
     userId = req.authUser?.id;
     orgId = req.clinicId;
   }
-  console.log("AUTH DEBUG:", {
-    userId,
-    orgId,
-    headers: req.headers.authorization ? "has auth header" : "no auth header",
-  });
+
   const resolvedAuthUserId = req.authUser?.id ?? userId;
+
   if (!resolvedAuthUserId) {
     return res.status(401).json(
       apiError({
@@ -355,8 +354,26 @@ router.get("/medication-active", requireAuth, requireEffectiveRole("technician")
       }),
     );
   }
-  const clerkAuthEnabled = Boolean(process.env.CLERK_SECRET_KEY?.trim()) && process.env.CLERK_ENABLED !== "false";
-  const resolvedOrgId = orgId ?? req.authUser?.clinicId ?? req.clinicId;
+
+  const clinicId = req.clinicId?.trim();
+
+  if (!clinicId) {
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_CLINIC_ID",
+        message: "clinicId is required",
+        requestId,
+      }),
+    );
+  }
+
+  const clerkAuthEnabled =
+    Boolean(process.env.CLERK_SECRET_KEY?.trim()) &&
+    process.env.CLERK_ENABLED !== "false";
+
+  const resolvedOrgId = orgId ?? req.authUser?.clinicId ?? clinicId;
+
   if (clerkAuthEnabled && !resolvedOrgId) {
     return res.status(403).json(
       apiError({
@@ -367,17 +384,7 @@ router.get("/medication-active", requireAuth, requireEffectiveRole("technician")
       }),
     );
   }
-  const clinicId = req.clinicId?.trim();
-  if (!clinicId) {
-    return res.status(403).json(
-      apiError({
-        code: "FORBIDDEN",
-        reason: "MISSING_CLINIC_ID",
-        message: "Missing clinic context",
-        requestId,
-      }),
-    );
-  }
+
   if (resolvedOrgId && clinicId !== resolvedOrgId) {
     return res.status(403).json(
       apiError({
@@ -388,12 +395,15 @@ router.get("/medication-active", requireAuth, requireEffectiveRole("technician")
       }),
     );
   }
+
   try {
     const tasks = await getActiveMedicationTasks(clinicId);
     return res.json({ tasks });
   } catch (err) {
     if (sendServiceError(res, err, requestId)) return;
+
     console.error("MEDICATION_ACTIVE_ERROR:", err);
+
     return res.status(500).json(
       apiError({
         code: "INTERNAL_ERROR",

@@ -10,7 +10,7 @@
  * - Today cache + BullMQ share the same Redis deployment/connection strategy.
  * - At higher scale, split queue and cache workloads to reduce contention.
  */
-import Redis from "ioredis";
+import Redis, { type RedisOptions } from "ioredis";
 import { isCircuitOpen, recordFailure, recordSuccess } from "./circuit-breaker.js";
 
 let shared: Redis | null = null;
@@ -113,7 +113,7 @@ function shouldReconnectOnError(err: Error): boolean {
   return message.includes("READONLY") || message.includes("ECONNRESET") || message.includes("ETIMEDOUT");
 }
 
-function redisOptions(): Redis.RedisOptions {
+function redisOptions(): RedisOptions {
   return {
     connectTimeout: CONNECT_TIMEOUT_MS,
     commandTimeout: COMMAND_TIMEOUT_MS,
@@ -121,7 +121,7 @@ function redisOptions(): Redis.RedisOptions {
     enableReadyCheck: true,
     lazyConnect: false,
     enableOfflineQueue: false,
-    retryStrategy(times) {
+    retryStrategy(times: number) {
       const delay = buildRetryDelay(times);
       if (times <= 3 || times % 20 === 0) {
         redisMetric("reconnect_scheduled", { attempt: times, delayMs: delay });
@@ -129,7 +129,7 @@ function redisOptions(): Redis.RedisOptions {
       }
       return delay;
     },
-    reconnectOnError(err) {
+    reconnectOnError(err: Error) {
       return shouldReconnectOnError(err);
     },
   };
@@ -141,7 +141,7 @@ function redisOptions(): Redis.RedisOptions {
  * throw `Error: Command timed out` on each block longer than the cap (default 4000ms).
  * Omit per-command timeout here; keep `connectTimeout` / retry behavior from `redisOptions()`.
  */
-function redisQueueOptions(): Redis.RedisOptions {
+function redisQueueOptions(): RedisOptions {
   const { commandTimeout: _omitCommandTimeout, ...rest } = redisOptions();
   return {
     ...rest,
@@ -168,7 +168,7 @@ function attachRedisObservers(client: Redis, source: "app" | "queue"): void {
     redisMetric("close", { source });
     console.warn(`[redis:${source}] connection closed`);
   });
-  client.on("reconnecting", (delay) => {
+  client.on("reconnecting", (delay: number) => {
     redisMetric("reconnecting", { source, delayMs: delay });
     console.warn(`[redis:${source}] reconnecting`, { delayMs: delay });
   });
@@ -213,7 +213,7 @@ export async function getRedis(): Promise<Redis | null> {
       new Promise<void>((resolve) => { sharedReadyResolve = resolve; }),
       new Promise<void>((resolve) => setTimeout(resolve, 5000)),
     ]).finally(() => { sharedReadyResolve = null; });
-    if (shared.status !== "ready") {
+    if ((shared.status as string) !== "ready") {
       console.warn("[redis] client not ready after 5s timeout; proceeding anyway");
     }
   }
@@ -250,7 +250,7 @@ export async function createRedisConnection(): Promise<Redis | null> {
       new Promise<void>((resolve) => { conn.once("ready", resolve); }),
       new Promise<void>((resolve) => setTimeout(resolve, 5000)),
     ]);
-    if (conn.status !== "ready") {
+    if ((conn.status as string) !== "ready") {
       console.warn("[redis] BullMQ connection not ready after 5s timeout; proceeding anyway");
     }
   }
@@ -480,7 +480,7 @@ export async function cacheGetOrSet<T>(
   for (let attempt = 0; attempt < LOCK_MAX_RETRIES; attempt++) {
     const token = createLockToken();
     const lockAcquired = await timedRedisOp("cacheGetOrSet:acquireLock", async () => {
-      const result = await r.set(lockKey, token, "NX", "EX", LOCK_TTL_SEC);
+      const result = await r.set(lockKey, token, "EX", LOCK_TTL_SEC, "NX");
       return result === "OK";
     });
     if (lockAcquired) {

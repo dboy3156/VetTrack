@@ -622,12 +622,13 @@ function PendingUsersSection() {
   );
 }
 
-type UserRole = "admin" | "vet" | "technician" | "viewer";
+type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "viewer";
 
 const ROLE_BADGE_STYLES: Record<UserRole, string> = {
   admin: "bg-purple-100 text-purple-800 border-purple-200",
   vet: "bg-blue-100 text-blue-800 border-blue-200",
   technician: "bg-amber-100 text-amber-800 border-amber-200",
+  senior_technician: "bg-teal-100 text-teal-800 border-teal-200",
   viewer: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
@@ -635,6 +636,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: t.adminPage.roleAdmin,
   vet: t.adminPage.roleVet,
   technician: t.adminPage.roleTechnician,
+  senior_technician: t.adminPage.roleSeniorTechnician,
   viewer: t.adminPage.roleViewer,
 };
 
@@ -955,6 +957,7 @@ function UsersSection() {
                       <SelectItem value="admin">{t.adminPage.roleAdmin}</SelectItem>
                       <SelectItem value="vet">{t.adminPage.roleVet}</SelectItem>
                       <SelectItem value="technician">{t.adminPage.roleTechnician}</SelectItem>
+                      <SelectItem value="senior_technician">{t.adminPage.roleSeniorTechnician}</SelectItem>
                       <SelectItem value="viewer">{t.adminPage.roleViewer}</SelectItem>
                     </SelectContent>
                   </Select>

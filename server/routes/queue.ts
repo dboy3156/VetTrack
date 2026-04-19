@@ -32,7 +32,7 @@ function apiError(params: { code: string; reason: string; message: string; reque
 router.get("/dlq", requireAuth, requireAdmin, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    const dlq = getNotificationsDlq();
+    const dlq = await getNotificationsDlq();
     if (!dlq) {
       res.json({ queue: "notifications_dlq", jobs: [] });
       return;
@@ -78,8 +78,7 @@ router.post("/dlq/:jobId/replay", requireAuth, requireAdmin, async (req, res) =>
   }
 
   try {
-    const dlq = getNotificationsDlq();
-    const queue = getNotificationsQueue();
+    const [dlq, queue] = await Promise.all([getNotificationsDlq(), getNotificationsQueue()]);
     if (!dlq || !queue) {
       res.status(503).json(
         apiError({

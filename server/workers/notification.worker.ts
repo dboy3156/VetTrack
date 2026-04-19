@@ -219,9 +219,9 @@ async function main(): Promise<void> {
     try {
       await dlqWorker.close();
       await worker.close();
-      await queue.close();
-      await dlq.close();
-      await connection.quit();
+      await queue!.close();
+      await dlq!.close();
+      await connection!.quit();
       console.log("[worker] graceful shutdown complete");
       process.exit(0);
     } catch (err) {

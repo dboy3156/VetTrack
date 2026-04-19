@@ -736,6 +736,20 @@ function serializeAppointment(row: AppointmentRecord) {
   };
 }
 
+type SerializedAppointmentRow = ReturnType<typeof serializeAppointment>;
+
+function serializeAppointmentRowsSkippingMalformed(rows: AppointmentRecord[], context: string): SerializedAppointmentRow[] {
+  const out: SerializedAppointmentRow[] = [];
+  for (const row of rows) {
+    try {
+      out.push(serializeAppointment(row));
+    } catch (rowErr) {
+      console.warn(`[${context}] skipping malformed row id=%s:`, row.id, rowErr);
+    }
+  }
+  return out;
+}
+
 export async function createAppointment(clinicIdInput: string, payload: AppointmentInput, actor?: TaskAuditActor) {
   const clinicId = assertClinicId(clinicIdInput);
   const startTime = toUtcDate(payload.startTime, "startTime");
@@ -1367,7 +1381,7 @@ export async function getTasksForTechnician(clinicIdInput: string, technicianId:
     .where(and(eq(appointments.clinicId, clinicId), eq(appointments.vetId, technicianId)))
     .orderBy(desc(appointments.startTime));
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "getTasksForTechnician");
 }
 
 /** Today's tasks (UTC day) for a technician — used by GET /api/tasks/me. */
@@ -1393,7 +1407,7 @@ export async function getTasksForTechnicianToday(clinicIdInput: string, technici
     )
     .orderBy(appointments.startTime);
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "getTasksForTechnicianToday");
 }
 
 export async function getTasksByPriority(clinicIdInput: string, priority: TaskPriority) {
@@ -1406,7 +1420,7 @@ export async function getTasksByPriority(clinicIdInput: string, priority: TaskPr
     .where(and(eq(appointments.clinicId, clinicId), eq(appointments.priority, p)))
     .orderBy(desc(appointments.startTime));
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "getTasksByPriority");
 }
 
 export async function getActiveTasks(clinicIdInput: string) {
@@ -1418,7 +1432,7 @@ export async function getActiveTasks(clinicIdInput: string) {
     .where(and(eq(appointments.clinicId, clinicId), inArray(appointments.status, DB_ACTIVE_STATUSES)))
     .orderBy(appointments.startTime);
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "getActiveTasks");
 }
 
 export async function getActiveMedicationTasks(clinicIdInput: string): Promise<MedicationExecutionTask[]> {
@@ -1439,18 +1453,20 @@ export async function getActiveMedicationTasks(clinicIdInput: string): Promise<M
     )
     .orderBy(appointments.startTime);
 
-  return rows.map(({ appointment, animalWeightKg }) => {
-    const serialized = serializeAppointment(appointment);
-    const normalizedWeight =
-      animalWeightKg == null ? null : Number.isFinite(Number.parseFloat(String(animalWeightKg)))
-        ? Number.parseFloat(String(animalWeightKg))
-        : null;
-
-    return {
-      ...serialized,
-      animalWeightKg: normalizedWeight,
-    };
-  });
+  const tasks: MedicationExecutionTask[] = [];
+  for (const { appointment, animalWeightKg } of rows) {
+    try {
+      const serialized = serializeAppointment(appointment);
+      const normalizedWeight =
+        animalWeightKg == null ? null : Number.isFinite(Number.parseFloat(String(animalWeightKg)))
+          ? Number.parseFloat(String(animalWeightKg))
+          : null;
+      tasks.push({ ...serialized, animalWeightKg: normalizedWeight } as MedicationExecutionTask);
+    } catch (rowErr) {
+      console.warn("[getActiveMedicationTasks] skipping malformed row id=%s:", appointment?.id, rowErr);
+    }
+  }
+  return tasks;
 }
 
 export async function getTodayTasks(clinicIdInput: string) {
@@ -1474,7 +1490,7 @@ export async function getAppointmentsByDay(clinicIdInput: string, dayIsoDate: st
     .where(and(eq(appointments.clinicId, clinicId), gte(appointments.startTime, dayStart), lt(appointments.startTime, dayEnd)))
     .orderBy(appointments.startTime);
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "getAppointmentsByDay");
 }
 
 export async function getAppointmentsByVet(
@@ -1502,7 +1518,7 @@ export async function getAppointmentsByVet(
     )
     .orderBy(appointments.startTime);
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "getAppointmentsByVet");
 }
 
 export async function listAppointmentsByRange(clinicIdInput: string, startInclusive: string | Date, endExclusive: string | Date) {
@@ -1517,5 +1533,5 @@ export async function listAppointmentsByRange(clinicIdInput: string, startInclus
     .where(and(eq(appointments.clinicId, clinicId), gte(appointments.startTime, startTime), lt(appointments.startTime, endTime)))
     .orderBy(appointments.startTime);
 
-  return rows.map(serializeAppointment);
+  return serializeAppointmentRowsSkippingMalformed(rows, "listAppointmentsByRange");
 }

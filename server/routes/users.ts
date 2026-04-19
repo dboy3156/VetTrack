@@ -69,7 +69,7 @@ const adminListUserFields = {
   clerkId: users.clerkId,
 };
 
-const VALID_ROLES = ["admin", "vet", "technician", "viewer"] as const;
+const VALID_ROLES = ["admin", "vet", "technician", "senior_technician", "viewer"] as const;
 const VALID_STATUSES = ["pending", "active", "blocked"] as const;
 
 const patchRoleSchema = z.object({
@@ -220,14 +220,14 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       .where(whereClause);
     const items = await baseQuery.limit(resolvedLimit).offset(resolvedOffset);
     const healedRows = await Promise.all(items.map((u) => ensureUserEmail(u)));
-    const healedItems = healedRows.map((row) => ({
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      displayName: row.displayName,
-      role: row.role,
-      status: row.status,
-      createdAt: row.createdAt,
+    const healedItems = items.map((item, i) => ({
+      id: item.id,
+      email: healedRows[i].email,
+      name: item.name,
+      displayName: item.displayName,
+      role: item.role,
+      status: item.status,
+      createdAt: item.createdAt,
     }));
     res.json({
       items: healedItems,

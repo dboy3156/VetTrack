@@ -5,6 +5,7 @@ export type RealtimeEventType =
   | "TASK_CREATED"
   | "TASK_STARTED"
   | "TASK_COMPLETED"
+  | "TASK_CANCELLED"
   | "TASK_UPDATED"
   | "AUTOMATION_TRIGGERED"
   | "NOTIFICATION_SENT";

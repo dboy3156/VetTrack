@@ -179,7 +179,14 @@ export async function getTaskRecommendations(clinicId: string, userId: string): 
       .orderBy(asc(appointments.startTime), asc(appointments.id))
       .limit(MAX_SCAN);
 
-    const tasks = rows.map(serializeAppointment);
+    const tasks: SerializedTask[] = [];
+    for (const row of rows) {
+      try {
+        tasks.push(serializeAppointment(row));
+      } catch (rowErr) {
+        console.warn("[getTaskRecommendations] skipping malformed row id=%s:", row.id, rowErr);
+      }
+    }
     const nowMs = Date.now();
     const myTasks = tasks.filter((task) => task.vetId === uid || task.vetId === null);
     const candidateTasks = myTasks.length > 0 ? myTasks : tasks;

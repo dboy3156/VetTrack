@@ -1,9 +1,6 @@
 import { pool } from "./db.js";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION_ADVISORY_LOCK_ID = 123456;
 
 async function ensureMigrationsTable(): Promise<void> {
