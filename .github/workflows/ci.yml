@@ -58,6 +58,11 @@ jobs:
       - name: 🔷 TypeScript
         run: pnpm exec tsc --noEmit
 
+      - name: 🏗️ Frontend build
+        run: pnpm build
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+
       # Apply all `migrations/*.sql` via `server/migrate.ts` (tracks `vt_migrations`).
       # `pnpm db:migrate` (drizzle-kit) only runs entries in `migrations/meta/_journal.json`.
       - name: 🗄️ Database migrations
@@ -122,6 +127,7 @@ jobs:
       VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
       ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }}
       PORT: 3000
 
     steps:
