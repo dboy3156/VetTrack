@@ -1,16 +1,14 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Calculator, Play, Wifi } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle, Clock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  calculateDose,
   blockReasonMessage,
   resolveFormularyData,
-  normaliseToMgPerKg,
 } from "@/lib/medicationHelpers";
 import type { MedicationExecutionPayload, MedicationExecutionTask } from "@/types";
-import type { DrugDoseUnit, DrugFormularyEntry } from "@/hooks/useDrugFormulary";
+import type { DrugFormularyEntry } from "@/hooks/useDrugFormulary";
 import type { FormularyEntry } from "@/lib/medicationHelpers";
 
 interface VerificationCalculatorProps {
@@ -47,7 +45,10 @@ type MedicationMetadata = {
   doseMgPerKg?: number;
   defaultDoseMgPerKg?: number;
   concentrationMgPerMl?: number;
-  doseUnit?: DrugDoseUnit;
+  desiredDoseMg?: number;
+  weightKg?: number;
+  doseUnit?: string;
+  vetApproved?: boolean;
   [key: string]: unknown;
 };
 
@@ -56,11 +57,33 @@ function asMeta(task: MedicationExecutionTask): MedicationMetadata {
   return task.metadata as MedicationMetadata;
 }
 
-function resolvePrescribedDose(task: MedicationExecutionTask): number {
+/** Resolves the prescribed total dose in mg from task metadata.
+ *  New tasks store `desiredDoseMg` directly.
+ *  Old tasks stored `doseMgPerKg` + either `weightKg` in metadata or `animalWeightKg` on the task.
+ */
+function resolveDesiredMg(task: MedicationExecutionTask): number | null {
   const m = asMeta(task);
-  if (Number.isFinite(m.doseMgPerKg) && Number(m.doseMgPerKg) > 0) return Number(m.doseMgPerKg);
-  if (Number.isFinite(m.defaultDoseMgPerKg) && Number(m.defaultDoseMgPerKg) > 0) return Number(m.defaultDoseMgPerKg);
-  return 0;
+
+  // New format: absolute mg stored directly
+  if (Number.isFinite(m.desiredDoseMg) && Number(m.desiredDoseMg) > 0) {
+    return Number(m.desiredDoseMg);
+  }
+
+  // Legacy format: derive from dose/kg × weight
+  const doseMgPerKg =
+    Number.isFinite(m.doseMgPerKg) && Number(m.doseMgPerKg) > 0 ? Number(m.doseMgPerKg) : null;
+  const weightKg =
+    (Number.isFinite(m.weightKg) && Number(m.weightKg) > 0)
+      ? Number(m.weightKg)
+      : (Number.isFinite(task.animalWeightKg) && Number(task.animalWeightKg) > 0)
+        ? Number(task.animalWeightKg)
+        : null;
+
+  if (doseMgPerKg !== null && weightKg !== null) {
+    return doseMgPerKg * weightKg;
+  }
+
+  return null;
 }
 
 export function VerificationCalculator({
@@ -76,22 +99,7 @@ export function VerificationCalculator({
   onComplete,
 }: VerificationCalculatorProps) {
   const meta = asMeta(task);
-
-  // Dose unit: prefer task metadata, then formulary, then default
-  const defaultDoseUnit: DrugDoseUnit =
-    meta.doseUnit === "mcg_per_kg" || meta.doseUnit === "mg_per_kg"
-      ? meta.doseUnit
-      : (formularyEntry?.doseUnit ?? "mg_per_kg");
-
-  const [doseUnit, setDoseUnit] = useState<DrugDoseUnit>(defaultDoseUnit);
-
-  // Weight: pre-fill from animal record if available
-  const recordWeight = Number.isFinite(task.animalWeightKg) && Number(task.animalWeightKg) > 0
-    ? Number(task.animalWeightKg)
-    : null;
-  const [weightRaw, setWeightRaw] = useState<string>(recordWeight != null ? String(recordWeight) : "");
-  // Track whether the user has manually changed the weight from the pre-filled value
-  const [weightManuallyEdited, setWeightManuallyEdited] = useState(false);
+  const vetApproved = meta.vetApproved === true;
 
   // Concentration: pre-fill from formulary, then task metadata
   const formularyConcentration = formularyEntry?.concentrationMgMl ?? null;
@@ -101,62 +109,84 @@ export function VerificationCalculator({
     defaultConcentration != null ? String(defaultConcentration) : "",
   );
 
-  const prescribedDosePerKg = resolvePrescribedDose(task);
-  // Convert prescribed dose to mg/kg using the selected unit
-  const convertedDoseMgPerKg = normaliseToMgPerKg(prescribedDosePerKg, doseUnit);
+  // Pre-fill weight from record (for deviation check display)
+  const recordWeight =
+    Number.isFinite(task.animalWeightKg) && Number(task.animalWeightKg) > 0
+      ? Number(task.animalWeightKg)
+      : null;
+  const [weightRaw, setWeightRaw] = useState<string>(recordWeight != null ? String(recordWeight) : "");
 
-  const weightKg = parsePositiveFloat(weightRaw);
+  const prescribedMg = resolveDesiredMg(task);
   const concentrationMgPerMl = parsePositiveFloat(concentrationRaw);
+  const weightKg = parsePositiveFloat(weightRaw);
 
   const concentrationOverridden =
     formularyConcentration != null &&
     concentrationMgPerMl != null &&
     Math.abs(concentrationMgPerMl - formularyConcentration) > 0.0001;
 
-  // Resolve recommended dose from formulary for deviation checking
+  // Volume calculation: prescribed_mg ÷ concentration
+  const volumeMl =
+    prescribedMg != null && concentrationMgPerMl != null
+      ? prescribedMg / concentrationMgPerMl
+      : null;
+
+  const volumeBlocked = volumeMl != null && (volumeMl <= 0 || !Number.isFinite(volumeMl) || volumeMl > 100);
+
+  // Deviation check (optional — needs weight)
   const resolved = useMemo(
     () => (formularyEntry ? resolveFormularyData(formularyEntry as unknown as FormularyEntry) : null),
     [formularyEntry],
   );
 
-  const calcResult = useMemo(
-    () =>
-      calculateDose(
-        weightKg ?? 0,
-        convertedDoseMgPerKg,
-        concentrationMgPerMl ?? 0,
-        resolved?.recommendedDoseMgPerKg,
-      ),
-    [weightKg, convertedDoseMgPerKg, concentrationMgPerMl, resolved],
-  );
+  const deviationPercent: number | null = useMemo(() => {
+    if (!weightKg || !prescribedMg || !resolved?.recommendedDoseMgPerKg) return null;
+    const chosenMgPerKg = prescribedMg / weightKg;
+    return ((chosenMgPerKg - resolved.recommendedDoseMgPerKg) / resolved.recommendedDoseMgPerKg) * 100;
+  }, [weightKg, prescribedMg, resolved]);
 
-  const weightSourcedFromRecord = recordWeight != null && !weightManuallyEdited;
+  const deviationBlocked = deviationPercent !== null && Math.abs(deviationPercent) > 50;
+
+  const isBlocked = prescribedMg == null || concentrationMgPerMl == null || volumeBlocked || deviationBlocked;
 
   const canComplete =
     !completeDisabled &&
-    !calcResult.isBlocked &&
-    weightKg != null &&
-    concentrationMgPerMl != null;
+    !isBlocked &&
+    vetApproved &&
+    prescribedMg != null &&
+    concentrationMgPerMl != null &&
+    volumeMl != null;
 
   function handleComplete() {
-    if (!canComplete || weightKg == null || concentrationMgPerMl == null) return;
+    if (!canComplete || prescribedMg == null || concentrationMgPerMl == null || volumeMl == null) return;
     onComplete(task.id, {
-      weightKg,
-      weightSourcedFromRecord,
-      prescribedDosePerKg,
+      weightKg: weightKg ?? undefined,
+      weightSourcedFromRecord: recordWeight != null && weightRaw === String(recordWeight),
+      prescribedDosePerKg: weightKg ? prescribedMg / weightKg : undefined,
       concentrationMgPerMl,
       formularyConcentrationMgPerMl: formularyConcentration ?? undefined,
-      doseUnit,
-      convertedDoseMgPerKg,
-      calculatedVolumeMl: calcResult.volumeMl,
+      doseUnit: "mg_per_kg",
+      convertedDoseMgPerKg: weightKg ? prescribedMg / weightKg : undefined,
+      calculatedVolumeMl: volumeMl,
       concentrationOverridden,
     });
   }
 
-  const formulaWeight = weightKg?.toFixed(2) ?? "?";
-  const formulaDose = Number.isFinite(convertedDoseMgPerKg) ? convertedDoseMgPerKg.toFixed(4) : "?";
-  const formulaConc = concentrationMgPerMl?.toFixed(4) ?? "?";
-  const formulaVol = calcResult.volumeMl > 0 ? calcResult.volumeMl.toFixed(3) : "—";
+  const blockMessage = (() => {
+    if (prescribedMg == null) return "No prescribed dose found for this task.";
+    if (concentrationMgPerMl == null) return "Enter a valid concentration.";
+    if (volumeMl != null && volumeMl > 100) return blockReasonMessage("VOLUME_EXCEEDS_100ML");
+    if (volumeMl != null && volumeMl <= 0) return blockReasonMessage("VOLUME_ZERO_OR_NEGATIVE");
+    if (deviationBlocked) return blockReasonMessage("DEVIATION_EXCEEDS_50_PERCENT");
+    return null;
+  })();
+
+  const formulaDisplay = (() => {
+    const mg = prescribedMg?.toFixed(2) ?? "?";
+    const conc = concentrationMgPerMl?.toFixed(4) ?? "?";
+    const vol = volumeMl != null && Number.isFinite(volumeMl) ? volumeMl.toFixed(3) : "—";
+    return `${mg} mg ÷ ${conc} mg/mL = ${vol} mL`;
+  })();
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-background/50 p-3">
@@ -165,51 +195,16 @@ export function VerificationCalculator({
         Verification Calculator
       </div>
 
-      {/* Inputs */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {/* Weight */}
-        <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-            Weight (kg)
-            {weightSourcedFromRecord && (
-              <span
-                title="Pre-filled from patient record (SmartFlow)"
-                className="inline-flex items-center gap-0.5 rounded bg-blue-100 px-1 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-              >
-                <Wifi className="h-2.5 w-2.5" />
-                Record
-              </span>
-            )}
-          </label>
-          <Input
-            value={weightRaw}
-            onChange={(e) => {
-              setWeightRaw(e.target.value);
-              setWeightManuallyEdited(true);
-            }}
-            inputMode="decimal"
-            placeholder="e.g. 4.5"
-            className="h-12 text-lg font-semibold border-2 border-slate-300 focus-visible:ring-2 focus-visible:ring-primary"
-          />
+      {/* Prescribed dose (read-only from task) */}
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+        <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Prescribed dose</div>
+        <div className="text-xl font-bold text-blue-900">
+          {prescribedMg != null ? `${prescribedMg.toFixed(2)} mg` : "Unknown"}
         </div>
+      </div>
 
-        {/* Dose unit */}
-        <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Dose Unit
-          </label>
-          <select
-            value={doseUnit}
-            onChange={(e) =>
-              setDoseUnit(e.target.value === "mcg_per_kg" ? "mcg_per_kg" : "mg_per_kg")
-            }
-            className="h-12 w-full rounded-md border-2 border-slate-300 bg-background px-3 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="mg_per_kg">mg/kg</option>
-            <option value="mcg_per_kg">mcg/kg</option>
-          </select>
-        </div>
-
+      {/* Concentration + Weight inputs */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {/* Concentration */}
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -232,42 +227,70 @@ export function VerificationCalculator({
             </div>
           ) : null}
         </div>
+
+        {/* Weight (optional, for deviation) */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Weight (kg) <span className="text-[10px] normal-case font-normal">deviation check</span>
+          </label>
+          <Input
+            value={weightRaw}
+            onChange={(e) => setWeightRaw(e.target.value)}
+            inputMode="decimal"
+            placeholder="e.g. 4.5"
+            className="h-12 text-lg font-semibold border-2 border-slate-300 focus-visible:ring-2 focus-visible:ring-primary"
+          />
+        </div>
       </div>
 
       {/* Formula */}
       <div className="text-base md:text-lg font-mono font-semibold text-foreground/90 break-words">
-        ({formulaWeight} kg × {formulaDose} mg/kg) ÷ {formulaConc} mg/mL = {formulaVol} mL
+        {formulaDisplay}
       </div>
 
       {/* Deviation badge */}
-      {calcResult.deviationPercent !== null && (
+      {deviationPercent !== null && (
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Deviation from standard:
           </span>
-          <Badge className={deviationColor(calcResult.deviationPercent)}>
-            {calcResult.deviationPercent > 0 ? "+" : ""}
-            {calcResult.deviationPercent.toFixed(1)}%
+          <Badge className={deviationColor(deviationPercent)}>
+            {deviationPercent > 0 ? "+" : ""}{deviationPercent.toFixed(1)}%
           </Badge>
         </div>
       )}
 
       {/* Block banner */}
-      {calcResult.isBlocked && calcResult.blockReason && (
+      {blockMessage ? (
         <div className="flex items-start gap-2 rounded-lg border border-red-400 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          {blockReasonMessage(calcResult.blockReason)}
+          {blockMessage}
         </div>
-      )}
+      ) : null}
 
       {/* Volume display */}
-      <div className="rounded-2xl border-4 border-yellow-400 bg-yellow-300 text-black shadow-[0_0_0_4px_rgba(250,204,21,0.45)] animate-pulse p-4 text-center">
+      <div className={`rounded-2xl border-4 p-4 text-center ${isBlocked ? "border-gray-300 bg-gray-100 text-gray-500" : "border-yellow-400 bg-yellow-300 text-black shadow-[0_0_0_4px_rgba(250,204,21,0.45)] animate-pulse"}`}>
         <div className="text-xs font-bold uppercase tracking-wide">Total Volume</div>
         <div className="text-5xl md:text-6xl font-extrabold leading-none">
-          {calcResult.volumeMl > 0 ? calcResult.volumeMl.toFixed(2) : "—"}
+          {!isBlocked && volumeMl != null ? volumeMl.toFixed(2) : "—"}
         </div>
         <div className="text-xl md:text-2xl font-bold">mL</div>
       </div>
+
+      {/* Vet approval status */}
+      {task.status === "in_progress" ? (
+        vetApproved ? (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+            <CheckCircle className="h-4 w-4 shrink-0" />
+            Veterinarian approved — ready to complete
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+            <Clock className="h-4 w-4 shrink-0" />
+            Awaiting veterinarian approval (Administer Medication)
+          </div>
+        )
+      ) : null}
 
       {/* Action buttons */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -282,7 +305,7 @@ export function VerificationCalculator({
           </Button>
         </ActionTooltip>
 
-        <ActionTooltip content={!canComplete ? (completeTooltip || "Fix the highlighted issues before completing.") : undefined}>
+        <ActionTooltip content={!canComplete ? (completeTooltip || (!vetApproved ? "Awaiting vet approval." : "Fix the highlighted issues before completing.")) : undefined}>
           <Button
             onClick={handleComplete}
             disabled={!canComplete || isCompleting}

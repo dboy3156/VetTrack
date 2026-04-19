@@ -187,13 +187,79 @@ export function resolveUICase(resolved: ResolvedDose): UICase {
   }
 }
 
+export function calculateDoseFromMg(
+  desiredMg: number,
+  concentrationMgPerMl: number,
+  recommendedDoseMgPerKg: number | undefined,
+  weightKg?: number,
+): SafeCalcResult {
+  const SAFE_ZERO: SafeCalcResult = {
+    totalMg: 0,
+    volumeMl: 0,
+    deviationPercent: null,
+    blockReason: null,
+    isBlocked: true,
+  };
+
+  if (!Number.isFinite(concentrationMgPerMl) || concentrationMgPerMl <= 0) {
+    return { ...SAFE_ZERO, blockReason: "INVALID_CONCENTRATION" };
+  }
+  if (!Number.isFinite(desiredMg) || desiredMg <= 0) {
+    return { ...SAFE_ZERO, blockReason: "INVALID_DOSE" };
+  }
+
+  const volumeMl = desiredMg / concentrationMgPerMl;
+
+  if (!Number.isFinite(volumeMl)) {
+    return { ...SAFE_ZERO, blockReason: "VOLUME_NAN_OR_INFINITE" };
+  }
+  if (volumeMl <= 0) {
+    return { ...SAFE_ZERO, blockReason: "VOLUME_ZERO_OR_NEGATIVE" };
+  }
+  if (volumeMl > 100) {
+    return {
+      totalMg: desiredMg,
+      volumeMl,
+      deviationPercent: null,
+      blockReason: "VOLUME_EXCEEDS_100ML",
+      isBlocked: true,
+    };
+  }
+
+  let deviationPercent: number | null = null;
+  let blockReason: BlockReason = null;
+
+  if (
+    weightKg !== undefined &&
+    Number.isFinite(weightKg) &&
+    weightKg > 0 &&
+    recommendedDoseMgPerKg !== undefined &&
+    Number.isFinite(recommendedDoseMgPerKg) &&
+    recommendedDoseMgPerKg > 0
+  ) {
+    const chosenDoseMgPerKg = desiredMg / weightKg;
+    deviationPercent = ((chosenDoseMgPerKg - recommendedDoseMgPerKg) / recommendedDoseMgPerKg) * 100;
+    if (Math.abs(deviationPercent) > 50) {
+      blockReason = "DEVIATION_EXCEEDS_50_PERCENT";
+    }
+  }
+
+  return {
+    totalMg: Number.parseFloat(desiredMg.toFixed(3)),
+    volumeMl: Number.parseFloat(volumeMl.toFixed(2)),
+    deviationPercent: deviationPercent === null ? null : Number.parseFloat(deviationPercent.toFixed(1)),
+    blockReason,
+    isBlocked: blockReason !== null,
+  };
+}
+
 export function buildMedicationAppointmentRequest(args: {
   actorIdentifier: string | null;
   animalId?: string | null;
   userId: string;
   drugName: string;
-  weightKg: number;
-  chosenDoseMgPerKg: number;
+  weightKg?: number;
+  desiredMg: number;
   resolvedDose: ResolvedDose;
   calcResult: SafeCalcResult;
   justification?: CalculatorJustification | null;
@@ -204,9 +270,8 @@ export function buildMedicationAppointmentRequest(args: {
     {
       drugName: args.drugName,
       weightKg: args.weightKg,
-      chosenDoseMgPerKg: args.chosenDoseMgPerKg,
+      desiredMg: args.desiredMg,
       concentrationMgPerMl: args.resolvedDose.concentrationMgPerMl,
-      totalMg: args.calcResult.totalMg,
       volumeMl: args.calcResult.volumeMl,
       recommendedDoseMgPerKg: args.resolvedDose.recommendedDoseMgPerKg ?? null,
       deviationPercent: args.calcResult.deviationPercent,
@@ -216,7 +281,7 @@ export function buildMedicationAppointmentRequest(args: {
     {
       actorIdentifier: args.actorIdentifier,
       vetId: args.userId,
-      status: "in_progress",
+      status: "assigned",
       start,
       end,
     },

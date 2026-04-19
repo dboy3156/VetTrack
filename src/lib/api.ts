@@ -928,11 +928,15 @@ export const api = {
         `/api/tasks/${id}/complete`,
         { method: "POST", body: JSON.stringify(payload ?? {}) },
       ).then((r) => r.task),
+    vetApprove: (id: string) =>
+      request<{ task: Appointment }>(`/api/tasks/${id}/vet-approve`, { method: "POST" }).then((r) => r.task),
   },
   formulary: {
     list: () => request<DrugFormularyEntry[]>("/api/formulary"),
     upsert: (data: CreateDrugFormularyRequest) =>
       request<DrugFormularyEntry>("/api/formulary", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<CreateDrugFormularyRequest>) =>
+      request<DrugFormularyEntry>(`/api/formulary/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     remove: (id: string) =>
       request<void>(`/api/formulary/${id}`, { method: "DELETE" }),
   },

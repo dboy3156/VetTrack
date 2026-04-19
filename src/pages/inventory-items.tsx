@@ -22,13 +22,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
-import type { InventoryItem } from "@/types";
+import { type InventoryItem, INVENTORY_ITEM_CATEGORIES } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Archive, Plus, Pencil, Trash2 } from "lucide-react";
+import { Archive, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type FormState = { code: string; label: string; category: string; nfcTagId: string };
 const BLANK: FormState = { code: "", label: "", category: "", nfcTagId: "" };
@@ -40,6 +48,7 @@ export default function InventoryItemsPage() {
   const isAdmin = role === "admin";
 
   const [search, setSearch] = useState("");
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
@@ -60,6 +69,35 @@ export default function InventoryItemsPage() {
     );
   }, [itemsQ.data, search]);
 
+  // Group by category; uncategorised items land in "Other"
+  const grouped = useMemo(() => {
+    const map = new Map<string, InventoryItem[]>();
+    for (const item of filtered) {
+      const cat = item.category ?? "Other";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(item);
+    }
+    // Sort: known categories first (in order), then any unknown strings alphabetically
+    const known = INVENTORY_ITEM_CATEGORIES as readonly string[];
+    return [...map.entries()].sort(([a], [b]) => {
+      const ai = known.indexOf(a);
+      const bi = known.indexOf(b);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [filtered]);
+
+  function toggleCategory(cat: string) {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
   function openCreate() {
     setEditTarget(null);
     setForm(BLANK);
@@ -77,7 +115,7 @@ export default function InventoryItemsPage() {
       api.inventoryItems.create({
         code: form.code.trim(),
         label: form.label.trim(),
-        category: form.category.trim() || undefined,
+        category: form.category || undefined,
         nfcTagId: form.nfcTagId.trim() || undefined,
       }),
     onSuccess: () => {
@@ -96,7 +134,7 @@ export default function InventoryItemsPage() {
     mutationFn: () =>
       api.inventoryItems.update(editTarget!.id, {
         label: form.label.trim(),
-        category: form.category.trim() || null,
+        category: form.category || null,
         nfcTagId: form.nfcTagId.trim() || null,
       }),
     onSuccess: () => {
@@ -160,45 +198,66 @@ export default function InventoryItemsPage() {
         ) : filtered.length === 0 ? (
           <p className="text-center text-muted-foreground py-12 text-sm">{p.noItems}</p>
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">{p.colCode}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colLabel}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colCategory}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colNfc}</th>
-                  {isAdmin && <th className="px-4 py-2 w-20" />}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filtered.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-4 py-2 font-mono text-xs">{item.code}</td>
-                    <td className="px-4 py-2">{item.label}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{item.category ?? "—"}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.nfcTagId ?? "—"}</td>
-                    {isAdmin && (
-                      <td className="px-4 py-2">
-                        <div className="flex gap-1 justify-end">
-                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => openEdit(item)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget(item)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-lg border overflow-hidden divide-y">
+            {grouped.map(([category, items]) => {
+              const isCollapsed = collapsedCategories.has(category);
+              return (
+                <div key={category}>
+                  {/* Category header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(category)}
+                    className="w-full flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-sm font-medium text-left transition-colors"
+                  >
+                    {isCollapsed
+                      ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    }
+                    <span>{category}</span>
+                    <span className="ml-auto text-xs text-muted-foreground font-normal">{items.length}</span>
+                  </button>
+
+                  {/* Items within category */}
+                  {!isCollapsed && (
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y">
+                        {items.map((item) => (
+                          <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-2 font-mono text-xs text-muted-foreground w-36">{item.code}</td>
+                            <td className="px-4 py-2 font-medium">{item.label}</td>
+                            <td className="px-4 py-2 font-mono text-xs text-muted-foreground hidden sm:table-cell">
+                              {item.nfcTagId ?? <span className="opacity-40">—</span>}
+                            </td>
+                            {isAdmin && (
+                              <td className="px-4 py-2 w-20">
+                                <div className="flex gap-1 justify-end">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn("h-7 px-2")}
+                                    onClick={() => openEdit(item)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-destructive hover:text-destructive"
+                                    onClick={() => setDeleteTarget(item)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -229,11 +288,20 @@ export default function InventoryItemsPage() {
             </div>
             <div className="space-y-1">
               <Label>{p.fieldCategory}</Label>
-              <Input
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder={p.fieldCategoryPlaceholder}
-              />
+              <Select
+                value={form.category || "__none__"}
+                onValueChange={(v) => setForm((f) => ({ ...f, category: v === "__none__" ? "" : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {INVENTORY_ITEM_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>{p.fieldNfc}</Label>
@@ -246,10 +314,7 @@ export default function InventoryItemsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>{p.cancel}</Button>
-            <Button
-              onClick={handleSave}
-              disabled={isPending || !form.label}
-            >
+            <Button onClick={handleSave} disabled={isPending || !form.label}>
               {isPending ? p.saving : p.save}
             </Button>
           </DialogFooter>

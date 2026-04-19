@@ -323,8 +323,21 @@ function getTaskReasonBullets(scoreBreakdown: {
   return bullets;
 }
 
+function isMedicationNeedingApproval(appointment: Appointment): boolean {
+  if (appointment.taskType !== "medication") return false;
+  if (appointment.status !== "in_progress") return false;
+  const meta = appointment.metadata;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return false;
+  return (meta as Record<string, unknown>).vetApproved !== true;
+}
+
+function isVetOrAdmin(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
+  const r = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  return r === "vet" || r === "admin";
+}
+
 export default function AppointmentsPage() {
-  const { userId } = useAuth();
+  const { userId, role, effectiveRole } = useAuth();
   const queryClient = useQueryClient();
   const urgentRef = useRef<HTMLDivElement>(null);
   const myTasksRef = useRef<HTMLDivElement>(null);
@@ -482,6 +495,20 @@ export default function AppointmentsPage() {
       toast.error(toErrorMessage(error));
     },
   });
+
+  const vetApproveMutation = useMutation({
+    mutationFn: (id: string) => api.tasks.vetApprove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
+      toast.success("Medication approved — technician notified");
+    },
+    onError: (error: Error) => {
+      toast.error(toErrorMessage(error));
+    },
+  });
+
+  const canApproveAsMedVet = isVetOrAdmin(role, effectiveRole);
 
   const handleRealtimeEvent = useCallback((event: { type: string; payload: unknown }) => {
     if (
@@ -710,6 +737,17 @@ export default function AppointmentsPage() {
                         Delayed
                       </Badge>
                     ) : null}
+                    {canApproveAsMedVet && isMedicationNeedingApproval(nbt) ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                        disabled={vetApproveMutation.isPending}
+                        onClick={() => vetApproveMutation.mutate(nbt.id)}
+                      >
+                        Administer Medication
+                      </Button>
+                    ) : null}
                     {canStartTask(nbt, meQuery.data?.id) ? (
                       <Button
                         size="sm"
@@ -906,6 +944,17 @@ export default function AppointmentsPage() {
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-2 mt-1">
+                        {canApproveAsMedVet && isMedicationNeedingApproval(t) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={vetApproveMutation.isPending}
+                            onClick={() => vetApproveMutation.mutate(t.id)}
+                          >
+                            Administer Medication
+                          </Button>
+                        ) : null}
                         {canStartTask(t, meQuery.data?.id) ? (
                           <Button
                             size="sm"
@@ -1016,6 +1065,17 @@ export default function AppointmentsPage() {
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-2 mt-1">
+                        {canApproveAsMedVet && isMedicationNeedingApproval(t) ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={vetApproveMutation.isPending}
+                            onClick={() => vetApproveMutation.mutate(t.id)}
+                          >
+                            Administer Medication
+                          </Button>
+                        ) : null}
                         {canStartTask(t, meQuery.data?.id) ? (
                           <Button
                             size="sm"
