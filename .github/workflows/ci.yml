@@ -127,6 +127,7 @@ jobs:
       VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
       ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }}
       PORT: 3000
 
     steps:

@@ -42,7 +42,11 @@ if [ "$CHECK_MODE" = false ]; then
     echo "❌ RAILWAY_TOKEN is not set — cannot deploy"
     exit 1
   fi
-  echo "🚀 Deploying to Railway..."
-  npx --yes @railway/cli@latest up --detach
+  if [ -z "$RAILWAY_SERVICE" ]; then
+    echo "❌ RAILWAY_SERVICE is not set — cannot deploy to multi-service project"
+    exit 1
+  fi
+  echo "🚀 Deploying to Railway (service: $RAILWAY_SERVICE)..."
+  npx --yes @railway/cli@latest up --service "$RAILWAY_SERVICE" --detach
   echo "✅ Deploy triggered — Railway is building"
 fi
