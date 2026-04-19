@@ -97,11 +97,6 @@ assert(
   "Expected startCleanupScheduler call in bootstrap flow"
 );
 
-assert(
-  schedulerSources.includes("startSmartflowSyncWorker"),
-  "SmartFlow sync worker is started",
-  "Expected startSmartflowSyncWorker call in bootstrap flow"
-);
 
 console.log(`\n${"-".repeat(48)}`);
 console.log(`Results: ${passed} passed, ${failed} failed`);

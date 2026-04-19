@@ -25,6 +25,7 @@ import { startBackgroundSchedulers } from "./app/start-schedulers.js";
 import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.js";
 import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
 import { releaseStaleMedicationTasks } from "./services/medication-tasks.service.js";
+import healthRoutes from "./routes/health.js";
 
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
 const isProduction = process.env.NODE_ENV === "production";
@@ -38,7 +39,7 @@ app.set("trust proxy", 1);
 function sendHealthOk(_req: express.Request, res: express.Response) {
   res.status(200).send("ok");
 }
-app.get("/api/health", sendHealthOk);
+app.use("/api/health", healthRoutes);
 app.get("/api/healthz", sendHealthOk);
 app.get("/api/version", (_req, res) => {
   res.status(200).json({ version: appVersion ?? "0.0.0" });

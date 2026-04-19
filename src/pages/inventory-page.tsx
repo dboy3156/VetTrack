@@ -117,7 +117,6 @@ export default function InventoryPage() {
 
   const sessionIdRef = useRef<string | null>(null);
   const activeContainerIdRef = useRef<string | null>(null);
-  const autoFinishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayClearRef = useRef<number | undefined>(undefined);
   const nfcActiveRef = useRef(false);
 
@@ -213,21 +212,7 @@ export default function InventoryPage() {
     onError: () => toast.error(p.loadError),
   });
 
-  // ── auto-finish ───────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (autoFinishTimerRef.current) { clearTimeout(autoFinishTimerRef.current); autoFinishTimerRef.current = null; }
-    if (!isRestocking || missingCount !== 0 || totalItems === 0 || finishMut.isPending) return;
-    autoFinishTimerRef.current = setTimeout(() => {
-      autoFinishTimerRef.current = null;
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      dispatch({ type: "finish-request" });
-      finishMut.mutate(sid);
-    }, 1500);
-    return () => { if (autoFinishTimerRef.current) { clearTimeout(autoFinishTimerRef.current); autoFinishTimerRef.current = null; } };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRestocking, missingCount, totalItems, finishMut.isPending, scanGeneration]);
+  // auto-finish removed — user must tap "Finish Restock" explicitly
 
   // ── session helpers ───────────────────────────────────────────────────────
 

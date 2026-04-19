@@ -156,11 +156,16 @@ router.post(
   requireEffectiveRole("technician"),
   validateUuid("id"),
   validateBody(restockSchema),
-  async (_req, res) => {
-    return res.status(409).json({
-      error: "Legacy restock endpoint is disabled. Use restock sessions.",
-      code: "LEGACY_RESTOCK_DISABLED",
-    });
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    return res.status(409).json(
+      apiError({
+        code: "LEGACY_RESTOCK_DISABLED",
+        reason: "LEGACY_RESTOCK_DISABLED",
+        message: "Legacy restock endpoint is disabled. Use restock sessions.",
+        requestId,
+      }),
+    );
   },
 );
 
@@ -170,11 +175,16 @@ router.post(
   requireEffectiveRole("technician"),
   validateUuid("id"),
   validateBody(blindAuditSchema),
-  async (_req, res) => {
-    return res.status(409).json({
-      error: "Legacy blind-audit endpoint is disabled. Use restock sessions.",
-      code: "LEGACY_RESTOCK_DISABLED",
-    });
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    return res.status(409).json(
+      apiError({
+        code: "LEGACY_RESTOCK_DISABLED",
+        reason: "LEGACY_RESTOCK_DISABLED",
+        message: "Legacy blind-audit endpoint is disabled. Use restock sessions.",
+        requestId,
+      }),
+    );
   },
 );
 

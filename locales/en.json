@@ -831,7 +831,7 @@
     "roleAdmin": "Admin",
     "roleVet": "Veterinarian",
     "roleTechnician": "Technician",
-    "roleViewer": "Viewer",
+    "roleViewer": "Student",
     "roleUpdated": "Role updated",
     "roleUpdateFailed": "Failed to update role",
     "statusUpdated": "Status updated",
@@ -910,6 +910,7 @@
     "admin": "Admin",
     "adminShifts": "Shifts",
     "stability": "Stability",
+    "procurement": "Purchase Orders",
     "quickGuide": "Quick guide",
     "settings": "Settings",
     "about": "About VetTrack",
@@ -1061,6 +1062,44 @@
     "save": "Save",
     "saving": "Saving...",
     "cancel": "Cancel"
+  },
+
+  "medsPage": {
+    "title": "Medication Hub",
+    "prescribeDesc": "Prescribe medication tasks for your technicians.",
+    "executeDesc": "Verify and execute medication tasks assigned to you.",
+    "loadError": "Unable to load medication tasks.",
+    "emptyTitle": "No medication tasks ready",
+    "emptySubtitle": "Assigned, scheduled, arrived, pending, and in-progress tasks appear here.",
+    "taskStarted": "Medication task started",
+    "taskStartFailed": "Failed to start medication task",
+    "taskCompleted": "Medication task completed",
+    "taskCompleteFailed": "Failed to complete medication task",
+    "statusScheduled": "Scheduled",
+    "statusAssigned": "Assigned",
+    "statusArrived": "Arrived",
+    "statusInProgress": "In Progress",
+    "statusPending": "Pending",
+    "unspecifiedDrug": "Unspecified",
+    "approved": "Approved",
+    "awaitingApproval": "Awaiting your approval",
+    "awaitingApprovalNote": "The technician is waiting for your approval. Click \"Administer Medication\" on the Tasks page.",
+    "completeDisabledStatus": "Task must be in progress before completion.",
+    "completeDisabledAck": "Only the technician who acknowledged this medication task can complete it.",
+    "startDisabledStatus": "Task is not in a startable state.",
+    "startDisabledNoTech": "Task has no assigned technician.",
+    "startDisabledOtherTech": "This task is assigned to another technician."
+  },
+
+  "appointmentsPage": {
+    "administerMedication": "Administer Medication",
+    "startNow": "Start now",
+    "markComplete": "Mark complete",
+    "urgent": "Urgent",
+    "delayed": "Delayed",
+    "tasks": "Tasks",
+    "createTask": "Create task",
+    "quickTask": "Quick task"
   },
 
   "errors": {

@@ -337,6 +337,10 @@ const translations = {
 
   procurementPage: d.procurementPage,
 
+  medsPage: d.medsPage,
+
+  appointmentsPage: d.appointmentsPage,
+
 } as const;
 
 return translations;

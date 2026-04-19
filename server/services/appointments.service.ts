@@ -1432,6 +1432,15 @@ export async function vetApproveTask(clinicIdInput: string, taskId: string, acto
   }
 
   const serialized = serializeAppointment(updated);
+  logAudit({
+    clinicId,
+    actionType: "task_updated",
+    performedBy: actor.userId,
+    performedByEmail: actor.email,
+    targetId: taskId,
+    targetType: "task",
+    metadata: { action: "vet_approved", vetApprovedBy: actorIdentifier },
+  });
   broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }

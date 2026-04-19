@@ -419,22 +419,6 @@ export const shiftSessions = pgTable("vt_shift_sessions", {
   note: text("note"),
 });
 
-export const smartflowSyncState = pgTable("vt_smartflow_sync_state", {
-  clinicId: text("clinic_id").primaryKey(),
-  cursorText: text("cursor_text"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const animalExternalIds = pgTable("vt_animal_external_ids", {
-  id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
-  animalId: text("animal_id")
-    .notNull()
-    .references(() => animals.id, { onDelete: "cascade" }),
-  system: text("system").notNull().default("smartflow"),
-  externalId: text("external_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
 
 export const equipmentReturns = pgTable("vt_equipment_returns", {
   id: text("id").primaryKey(),

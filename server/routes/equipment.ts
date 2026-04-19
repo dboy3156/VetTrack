@@ -531,7 +531,10 @@ router.get("/critical", requireAuth, async (req, res) => {
           isNull(equipment.deletedAt),
         ),
       )
-      .orderBy(desc(equipment.lastSeen));
+      .orderBy(
+        sql`CASE WHEN ${equipment.status} = 'critical' THEN 0 ELSE 1 END ASC`,
+        desc(equipment.lastSeen),
+      );
 
     res.json(items);
   } catch (err) {
@@ -941,7 +944,7 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
 });
 
 // POST /api/equipment/:id/checkout
-router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
+router.post("/:id/checkout", requireAuth, checkoutLimiter, validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -1079,7 +1082,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, requireEffectiveRole(
 });
 
 // POST /api/equipment/:id/return
-router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("technician"), validateUuid("id"), async (req, res) => {
+router.post("/:id/return", requireAuth, checkoutLimiter, validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -1235,7 +1238,6 @@ router.post(
   "/:id/seen",
   requireAuth,
   writeLimiter,
-  requireEffectiveRole("vet"),
   validateUuid("id"),
   validateBody(seenSchema),
   async (req, res) => {

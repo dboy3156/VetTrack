@@ -8,6 +8,7 @@ import {
   restockEvents,
   restockSessions,
 } from "../db.js";
+import type { InventoryBlueprintEntry } from "../config/inventoryBlueprint.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,16 +26,15 @@ export class RestockServiceError extends Error {
   }
 }
 
-function ensureBlueprintEntry(containerName: string) {
+function blueprintEntryForContainerName(containerName: string): InventoryBlueprintEntry {
   const entry = resolveBlueprintEntryForContainerName(containerName);
-  if (!entry) {
-    throw new RestockServiceError(
-      "CONTAINER_TEMPLATE_NOT_FOUND",
-      400,
-      "Container template is not configured",
-    );
-  }
-  return entry;
+  if (entry) return entry;
+  return {
+    key: "unconfigured",
+    name: containerName,
+    department: "",
+    supplyTargets: [],
+  };
 }
 
 async function ensureTemplateItemsSeededInTx(
@@ -43,7 +43,7 @@ async function ensureTemplateItemsSeededInTx(
   containerName: string,
   containerId: string,
 ) {
-  const entry = ensureBlueprintEntry(containerName);
+  const entry = blueprintEntryForContainerName(containerName);
   const codes = entry.supplyTargets.map((s) => s.code);
   if (codes.length === 0) return entry;
 
@@ -217,7 +217,9 @@ export async function scanItem(params: {
       throw new RestockServiceError("ITEM_NOT_FOUND", 404, "Item not found");
     }
 
-    const inTemplate = template.supplyTargets.some((target) => target.code === item.code);
+    const inTemplate =
+      template.supplyTargets.length === 0 ||
+      template.supplyTargets.some((target) => target.code === item.code);
     if (!inTemplate) {
       throw new RestockServiceError("ITEM_NOT_IN_TEMPLATE", 400, "Item does not belong to container template");
     }
@@ -438,51 +440,85 @@ export async function getContainerInventoryView(params: {
     throw new RestockServiceError("CONTAINER_NOT_FOUND", 404, "Container not found");
   }
 
-  const template = ensureBlueprintEntry(container.name);
-  const codes = template.supplyTargets.map((target) => target.code);
-  const itemRows = codes.length
-    ? await db
-        .select({
-          id: inventoryItems.id,
-          code: inventoryItems.code,
-          label: inventoryItems.label,
-        })
-        .from(inventoryItems)
-        .where(and(eq(inventoryItems.clinicId, params.clinicId), inArray(inventoryItems.code, codes)))
-    : [];
-  const itemByCode = new Map(itemRows.map((item) => [item.code, item]));
-  const lineRows = itemRows.length
-    ? await db
-        .select({
-          itemId: containerItems.itemId,
-          quantity: containerItems.quantity,
-        })
-        .from(containerItems)
-        .where(
-          and(
-            eq(containerItems.clinicId, params.clinicId),
-            eq(containerItems.containerId, params.containerId),
-            inArray(
-              containerItems.itemId,
-              itemRows.map((item) => item.id),
-            ),
-          ),
-        )
-    : [];
-  const quantityByItemId = new Map(lineRows.map((line) => [line.itemId, line.quantity]));
+  const template = blueprintEntryForContainerName(container.name);
+  let lines: {
+    itemId: string | null;
+    code: string;
+    label: string;
+    expected: number;
+    actual: number;
+    missing: number;
+  }[];
 
-  const lines = template.supplyTargets.map((target) => {
-    const item = itemByCode.get(target.code);
-    const actual = item ? quantityByItemId.get(item.id) ?? 0 : 0;
-    return {
-      itemId: item?.id ?? null,
-      code: target.code,
-      label: target.label,
-      expected: target.targetUnits,
-      actual,
-      missing: Math.max(0, target.targetUnits - actual),
-    };
-  });
+  if (template.supplyTargets.length > 0) {
+    const codes = template.supplyTargets.map((target) => target.code);
+    const itemRows = await db
+      .select({
+        id: inventoryItems.id,
+        code: inventoryItems.code,
+        label: inventoryItems.label,
+      })
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.clinicId, params.clinicId), inArray(inventoryItems.code, codes)));
+    const itemByCode = new Map(itemRows.map((item) => [item.code, item]));
+    const lineRows = itemRows.length
+      ? await db
+          .select({
+            itemId: containerItems.itemId,
+            quantity: containerItems.quantity,
+          })
+          .from(containerItems)
+          .where(
+            and(
+              eq(containerItems.clinicId, params.clinicId),
+              eq(containerItems.containerId, params.containerId),
+              inArray(
+                containerItems.itemId,
+                itemRows.map((item) => item.id),
+              ),
+            ),
+          )
+      : [];
+    const quantityByItemId = new Map(lineRows.map((line) => [line.itemId, line.quantity]));
+
+    lines = template.supplyTargets.map((target) => {
+      const item = itemByCode.get(target.code);
+      const actual = item ? quantityByItemId.get(item.id) ?? 0 : 0;
+      return {
+        itemId: item?.id ?? null,
+        code: target.code,
+        label: target.label,
+        expected: target.targetUnits,
+        actual,
+        missing: Math.max(0, target.targetUnits - actual),
+      };
+    });
+  } else {
+    const adHocRows = await db
+      .select({
+        id: inventoryItems.id,
+        code: inventoryItems.code,
+        label: inventoryItems.label,
+        quantity: containerItems.quantity,
+      })
+      .from(containerItems)
+      .innerJoin(inventoryItems, eq(containerItems.itemId, inventoryItems.id))
+      .where(
+        and(
+          eq(containerItems.clinicId, params.clinicId),
+          eq(containerItems.containerId, params.containerId),
+          eq(inventoryItems.clinicId, params.clinicId),
+        ),
+      );
+    lines = adHocRows.map((row) => ({
+      itemId: row.id,
+      code: row.code,
+      label: row.label,
+      expected: 0,
+      actual: Number(row.quantity),
+      missing: 0,
+    }));
+  }
 
   const [activeSession] = await db
     .select()

@@ -5,6 +5,7 @@ import { and, eq, desc, inArray } from "drizzle-orm";
 import { purchaseOrders, poLines, containerItems, inventoryLogs, inventoryItems, db } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
+import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 
@@ -190,6 +191,15 @@ router.post("/", requireAuth, requireAdmin, validateBody(createPoSchema), async 
       .innerJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
       .where(eq(poLines.purchaseOrderId, orderId));
 
+    logAudit({
+      clinicId,
+      actionType: "task_created",
+      performedBy: req.authUser!.name || req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: orderId,
+      targetType: "purchase_order",
+      metadata: { supplierName: b.supplierName, lineCount: b.lines.length },
+    });
     res.status(201).json({ ...order, lines });
   } catch (err) {
     console.error(err);

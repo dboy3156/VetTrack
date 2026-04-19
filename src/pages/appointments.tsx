@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { t } from "@/lib/i18n";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { MedicationCalculator } from "@/components/MedicationCalculator";
@@ -338,6 +339,8 @@ function isVetOrAdmin(role: string | null | undefined, effectiveRole: string | n
 
 export default function AppointmentsPage() {
   const { userId, role, effectiveRole } = useAuth();
+  const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  const canCreateTask = resolvedRole !== "viewer";
   const queryClient = useQueryClient();
   const urgentRef = useRef<HTMLDivElement>(null);
   const myTasksRef = useRef<HTMLDivElement>(null);
@@ -678,7 +681,7 @@ export default function AppointmentsPage() {
                 icon={CheckCircle2}
                 message="You're all caught up"
                 subMessage="No next best task is pending right now."
-                action={(
+                action={canCreateTask ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -686,9 +689,9 @@ export default function AppointmentsPage() {
                     onClick={() => openQuickBooking(new Date())}
                   >
                     <Plus className="w-3.5 h-3.5 mr-1" />
-                    Create task
+                    {t.appointmentsPage.createTask}
                   </Button>
-                )}
+                ) : undefined}
               />
             ) : (() => {
               const nbt = recommendationsQuery.data.nextBestTask;
@@ -734,7 +737,7 @@ export default function AppointmentsPage() {
                   <div className="flex flex-wrap gap-2">
                     {isDelayedMedicationTask(nbt) ? (
                       <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
-                        Delayed
+                        {t.appointmentsPage.delayed}
                       </Badge>
                     ) : null}
                     {canApproveAsMedVet && isMedicationNeedingApproval(nbt) ? (
@@ -745,7 +748,7 @@ export default function AppointmentsPage() {
                         disabled={vetApproveMutation.isPending}
                         onClick={() => vetApproveMutation.mutate(nbt.id)}
                       >
-                        Administer Medication
+                        {t.appointmentsPage.administerMedication}
                       </Button>
                     ) : null}
                     {canStartTask(nbt, meQuery.data?.id) ? (
@@ -756,7 +759,7 @@ export default function AppointmentsPage() {
                         disabled={startTaskMutation.isPending}
                         onClick={() => startTaskMutation.mutate(nbt.id)}
                       >
-                        Start now
+                        {t.appointmentsPage.startNow}
                       </Button>
                     ) : null}
                     {nbtCompleteState.visible ? (
@@ -768,7 +771,7 @@ export default function AppointmentsPage() {
                           disabled={completeTaskMutation.isPending || nbtCompleteState.disabled}
                           onClick={() => completeTaskMutation.mutate(nbt.id)}
                         >
-                          Mark complete
+                          {t.appointmentsPage.markComplete}
                         </Button>
                       </ActionTooltip>
                     ) : null}
@@ -781,7 +784,7 @@ export default function AppointmentsPage() {
 
         <Card ref={urgentRef} className="bg-card border-border/60 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Urgent</CardTitle>
+            <CardTitle className="text-sm font-semibold">{t.appointmentsPage.urgent}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {dashboardQuery.isError ? (
@@ -797,46 +800,46 @@ export default function AppointmentsPage() {
             ) : (
               <>
                 <ul className="space-y-2">
-                  {(dashboardQuery.data?.overdue ?? []).map((t) => (
-                    <li key={t.id} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.overdue}`}>
+                  {(dashboardQuery.data?.overdue ?? []).map((overdueItem) => (
+                    <li key={overdueItem.id} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.overdue}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <span className="font-semibold">{formatDevice(overdueItem.animalId)}</span>
                         <Badge variant="outline" className={URGENT_BADGE_STYLES.overdue}>
                           overdue
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {compactMeta(
-                          formatLocation(t.ownerId),
-                          resolveVet(t.vetId),
-                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                          formatLocation(overdueItem.ownerId),
+                          resolveVet(overdueItem.vetId),
+                          `${formatTimeHHMM(new Date(overdueItem.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(overdueItem.endTime))}`,
                         )}
                       </div>
-                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                      {formatScheduledLabel(overdueItem) || formatPrescribedByLabel(overdueItem) ? (
                         <div className="text-xs text-muted-foreground mt-1">
-                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                          {compactMeta(formatScheduledLabel(overdueItem), formatPrescribedByLabel(overdueItem))}
                         </div>
                       ) : null}
                     </li>
                   ))}
-                  {(recommendationsQuery.data?.urgentTasks ?? []).map((t) => (
-                    <li key={`urgent-${t.id}`} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.critical}`}>
+                  {(recommendationsQuery.data?.urgentTasks ?? []).map((urgentItem) => (
+                    <li key={`urgent-${urgentItem.id}`} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.critical}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <span className="font-semibold">{formatDevice(urgentItem.animalId)}</span>
                         <Badge variant="outline" className={URGENT_BADGE_STYLES.critical}>
                           critical
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {compactMeta(
-                          formatLocation(t.ownerId),
-                          resolveVet(t.vetId),
-                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                          formatLocation(urgentItem.ownerId),
+                          resolveVet(urgentItem.vetId),
+                          `${formatTimeHHMM(new Date(urgentItem.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(urgentItem.endTime))}`,
                         )}
                       </div>
-                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                      {formatScheduledLabel(urgentItem) || formatPrescribedByLabel(urgentItem) ? (
                         <div className="text-xs text-muted-foreground mt-1">
-                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                          {compactMeta(formatScheduledLabel(urgentItem), formatPrescribedByLabel(urgentItem))}
                         </div>
                       ) : null}
                     </li>
@@ -891,7 +894,7 @@ export default function AppointmentsPage() {
                   icon={CheckCircle2}
                   message="You're all caught up"
                   subMessage="No tasks are due today."
-                  action={(
+                  action={canCreateTask ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -899,71 +902,71 @@ export default function AppointmentsPage() {
                       onClick={() => openQuickBooking(new Date())}
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
-                      Create task
+                      {t.appointmentsPage.createTask}
                     </Button>
-                  )}
+                  ) : undefined}
                 />
               ) : (
                 <ul className="space-y-2">
-                  {dashboardQuery.data!.today.map((t) => {
+                  {dashboardQuery.data!.today.map((todayTask) => {
                     const completeState = completeButtonState({
-                      appointment: t,
+                      appointment: todayTask,
                       meId: meQuery.data?.id,
                       meClerkId: meQuery.data?.clerkId,
                       role: meQuery.data?.role,
                       effectiveRole: meQuery.data?.effectiveRole,
                     });
                     return (
-                    <li key={t.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.soon}`}>
+                    <li key={todayTask.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.soon}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <span className="font-semibold">{formatDevice(todayTask.animalId)}</span>
                         <div className="flex items-center gap-1">
-                          {isDelayedMedicationTask(t) ? (
+                          {isDelayedMedicationTask(todayTask) ? (
                             <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
-                              Delayed
+                              {t.appointmentsPage.delayed}
                             </Badge>
                           ) : null}
                           <Badge
                             variant="outline"
-                            className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
+                            className={`text-[10px] ${PRIORITY_COLORS[todayTask.priority ?? "normal"]}`}
                           >
-                            {t.priority ?? "normal"}
+                            {todayTask.priority ?? "normal"}
                           </Badge>
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(
-                          formatLocation(t.ownerId),
-                          resolveVet(t.vetId),
-                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                          formatLocation(todayTask.ownerId),
+                          resolveVet(todayTask.vetId),
+                          `${formatTimeHHMM(new Date(todayTask.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(todayTask.endTime))}`,
                         )}
                       </div>
-                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                      {formatScheduledLabel(todayTask) || formatPrescribedByLabel(todayTask) ? (
                         <div className="text-xs text-muted-foreground">
-                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                          {compactMeta(formatScheduledLabel(todayTask), formatPrescribedByLabel(todayTask))}
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {canApproveAsMedVet && isMedicationNeedingApproval(t) ? (
+                        {canApproveAsMedVet && isMedicationNeedingApproval(todayTask) ? (
                           <Button
                             size="sm"
                             variant="default"
                             className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                             disabled={vetApproveMutation.isPending}
-                            onClick={() => vetApproveMutation.mutate(t.id)}
+                            onClick={() => vetApproveMutation.mutate(todayTask.id)}
                           >
-                            Administer Medication
+                            {t.appointmentsPage.administerMedication}
                           </Button>
                         ) : null}
-                        {canStartTask(t, meQuery.data?.id) ? (
+                        {canStartTask(todayTask, meQuery.data?.id) ? (
                           <Button
                             size="sm"
                             variant="default"
                             className={ACTION_BUTTON_BASE}
                             disabled={startTaskMutation.isPending}
-                            onClick={() => startTaskMutation.mutate(t.id)}
+                            onClick={() => startTaskMutation.mutate(todayTask.id)}
                           >
-                            Start this task
+                            {t.appointmentsPage.startNow}
                           </Button>
                         ) : null}
                         {completeState.visible ? (
@@ -973,9 +976,9 @@ export default function AppointmentsPage() {
                               variant="secondary"
                               className={ACTION_BUTTON_BASE}
                               disabled={completeTaskMutation.isPending || completeState.disabled}
-                              onClick={() => completeTaskMutation.mutate(t.id)}
+                              onClick={() => completeTaskMutation.mutate(todayTask.id)}
                             >
-                              Mark complete
+                              {t.appointmentsPage.markComplete}
                             </Button>
                           </ActionTooltip>
                         ) : null}
@@ -1026,65 +1029,65 @@ export default function AppointmentsPage() {
                 />
               ) : (
                 <ul className="space-y-2">
-                  {dashboardQuery.data!.myTasks.map((t) => {
+                  {dashboardQuery.data!.myTasks.map((myTask) => {
                     const completeState = completeButtonState({
-                      appointment: t,
+                      appointment: myTask,
                       meId: meQuery.data?.id,
                       meClerkId: meQuery.data?.clerkId,
                       role: meQuery.data?.role,
                       effectiveRole: meQuery.data?.effectiveRole,
                     });
                     return (
-                    <li key={t.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.normal}`}>
+                    <li key={myTask.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.normal}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(t.animalId)}</span>
+                        <span className="font-semibold">{formatDevice(myTask.animalId)}</span>
                         <div className="flex items-center gap-1">
-                          {isDelayedMedicationTask(t) ? (
+                          {isDelayedMedicationTask(myTask) ? (
                             <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
-                              Delayed
+                              {t.appointmentsPage.delayed}
                             </Badge>
                           ) : null}
                           <Badge
                             variant="outline"
-                            className={`text-[10px] ${PRIORITY_COLORS[t.priority ?? "normal"]}`}
+                            className={`text-[10px] ${PRIORITY_COLORS[myTask.priority ?? "normal"]}`}
                           >
-                            {t.priority ?? "normal"}
+                            {myTask.priority ?? "normal"}
                           </Badge>
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(
-                          formatLocation(t.ownerId),
-                          resolveVet(t.vetId),
-                          `${formatTimeHHMM(new Date(t.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(t.endTime))}`,
+                          formatLocation(myTask.ownerId),
+                          resolveVet(myTask.vetId),
+                          `${formatTimeHHMM(new Date(myTask.startTime))}\u2009\u2013\u2009${formatTimeHHMM(new Date(myTask.endTime))}`,
                         )}
                       </div>
-                      {formatScheduledLabel(t) || formatPrescribedByLabel(t) ? (
+                      {formatScheduledLabel(myTask) || formatPrescribedByLabel(myTask) ? (
                         <div className="text-xs text-muted-foreground">
-                          {compactMeta(formatScheduledLabel(t), formatPrescribedByLabel(t))}
+                          {compactMeta(formatScheduledLabel(myTask), formatPrescribedByLabel(myTask))}
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {canApproveAsMedVet && isMedicationNeedingApproval(t) ? (
+                        {canApproveAsMedVet && isMedicationNeedingApproval(myTask) ? (
                           <Button
                             size="sm"
                             variant="default"
                             className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                             disabled={vetApproveMutation.isPending}
-                            onClick={() => vetApproveMutation.mutate(t.id)}
+                            onClick={() => vetApproveMutation.mutate(myTask.id)}
                           >
-                            Administer Medication
+                            {t.appointmentsPage.administerMedication}
                           </Button>
                         ) : null}
-                        {canStartTask(t, meQuery.data?.id) ? (
+                        {canStartTask(myTask, meQuery.data?.id) ? (
                           <Button
                             size="sm"
                             variant="default"
                             className={ACTION_BUTTON_BASE}
                             disabled={startTaskMutation.isPending}
-                            onClick={() => startTaskMutation.mutate(t.id)}
+                            onClick={() => startTaskMutation.mutate(myTask.id)}
                           >
-                            Start this task
+                            {t.appointmentsPage.startNow}
                           </Button>
                         ) : null}
                         {completeState.visible ? (
@@ -1094,9 +1097,9 @@ export default function AppointmentsPage() {
                               variant="secondary"
                               className={ACTION_BUTTON_BASE}
                               disabled={completeTaskMutation.isPending || completeState.disabled}
-                              onClick={() => completeTaskMutation.mutate(t.id)}
+                              onClick={() => completeTaskMutation.mutate(myTask.id)}
                             >
-                              Mark complete
+                              {t.appointmentsPage.markComplete}
                             </Button>
                           </ActionTooltip>
                         ) : null}
@@ -1119,7 +1122,7 @@ export default function AppointmentsPage() {
                 icon={CheckCircle2}
                 message="No suggestions"
                 subMessage="Everything looks good right now."
-                action={(
+                action={canCreateTask ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1127,9 +1130,9 @@ export default function AppointmentsPage() {
                     onClick={() => openQuickBooking(new Date())}
                   >
                     <Plus className="w-3.5 h-3.5 mr-1" />
-                    Create task
+                    {t.appointmentsPage.createTask}
                   </Button>
-                )}
+                ) : undefined}
               />
             ) : (
               <ul className="space-y-2">
@@ -1163,7 +1166,7 @@ export default function AppointmentsPage() {
                         }}
                       >
                         {suggestion.type === "START_NOW"
-                          ? "Start now"
+                          ? t.appointmentsPage.startNow
                           : suggestion.type === "PICK_FROM_QUEUE"
                             ? "View queue"
                             : "Review urgent"}
@@ -1214,12 +1217,14 @@ export default function AppointmentsPage() {
               <label className="text-xs text-muted-foreground block text-right">Interval</label>
               <div className="h-10 px-3 rounded-md border flex items-center text-sm">{SLOT_MINUTES} min</div>
             </div>
-            <div>
-              <Button className="w-full" onClick={() => openQuickBooking(new Date())}>
-                <Plus className="w-4 h-4 mr-1" />
-                Quick task
-              </Button>
-            </div>
+            {canCreateTask && (
+              <div>
+                <Button className="w-full" onClick={() => openQuickBooking(new Date())}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  {t.appointmentsPage.quickTask}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1268,7 +1273,7 @@ export default function AppointmentsPage() {
                       );
                     })}
 
-                    {slotAvailability.map(({ slot, available }) => {
+                    {canCreateTask && slotAvailability.map(({ slot, available }) => {
                       const top = minutesSinceDayStart(day, slot) * PIXELS_PER_MINUTE;
                       return (
                         <button
@@ -1298,7 +1303,7 @@ export default function AppointmentsPage() {
                       return (
                       <div
                         key={appointment.id}
-                        className={`absolute left-24 right-3 rounded-lg border shadow-sm p-2 ${STATUS_COLORS[appointment.status]}`}
+                        className={`absolute left-16 sm:left-24 right-3 rounded-lg border shadow-sm p-2 ${STATUS_COLORS[appointment.status]}`}
                         style={{ top: top + 1, height }}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -1308,7 +1313,7 @@ export default function AppointmentsPage() {
                           <div className="flex gap-1">
                             {isDelayedMedicationTask(appointment) ? (
                               <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
-                                Delayed
+                                {t.appointmentsPage.delayed}
                               </Badge>
                             ) : null}
                             <Badge variant="secondary" className="text-[10px]">
@@ -1346,7 +1351,7 @@ export default function AppointmentsPage() {
                               disabled={startTaskMutation.isPending}
                               onClick={() => startTaskMutation.mutate(appointment.id)}
                             >
-                              Start now
+                              {t.appointmentsPage.startNow}
                             </Button>
                           ) : null}
                           {completeState.visible ? (
@@ -1358,7 +1363,7 @@ export default function AppointmentsPage() {
                                 disabled={completeTaskMutation.isPending || completeState.disabled}
                                 onClick={() => completeTaskMutation.mutate(appointment.id)}
                               >
-                                Mark complete
+                                {t.appointmentsPage.markComplete}
                               </Button>
                             </ActionTooltip>
                           ) : null}
