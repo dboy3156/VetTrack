@@ -55,10 +55,15 @@ async function upsertAnimalForPatient(clinicId: string, row: SmartflowPatientRow
     )
     .limit(1);
 
+  const weightUpdate =
+    typeof row.weightKg === "number" && Number.isFinite(row.weightKg) && row.weightKg > 0
+      ? { weightKg: String(row.weightKg) }
+      : {};
+
   if (existingLink) {
     await db
       .update(animals)
-      .set({ name: row.animalName, species: row.species, updatedAt: new Date() })
+      .set({ name: row.animalName, species: row.species, ...weightUpdate, updatedAt: new Date() })
       .where(and(eq(animals.id, existingLink.animalId), eq(animals.clinicId, clinicId)));
     return existingLink.animalId;
   }
@@ -69,6 +74,7 @@ async function upsertAnimalForPatient(clinicId: string, row: SmartflowPatientRow
     clinicId,
     name: row.animalName,
     species: row.species,
+    ...weightUpdate,
   });
   await db.insert(animalExternalIds).values({
     id: randomUUID(),

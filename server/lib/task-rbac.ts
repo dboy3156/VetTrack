@@ -57,7 +57,7 @@ export function canPerformMedicationTaskAction(
 
   if (role === "admin") return true;
 
-  if (role === "vet" || role === "senior_technician") {
+  if (role === "vet") {
     return (
       action === "med.read" ||
       action === "med.task.create" ||
