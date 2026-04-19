@@ -38,6 +38,11 @@ done
 echo "✅ All pre-flight checks passed"
 
 if [ "$CHECK_MODE" = false ]; then
-  # Add actual deployment logic here
-  echo "Deploying application..."
+  if [ -z "$RAILWAY_TOKEN" ]; then
+    echo "❌ RAILWAY_TOKEN is not set — cannot deploy"
+    exit 1
+  fi
+  echo "🚀 Deploying to Railway..."
+  npx --yes @railway/cli@latest up --detach
+  echo "✅ Deploy triggered — Railway is building"
 fi
