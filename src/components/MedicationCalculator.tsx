@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormulary } from "@/hooks/useFormulary";
 import { useAuth } from "@/hooks/use-auth";
@@ -309,8 +309,10 @@ export function MedicationCalculator({
     },
     onSuccess: (appointment) => {
       setSuccessMessage(`Medication started - ${calc.volumeMl.toFixed(2)} mL given.`);
-      onSuccess?.(appointment.id);
-      onComplete?.(appointment);
+      if (appointment) {
+        onSuccess?.(appointment.id);
+        onComplete?.(appointment);
+      }
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "An unexpected error occurred.";
