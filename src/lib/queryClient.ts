@@ -3,9 +3,9 @@ import { QueryClient } from "@tanstack/react-query";
 function isUnauthorizedError(error: unknown): boolean {
   if (typeof error === "object" && error !== null) {
     const status = (error as { status?: number }).status;
-    if (status === 401) return true;
+    if (status === 401 || status === 403) return true;
     const responseStatus = (error as { response?: { status?: number } }).response?.status;
-    if (responseStatus === 401) return true;
+    if (responseStatus === 401 || responseStatus === 403) return true;
   }
   if (error instanceof Error) {
     const m = error.message;
