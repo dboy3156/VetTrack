@@ -2,10 +2,9 @@ import type { CreateAppointmentRequest } from "@/types";
 
 export interface MedicationCalculationPayload {
   drugName: string;
-  weightKg: number;
-  chosenDoseMgPerKg: number;
+  weightKg?: number;
+  desiredMg: number;
   concentrationMgPerMl: number;
-  totalMg: number;
   volumeMl: number;
 }
 
@@ -32,28 +31,37 @@ export function buildCalculatorMedicationTaskRequest(
   options: {
     actorIdentifier: string | null;
     vetId: string | null;
-    status: "pending" | "scheduled" | "in_progress";
+    status: "pending" | "scheduled" | "assigned" | "in_progress";
     start: Date;
     end: Date;
   },
 ): CreateAppointmentRequest {
   const drugName = fields.drugName.trim();
+  const doseMgPerKg =
+    fields.weightKg && fields.weightKg > 0
+      ? fields.desiredMg / fields.weightKg
+      : undefined;
+
   const meta: Record<string, unknown> = {
     kind: "medication",
     createdBy: options.actorIdentifier,
     scheduled_at: options.start.toISOString(),
     drugName,
     medicationName: drugName,
-    doseMgPerKg: fields.chosenDoseMgPerKg,
+    desiredDoseMg: fields.desiredMg,
     concentrationMgPerMl: fields.concentrationMgPerMl,
     doseUnit: "mg_per_kg",
-    weightKg: fields.weightKg,
-    chosenDoseMgPerKg: fields.chosenDoseMgPerKg,
-    totalMg: fields.totalMg,
+    weightKg: fields.weightKg ?? null,
+    totalMg: fields.desiredMg,
     volumeMl: fields.volumeMl,
     calculatedVolumeMl: fields.volumeMl,
     source: "calculator",
   };
+
+  if (doseMgPerKg !== undefined && Number.isFinite(doseMgPerKg)) {
+    meta.doseMgPerKg = doseMgPerKg;
+    meta.chosenDoseMgPerKg = doseMgPerKg;
+  }
 
   if (fields.recommendedDoseMgPerKg != null && Number.isFinite(fields.recommendedDoseMgPerKg)) {
     meta.recommendedDoseMgPerKg = fields.recommendedDoseMgPerKg;

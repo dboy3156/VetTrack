@@ -143,11 +143,15 @@ interface MedicationMetadata {
   prescribedByName?: string;
   doseMgPerKg?: number;
   defaultDoseMgPerKg?: number;
+  desiredDoseMg?: number;
   concentrationMgPerMl?: number;
   calculatedVolumeMl?: number;
   doseJustification?: string;
   doseJustificationKind?: MedicationJustificationKind;
   doseJustificationPresetCode?: string;
+  vetApproved?: boolean;
+  vetApprovedBy?: string;
+  vetApprovedAt?: string;
   [key: string]: unknown;
 }
 
@@ -1234,6 +1238,18 @@ export async function completeTask(
     throw new AppointmentServiceError("TASK_NOT_OWNED_BY_TECH", 403, "Only the assigned technician can complete this task");
   }
 
+  // Technicians must wait for vet approval before completing a medication task
+  if (isMedicationTask && actorRole === "technician") {
+    const approvalMeta = medicationMetadataFromUnknown(existing.metadata);
+    if (!approvalMeta.vetApproved) {
+      throw new AppointmentServiceError(
+        "VET_APPROVAL_REQUIRED",
+        403,
+        "Veterinarian must approve this medication before the technician can complete it",
+      );
+    }
+  }
+
   const from = existing.status as AppointmentStatus;
   if (from !== "in_progress") {
     throw new AppointmentServiceError("INVALID_STATUS_TRANSITION", 400, "Task must be in progress to complete", {
@@ -1368,6 +1384,55 @@ export async function completeTask(
   if (isMedicationTask) {
     await markIdempotentAsync(completionIdempotencyKey);
   }
+  return serialized;
+}
+
+export async function vetApproveTask(clinicIdInput: string, taskId: string, actor: TaskAuditActor) {
+  const clinicId = assertClinicId(clinicIdInput);
+
+  const [existing] = await db
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+    .limit(1);
+
+  if (!existing) {
+    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+  }
+
+  const isMedicationTask = isMedicationTaskType(existing.taskType as TaskType | null);
+  if (!isMedicationTask) {
+    throw new AppointmentServiceError("NOT_A_MEDICATION_TASK", 400, "Task is not a medication task");
+  }
+
+  if (existing.status !== "in_progress") {
+    throw new AppointmentServiceError("INVALID_TASK_STATUS", 400, "Task must be in_progress for vet approval", {
+      status: existing.status,
+    });
+  }
+
+  const metadata = medicationMetadataFromUnknown(existing.metadata);
+  if (metadata.vetApproved) {
+    return serializeAppointment(existing);
+  }
+
+  const actorIdentifier = actor.clerkId?.trim() || actor.userId;
+  metadata.vetApproved = true;
+  metadata.vetApprovedBy = actorIdentifier;
+  metadata.vetApprovedAt = new Date().toISOString();
+
+  const [updated] = await db
+    .update(appointments)
+    .set({ metadata, updatedAt: new Date() })
+    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+    .returning();
+
+  if (!updated) {
+    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+  }
+
+  const serialized = serializeAppointment(updated);
+  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 

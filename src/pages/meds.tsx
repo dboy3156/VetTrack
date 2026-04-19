@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Beaker, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,8 @@ type MedicationMetadata = {
   doseUnit?: string;
   drugName?: string;
   medicationName?: string;
+  desiredDoseMg?: number;
+  vetApproved?: boolean;
   [key: string]: unknown;
 };
 
@@ -44,18 +46,18 @@ function resolveDrugName(task: MedicationExecutionTask): string {
 
 function statusLabel(status: MedicationExecutionTask["status"]): string {
   switch (status) {
-    case "scheduled":
-      return "Scheduled";
-    case "assigned":
-      return "Assigned";
-    case "arrived":
-      return "Arrived";
-    case "in_progress":
-      return "In Progress";
+    case "scheduled": return "Scheduled";
+    case "assigned": return "Assigned";
+    case "arrived": return "Arrived";
+    case "in_progress": return "In Progress";
     case "pending":
-    default:
-      return "Pending";
+    default: return "Pending";
   }
+}
+
+function isTechnicianRole(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
+  const r = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  return r === "technician" || r === "lead_technician" || r === "vet_tech" || r === "senior_technician";
 }
 
 function completeButtonState(args: {
@@ -70,7 +72,7 @@ function completeButtonState(args: {
     return { disabled: true, tooltip: "Task must be in progress before completion." };
   }
   const resolvedRole = (effectiveRole || role || "").toLowerCase();
-  if (resolvedRole === "vet" || resolvedRole === "admin" || resolvedRole === "senior_technician") {
+  if (resolvedRole === "vet" || resolvedRole === "admin") {
     return { disabled: false, tooltip: "" };
   }
 
@@ -81,7 +83,7 @@ function completeButtonState(args: {
     return {
       disabled: true,
       tooltip:
-        "Only the technician who acknowledged this medication task can complete it. Ask the prescriber or admin for override.",
+        "Only the technician who acknowledged this medication task can complete it.",
     };
   }
   return { disabled: false, tooltip: "" };
@@ -110,10 +112,44 @@ function startButtonState(args: {
   if (assignedTo !== meIdentifier) {
     return {
       disabled: true,
-      tooltip: "This task is assigned to another technician. Ask an admin or vet to reassign it.",
+      tooltip: "This task is assigned to another technician.",
     };
   }
   return { disabled: false, tooltip: "" };
+}
+
+/** Read-only task card shown to vets — they see the task info but not the START/COMPLETE flow */
+function VetTaskCard({ task }: { task: MedicationExecutionTask }) {
+  const metadata = asMedicationMetadata(task);
+  const drugName = resolveDrugName(task);
+  const vetApproved = metadata.vetApproved === true;
+
+  const desiredMg = Number.isFinite(metadata.desiredDoseMg) ? Number(metadata.desiredDoseMg) : null;
+  const concentration = Number.isFinite(metadata.concentrationMgPerMl) ? Number(metadata.concentrationMgPerMl) : null;
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3 text-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-semibold">{drugName}</span>
+        {vetApproved ? (
+          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Approved</Badge>
+        ) : (
+          <Badge variant="secondary">Awaiting your approval</Badge>
+        )}
+      </div>
+      {desiredMg != null ? (
+        <div className="text-muted-foreground">Prescribed: <span className="font-semibold text-foreground">{desiredMg.toFixed(2)} mg</span></div>
+      ) : null}
+      {concentration != null ? (
+        <div className="text-muted-foreground">Concentration: <span className="font-semibold text-foreground">{concentration} mg/mL</span></div>
+      ) : null}
+      {task.status === "in_progress" && !vetApproved ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+          The technician is waiting for your approval. Click "Administer Medication" on the Tasks page.
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function MedicationHubPage() {
@@ -121,6 +157,7 @@ export default function MedicationHubPage() {
   const { userId, role, effectiveRole } = useAuth();
   const authReady = Boolean(userId);
   const { getByDrugName } = useDrugFormulary();
+  const isTech = isTechnicianRole(role, effectiveRole);
 
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
@@ -192,7 +229,9 @@ export default function MedicationHubPage() {
             Medication Hub
           </h1>
           <p className="text-sm text-muted-foreground">
-            Execution-focused medication queue for all active medication tasks.
+            {isTech
+              ? "Verify and execute medication tasks assigned to you."
+              : "Prescribe medication tasks for your technicians."}
           </p>
         </div>
 
@@ -224,19 +263,6 @@ export default function MedicationHubPage() {
           {tasks.map((task) => {
             const drugName = resolveDrugName(task);
             const formularyEntry = getByDrugName(drugName);
-            const completeState = completeButtonState({
-              task,
-              meId: userId,
-              meClerkId: meQuery.data?.clerkId,
-              role,
-              effectiveRole,
-            });
-            const startState = startButtonState({
-              task,
-              meId: userId,
-              role,
-              effectiveRole,
-            });
 
             return (
               <Card key={task.id} className="rounded-2xl border-2 border-border bg-card shadow-sm dark:border-slate-600 dark:bg-slate-900">
@@ -257,22 +283,33 @@ export default function MedicationHubPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <VerificationCalculator
-                    task={task}
-                    formularyEntry={formularyEntry ?? null}
-                    currentUserId={userId}
-                    currentUserClerkId={meQuery.data?.clerkId}
-                    role={role}
-                    effectiveRole={effectiveRole}
-                    startDisabled={startState.disabled || startMutation.isPending}
-                    startTooltip={startState.tooltip || undefined}
-                    completeDisabled={completeState.disabled}
-                    completeTooltip={completeState.tooltip || undefined}
-                    isStarting={startMutation.isPending}
-                    isCompleting={completeMutation.isPending}
-                    onStart={(taskId) => startMutation.mutate(taskId)}
-                    onComplete={(taskId, payload) => completeMutation.mutate({ taskId, payload })}
-                  />
+                  {isTech ? (
+                    <VerificationCalculator
+                      task={task}
+                      formularyEntry={formularyEntry ?? null}
+                      currentUserId={userId}
+                      currentUserClerkId={meQuery.data?.clerkId}
+                      role={role}
+                      effectiveRole={effectiveRole}
+                      startDisabled={
+                        startButtonState({ task, meId: userId, role, effectiveRole }).disabled ||
+                        startMutation.isPending
+                      }
+                      startTooltip={startButtonState({ task, meId: userId, role, effectiveRole }).tooltip || undefined}
+                      completeDisabled={completeButtonState({
+                        task, meId: userId, meClerkId: meQuery.data?.clerkId, role, effectiveRole,
+                      }).disabled}
+                      completeTooltip={completeButtonState({
+                        task, meId: userId, meClerkId: meQuery.data?.clerkId, role, effectiveRole,
+                      }).tooltip || undefined}
+                      isStarting={startMutation.isPending}
+                      isCompleting={completeMutation.isPending}
+                      onStart={(taskId) => startMutation.mutate(taskId)}
+                      onComplete={(taskId, payload) => completeMutation.mutate({ taskId, payload })}
+                    />
+                  ) : (
+                    <VetTaskCard task={task} />
+                  )}
                 </CardContent>
               </Card>
             );

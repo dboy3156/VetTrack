@@ -532,6 +532,19 @@ export interface BillingItem {
   createdAt: string;
 }
 
+export const INVENTORY_ITEM_CATEGORIES = [
+  "IV Access",
+  "Syringes",
+  "Fluid Lines",
+  "Urinary",
+  "Wound Care",
+  "Monitoring",
+  "Feeding",
+  "Other",
+] as const;
+
+export type InventoryItemCategory = (typeof INVENTORY_ITEM_CATEGORIES)[number];
+
 export interface InventoryItem {
   id: string;
   clinicId: string;
