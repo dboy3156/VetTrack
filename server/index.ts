@@ -250,7 +250,11 @@ runMigrations()
     setInterval(runInventoryRecovery, 10 * 60 * 1000);
 
     setInterval(() => {
-      releaseStaleMedicationTasks().catch(console.error);
+      releaseStaleMedicationTasks()
+        .then((n) => {
+          if (n > 0) console.log(`[medication-task-recovery] released ${n} stale task(s)`);
+        })
+        .catch((err) => console.error("[medication-task-recovery] interval failed:", err));
     }, 5 * 60 * 1000);
   })
   .catch((err) => {

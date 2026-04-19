@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-import { getPostgresqlConnectionString } from "./lib/postgresql.js";
+import { getPostgresqlConnectionString } from "./lib/postgresql";
 import {
   pgTable,
   pgEnum,
@@ -22,6 +22,9 @@ import {
 export const pool = new Pool({
   connectionString: getPostgresqlConnectionString(),
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 export const db = drizzle(pool);

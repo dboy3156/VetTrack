@@ -1,5 +1,5 @@
 import type { Config } from "drizzle-kit";
-import { getPostgresqlConnectionString } from "./server/lib/postgresql.js";
+import { getPostgresqlConnectionString } from "./server/lib/postgresql";
 
 export default {
   schema: "./server/db.ts",

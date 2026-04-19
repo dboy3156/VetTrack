@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Beaker, Calculator, Pill, Play, Syringe } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
+import { MedicationCalculator } from "@/components/MedicationCalculator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -286,6 +287,8 @@ export default function MedicationHubPage() {
             Execution-focused medication queue for all active medication tasks.
           </p>
         </div>
+
+        <MedicationCalculator />
 
         {tasksQuery.isLoading ? (
           <div className="space-y-3">

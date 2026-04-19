@@ -41,6 +41,7 @@ export type AuditActionType =
   | "medication_task_created"
   | "medication_task_taken"
   | "medication_task_completed"
+  | "medication_task_released_stale"
   | "users_backfilled_from_clerk";
 
 export interface LogAuditParams {

@@ -32,7 +32,42 @@ export interface CreateMedicationTaskInput {
 }
 
 const IN_PROGRESS_TIMEOUT_MS = 5 * 60 * 1000;
+/** Global stale sweep (startup + interval); longer than {@link IN_PROGRESS_TIMEOUT_MS} per-clinic sweeps in list. */
+const STALE_IN_PROGRESS_MS = 30 * 60 * 1000;
+/** Exclusive upper bound (ml) — matches medication-calculation.service MAX_SAFE_VOLUME_ML. */
+const MAX_EXCLUSIVE_VOLUME_ML = 100;
 const VALID_ROUTES = ["IV", "IM", "PO", "SC"] as const;
+
+function validateCompletionVolume(snapshot: unknown): void {
+  if (snapshot === null || snapshot === undefined || typeof snapshot !== "object") {
+    throw new MedTaskError("INVALID_SNAPSHOT", 400, "Calculation snapshot is invalid.");
+  }
+  const root = snapshot as Record<string, unknown>;
+  const payload =
+    root.data !== undefined && typeof root.data === "object" && root.data !== null
+      ? (root.data as Record<string, unknown>)
+      : root;
+  const final = payload.final;
+  if (!final || typeof final !== "object") {
+    throw new MedTaskError("INVALID_SNAPSHOT", 400, "Calculation snapshot is missing dose volume.");
+  }
+  const f = final as Record<string, unknown>;
+  const rawVol = f.roundedVolumeMl ?? f.volumeMl;
+  const v = typeof rawVol === "number" ? rawVol : Number(rawVol);
+  if (!Number.isFinite(v)) {
+    throw new MedTaskError("VOLUME_INVALID", 400, "Dose volume is not a valid number.");
+  }
+  if (v <= 0) {
+    throw new MedTaskError("VOLUME_OUT_OF_RANGE", 400, "Dose volume must be greater than 0 ml.");
+  }
+  if (v >= MAX_EXCLUSIVE_VOLUME_ML) {
+    throw new MedTaskError("VOLUME_OUT_OF_RANGE", 400, "Dose volume must be less than 100 ml.");
+  }
+  const twoDp = Math.round(v * 100) / 100;
+  if (Math.abs(twoDp - v) > 1e-6) {
+    throw new MedTaskError("VOLUME_PRECISION", 400, "Dose volume must use at most two decimal places.");
+  }
+}
 
 export async function createMedicationTask(input: CreateMedicationTaskInput): Promise<MedicationTask> {
   try {
@@ -142,6 +177,7 @@ export async function takeMedicationTask(
           eq(medicationTasks.clinicId, clinicId),
           eq(medicationTasks.status, "pending"),
           isNull(medicationTasks.assignedTo),
+          isNull(medicationTasks.completedAt),
         ),
       )
       .returning();
@@ -180,6 +216,17 @@ export async function completeMedicationTask(
   clinicId: string,
 ): Promise<MedicationTask> {
   try {
+    const [pre] = await db
+      .select({ calculationSnapshot: medicationTasks.calculationSnapshot })
+      .from(medicationTasks)
+      .where(and(eq(medicationTasks.id, taskId), eq(medicationTasks.clinicId, clinicId)))
+      .limit(1);
+
+    if (!pre) {
+      throw new MedTaskError("NOT_FOUND", 404, "Medication task was not found.");
+    }
+    validateCompletionVolume(pre.calculationSnapshot);
+
     const rows = await db
       .update(medicationTasks)
       .set({
@@ -192,6 +239,7 @@ export async function completeMedicationTask(
           eq(medicationTasks.clinicId, clinicId),
           eq(medicationTasks.status, "in_progress"),
           eq(medicationTasks.assignedTo, userId),
+          isNull(medicationTasks.completedAt),
         ),
       )
       .returning();
@@ -243,45 +291,101 @@ export async function completeMedicationTask(
 }
 
 export async function releaseExpiredMedicationTasks(clinicId?: string): Promise<number> {
-  const cutoff = new Date(Date.now() - IN_PROGRESS_TIMEOUT_MS);
-  const whereExpr = clinicId
-    ? and(
-        eq(medicationTasks.status, "in_progress"),
-        lt(medicationTasks.startedAt, cutoff),
-        eq(medicationTasks.clinicId, clinicId),
-      )
-    : and(eq(medicationTasks.status, "in_progress"), lt(medicationTasks.startedAt, cutoff));
+  try {
+    const cutoff = new Date(Date.now() - IN_PROGRESS_TIMEOUT_MS);
+    const whereExpr = clinicId
+      ? and(
+          eq(medicationTasks.status, "in_progress"),
+          lt(medicationTasks.startedAt, cutoff),
+          eq(medicationTasks.clinicId, clinicId),
+          isNull(medicationTasks.completedAt),
+        )
+      : and(
+          eq(medicationTasks.status, "in_progress"),
+          lt(medicationTasks.startedAt, cutoff),
+          isNull(medicationTasks.completedAt),
+        );
 
-  const released = await db
-    .update(medicationTasks)
-    .set({
-      status: "pending",
-      assignedTo: null,
-      startedAt: null,
-    })
-    .where(whereExpr)
-    .returning({ id: medicationTasks.id });
+    const released = await db
+      .update(medicationTasks)
+      .set({
+        status: "pending",
+        assignedTo: null,
+        startedAt: null,
+        completedAt: null,
+      })
+      .where(whereExpr)
+      .returning({
+        id: medicationTasks.id,
+        clinicId: medicationTasks.clinicId,
+        assignedTo: medicationTasks.assignedTo,
+      });
 
-  return released.length;
+    for (const row of released) {
+      logAudit({
+        clinicId: row.clinicId,
+        actionType: "medication_task_released_stale",
+        performedBy: row.assignedTo ?? "system",
+        performedByEmail: "",
+        targetId: row.id,
+        targetType: "medication_task",
+        metadata: {
+          reason: "in_progress_timeout",
+          previousAssignee: row.assignedTo,
+        },
+      });
+    }
+
+    return released.length;
+  } catch (err) {
+    console.error("[releaseExpiredMedicationTasks]", err);
+    return 0;
+  }
 }
 
 export async function releaseStaleMedicationTasks(): Promise<number> {
-  const STALE_MS = 30 * 60 * 1000;
-  const released = await db
-    .update(medicationTasks)
-    .set({
-      status: "pending",
-      assignedTo: null,
-      startedAt: null,
-    })
-    .where(
-      and(
-        eq(medicationTasks.status, "in_progress"),
-        lt(medicationTasks.startedAt, new Date(Date.now() - STALE_MS)),
-      ),
-    )
-    .returning({ id: medicationTasks.id });
-  return released.length;
+  try {
+    const released = await db
+      .update(medicationTasks)
+      .set({
+        status: "pending",
+        assignedTo: null,
+        startedAt: null,
+        completedAt: null,
+      })
+      .where(
+        and(
+          eq(medicationTasks.status, "in_progress"),
+          lt(medicationTasks.startedAt, new Date(Date.now() - STALE_IN_PROGRESS_MS)),
+          isNull(medicationTasks.completedAt),
+        ),
+      )
+      .returning({
+        id: medicationTasks.id,
+        clinicId: medicationTasks.clinicId,
+        assignedTo: medicationTasks.assignedTo,
+      });
+
+    for (const row of released) {
+      logAudit({
+        clinicId: row.clinicId,
+        actionType: "medication_task_released_stale",
+        performedBy: row.assignedTo ?? "system",
+        performedByEmail: "",
+        targetId: row.id,
+        targetType: "medication_task",
+        metadata: {
+          reason: "global_stale_sweep",
+          previousAssignee: row.assignedTo,
+        },
+      });
+    }
+
+    return released.length;
+  } catch (err) {
+    console.error("[releaseStaleMedicationTasks]", err);
+    return 0;
+  }
 }
 
 export async function listMedicationTasks(clinicId: string): Promise<MedicationTask[]> {
