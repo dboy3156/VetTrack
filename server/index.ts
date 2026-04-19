@@ -190,8 +190,20 @@ app.use("/api", tenantContext);
 registerApiRoutes(app);
 
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../dist/public")));
+  // Vite content-hashed assets: safe to cache indefinitely (new content = new URL).
+  app.use(
+    "/assets",
+    express.static(path.join(__dirname, "../dist/public/assets"), {
+      maxAge: "1y",
+      immutable: true,
+    })
+  );
+  // Everything else (icons, sw.js, manifest): short cache.
+  app.use(express.static(path.join(__dirname, "../dist/public"), { maxAge: 0 }));
+  // SPA shell: never cache — browsers must always get the latest index.html
+  // so they pick up new content-hashed asset filenames after a deployment.
   app.get("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     res.sendFile(path.join(__dirname, "../dist/public/index.html"));
   });
 }
