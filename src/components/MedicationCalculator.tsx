@@ -158,7 +158,7 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
         <div className="text-xs text-muted-foreground">Loading...</div>
       ) : (
         <div className="space-y-2">
-          {list.map((entry) => (
+          {rawList.map((entry) => (
             <div key={entry.id} className="rounded-lg border border-border bg-background p-2.5">
               {editingId === entry.id ? (
                 <div className="space-y-2">
