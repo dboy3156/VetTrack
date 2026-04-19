@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { t } from "@/lib/i18n";
 import { Beaker, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
@@ -41,17 +42,18 @@ function resolveDrugName(task: MedicationExecutionTask): string {
     .find((value) => typeof value === "string" && value.trim().length > 0);
   if (fromMetadata) return String(fromMetadata).trim();
   if (typeof task.notes === "string" && task.notes.trim().length > 0) return task.notes.trim();
-  return "Unspecified";
+  return t.medsPage.unspecifiedDrug;
 }
 
 function statusLabel(status: MedicationExecutionTask["status"]): string {
+  const m = t.medsPage;
   switch (status) {
-    case "scheduled": return "Scheduled";
-    case "assigned": return "Assigned";
-    case "arrived": return "Arrived";
-    case "in_progress": return "In Progress";
+    case "scheduled": return m.statusScheduled;
+    case "assigned": return m.statusAssigned;
+    case "arrived": return m.statusArrived;
+    case "in_progress": return m.statusInProgress;
     case "pending":
-    default: return "Pending";
+    default: return m.statusPending;
   }
 }
 
@@ -69,7 +71,7 @@ function completeButtonState(args: {
 }): { disabled: boolean; tooltip: string } {
   const { task, meId, meClerkId, role, effectiveRole } = args;
   if (task.status !== "in_progress") {
-    return { disabled: true, tooltip: "Task must be in progress before completion." };
+    return { disabled: true, tooltip: t.medsPage.completeDisabledStatus };
   }
   const resolvedRole = (effectiveRole || role || "").toLowerCase();
   if (resolvedRole === "vet" || resolvedRole === "admin") {
@@ -80,11 +82,7 @@ function completeButtonState(args: {
   const acknowledgedBy = typeof metadata.acknowledgedBy === "string" ? metadata.acknowledgedBy : "";
   const meIdentifier = (meClerkId ?? "").trim() || (meId ?? "");
   if (!acknowledgedBy || acknowledgedBy !== meIdentifier) {
-    return {
-      disabled: true,
-      tooltip:
-        "Only the technician who acknowledged this medication task can complete it.",
-    };
+    return { disabled: true, tooltip: t.medsPage.completeDisabledAck };
   }
   return { disabled: false, tooltip: "" };
 }
@@ -98,7 +96,7 @@ function startButtonState(args: {
   const { task, meId, role, effectiveRole } = args;
   const validStartStatuses = ["scheduled", "assigned", "arrived"];
   if (!validStartStatuses.includes(task.status)) {
-    return { disabled: true, tooltip: "Task is not in a startable state." };
+    return { disabled: true, tooltip: t.medsPage.startDisabledStatus };
   }
   const resolvedRole = (effectiveRole || role || "").toLowerCase();
   if (resolvedRole === "admin" || resolvedRole === "vet" || resolvedRole === "senior_technician") {
@@ -107,13 +105,10 @@ function startButtonState(args: {
   const assignedTo = task.vetId;
   const meIdentifier = (meId ?? "").trim();
   if (!assignedTo) {
-    return { disabled: true, tooltip: "Task has no assigned technician." };
+    return { disabled: true, tooltip: t.medsPage.startDisabledNoTech };
   }
   if (assignedTo !== meIdentifier) {
-    return {
-      disabled: true,
-      tooltip: "This task is assigned to another technician.",
-    };
+    return { disabled: true, tooltip: t.medsPage.startDisabledOtherTech };
   }
   return { disabled: false, tooltip: "" };
 }
@@ -132,9 +127,9 @@ function VetTaskCard({ task }: { task: MedicationExecutionTask }) {
       <div className="flex items-center justify-between">
         <span className="font-semibold">{drugName}</span>
         {vetApproved ? (
-          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Approved</Badge>
+          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">{t.medsPage.approved}</Badge>
         ) : (
-          <Badge variant="secondary">Awaiting your approval</Badge>
+          <Badge variant="secondary">{t.medsPage.awaitingApproval}</Badge>
         )}
       </div>
       {desiredMg != null ? (
@@ -145,7 +140,7 @@ function VetTaskCard({ task }: { task: MedicationExecutionTask }) {
       ) : null}
       {task.status === "in_progress" && !vetApproved ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-          The technician is waiting for your approval. Click "Administer Medication" on the Tasks page.
+          {t.medsPage.awaitingApprovalNote}
         </div>
       ) : null}
     </div>
@@ -158,6 +153,8 @@ export default function MedicationHubPage() {
   const authReady = Boolean(userId);
   const { getByDrugName } = useDrugFormulary();
   const isTech = isTechnicianRole(role, effectiveRole);
+  const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  const canCreateMedicationTask = resolvedRole === "vet" || resolvedRole === "admin";
 
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
@@ -180,20 +177,20 @@ export default function MedicationHubPage() {
   const startMutation = useMutation({
     mutationFn: (id: string) => api.tasks.start(id),
     onSuccess: () => {
-      toast.success("Medication task started");
+      toast.success(t.medsPage.taskStarted);
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to start medication task"),
+    onError: (error: Error) => toast.error(error.message || t.medsPage.taskStartFailed),
   });
 
   const completeMutation = useMutation({
     mutationFn: ({ taskId, payload }: { taskId: string; payload: MedicationExecutionPayload }) =>
       api.tasks.complete(taskId, { execution: payload }),
     onSuccess: () => {
-      toast.success("Medication task completed");
+      toast.success(t.medsPage.taskCompleted);
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to complete medication task"),
+    onError: (error: Error) => toast.error(error.message || t.medsPage.taskCompleteFailed),
   });
 
   const handleRealtimeEvent = useCallback((event: { type: string }) => {
@@ -221,21 +218,19 @@ export default function MedicationHubPage() {
   }, [tasksQuery.data]);
 
   return (
-    <Layout title="Medication Hub">
+    <Layout title={t.medsPage.title}>
       <div className="space-y-4 pb-24">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Pill className="h-6 w-6 text-primary" />
-            Medication Hub
+            {t.medsPage.title}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {isTech
-              ? "Verify and execute medication tasks assigned to you."
-              : "Prescribe medication tasks for your technicians."}
+            {isTech ? t.medsPage.executeDesc : t.medsPage.prescribeDesc}
           </p>
         </div>
 
-        <MedicationCalculator />
+        {canCreateMedicationTask && <MedicationCalculator />}
 
         {tasksQuery.isLoading ? (
           <div className="space-y-3">
@@ -246,7 +241,7 @@ export default function MedicationHubPage() {
 
         {tasksQuery.isError ? (
           <ErrorCard
-            message="Unable to load medication tasks."
+            message={t.medsPage.loadError}
             onRetry={() => tasksQuery.refetch()}
           />
         ) : null}
@@ -254,8 +249,8 @@ export default function MedicationHubPage() {
         {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 ? (
           <EmptyState
             icon={Syringe}
-            message="No medication tasks ready"
-            subMessage="Assigned, scheduled, arrived, pending, and in-progress tasks appear here."
+            message={t.medsPage.emptyTitle}
+            subMessage={t.medsPage.emptySubtitle}
           />
         ) : null}
 

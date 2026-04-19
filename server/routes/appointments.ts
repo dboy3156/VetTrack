@@ -225,6 +225,20 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   const isCalculatorSourceMedication = parsed.data.taskType === "medication" && source === "calculator";
 
   if (parsed.data.taskType === "medication") {
+    // Safety: only vet and admin may initiate medication tasks (non-calculator path).
+    // Technicians are handled below (calculator-only). All other roles (senior_technician,
+    // viewer, etc.) are blocked here explicitly — even if hierarchy level would otherwise pass.
+    const canInitiateMedication = role === "vet" || role === "admin" || isTechnician;
+    if (!canInitiateMedication) {
+      return res.status(403).json(
+        apiError({
+          code: "INSUFFICIENT_ROLE",
+          reason: "MEDICATION_CREATE_NOT_PERMITTED",
+          message: "Only vets and admins may create medication tasks.",
+          requestId,
+        }),
+      );
+    }
     if (isTechnician) {
       if (!isCalculatorSourceMedication) {
         return res.status(403).json(
@@ -551,6 +565,7 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
             eq(users.role, "vet"),
             eq(users.role, "technician"),
             eq(users.role, "admin"),
+            eq(users.role, "senior_technician"),
           ),
         ),
       )

@@ -76,7 +76,7 @@ export interface Room {
   inUseCount?: number;
   issueCount?: number;
   recentlyVerifiedCount?: number;
-  /** Active SmartFlow / manual patient linked to this room (GET /api/rooms/:id). */
+  /** Manual patient linked to this room (GET /api/rooms/:id). */
   linkedPatientName?: string | null;
 }
 

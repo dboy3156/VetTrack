@@ -832,7 +832,7 @@
     "roleAdmin": "אדמין",
     "roleVet": "וטרינר",
     "roleTechnician": "טכנאי",
-    "roleViewer": "צופה",
+    "roleViewer": "סטודנט",
     "roleUpdated": "התפקיד עודכן",
     "roleUpdateFailed": "עדכון התפקיד נכשל",
     "statusUpdated": "הסטטוס עודכן",
@@ -911,6 +911,7 @@
     "admin": "ניהול",
     "adminShifts": "משמרות",
     "stability": "יציבות",
+    "procurement": "הזמנות רכש",
     "quickGuide": "מדריך מהיר",
     "settings": "הגדרות",
     "about": "אודות VetTrack",
@@ -1062,6 +1063,44 @@
     "save": "שמור",
     "saving": "שומר...",
     "cancel": "ביטול"
+  },
+
+  "medsPage": {
+    "title": "מרכז תרופות",
+    "prescribeDesc": "הוסף משימות תרופתיות לטכנאים שלך.",
+    "executeDesc": "אמת ובצע משימות תרופתיות שהוקצו לך.",
+    "loadError": "לא ניתן לטעון משימות תרופתיות.",
+    "emptyTitle": "אין משימות תרופתיות",
+    "emptySubtitle": "משימות מוקצות, מתוזמנות, שהגיעו, ממתינות ובביצוע יופיעו כאן.",
+    "taskStarted": "משימה תרופתית התחילה",
+    "taskStartFailed": "הפעלת משימה תרופתית נכשלה",
+    "taskCompleted": "משימה תרופתית הושלמה",
+    "taskCompleteFailed": "השלמת משימה תרופתית נכשלה",
+    "statusScheduled": "מתוזמן",
+    "statusAssigned": "מוקצה",
+    "statusArrived": "הגיע",
+    "statusInProgress": "בביצוע",
+    "statusPending": "ממתין",
+    "unspecifiedDrug": "לא צוין",
+    "approved": "מאושר",
+    "awaitingApproval": "ממתין לאישורך",
+    "awaitingApprovalNote": "הטכנאי ממתין לאישורך. לחץ על \"מתן תרופה\" בדף המשימות.",
+    "completeDisabledStatus": "המשימה חייבת להיות בביצוע לפני השלמתה.",
+    "completeDisabledAck": "רק הטכנאי שאישר את המשימה יכול להשלים אותה.",
+    "startDisabledStatus": "המשימה אינה במצב שניתן להפעיל.",
+    "startDisabledNoTech": "אין טכנאי מוקצה למשימה.",
+    "startDisabledOtherTech": "משימה זו מוקצית לטכנאי אחר."
+  },
+
+  "appointmentsPage": {
+    "administerMedication": "מתן תרופה",
+    "startNow": "התחל עכשיו",
+    "markComplete": "סמן כהושלם",
+    "urgent": "דחוף",
+    "delayed": "מאוחר",
+    "tasks": "משימות",
+    "createTask": "צור משימה",
+    "quickTask": "משימה מהירה"
   },
 
   "errors": {
