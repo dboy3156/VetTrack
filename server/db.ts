@@ -608,6 +608,48 @@ export const auditLogs = pgTable("vt_audit_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+export const poStatusEnum = pgEnum("vt_po_status", ["draft", "ordered", "partial", "received", "cancelled"]);
+
+export const purchaseOrders = pgTable(
+  "vt_purchase_orders",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    supplierName: text("supplier_name").notNull(),
+    status: poStatusEnum("status").notNull().default("draft"),
+    orderedAt: timestamp("ordered_at"),
+    expectedAt: timestamp("expected_at"),
+    notes: text("notes"),
+    createdBy: text("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicIdx: index("idx_po_clinic").on(table.clinicId, table.createdAt),
+  }),
+);
+
+export const poLines = pgTable(
+  "vt_po_lines",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "restrict" }),
+    quantityOrdered: integer("quantity_ordered").notNull(),
+    quantityReceived: integer("quantity_received").notNull().default(0),
+    unitPriceCents: integer("unit_price_cents").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    poIdx: index("idx_po_lines_po").on(table.purchaseOrderId),
+  }),
+);
+
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
   // This function is kept as a thin wrapper for backwards compatibility.
