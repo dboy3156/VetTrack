@@ -22,8 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -31,6 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
@@ -47,6 +47,15 @@ const STATUS_BADGE: Record<PurchaseOrderStatus, string> = {
 };
 
 type ReceiveLine = { lineId: string; quantityReceived: number; containerId: string };
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function poTotalCents(lines: PurchaseOrderLine[] | undefined): number {
+  return (lines ?? []).reduce((sum, l) => sum + l.unitPriceCents * l.quantityOrdered, 0);
+}
 
 export default function ProcurementPage() {
   const qc = useQueryClient();
@@ -82,6 +91,14 @@ export default function ProcurementPage() {
     queryKey: ["/api/inventory-items"],
     queryFn: () => api.inventoryItems.list(),
     enabled: !!userId && createOpen,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const containersQ = useQuery({
+    queryKey: ["/api/containers"],
+    queryFn: () => api.containers.list(),
+    enabled: !!userId && !!receiveTarget,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -173,7 +190,7 @@ export default function ProcurementPage() {
 
         {/* Status filter */}
         <div className="flex flex-wrap gap-2">
-          {["all", "draft", "ordered", "partial", "received", "cancelled"].map((s) => (
+          {(["all", "draft", "ordered", "partial", "received", "cancelled"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -196,86 +213,108 @@ export default function ProcurementPage() {
           <p className="text-center text-muted-foreground py-12 text-sm">{p.noOrders}</p>
         ) : (
           <div className="space-y-2">
-            {orders.map((order) => (
-              <div key={order.id} className="rounded-lg border bg-card">
-                <div
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                  onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{order.supplierName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(order.createdAt).toLocaleDateString()} · {(order.lines ?? []).length} {p.lineCount}
-                    </p>
+            {orders.map((order) => {
+              const total = poTotalCents(order.lines);
+              return (
+                <div key={order.id} className="rounded-lg border bg-card">
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                    onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{order.supplierName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 flex gap-2 flex-wrap">
+                        <span>{formatDate(order.orderedAt ?? order.createdAt)}</span>
+                        <span>·</span>
+                        <span>{(order.lines ?? []).length} {p.lineCount}</span>
+                        {total > 0 && (
+                          <>
+                            <span>·</span>
+                            <span className="font-medium text-foreground">
+                              ${(total / 100).toFixed(2)}
+                            </span>
+                          </>
+                        )}
+                        {order.expectedAt && (
+                          <>
+                            <span>·</span>
+                            <span>Expected {formatDate(order.expectedAt)}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border shrink-0 ${STATUS_BADGE[order.status]}`}>
+                      {p[`status_${order.status}` as keyof typeof p] ?? order.status}
+                    </span>
+                    <div className="flex gap-1">
+                      {isAdmin && order.status === "draft" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={(e) => { e.stopPropagation(); submitMut.mutate(order.id); }}
+                          disabled={submitMut.isPending}
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          {p.submit}
+                        </Button>
+                      )}
+                      {(order.status === "ordered" || order.status === "partial") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={(e) => { e.stopPropagation(); openReceive(order); }}
+                        >
+                          <PackageCheck className="h-3 w-3 mr-1" />
+                          {p.receive}
+                        </Button>
+                      )}
+                      {isAdmin && order.status !== "received" && order.status !== "cancelled" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); setCancelTarget(order); }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                    {expandedId === order.id
+                      ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                      : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    }
                   </div>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[order.status]}`}>
-                    {p[`status_${order.status}` as keyof typeof p] ?? order.status}
-                  </span>
-                  <div className="flex gap-1">
-                    {isAdmin && order.status === "draft" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs"
-                        onClick={(e) => { e.stopPropagation(); submitMut.mutate(order.id); }}
-                        disabled={submitMut.isPending}
-                      >
-                        <Send className="h-3 w-3 mr-1" />
-                        {p.submit}
-                      </Button>
-                    )}
-                    {(order.status === "ordered" || order.status === "partial") && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs"
-                        onClick={(e) => { e.stopPropagation(); openReceive(order); }}
-                      >
-                        <PackageCheck className="h-3 w-3 mr-1" />
-                        {p.receive}
-                      </Button>
-                    )}
-                    {isAdmin && order.status !== "received" && order.status !== "cancelled" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                        onClick={(e) => { e.stopPropagation(); setCancelTarget(order); }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                  {expandedId === order.id ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
-                </div>
 
-                {expandedId === order.id && (order.lines ?? []).length > 0 && (
-                  <div className="border-t px-4 pb-3">
-                    <table className="w-full text-xs mt-2">
-                      <thead>
-                        <tr className="text-muted-foreground">
-                          <th className="text-left py-1 font-medium">{p.lineItem}</th>
-                          <th className="text-right py-1 font-medium">{p.lineOrdered}</th>
-                          <th className="text-right py-1 font-medium">{p.lineReceived}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {(order.lines ?? []).map((line: PurchaseOrderLine) => (
-                          <tr key={line.id}>
-                            <td className="py-1">{line.itemLabel ?? line.itemId}</td>
-                            <td className="py-1 text-right">{line.quantityOrdered}</td>
-                            <td className={`py-1 text-right ${line.quantityReceived >= line.quantityOrdered ? "text-emerald-600 font-medium" : ""}`}>
-                              {line.quantityReceived}
-                            </td>
+                  {expandedId === order.id && (order.lines ?? []).length > 0 && (
+                    <div className="border-t px-4 pb-3">
+                      <table className="w-full text-xs mt-2">
+                        <thead>
+                          <tr className="text-muted-foreground">
+                            <th className="text-left py-1 font-medium">{p.lineItem}</th>
+                            <th className="text-right py-1 font-medium">{p.lineOrdered}</th>
+                            <th className="text-right py-1 font-medium">{p.lineReceived}</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {order.notes && <p className="text-xs text-muted-foreground mt-2 italic">{order.notes}</p>}
-                  </div>
-                )}
-              </div>
-            ))}
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {(order.lines ?? []).map((line: PurchaseOrderLine) => (
+                            <tr key={line.id}>
+                              <td className="py-1">{line.itemLabel ?? line.itemId}</td>
+                              <td className="py-1 text-right">{line.quantityOrdered}</td>
+                              <td className={`py-1 text-right ${line.quantityReceived >= line.quantityOrdered ? "text-emerald-600 font-medium" : ""}`}>
+                                {line.quantityReceived}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {order.notes && <p className="text-xs text-muted-foreground mt-2 italic">{order.notes}</p>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -383,9 +422,11 @@ export default function ProcurementPage() {
               const line = (receiveTarget?.lines ?? []).find((l: PurchaseOrderLine) => l.id === rl.lineId);
               if (!line) return null;
               return (
-                <div key={rl.lineId} className="space-y-1 border rounded p-3">
+                <div key={rl.lineId} className="space-y-1 border rounded-lg p-3">
                   <p className="text-sm font-medium">{line.itemLabel ?? line.itemId}</p>
-                  <p className="text-xs text-muted-foreground">{p.ordered}: {line.quantityOrdered} · {p.alreadyReceived}: {line.quantityReceived}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.ordered}: {line.quantityOrdered} · {p.alreadyReceived}: {line.quantityReceived}
+                  </p>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <div className="space-y-1">
                       <Label className="text-xs">{p.qtyReceiving}</Label>
@@ -400,15 +441,23 @@ export default function ProcurementPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">{p.containerId}</Label>
-                      <Input
-                        className="h-8 text-sm"
-                        value={rl.containerId}
-                        onChange={(e) =>
-                          setReceiveLines((ls) => ls.map((l, i) => i === idx ? { ...l, containerId: e.target.value } : l))
+                      <Label className="text-xs">Container</Label>
+                      <Select
+                        value={rl.containerId || "__none__"}
+                        onValueChange={(v) =>
+                          setReceiveLines((ls) => ls.map((l, i) => i === idx ? { ...l, containerId: v === "__none__" ? "" : v } : l))
                         }
-                        placeholder={p.containerIdPlaceholder}
-                      />
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Select container…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select —</SelectItem>
+                          {(containersQ.data ?? []).map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>

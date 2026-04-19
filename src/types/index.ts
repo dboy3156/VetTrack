@@ -314,6 +314,7 @@ export interface Appointment {
 
 export interface MedicationExecutionPayload {
   weightKg?: number;
+  weightSourcedFromRecord?: boolean;
   prescribedDosePerKg?: number;
   concentrationMgPerMl?: number;
   formularyConcentrationMgPerMl?: number;
@@ -530,6 +531,19 @@ export interface BillingItem {
   chargeKind: "per_scan_hour" | "per_unit";
   createdAt: string;
 }
+
+export const INVENTORY_ITEM_CATEGORIES = [
+  "IV Access",
+  "Syringes",
+  "Fluid Lines",
+  "Urinary",
+  "Wound Care",
+  "Monitoring",
+  "Feeding",
+  "Other",
+] as const;
+
+export type InventoryItemCategory = (typeof INVENTORY_ITEM_CATEGORIES)[number];
 
 export interface InventoryItem {
   id: string;

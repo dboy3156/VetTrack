@@ -5,6 +5,12 @@ import { api } from "@/lib/api";
 import type { DrugFormularyEntry as ApiDrugFormularyEntry } from "@/types";
 import { SEEDED_FORMULARY as SHARED_SEEDED_FORMULARY } from "../../shared/drug-formulary-seed";
 
+export interface DrugFormularyPatch {
+  concentrationMgMl?: number;
+  standardDose?: number;
+  doseUnit?: DrugDoseUnit;
+}
+
 export type DrugDoseUnit = "mg_per_kg" | "mcg_per_kg";
 
 export interface DrugFormularyEntry {
@@ -127,6 +133,21 @@ export function useDrugFormulary() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: DrugFormularyPatch }) =>
+      api.formulary.update(id, patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/formulary"], exact: true });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.formulary.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/formulary"], exact: true });
+    },
+  });
+
   const upsertDrug = useCallback(
     async (entry: DrugFormularyEntry) => {
       const sanitized = sanitizeEntry(entry);
@@ -136,12 +157,28 @@ export function useDrugFormulary() {
     [upsertMutation],
   );
 
+  const updateDrug = useCallback(
+    async (id: string, patch: DrugFormularyPatch) => {
+      await updateMutation.mutateAsync({ id, patch });
+    },
+    [updateMutation],
+  );
+
+  const deleteDrug = useCallback(
+    async (id: string) => {
+      await deleteMutation.mutateAsync(id);
+    },
+    [deleteMutation],
+  );
+
   return {
     formulary,
     list,
     getByDrugName,
     upsertDrug,
+    updateDrug,
+    deleteDrug,
     isLoading: formularyQuery.isLoading,
-    isError: formularyQuery.isError || upsertMutation.isError,
+    isError: formularyQuery.isError || upsertMutation.isError || updateMutation.isError,
   };
 }

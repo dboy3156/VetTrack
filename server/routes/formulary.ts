@@ -208,7 +208,64 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
   }
 });
 
-router.delete("/:id", requireAuth, requireEffectiveRole("admin"), async (req, res) => {
+router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const id = req.params.id?.trim();
+  if (!id) {
+    return res.status(400).json(
+      apiError({ code: "VALIDATION_FAILED", reason: "MISSING_ID_PARAM", message: "id param is required", requestId }),
+    );
+  }
+
+  const patchSchema = z.object({
+    concentrationMgMl: z.number().finite().positive().optional(),
+    standardDose: z.number().finite().positive().optional(),
+    doseUnit: z.enum(["mg_per_kg", "mcg_per_kg"]).optional(),
+  });
+  const parsed = patchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(
+      apiError({ code: "VALIDATION_FAILED", reason: "INVALID_FORMULARY_PAYLOAD", message: "Invalid patch payload", requestId }),
+    );
+  }
+
+  const patch = parsed.data;
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json(
+      apiError({ code: "VALIDATION_FAILED", reason: "EMPTY_PATCH", message: "No fields to update", requestId }),
+    );
+  }
+
+  try {
+    const now = new Date();
+    const updateFields: Record<string, unknown> = { updatedAt: now };
+    if (patch.concentrationMgMl !== undefined) updateFields.concentrationMgMl = String(patch.concentrationMgMl);
+    if (patch.standardDose !== undefined) updateFields.standardDose = String(patch.standardDose);
+    if (patch.doseUnit !== undefined) updateFields.doseUnit = patch.doseUnit;
+
+    const [updated] = await db
+      .update(drugFormulary)
+      .set(updateFields)
+      .where(and(eq(drugFormulary.id, id), eq(drugFormulary.clinicId, clinicId), isNull(drugFormulary.deletedAt)))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json(
+        apiError({ code: "NOT_FOUND", reason: "FORMULARY_NOT_FOUND", message: "Formulary entry not found", requestId }),
+      );
+    }
+
+    return res.json(toResponseRow(updated));
+  } catch (err) {
+    console.error("[formulary] patch failed", err);
+    return res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "FORMULARY_PATCH_FAILED", message: "Failed to update formulary entry", requestId }),
+    );
+  }
+});
+
+router.delete("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const clinicId = req.clinicId!;
   const id = req.params.id?.trim();

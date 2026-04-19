@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Beaker, Calculator, Pill, Play, Syringe } from "lucide-react";
+import { Beaker, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
 import { MedicationCalculator } from "@/components/MedicationCalculator";
-import { Button } from "@/components/ui/button";
+import { VerificationCalculator } from "@/components/VerificationCalculator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,34 +14,25 @@ import { api } from "@/lib/api";
 import { leaderPoll } from "@/lib/leader";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  calculateMedicationVolumeMl,
-  convertDoseToMgPerKg,
-  useDrugFormulary,
-  type DrugDoseUnit,
-} from "@/hooks/useDrugFormulary";
-import type { MedicationExecutionTask } from "@/types";
+import { useDrugFormulary } from "@/hooks/useDrugFormulary";
+import type { MedicationExecutionPayload, MedicationExecutionTask } from "@/types";
 
 type MedicationMetadata = {
   acknowledgedBy?: string;
   doseMgPerKg?: number;
   defaultDoseMgPerKg?: number;
   concentrationMgPerMl?: number;
-  doseUnit?: DrugDoseUnit;
+  doseUnit?: string;
   drugName?: string;
   medicationName?: string;
+  desiredDoseMg?: number;
+  vetApproved?: boolean;
   [key: string]: unknown;
 };
 
 function asMedicationMetadata(task: MedicationExecutionTask): MedicationMetadata {
   if (!task.metadata || typeof task.metadata !== "object" || Array.isArray(task.metadata)) return {};
   return task.metadata as MedicationMetadata;
-}
-
-function parseFiniteNumber(input: string | null | undefined): number | null {
-  if (!input) return null;
-  const parsed = Number.parseFloat(input);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function resolveDrugName(task: MedicationExecutionTask): string {
@@ -54,27 +44,20 @@ function resolveDrugName(task: MedicationExecutionTask): string {
   return "Unspecified";
 }
 
-function resolvePrescribedDose(task: MedicationExecutionTask): number {
-  const metadata = asMedicationMetadata(task);
-  if (Number.isFinite(metadata.doseMgPerKg)) return Number(metadata.doseMgPerKg);
-  if (Number.isFinite(metadata.defaultDoseMgPerKg)) return Number(metadata.defaultDoseMgPerKg);
-  return 0;
-}
-
 function statusLabel(status: MedicationExecutionTask["status"]): string {
   switch (status) {
-    case "scheduled":
-      return "Scheduled";
-    case "assigned":
-      return "Assigned";
-    case "arrived":
-      return "Arrived";
-    case "in_progress":
-      return "In Progress";
+    case "scheduled": return "Scheduled";
+    case "assigned": return "Assigned";
+    case "arrived": return "Arrived";
+    case "in_progress": return "In Progress";
     case "pending":
-    default:
-      return "Pending";
+    default: return "Pending";
   }
+}
+
+function isTechnicianRole(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
+  const r = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  return r === "technician" || r === "lead_technician" || r === "vet_tech" || r === "senior_technician";
 }
 
 function completeButtonState(args: {
@@ -83,13 +66,13 @@ function completeButtonState(args: {
   meClerkId?: string | null;
   role?: string | null;
   effectiveRole?: string | null;
-}) {
+}): { disabled: boolean; tooltip: string } {
   const { task, meId, meClerkId, role, effectiveRole } = args;
   if (task.status !== "in_progress") {
     return { disabled: true, tooltip: "Task must be in progress before completion." };
   }
   const resolvedRole = (effectiveRole || role || "").toLowerCase();
-  if (resolvedRole === "vet" || resolvedRole === "admin" || resolvedRole === "senior_technician") {
+  if (resolvedRole === "vet" || resolvedRole === "admin") {
     return { disabled: false, tooltip: "" };
   }
 
@@ -100,7 +83,7 @@ function completeButtonState(args: {
     return {
       disabled: true,
       tooltip:
-        "Only the technician who acknowledged this medication task can complete it. Ask the prescriber or admin for override.",
+        "Only the technician who acknowledged this medication task can complete it.",
     };
   }
   return { disabled: false, tooltip: "" };
@@ -109,7 +92,6 @@ function completeButtonState(args: {
 function startButtonState(args: {
   task: MedicationExecutionTask;
   meId?: string | null;
-  meClerkId?: string | null;
   role?: string | null;
   effectiveRole?: string | null;
 }): { disabled: boolean; tooltip: string } {
@@ -130,47 +112,40 @@ function startButtonState(args: {
   if (assignedTo !== meIdentifier) {
     return {
       disabled: true,
-      tooltip: "This task is assigned to another technician. Ask an admin or vet to reassign it.",
+      tooltip: "This task is assigned to another technician.",
     };
   }
   return { disabled: false, tooltip: "" };
 }
 
-function ActionTooltip({ content, children }: { content?: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const tooltipId = useId();
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
+/** Read-only task card shown to vets — they see the task info but not the START/COMPLETE flow */
+function VetTaskCard({ task }: { task: MedicationExecutionTask }) {
+  const metadata = asMedicationMetadata(task);
+  const drugName = resolveDrugName(task);
+  const vetApproved = metadata.vetApproved === true;
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  if (!content) return <>{children}</>;
+  const desiredMg = Number.isFinite(metadata.desiredDoseMg) ? Number(metadata.desiredDoseMg) : null;
+  const concentration = Number.isFinite(metadata.concentrationMgPerMl) ? Number(metadata.concentrationMgPerMl) : null;
 
   return (
-    <div
-      ref={wrapperRef}
-      className="relative"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-    >
-      {children}
-      {open ? (
-        <div
-          id={tooltipId}
-          role="tooltip"
-          className="absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl"
-        >
-          {content}
+    <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3 text-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-semibold">{drugName}</span>
+        {vetApproved ? (
+          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Approved</Badge>
+        ) : (
+          <Badge variant="secondary">Awaiting your approval</Badge>
+        )}
+      </div>
+      {desiredMg != null ? (
+        <div className="text-muted-foreground">Prescribed: <span className="font-semibold text-foreground">{desiredMg.toFixed(2)} mg</span></div>
+      ) : null}
+      {concentration != null ? (
+        <div className="text-muted-foreground">Concentration: <span className="font-semibold text-foreground">{concentration} mg/mL</span></div>
+      ) : null}
+      {task.status === "in_progress" && !vetApproved ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+          The technician is waiting for your approval. Click "Administer Medication" on the Tasks page.
         </div>
       ) : null}
     </div>
@@ -182,8 +157,7 @@ export default function MedicationHubPage() {
   const { userId, role, effectiveRole } = useAuth();
   const authReady = Boolean(userId);
   const { getByDrugName } = useDrugFormulary();
-  const [concentrationInputByTaskId, setConcentrationInputByTaskId] = useState<Record<string, string>>({});
-  const [doseUnitByTaskId, setDoseUnitByTaskId] = useState<Record<string, DrugDoseUnit>>({});
+  const isTech = isTechnicianRole(role, effectiveRole);
 
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
@@ -213,37 +187,8 @@ export default function MedicationHubPage() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: ({
-      task,
-      concentrationMgPerMl,
-      convertedDoseMgPerKg,
-      calculatedVolumeMl,
-      doseUnit,
-      prescribedDosePerKg,
-      formularyConcentrationMgPerMl,
-      concentrationOverridden,
-    }: {
-      task: MedicationExecutionTask;
-      concentrationMgPerMl: number;
-      convertedDoseMgPerKg: number;
-      calculatedVolumeMl: number;
-      doseUnit: DrugDoseUnit;
-      prescribedDosePerKg: number;
-      formularyConcentrationMgPerMl: number | null;
-      concentrationOverridden: boolean;
-    }) =>
-      api.tasks.complete(task.id, {
-        execution: {
-          weightKg: task.animalWeightKg ?? undefined,
-          prescribedDosePerKg,
-          concentrationMgPerMl,
-          formularyConcentrationMgPerMl: formularyConcentrationMgPerMl ?? undefined,
-          doseUnit,
-          convertedDoseMgPerKg,
-          calculatedVolumeMl,
-          concentrationOverridden,
-        },
-      }),
+    mutationFn: ({ taskId, payload }: { taskId: string; payload: MedicationExecutionPayload }) =>
+      api.tasks.complete(taskId, { execution: payload }),
     onSuccess: () => {
       toast.success("Medication task completed");
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
@@ -284,7 +229,9 @@ export default function MedicationHubPage() {
             Medication Hub
           </h1>
           <p className="text-sm text-muted-foreground">
-            Execution-focused medication queue for all active medication tasks.
+            {isTech
+              ? "Verify and execute medication tasks assigned to you."
+              : "Prescribe medication tasks for your technicians."}
           </p>
         </div>
 
@@ -314,50 +261,8 @@ export default function MedicationHubPage() {
 
         <div className="space-y-4">
           {tasks.map((task) => {
-            const metadata = asMedicationMetadata(task);
             const drugName = resolveDrugName(task);
             const formularyEntry = getByDrugName(drugName);
-            const prescribedDosePerKg = resolvePrescribedDose(task);
-            const preferredUnit = doseUnitByTaskId[task.id]
-              ?? (metadata.doseUnit === "mcg_per_kg" || metadata.doseUnit === "mg_per_kg" ? metadata.doseUnit : formularyEntry?.doseUnit)
-              ?? "mg_per_kg";
-            const baseConcentration = formularyEntry?.concentrationMgMl
-              ?? (Number.isFinite(metadata.concentrationMgPerMl) ? Number(metadata.concentrationMgPerMl) : null);
-            const concentrationInput = concentrationInputByTaskId[task.id] ?? (baseConcentration != null ? String(baseConcentration) : "");
-            const concentrationMgPerMl = parseFiniteNumber(concentrationInput);
-            const weightKg = Number.isFinite(task.animalWeightKg) ? Number(task.animalWeightKg) : 0;
-            const convertedDoseMgPerKg = convertDoseToMgPerKg(prescribedDosePerKg, preferredUnit);
-            const calculatedVolumeMl = concentrationMgPerMl
-              ? calculateMedicationVolumeMl({
-                  weightKg,
-                  prescribedDosePerKg,
-                  concentrationMgPerMl,
-                  doseUnit: preferredUnit,
-                })
-              : 0;
-            const concentrationOverridden = formularyEntry != null
-              && concentrationMgPerMl != null
-              && Math.abs(concentrationMgPerMl - formularyEntry.concentrationMgMl) > 0.0001;
-            const completeState = completeButtonState({
-              task,
-              meId: userId,
-              meClerkId: meQuery.data?.clerkId,
-              role,
-              effectiveRole,
-            });
-            const startState = startButtonState({
-              task,
-              meId: userId,
-              meClerkId: meQuery.data?.clerkId,
-              role,
-              effectiveRole,
-            });
-            const hasValidCalculation =
-              weightKg > 0
-              && prescribedDosePerKg > 0
-              && concentrationMgPerMl != null
-              && concentrationMgPerMl > 0
-              && calculatedVolumeMl > 0;
 
             return (
               <Card key={task.id} className="rounded-2xl border-2 border-border bg-card shadow-sm dark:border-slate-600 dark:bg-slate-900">
@@ -377,120 +282,34 @@ export default function MedicationHubPage() {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-border bg-background/60 p-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Weight</div>
-                      <div className="text-lg font-bold text-foreground">
-                        {weightKg > 0 ? `${weightKg.toFixed(2)} kg` : "N/A"}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-border bg-background/60 p-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prescribed</div>
-                      <div className="text-lg font-bold text-foreground">
-                        {prescribedDosePerKg > 0 ? `${prescribedDosePerKg} ${preferredUnit === "mcg_per_kg" ? "mcg/kg" : "mg/kg"}` : "N/A"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 rounded-xl border border-border bg-background/50 p-3">
-                    <div className="text-sm font-semibold flex items-center gap-2">
-                      <Calculator className="h-4 w-4 text-primary" />
-                      Verification Calculator
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Dose Unit
-                        </label>
-                        <select
-                          value={preferredUnit}
-                          onChange={(e) => {
-                            const unit = e.target.value === "mcg_per_kg" ? "mcg_per_kg" : "mg_per_kg";
-                            setDoseUnitByTaskId((prev) => ({ ...prev, [task.id]: unit }));
-                          }}
-                          className="h-12 w-full rounded-md border-2 border-slate-300 bg-background px-3 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary"
-                        >
-                          <option value="mg_per_kg">mg/kg</option>
-                          <option value="mcg_per_kg">mcg/kg</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Concentration (mg/mL)
-                        </label>
-                        <Input
-                          value={concentrationInput}
-                          onChange={(e) =>
-                            setConcentrationInputByTaskId((prev) => ({ ...prev, [task.id]: e.target.value }))
-                          }
-                          inputMode="decimal"
-                          className={
-                            concentrationOverridden
-                              ? "h-12 text-lg font-semibold border-2 border-red-500 ring-2 ring-red-300 bg-red-50 dark:bg-red-950/20"
-                              : "h-12 text-lg font-semibold border-2 border-slate-300 focus-visible:ring-2 focus-visible:ring-primary"
-                          }
-                        />
-                        {concentrationOverridden ? (
-                          <div className="text-sm font-semibold text-red-700 dark:text-red-300">
-                            Concentration differs from formulary default ({formularyEntry?.concentrationMgMl} mg/mL).
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="text-base md:text-lg font-mono font-semibold text-foreground/90 break-words">
-                      ({weightKg > 0 ? weightKg.toFixed(2) : "0"} × {convertedDoseMgPerKg.toFixed(4)}) /{" "}
-                      {concentrationMgPerMl?.toFixed(4) ?? "0"} = {calculatedVolumeMl.toFixed(3)} mL
-                    </div>
-
-                    <div className="rounded-2xl border-4 border-yellow-400 bg-yellow-300 text-black shadow-[0_0_0_4px_rgba(250,204,21,0.45)] animate-pulse p-4 text-center">
-                      <div className="text-xs font-bold uppercase tracking-wide">Total Volume</div>
-                      <div className="text-5xl md:text-6xl font-extrabold leading-none">
-                        {calculatedVolumeMl.toFixed(2)}
-                      </div>
-                      <div className="text-xl md:text-2xl font-bold">mL</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <ActionTooltip content={startState.disabled ? startState.tooltip : undefined}>
-                      <Button
-                        onClick={() => startMutation.mutate(task.id)}
-                        disabled={startState.disabled || startMutation.isPending}
-                        className="min-h-12 min-w-12 h-12 px-6 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        START
-                      </Button>
-                    </ActionTooltip>
-
-                    <ActionTooltip content={completeState.disabled ? completeState.tooltip : undefined}>
-                      <Button
-                        onClick={() =>
-                          completeMutation.mutate({
-                            task,
-                            concentrationMgPerMl: concentrationMgPerMl ?? 0,
-                            convertedDoseMgPerKg,
-                            calculatedVolumeMl,
-                            doseUnit: preferredUnit,
-                            prescribedDosePerKg,
-                            formularyConcentrationMgPerMl: formularyEntry?.concentrationMgMl ?? null,
-                            concentrationOverridden,
-                          })
-                        }
-                        disabled={
-                          completeMutation.isPending
-                          || completeState.disabled
-                          || !hasValidCalculation
-                        }
-                        className="min-h-12 min-w-12 h-12 px-6 text-base font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        COMPLETE
-                      </Button>
-                    </ActionTooltip>
-                  </div>
+                <CardContent>
+                  {isTech ? (
+                    <VerificationCalculator
+                      task={task}
+                      formularyEntry={formularyEntry ?? null}
+                      currentUserId={userId}
+                      currentUserClerkId={meQuery.data?.clerkId}
+                      role={role}
+                      effectiveRole={effectiveRole}
+                      startDisabled={
+                        startButtonState({ task, meId: userId, role, effectiveRole }).disabled ||
+                        startMutation.isPending
+                      }
+                      startTooltip={startButtonState({ task, meId: userId, role, effectiveRole }).tooltip || undefined}
+                      completeDisabled={completeButtonState({
+                        task, meId: userId, meClerkId: meQuery.data?.clerkId, role, effectiveRole,
+                      }).disabled}
+                      completeTooltip={completeButtonState({
+                        task, meId: userId, meClerkId: meQuery.data?.clerkId, role, effectiveRole,
+                      }).tooltip || undefined}
+                      isStarting={startMutation.isPending}
+                      isCompleting={completeMutation.isPending}
+                      onStart={(taskId) => startMutation.mutate(taskId)}
+                      onComplete={(taskId, payload) => completeMutation.mutate({ taskId, payload })}
+                    />
+                  ) : (
+                    <VetTaskCard task={task} />
+                  )}
                 </CardContent>
               </Card>
             );

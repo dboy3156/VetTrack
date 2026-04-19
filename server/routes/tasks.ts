@@ -10,6 +10,7 @@ import {
   getTasksForTechnicianToday,
   type MedicationExecutionInput,
   startTask,
+  vetApproveTask,
 } from "../services/appointments.service.js";
 import { getTaskRecommendations } from "../services/task-intelligence.service.js";
 import { getTaskDashboard } from "../services/task-recall.service.js";
@@ -140,6 +141,35 @@ function normalizeMedicationExecutionPayload(input: unknown): MedicationExecutio
 
   return Object.keys(execution).length > 0 ? execution : undefined;
 }
+
+router.post("/:id/vet-approve", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  if (!req.params.id?.trim()) {
+    return res.status(400).json(
+      apiError({ code: "VALIDATION_FAILED", reason: "MISSING_ID_PARAM", message: "id param is required", requestId }),
+    );
+  }
+  if (!req.authUser) {
+    return res.status(401).json(
+      apiError({ code: "UNAUTHORIZED", reason: "MISSING_AUTH_USER", message: "Authentication required", requestId }),
+    );
+  }
+  try {
+    const task = await vetApproveTask(req.clinicId!, req.params.id, {
+      userId: req.authUser.id,
+      clerkId: req.authUser.clerkId,
+      email: req.authUser.email,
+      role: resolveTaskAuthRole(req),
+    });
+    return res.json({ task });
+  } catch (err) {
+    if (sendServiceError(res, err, requestId)) return;
+    console.error("tasks:vet-approve", err);
+    return res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "TASK_APPROVE_FAILED", message: "Failed to approve task", requestId }),
+    );
+  }
+});
 
 router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
