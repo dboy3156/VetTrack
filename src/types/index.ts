@@ -314,6 +314,7 @@ export interface Appointment {
 
 export interface MedicationExecutionPayload {
   weightKg?: number;
+  weightSourcedFromRecord?: boolean;
   prescribedDosePerKg?: number;
   concentrationMgPerMl?: number;
   formularyConcentrationMgPerMl?: number;
