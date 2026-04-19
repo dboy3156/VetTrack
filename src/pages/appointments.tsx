@@ -40,6 +40,12 @@ const DURATION_PRESETS = [
   { key: "calibration", label: "Calibration (60m)", minutes: 60 },
 ] as const;
 
+const ALLOWED_BOOKING_TASK_TYPES = [
+  { value: "maintenance", label: "Maintenance" },
+  { value: "repair", label: "Repair" },
+  { value: "inspection", label: "Inspection" },
+] as const;
+
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   pending: "bg-slate-100 border-slate-300 text-slate-900",
   assigned: "bg-indigo-100 border-indigo-300 text-indigo-900",
@@ -606,6 +612,13 @@ export default function AppointmentsPage() {
   }
 
   function submitCreate(conflictOverride = false, overrideReason?: string) {
+    if (formTaskType === "medication") {
+      throw new Error(
+        "[VetTrack] Medication must be created via MedicationCalculator. " +
+        "Task dialog creation is blocked for medication task type.",
+      );
+    }
+
     if (!formVetId.trim()) {
       toast.error("Select a technician before creating a task.");
       return;
@@ -1484,10 +1497,11 @@ export default function AppointmentsPage() {
                 }}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
               >
-                <option value="maintenance">Maintenance</option>
-                <option value="repair">Repair</option>
-                <option value="inspection">Inspection</option>
-                <option value="medication">Medication</option>
+                {ALLOWED_BOOKING_TASK_TYPES.map((taskType) => (
+                  <option key={taskType.value} value={taskType.value}>
+                    {taskType.label}
+                  </option>
+                ))}
               </select>
               </div>
               <div>

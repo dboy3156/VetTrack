@@ -79,6 +79,29 @@ function BlockAlert({ reason }: { reason: SafeCalcResult["blockReason"] }) {
   );
 }
 
+interface StaffUser {
+  id: string;
+  name: string;
+  displayName?: string;
+  role: string;
+}
+
+const MEDICATION_EXECUTOR_ROLES = [
+  "technician",
+  "lead_technician",
+  "vet_tech",
+  "senior_technician",
+] as const;
+
+function isMedicationExecutorRole(roleInput: string | null | undefined): boolean {
+  const role = String(roleInput ?? "").trim().toLowerCase();
+  return (MEDICATION_EXECUTOR_ROLES as readonly string[]).includes(role);
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function MedicationCalculator({
   defaultWeightKg,
   animalId = null,
@@ -111,6 +134,51 @@ export function MedicationCalculator({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const [technicians, setTechnicians] = useState<StaffUser[]>([]);
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
+  const [isTechnicianLoading, setIsTechnicianLoading] = useState(true);
+  const [technicianLoadError, setTechnicianLoadError] = useState<string | null>(null);
+  const currentRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  const currentUserCanExecuteMedication = isMedicationExecutorRole(currentRole);
+
+  const fetchTechnicians = useCallback(async () => {
+    setIsTechnicianLoading(true);
+    setTechnicianLoadError(null);
+    try {
+      const meta = await api.appointments.meta(todayIsoDate());
+      const eligible = meta.vets
+        .filter((user) => isMedicationExecutorRole(user.role))
+        .map((user) => ({
+          id: user.id,
+          name: user.displayName?.trim() || user.name?.trim() || user.id,
+          displayName: user.displayName,
+          role: user.role,
+        }));
+
+      setTechnicians(eligible);
+      if (eligible.length === 0) {
+        setSelectedTechnicianId("");
+        return;
+      }
+
+      const currentUserOption = userId ? eligible.find((staffUser) => staffUser.id === userId) : undefined;
+      if (currentUserCanExecuteMedication && currentUserOption) {
+        setSelectedTechnicianId(currentUserOption.id);
+        return;
+      }
+
+      setSelectedTechnicianId((previousId) =>
+        eligible.some((staffUser) => staffUser.id === previousId) ? previousId : eligible[0].id,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load technician list.";
+      setTechnicianLoadError(message);
+      setTechnicians([]);
+      setSelectedTechnicianId("");
+    } finally {
+      setIsTechnicianLoading(false);
+    }
+  }, [currentUserCanExecuteMedication, userId]);
 
   useEffect(() => {
     if (weightKgRaw !== "") return;
@@ -118,6 +186,10 @@ export function MedicationCalculator({
       setWeightKgRaw(String(defaultWeightKg));
     }
   }, [defaultWeightKg, weightKgRaw]);
+
+  useEffect(() => {
+    fetchTechnicians();
+  }, [fetchTechnicians]);
 
   const weightKg = Number.parseFloat(weightKgRaw);
   const chosenDoseMgPerKg = Number.parseFloat(chosenDoseRaw);
@@ -154,17 +226,42 @@ export function MedicationCalculator({
     setChosenDoseRaw(resolved?.recommendedDoseMgPerKg !== undefined ? resolved.recommendedDoseMgPerKg.toFixed(3) : "");
   }, [resolved?.recommendedDoseMgPerKg, selectedDrugName]);
 
+  const resolvePerformerId = useCallback((): string | null => {
+    const currentUserOption = userId ? technicians.find((staffUser) => staffUser.id === userId) : undefined;
+    if (!selectedTechnicianId) {
+      if (currentUserCanExecuteMedication && currentUserOption) {
+        return currentUserOption.id;
+      }
+      return null;
+    }
+
+    const selectedOption = technicians.find((staffUser) => staffUser.id === selectedTechnicianId);
+    if (selectedOption && isMedicationExecutorRole(selectedOption.role)) {
+      return selectedOption.id;
+    }
+
+    if (currentUserCanExecuteMedication && currentUserOption) {
+      return currentUserOption.id;
+    }
+    return null;
+  }, [currentUserCanExecuteMedication, selectedTechnicianId, technicians, userId]);
+
+  const performerId = resolvePerformerId();
+  const noTechniciansAvailable = !isTechnicianLoading && technicians.length === 0;
+
   const canExecute =
-    rbac.canExecute === "allowed"
-    && !calc.isBlocked
+    !calc.isBlocked
     && !isSubmitting
     && !!resolved
-    && !!rbac.permittedVetId;
+    && !isTechnicianLoading
+    && !technicianLoadError
+    && !noTechniciansAvailable
+    && !!performerId;
 
   const giveMedicationMutation = useMutation({
     mutationFn: async () => {
       if (submittingRef.current) return;
-      if (!canExecute || !resolved || !rbac.permittedVetId) return;
+      if (!canExecute || !resolved || !performerId) return;
 
       if (calc.isBlocked || calc.blockReason !== null) return;
       if (!Number.isFinite(calc.volumeMl) || calc.volumeMl <= 0) return;
@@ -177,7 +274,7 @@ export function MedicationCalculator({
       const payload = buildMedicationAppointmentRequest({
         actorIdentifier: userId ?? null,
         animalId,
-        userId: rbac.permittedVetId,
+        userId: performerId,
         drugName: selectedDrugName,
         weightKg,
         chosenDoseMgPerKg,
@@ -208,8 +305,12 @@ export function MedicationCalculator({
   });
 
   const handleGiveMedication = useCallback(() => {
+    if (!performerId) {
+      setApiError("No valid technician selected. Please choose a technician before executing medication.");
+      return;
+    }
     giveMedicationMutation.mutate();
-  }, [giveMedicationMutation]);
+  }, [giveMedicationMutation, performerId]);
 
   if (formularyLoading) {
     return (
@@ -236,6 +337,51 @@ export function MedicationCalculator({
           Select a drug, enter weight, confirm dose, then give.
         </p>
       </div>
+
+      <section aria-label="Performing technician" className="space-y-2">
+        <label htmlFor="med-performing-technician" className="mb-1 block text-sm font-medium text-gray-700">
+          Performing Technician <span className="text-red-600">*</span>
+        </label>
+        <select
+          id="med-performing-technician"
+          value={selectedTechnicianId}
+          onChange={(e) => setSelectedTechnicianId(e.target.value)}
+          disabled={isTechnicianLoading || noTechniciansAvailable}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+        >
+          <option value="">
+            {isTechnicianLoading ? "Loading technicians..." : "Select technician..."}
+          </option>
+          {technicians.map((staffUser) => (
+            <option key={staffUser.id} value={staffUser.id}>
+              {staffUser.name}
+              {staffUser.id === userId ? " (you)" : ""}
+            </option>
+          ))}
+        </select>
+        {technicianLoadError ? (
+          <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {technicianLoadError}
+            <button
+              type="button"
+              onClick={fetchTechnicians}
+              className="ml-2 font-semibold underline"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+        {noTechniciansAvailable && !technicianLoadError ? (
+          <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+            No eligible technicians found. Medication execution is disabled.
+          </div>
+        ) : null}
+        {!isTechnicianLoading && !technicianLoadError && !noTechniciansAvailable && !performerId ? (
+          <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+            Selected technician is invalid for medication execution. Please choose a valid technician.
+          </div>
+        ) : null}
+      </section>
 
       <section aria-label="Drug selection">
         <label htmlFor="drug-select" className="mb-1 block text-sm font-medium text-gray-700">
@@ -374,8 +520,8 @@ export function MedicationCalculator({
             {isSubmitting ? "Executing..." : `Give Medication${canExecute ? ` - ${calc.volumeMl.toFixed(2)} mL` : ""}`}
           </button>
 
-          {String(effectiveRole ?? role ?? "").toLowerCase() === "technician" ? (
-            <p className="text-center text-xs text-gray-400">Task will be assigned to your account.</p>
+          {performerId ? (
+            <p className="text-center text-xs text-gray-400">Medication task will be assigned to the selected technician.</p>
           ) : null}
         </>
       ) : null}

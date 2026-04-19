@@ -188,6 +188,16 @@ function isMedicationTaskType(taskType: TaskType | null | undefined): boolean {
   return taskType === "medication";
 }
 
+function isCalculatorMedicationTask(
+  taskType: TaskType | null | undefined,
+  metadata: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!isMedicationTaskType(taskType)) return false;
+  if (!metadata) return false;
+  const source = typeof metadata.source === "string" ? metadata.source.trim().toLowerCase() : "";
+  return source === "calculator";
+}
+
 function asMetadataRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -769,8 +779,12 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
     }
   }
 
+  const skipShiftValidation = isCalculatorMedicationTask(taskType, metadataRecord);
+
   if (status !== "cancelled" && status !== "no_show") {
-    await assertWithinVetShift({ clinicId, vetId, startTime, endTime });
+    if (!skipShiftValidation) {
+      await assertWithinVetShift({ clinicId, vetId, startTime, endTime });
+    }
     const conflict = vetId
       ? await findActiveVetConflict({ clinicId, vetId, startTime, endTime })
       : null;
