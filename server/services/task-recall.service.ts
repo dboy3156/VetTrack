@@ -38,6 +38,18 @@ function serializeAppointment(row: AppointmentRow) {
   };
 }
 
+function mapSerializedSkippingMalformed(rows: AppointmentRow[], context: string): SerializedAppointment[] {
+  const out: SerializedAppointment[] = [];
+  for (const row of rows) {
+    try {
+      out.push(serializeAppointment(row));
+    } catch (rowErr) {
+      console.warn(`[taskRecall.${context}] skipping malformed row id=%s:`, row.id, rowErr);
+    }
+  }
+  return out;
+}
+
 function withIsOverdue<T extends SerializedAppointment>(row: T, nowMs: number): TaskRecallItem {
   return {
     ...row,
@@ -100,7 +112,7 @@ export async function getTodayTasks(clinicIdInput: string): Promise<SerializedAp
     .orderBy(desc(priorityCase), asc(appointments.startTime))
     .limit(RECALL_LIMIT);
 
-  return rows.map(serializeAppointment);
+  return mapSerializedSkippingMalformed(rows, "getTodayTasks");
 }
 
 /**
@@ -122,7 +134,7 @@ export async function getOverdueTasks(clinicIdInput: string): Promise<Serialized
     .orderBy(asc(appointments.endTime), desc(priorityCase))
     .limit(RECALL_LIMIT);
 
-  return rows.map(serializeAppointment);
+  return mapSerializedSkippingMalformed(rows, "getOverdueTasks");
 }
 
 /**
@@ -145,7 +157,7 @@ export async function getUpcomingTasks(clinicIdInput: string): Promise<Serialize
     .orderBy(asc(appointments.startTime))
     .limit(RECALL_LIMIT);
 
-  return rows.map(serializeAppointment);
+  return mapSerializedSkippingMalformed(rows, "getUpcomingTasks");
 }
 
 /**
@@ -170,7 +182,7 @@ export async function getMyTasks(userId: string, clinicIdInput: string): Promise
     .orderBy(desc(priorityCase), asc(appointments.startTime))
     .limit(RECALL_LIMIT);
 
-  return rows.map(serializeAppointment);
+  return mapSerializedSkippingMalformed(rows, "getMyTasks");
 }
 
 /**

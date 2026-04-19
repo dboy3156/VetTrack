@@ -327,8 +327,19 @@ router.get("/active", requireAuth, requireEffectiveRole("technician"), async (re
 router.get("/medication-active", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskOrMedicationActionPermission(req, res, "task.read", "med.read")) return;
+  const clinicId = req.clinicId?.trim();
+  if (!clinicId) {
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_FAILED",
+        reason: "MISSING_CLINIC_ID",
+        message: "clinicId is required",
+        requestId,
+      }),
+    );
+  }
   try {
-    const tasks = await getActiveMedicationTasks(req.clinicId!);
+    const tasks = await getActiveMedicationTasks(clinicId);
     return res.json({ tasks });
   } catch (err) {
     if (sendServiceError(res, err, requestId)) return;
