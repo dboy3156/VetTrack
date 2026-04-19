@@ -50,6 +50,9 @@ import type {
   RestockSession,
   RestockContainerView,
   RestockFinishSummary,
+  BillingLedgerEntry,
+  InventoryItem,
+  PurchaseOrder,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -1063,6 +1066,55 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ containerId }),
       }),
+  },
+  billing: {
+    list: (params?: { animalId?: string; status?: string; from?: string; to?: string; limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.animalId) qs.set("animalId", params.animalId);
+      if (params?.status) qs.set("status", params.status);
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      if (params?.limit != null) qs.set("limit", String(params.limit));
+      if (params?.offset != null) qs.set("offset", String(params.offset));
+      const query = qs.toString();
+      return request<BillingLedgerEntry[]>(`/api/billing${query ? `?${query}` : ""}`);
+    },
+    get: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}`),
+    create: (data: {
+      animalId: string;
+      itemType: "EQUIPMENT" | "CONSUMABLE";
+      itemId: string;
+      quantity: number;
+      unitPriceCents: number;
+      note?: string;
+    }) => request<BillingLedgerEntry>("/api/billing", { method: "POST", body: JSON.stringify(data) }),
+    void: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}/void`, { method: "PATCH" }),
+  },
+  inventoryItems: {
+    list: () => request<InventoryItem[]>("/api/inventory-items"),
+    create: (data: { code: string; label: string; category?: string; nfcTagId?: string | null }) =>
+      request<InventoryItem>("/api/inventory-items", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: { label?: string; category?: string | null; nfcTagId?: string | null }) =>
+      request<InventoryItem>(`/api/inventory-items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/api/inventory-items/${id}`, { method: "DELETE" }),
+  },
+  procurement: {
+    list: (params?: { status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set("status", params.status);
+      const query = qs.toString();
+      return request<PurchaseOrder[]>(`/api/procurement${query ? `?${query}` : ""}`);
+    },
+    get: (id: string) => request<PurchaseOrder>(`/api/procurement/${id}`),
+    create: (data: {
+      supplierName: string;
+      lines: { itemId: string; quantityOrdered: number; unitPriceCents?: number }[];
+      notes?: string;
+    }) => request<PurchaseOrder>("/api/procurement", { method: "POST", body: JSON.stringify(data) }),
+    submit: (id: string) => request<PurchaseOrder>(`/api/procurement/${id}/submit`, { method: "PATCH" }),
+    receive: (id: string, data: { lines: { lineId: string; quantityReceived: number; containerId: string }[] }) =>
+      request<PurchaseOrder>(`/api/procurement/${id}/receive`, { method: "PATCH", body: JSON.stringify(data) }),
+    cancel: (id: string) => request<PurchaseOrder>(`/api/procurement/${id}/cancel`, { method: "PATCH" }),
   },
   shiftHandover: {
     getDischargeItems: (animalId: string) =>

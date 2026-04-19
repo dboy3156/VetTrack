@@ -331,6 +331,12 @@ const translations = {
 
   pageErrorBoundary: d.pageErrorBoundary,
 
+  billingLedger: d.billingLedger,
+
+  inventoryItemsPage: d.inventoryItemsPage,
+
+  procurementPage: d.procurementPage,
+
 } as const;
 
 return translations;

@@ -26,6 +26,9 @@ import containersRoutes from "../routes/containers.js";
 import formularyRoutes from "../routes/formulary.js";
 import restockRoutes from "../routes/restock.js";
 import medicationTasksRoutes from "../routes/medication-tasks.js";
+import billingRoutes from "../routes/billing.js";
+import inventoryItemsRoutes from "../routes/inventory-items.js";
+import procurementRoutes from "../routes/procurement.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -53,6 +56,9 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/restock", restockRoutes);
   app.use("/api/formulary", formularyRoutes);
   app.use("/api/medication-tasks", medicationTasksRoutes);
+  app.use("/api/billing", billingRoutes);
+  app.use("/api/inventory-items", inventoryItemsRoutes);
+  app.use("/api/procurement", procurementRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);
   app.use("/api/health/ready", healthRoutes);

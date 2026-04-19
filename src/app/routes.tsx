@@ -30,6 +30,9 @@ const MedicationHubPage = lazy(() => import("@/pages/meds"));
 const CodeBluePage = lazy(() => import("@/pages/code-blue"));
 const WhatsNewPage = lazy(() => import("@/pages/whats-new"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
+const BillingLedgerPage = lazy(() => import("@/pages/billing-ledger"));
+const InventoryItemsPage = lazy(() => import("@/pages/inventory-items"));
+const ProcurementPage = lazy(() => import("@/pages/procurement"));
 
 export function AppRoutes() {
   return (
@@ -64,6 +67,9 @@ export function AppRoutes() {
       <Route path="/help"><AuthGuard><HelpPage /></AuthGuard></Route>
       <Route path="/audit-log"><AuthGuard><AuditLogPage /></AuthGuard></Route>
       <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
+      <Route path="/billing"><AuthGuard><BillingLedgerPage /></AuthGuard></Route>
+      <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
+      <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
       <Route component={NotFoundPage} />
     </Switch>
   );

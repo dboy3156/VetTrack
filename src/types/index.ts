@@ -507,6 +507,68 @@ export interface RestockFinishSummary {
   itemsMissingCount: number;
 }
 
+export interface BillingLedgerEntry {
+  id: string;
+  clinicId: string;
+  animalId: string;
+  itemType: "EQUIPMENT" | "CONSUMABLE";
+  itemId: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalAmountCents: number;
+  idempotencyKey: string;
+  status: "pending" | "synced" | "voided";
+  createdAt: string;
+}
+
+export interface BillingItem {
+  id: string;
+  clinicId: string;
+  code: string;
+  description: string;
+  unitPriceCents: number;
+  chargeKind: "per_scan_hour" | "per_unit";
+  createdAt: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  clinicId: string;
+  code: string;
+  label: string;
+  nfcTagId: string | null;
+  category: string | null;
+  createdAt: string;
+}
+
+export type PurchaseOrderStatus = "draft" | "ordered" | "partial" | "received" | "cancelled";
+
+export interface PurchaseOrderLine {
+  id: string;
+  purchaseOrderId: string;
+  clinicId: string;
+  itemId: string;
+  itemLabel?: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitPriceCents: number;
+  createdAt: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  clinicId: string;
+  supplierName: string;
+  status: PurchaseOrderStatus;
+  orderedAt: string | null;
+  expectedAt: string | null;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lines?: PurchaseOrderLine[];
+}
+
 export interface ShiftHandoverSession {
   id: string;
   clinicId: string;
