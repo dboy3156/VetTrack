@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFormulary } from "@/hooks/useFormulary";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,6 +14,7 @@ import {
   type UICase,
 } from "@/lib/medicationHelpers";
 import { evaluateMedicationRbac } from "@/lib/medicationRbac";
+import type { Appointment } from "@/types";
 
 interface DoseBadgeProps {
   label: string;
@@ -85,12 +86,16 @@ export function MedicationCalculator({
   initialDrugName = "",
   clinicalEnrichment,
   onSuccess,
+  onComplete,
+  onCancel,
 }: {
   defaultWeightKg?: number | null;
   animalId?: string | null;
   initialDrugName?: string;
   clinicalEnrichment?: ClinicalEnrichment;
   onSuccess?: (taskId: string) => void;
+  onComplete?: (appointment: Appointment) => void;
+  onCancel?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { userId, role, effectiveRole } = useAuth();
@@ -162,12 +167,18 @@ export function MedicationCalculator({
     && !!rbac.permittedVetId;
 
   const giveMedicationMutation = useMutation({
-    mutationFn: async () => {
-      if (submittingRef.current) return;
-      if (!canExecute || !resolved || !rbac.permittedVetId) return;
+    mutationFn: async (): Promise<Appointment> => {
+      if (submittingRef.current) throw new Error("Already submitting.");
+      if (!canExecute || !resolved || !rbac.permittedVetId) {
+        throw new Error("Cannot administer medication in the current state.");
+      }
 
-      if (calc.isBlocked || calc.blockReason !== null) return;
-      if (!Number.isFinite(calc.volumeMl) || calc.volumeMl <= 0) return;
+      if (calc.isBlocked || calc.blockReason !== null) {
+        throw new Error("This dose is blocked.");
+      }
+      if (!Number.isFinite(calc.volumeMl) || calc.volumeMl <= 0) {
+        throw new Error("Invalid calculated volume.");
+      }
 
       submittingRef.current = true;
       setIsSubmitting(true);
@@ -192,10 +203,12 @@ export function MedicationCalculator({
 
       await queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
       onSuccess?.(appointment.id);
-      return appointment.id;
+      return appointment;
     },
-    onSuccess: () => {
+    onSuccess: (appointment) => {
       setSuccessMessage(`Medication started - ${calc.volumeMl.toFixed(2)} mL given.`);
+      onSuccess?.(appointment.id);
+      onComplete?.(appointment);
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "An unexpected error occurred.";
@@ -206,10 +219,6 @@ export function MedicationCalculator({
       setIsSubmitting(false);
     },
   });
-
-  const handleGiveMedication = useCallback(() => {
-    giveMedicationMutation.mutate();
-  }, [giveMedicationMutation]);
 
   if (formularyLoading) {
     return (
@@ -360,19 +369,32 @@ export function MedicationCalculator({
             </div>
           ) : null}
 
-          <button
-            type="button"
-            onClick={handleGiveMedication}
-            disabled={!canExecute || isSubmitting}
-            aria-disabled={!canExecute || isSubmitting}
-            className={`w-full rounded-2xl py-4 text-lg font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400 ${
-              canExecute && !isSubmitting
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95"
-                : "cursor-not-allowed bg-gray-200 text-gray-400 shadow-none"
-            }`}
-          >
-            {isSubmitting ? "Executing..." : `Give Medication${canExecute ? ` - ${calc.volumeMl.toFixed(2)} mL` : ""}`}
-          </button>
+          <div className={`flex gap-2 pt-1 ${onCancel ? "flex-row items-stretch justify-end" : ""}`}>
+            {onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="shrink-0 rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Back
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => giveMedicationMutation.mutate()}
+              disabled={!canExecute || isSubmitting}
+              aria-disabled={!canExecute || isSubmitting}
+              className={`rounded-2xl py-4 text-lg font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400 ${
+                onCancel ? "min-w-0 flex-1" : "w-full"
+              } ${
+                canExecute && !isSubmitting
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95"
+                  : "cursor-not-allowed bg-gray-200 text-gray-400 shadow-none"
+              }`}
+            >
+              {isSubmitting ? "Executing..." : `Give Medication${canExecute ? ` - ${calc.volumeMl.toFixed(2)} mL` : ""}`}
+            </button>
+          </div>
 
           {String(effectiveRole ?? role ?? "").toLowerCase() === "technician" ? (
             <p className="text-center text-xs text-gray-400">Task will be assigned to your account.</p>
