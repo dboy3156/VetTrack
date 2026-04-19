@@ -15,7 +15,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
-export type UserRole = "admin" | "vet" | "technician" | "viewer";
+export type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "viewer";
 
 export interface AuthUser {
   id: string;

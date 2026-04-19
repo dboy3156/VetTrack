@@ -4,7 +4,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": false,
     "moduleResolution": "node16",
-    "module": "Node16"
+    "module": "Node16",
+    "moduleDetection": "force"
   },
-  "include": ["server/**/*.ts", "scripts/**/*.ts"]
+  "include": ["server/**/*.ts"]
 }

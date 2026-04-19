@@ -16,7 +16,6 @@ import xss from "xss";
 import { clerkMiddleware } from "@clerk/express";
 import { readFileSync } from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { runMigrations } from "./migrate.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
@@ -27,7 +26,6 @@ import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.
 import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
 import { releaseStaleMedicationTasks } from "./services/medication-tasks.service.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
 const isProduction = process.env.NODE_ENV === "production";
 

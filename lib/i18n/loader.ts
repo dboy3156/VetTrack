@@ -1,10 +1,7 @@
 import { readFileSync } from "fs";
-import { resolve as pathResolve, dirname } from "path";
-import { fileURLToPath } from "url";
+import { resolve as pathResolve } from "path";
 import type { Locale, TranslationDictionary } from "./types.js";
 import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from "./types.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const cache = new Map<Locale, TranslationDictionary>();
 const readCounts = new Map<Locale, number>();

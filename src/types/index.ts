@@ -6,7 +6,7 @@ export type EquipmentStatus =
   | "critical"
   | "needs_attention";
 
-export type UserRole = "admin" | "vet" | "technician" | "viewer";
+export type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "viewer";
 export type ShiftRole = "technician" | "senior_technician" | "admin";
 
 export type AlertType = "overdue" | "issue" | "inactive" | "sterilization_due";

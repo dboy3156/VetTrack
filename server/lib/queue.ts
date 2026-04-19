@@ -135,7 +135,7 @@ export type AutomationExecutePayload =
 export type NotificationJobData =
   | {
       type: "task_notification";
-      event: "TASK_CREATED" | "TASK_STARTED" | "TASK_COMPLETED";
+      event: "TASK_CREATED" | "TASK_STARTED" | "TASK_COMPLETED" | "TASK_CANCELLED";
       task: {
         id: string;
         clinicId: string;

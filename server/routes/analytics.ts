@@ -119,7 +119,7 @@ router.get("/", requireAuth, async (req, res) => {
       .where(and(eq(scanLogs.clinicId, clinicId), gte(scanLogs.timestamp, thirtyDaysAgo)))
       .orderBy(desc(scanLogs.timestamp));
 
-    const scanActivity = computeUsageTrends(recentScans);
+    const scanActivity = computeUsageTrends(recentScans.map((s) => ({ ...s, equipmentId: s.equipmentId ?? undefined })));
 
     // Single grouped query (JOIN + GROUP BY + LIMIT) avoids N+1 lookups.
     const topProblemEquipment = await db

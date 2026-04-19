@@ -1461,7 +1461,7 @@ export async function getActiveMedicationTasks(clinicIdInput: string): Promise<M
         animalWeightKg == null ? null : Number.isFinite(Number.parseFloat(String(animalWeightKg)))
           ? Number.parseFloat(String(animalWeightKg))
           : null;
-      tasks.push({ ...serialized, animalWeightKg: normalizedWeight });
+      tasks.push({ ...serialized, animalWeightKg: normalizedWeight } as MedicationExecutionTask);
     } catch (rowErr) {
       console.warn("[getActiveMedicationTasks] skipping malformed row id=%s:", appointment?.id, rowErr);
     }
