@@ -89,7 +89,7 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
-  const { isAdmin, role } = useAuth();
+  const { isAdmin, role, userId } = useAuth();
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
@@ -218,6 +218,7 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
   const { data: equipment } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    enabled: !!userId,
     staleTime: 60_000,
     retry: false,
     refetchOnWindowFocus: false,
@@ -226,6 +227,7 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
   const { data: myEquipment } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
+    enabled: !!userId,
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,

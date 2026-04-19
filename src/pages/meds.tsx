@@ -180,6 +180,7 @@ function ActionTooltip({ content, children }: { content?: string; children: Reac
 export default function MedicationHubPage() {
   const queryClient = useQueryClient();
   const { userId, role, effectiveRole } = useAuth();
+  const authReady = Boolean(userId);
   const { getByDrugName } = useDrugFormulary();
   const [concentrationInputByTaskId, setConcentrationInputByTaskId] = useState<Record<string, string>>({});
   const [doseUnitByTaskId, setDoseUnitByTaskId] = useState<Record<string, DrugDoseUnit>>({});
@@ -187,6 +188,7 @@ export default function MedicationHubPage() {
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
     queryFn: api.users.me,
+    enabled: authReady,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -194,6 +196,7 @@ export default function MedicationHubPage() {
   const tasksQuery = useQuery({
     queryKey: ["/api/tasks/medication-active"],
     queryFn: api.tasks.medicationActive,
+    enabled: authReady,
     refetchInterval: leaderPoll(30_000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,

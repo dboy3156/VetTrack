@@ -306,6 +306,7 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
 
 export default function RoomRadarPage() {
   const { id } = useParams<{ id: string }>();
+  const { userId } = useAuth();
   const searchStr = useSearch();
   const nfcParam = new URLSearchParams(searchStr).get("verify");
   const queryClient = useQueryClient();
@@ -330,7 +331,7 @@ export default function RoomRadarPage() {
   const { data: activityEntries, isLoading: activityLoading } = useQuery({
     queryKey: ["/api/rooms", id, "activity"],
     queryFn: () => api.rooms.activity(id!),
-    enabled: !!id && activityOpen,
+    enabled: !!userId && !!id && activityOpen,
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
@@ -339,7 +340,7 @@ export default function RoomRadarPage() {
   const { data: room, isLoading: roomLoading } = useQuery({
     queryKey: ["/api/rooms", id],
     queryFn: () => api.rooms.get(id!),
-    enabled: !!id,
+    enabled: !!userId && !!id,
     staleTime: 15_000,
     retry: false,
     refetchOnWindowFocus: false,
@@ -348,6 +349,7 @@ export default function RoomRadarPage() {
   const { data: allEquipment, isLoading: equipLoading } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    enabled: !!userId,
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,

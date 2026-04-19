@@ -70,7 +70,7 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
 }
 
 export default function NewEquipmentPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userId } = useAuth();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
   const { id: editId } = useParams<{ id?: string }>();
@@ -100,6 +100,7 @@ export default function NewEquipmentPage() {
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
     queryFn: api.folders.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -107,7 +108,7 @@ export default function NewEquipmentPage() {
   const { data: existingEquipment, isLoading: editLoading } = useQuery({
     queryKey: [`/api/equipment/${editId}`],
     queryFn: () => api.equipment.get(editId!),
-    enabled: isEditing,
+    enabled: isEditing && !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

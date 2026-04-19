@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import type { CriticalEquipment } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
+import { useAuth } from "@/hooks/use-auth";
 
 function formatCodeBlueRelativeTime(timestamp?: string | null): string {
   if (!timestamp) return "לא ידוע";
@@ -39,9 +40,11 @@ function statusClass(status: CriticalEquipment["status"]): string {
 
 export default function CodeBluePage() {
   const [, navigate] = useLocation();
+  const { userId } = useAuth();
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["/api/equipment/critical"],
     queryFn: api.equipment.getCriticalEquipment,
+    enabled: !!userId,
     refetchInterval: leaderPoll(15_000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,

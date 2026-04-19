@@ -39,8 +39,10 @@ import {
 import { toast } from "sonner";
 import { QrScanner } from "@/components/qr-scanner";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function MyEquipmentPage() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const [returningAll, setReturningAll] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
@@ -50,6 +52,7 @@ export default function MyEquipmentPage() {
   const { data: items, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

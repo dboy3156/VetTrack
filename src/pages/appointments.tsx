@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { leaderPoll } from "@/lib/leader";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTaskRecommendations } from "@/hooks/useTaskRecommendations";
+import { useAuth } from "@/hooks/use-auth";
 import type { Appointment, AppointmentStatus, CreateAppointmentRequest, TaskPriority } from "@/types";
 import { toast } from "sonner";
 
@@ -32,6 +33,12 @@ const DURATION_PRESETS = [
   { key: "preventive-maintenance", label: "Preventive maintenance (30m)", minutes: 30 },
   { key: "repair-visit", label: "Repair visit (45m)", minutes: 45 },
   { key: "calibration", label: "Calibration (60m)", minutes: 60 },
+] as const;
+
+const ALLOWED_BOOKING_TASK_TYPES = [
+  { value: "maintenance", label: "Maintenance" },
+  { value: "repair", label: "Repair" },
+  { value: "inspection", label: "Inspection" },
 ] as const;
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
@@ -317,6 +324,7 @@ function getTaskReasonBullets(scoreBreakdown: {
 }
 
 export default function AppointmentsPage() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
   const urgentRef = useRef<HTMLDivElement>(null);
   const myTasksRef = useRef<HTMLDivElement>(null);
@@ -342,6 +350,7 @@ export default function AppointmentsPage() {
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
     queryFn: api.users.me,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -351,6 +360,7 @@ export default function AppointmentsPage() {
   const metaQuery = useQuery({
     queryKey: ["/api/appointments/meta", day],
     queryFn: () => api.appointments.meta(day),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -374,6 +384,7 @@ export default function AppointmentsPage() {
   const listQuery = useQuery({
     queryKey: ["/api/appointments", day],
     queryFn: () => api.appointments.list({ day }),
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -389,7 +400,7 @@ export default function AppointmentsPage() {
     placeholderData: (prev) => prev,
     retry: false,
   });
-  const recommendationsQuery = useTaskRecommendations(Boolean(meUserId));
+  const recommendationsQuery = useTaskRecommendations(Boolean(userId) && Boolean(meUserId));
 
   const vetNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -559,6 +570,13 @@ export default function AppointmentsPage() {
   }
 
   function submitCreate(conflictOverride = false, overrideReason?: string) {
+    if (formTaskType === "medication") {
+      throw new Error(
+        "[VetTrack] Medication must be created via MedicationCalculator. " +
+        "Task dialog creation is blocked for medication task type.",
+      );
+    }
+
     if (!formVetId.trim()) {
       toast.error("Select a technician before creating a task.");
       return;
@@ -1353,62 +1371,161 @@ export default function AppointmentsPage() {
             </div>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
-            {isMedicationForm ? (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-xs text-muted-foreground block text-right">Task type</label>
-                  <select
-                    dir="ltr"
-                    value={formTaskType ?? "maintenance"}
-                    onChange={(e) => {
-                      const nextType = (e.target.value || "maintenance") as Appointment["taskType"];
-                      setFormTaskType(nextType);
-                    }}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
-                  >
-                    <option value="maintenance">Maintenance</option>
-                    <option value="repair">Repair</option>
-                    <option value="inspection">Inspection</option>
-                    <option value="medication">Medication</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
-                  <Input
-                    dir="ltr"
-                    className="text-left"
-                    value={formAnimalId}
-                    onChange={(e) => setFormAnimalId(e.target.value)}
-                    placeholder="e.g. Ventilator, Autoclave"
-                  />
-                </div>
-                {!formAnimalId.trim() ? (
-                  <p
-                    role="alert"
-                    className="text-sm text-destructive text-center rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2"
-                  >
-                    Enter Device / Asset before giving medication.
-                  </p>
-                ) : (
-                  <MedicationCalculator
-                    animalId={formAnimalId.trim()}
-                    onCancel={() => setFormTaskType("maintenance")}
-                    onComplete={() => {
-                      toast.success("Medication administered");
-                      queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
-                      queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
-                      queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
-                      setBookingOpen(false);
-                      setFormNotes("");
-                      setFormAnimalId("");
-                      setFormOwnerId("");
-                      setFormTaskType("maintenance");
-                    }}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {formTaskType === "medication" ? (
+  <div className="flex flex-col gap-4">
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        value={formAnimalId}
+        onChange={(e) => setFormAnimalId(e.target.value)}
+        placeholder="e.g. Ventilator, Autoclave"
+      />
+    </div>
+
+    {!formAnimalId.trim() ? (
+      <p
+        role="alert"
+        className="text-sm text-destructive text-center rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2"
+      >
+        Enter Device / Asset before giving medication.
+      </p>
+    ) : (
+      <MedicationCalculator
+        animalId={formAnimalId.trim()}
+        onCancel={() => setFormTaskType("maintenance")}
+        onComplete={() => {
+          toast.success("Medication administered");
+          queryClient.invalidateQueries({ queryKey: ["/api/appointments", day], exact: true });
+          queryClient.invalidateQueries({ queryKey: ["/api/tasks/dashboard", meUserId ?? ""], exact: true });
+          queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
+
+          setBookingOpen(false);
+          setFormNotes("");
+          setFormAnimalId("");
+          setFormOwnerId("");
+          setFormTaskType("maintenance");
+        }}
+      />
+    )}
+  </div>
+) : (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
+      <select
+        dir="ltr"
+        value={formVetId}
+        onChange={(e) => setFormVetId(e.target.value)}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+      >
+        <option value="">Select technician</option>
+        {(metaQuery.data?.vets ?? []).map((vet) => (
+          <option key={vet.id} value={vet.id}>
+            {vet.displayName || vet.name || vet.id}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        value={formAnimalId}
+        onChange={(e) => setFormAnimalId(e.target.value)}
+        placeholder="e.g. Ventilator, Autoclave"
+      />
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Location / Department (optional)</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        value={formOwnerId}
+        onChange={(e) => setFormOwnerId(e.target.value)}
+        placeholder="ICU / ER / Ward"
+      />
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Task type</label>
+      <select
+        dir="ltr"
+        value={formTaskType ?? "maintenance"}
+        onChange={(e) => {
+          const nextType = (e.target.value || "maintenance") as Appointment["taskType"];
+          setFormTaskType(nextType);
+        }}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+      >
+        {ALLOWED_BOOKING_TASK_TYPES.map((taskType) => (
+          <option key={taskType.value} value={taskType.value}>
+            {taskType.label}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
+      <select
+        dir="ltr"
+        value={String(selectedDuration)}
+        onChange={(e) => {
+          setSelectedDuration(Number.parseInt(e.target.value, 10));
+          setManualEndOverride(false);
+        }}
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
+      >
+        {DURATION_PRESETS.map((preset) => (
+          <option key={preset.key} value={preset.minutes}>
+            {preset.label}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Scheduled time</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        type="datetime-local"
+        value={formStartLocal}
+        onChange={(e) => setFormStartLocal(e.target.value)}
+      />
+    </div>
+
+    <div>
+      <label className="text-xs text-muted-foreground block text-right">Expected end</label>
+      <Input
+        dir="ltr"
+        className="text-left"
+        type="datetime-local"
+        value={formEndLocal}
+        onChange={(e) => {
+          setManualEndOverride(true);
+          setFormEndLocal(e.target.value);
+        }}
+      />
+    </div>
+
+    <div className="md:col-span-2">
+      <label className="text-xs text-muted-foreground block text-right">Notes</label>
+      <Textarea
+        dir="ltr"
+        className="text-left"
+        value={formNotes}
+        onChange={(e) => setFormNotes(e.target.value)}
+        rows={3}
+      />
+    </div>
+  </div>
+)}
                 <div>
                   <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
                   <select

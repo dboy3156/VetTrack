@@ -21,7 +21,7 @@ const PRECACHE_URLS = [
 
 const STATIC_EXTENSIONS = [
   ".js", ".css", ".png", ".webp", ".avif",
-  ".woff2", ".woff", ".ttf", ".ico", ".svg",
+  ".woff2", ".woff", ".ttf", ".ico", ".svg", ".json",
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -177,20 +177,27 @@ self.addEventListener("fetch", (event) => {
 
   if (isStaticAsset(url)) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) =>
-        cache.match(event.request).then((cached) => {
-          // Background revalidation regardless of whether we have a cached copy.
-          const networkFetch = fetch(event.request)
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
+        if (cached) {
+          // Refresh in background while immediately serving cache.
+          fetch(event.request)
             .then((fresh) => {
               if (fresh.ok) cache.put(event.request, fresh.clone());
-              return fresh;
             })
-            .catch(() => null);
+            .catch(() => {});
+          return cached;
+        }
 
-          // Return cached immediately; fall through to network if not cached yet.
-          return cached ?? networkFetch;
-        })
-      )
+        try {
+          const fresh = await fetch(event.request);
+          if (fresh.ok) cache.put(event.request, fresh.clone());
+          return fresh;
+        } catch {
+          // respondWith must always resolve to a Response object.
+          return new Response("Offline asset unavailable", { status: 503 });
+        }
+      })
     );
     return;
   }
@@ -228,7 +235,10 @@ self.addEventListener("fetch", (event) => {
 
   // ── 4. Everything else — network with cache fallback ─────────────────────
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(async () =>
+      (await caches.match(event.request)) ??
+      new Response("Offline resource unavailable", { status: 503 })
+    )
   );
 });
 

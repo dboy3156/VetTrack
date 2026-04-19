@@ -4,15 +4,21 @@ import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { generateQrUrl } from '@/lib/utils';
 import { t } from '@/lib/i18n';
+import { useAuth } from '@/hooks/use-auth';
+import { authFetch } from '@/lib/auth-fetch';
 
 export default function EquipmentQRPrint() {
   const { id } = useParams<{ id: string }>();
+  const { userId } = useAuth();
   const url = generateQrUrl(id!);
 
   const { data: equipment, isSuccess } = useQuery({
     queryKey: ['/api/equipment', id ?? ''],
-    queryFn: () => fetch(`/api/equipment/${id}`, { credentials: 'include' }).then(r => r.json()),
-    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await authFetch(`/api/equipment/${id}`);
+      return response.json();
+    },
+    enabled: Boolean(id && userId),
     retry: false,
     refetchOnWindowFocus: false,
   });

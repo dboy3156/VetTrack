@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { Alert, AlertType, AlertAcknowledgment } from "@/types";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 function formatRelativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();
@@ -80,10 +81,12 @@ const ALERT_CONFIG: Record<
 export default function AlertsPage() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  const { userId } = useAuth();
 
   const { data: equipment, isLoading: eqLoading, isError: eqError, refetch: refetchEq } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -91,6 +94,7 @@ export default function AlertsPage() {
   const { data: acks, isLoading: acksLoading, isError: acksError, refetch: refetchAcks } = useQuery({
     queryKey: ["/api/alert-acks"],
     queryFn: api.alertAcks.list,
+    enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });

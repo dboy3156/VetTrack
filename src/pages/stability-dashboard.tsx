@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { authFetch } from "@/lib/auth-fetch";
 import { Link } from "wouter";
 import {
   ShieldCheck,
@@ -40,13 +41,13 @@ import { jsPDF } from "jspdf";
 const API = "/api/stability";
 
 async function fetchStatus() {
-  const res = await fetch(`${API}/status`, { credentials: "include" });
+  const res = await authFetch(`${API}/status`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 async function fetchResults() {
-  const res = await fetch(`${API}/results`, { credentials: "include" });
+  const res = await authFetch(`${API}/results`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -54,7 +55,7 @@ async function fetchResults() {
 async function fetchLogs(limit: number, search: string) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (search) params.set("search", search);
-  const res = await fetch(`${API}/logs?${params}`, { credentials: "include" });
+  const res = await authFetch(`${API}/logs?${params}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -267,7 +268,7 @@ const exportStabilityPDF = (report: TestReport) => {
   doc.save(`VetTrack-Stability-${report.runId}.pdf`); 
 };
 export default function StabilityDashboardPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userId } = useAuth();
   const qc = useQueryClient();
   const [logSearch, setLogSearch] = useState("");
   const [logLimit] = useState(150);
@@ -275,6 +276,7 @@ export default function StabilityDashboardPage() {
   const { data: statusData, isLoading: statusLoading } = useQuery<StabilityStatus>({
     queryKey: ["/api/stability/status"],
     queryFn: fetchStatus,
+    enabled: isAdmin && !!userId,
     refetchInterval: leaderPoll(5000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
@@ -290,7 +292,7 @@ export default function StabilityDashboardPage() {
       return statusData?.running ? 3000 : 10000;
     },
     refetchIntervalInBackground: false,
-    enabled: !statusLoading,
+    enabled: isAdmin && !!userId && !statusLoading,
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -298,6 +300,7 @@ export default function StabilityDashboardPage() {
   const { data: logs = [], isLoading: logsLoading } = useQuery<LogEntry[]>({
     queryKey: ["/api/stability/logs", logLimit, logSearch],
     queryFn: () => fetchLogs(logLimit, logSearch),
+    enabled: isAdmin && !!userId,
     refetchInterval: leaderPoll(5000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
@@ -305,7 +308,10 @@ export default function StabilityDashboardPage() {
   });
 
   const runMutation = useMutation({
-    mutationFn: () => fetch(`${API}/run`, { method: "POST", credentials: "include" }).then((r) => r.json()),
+    mutationFn: async () => {
+      const response = await authFetch(`${API}/run`, { method: "POST" });
+      return response.json();
+    },
     onSuccess: () => {
       toast.success(t.stabilityPage.runStarted);
       setTimeout(() => {
@@ -318,9 +324,8 @@ export default function StabilityDashboardPage() {
 
   const testModeMutation = useMutation({
     mutationFn: (enabled: boolean) =>
-      fetch(`${API}/test-mode`, {
+      authFetch(`${API}/test-mode`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
       }).then((r) => r.json()),
@@ -332,9 +337,8 @@ export default function StabilityDashboardPage() {
 
   const scheduleMutation = useMutation({
     mutationFn: (hours: number) =>
-      fetch(`${API}/schedule`, {
+      authFetch(`${API}/schedule`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hours }),
       }).then((r) => r.json()),
@@ -346,7 +350,7 @@ export default function StabilityDashboardPage() {
 
   const clearLogsMutation = useMutation({
     mutationFn: () =>
-      fetch(`${API}/logs`, { method: "DELETE", credentials: "include" }).then((r) => r.json()),
+      authFetch(`${API}/logs`, { method: "DELETE" }).then((r) => r.json()),
     onSuccess: () => {
       toast.success(t.stabilityPage.logsCleared);
       qc.invalidateQueries({ queryKey: ["/api/stability/logs"] });

@@ -13,6 +13,7 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import xss from "xss";
+import { clerkMiddleware } from "@clerk/express";
 import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -173,22 +174,14 @@ app.use((req, _res, next) => {
   next();
 });
 
-// SAFE CLERK LOAD
-app.use(async (req, res, next) => {
-  if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
-    try {
-      const { clerkMiddleware } = await import("@clerk/express");
-      return clerkMiddleware()(req, res, next);
-    } catch (e) {
-      console.warn(
-        "Clerk initialization failed, skipping auth for this request",
-        e,
-      );
-      return next();
-    }
+// Always mount official Clerk middleware at app level when Clerk auth is enabled.
+// In dev bypass mode (no secret), requireAuth falls back to local dev identity.
+if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
+  if (!process.env.CLERK_PUBLISHABLE_KEY?.trim() && process.env.VITE_CLERK_PUBLISHABLE_KEY?.trim()) {
+    process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
   }
-  return next();
-});
+  app.use(clerkMiddleware());
+}
 
 // Global API limiter runs before route-specific limiters.
 app.use("/api", globalApiLimiter);
