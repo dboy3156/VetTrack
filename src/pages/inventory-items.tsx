@@ -49,7 +49,7 @@ export default function InventoryItemsPage() {
   const isAdmin = role === "admin";
 
   const [search, setSearch] = useState("");
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
@@ -91,7 +91,7 @@ export default function InventoryItemsPage() {
   }, [filtered]);
 
   function toggleCategory(cat: string) {
-    setCollapsedCategories((prev) => {
+    setExpandedCategories((prev) => {
       const next = new Set(prev);
       if (next.has(cat)) next.delete(cat);
       else next.add(cat);
@@ -203,7 +203,7 @@ export default function InventoryItemsPage() {
         ) : (
           <div className="rounded-lg border overflow-hidden divide-y">
             {grouped.map(([category, items]) => {
-              const isCollapsed = collapsedCategories.has(category);
+              const isExpanded = expandedCategories.has(category);
               return (
                 <div key={category}>
                   {/* Category header */}
@@ -212,16 +212,16 @@ export default function InventoryItemsPage() {
                     onClick={() => toggleCategory(category)}
                     className="w-full flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-sm font-medium text-left transition-colors"
                   >
-                    {isCollapsed
-                      ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    {isExpanded
+                      ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     }
                     <span>{category}</span>
                     <span className="ml-auto text-xs text-muted-foreground font-normal">{items.length}</span>
                   </button>
 
                   {/* Items within category */}
-                  {!isCollapsed && (
+                  {isExpanded && (
                     <table className="w-full text-sm">
                       <tbody className="divide-y">
                         {items.map((item) => (
