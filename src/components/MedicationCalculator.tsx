@@ -504,6 +504,18 @@ export function MedicationCalculator({
     setDesiredMgRaw("");
   }, [selectedDrugName]);
 
+  // Smart defaults: selecting a drug + valid patient weight pre-fills desired mg
+  // from the recommended mg/kg value, while still allowing manual edits.
+  useEffect(() => {
+    if (!resolved) return;
+    if (!Number.isFinite(weightKg) || weightKg <= 0) return;
+    if (desiredMgRaw.trim() !== "") return;
+    if (!Number.isFinite(resolved.recommendedDoseMgPerKg) || (resolved.recommendedDoseMgPerKg ?? 0) <= 0) return;
+    const recommendedTotalMg = (resolved.recommendedDoseMgPerKg as number) * weightKg;
+    if (!Number.isFinite(recommendedTotalMg) || recommendedTotalMg <= 0) return;
+    setDesiredMgRaw(recommendedTotalMg.toFixed(3).replace(/\.?0+$/, ""));
+  }, [resolved, desiredMgRaw, weightKg]);
+
   const resolvePerformerId = useCallback((): string | null => {
     const currentUserOption = userId ? technicians.find((u) => u.id === userId) : undefined;
     if (!selectedTechnicianId) {
