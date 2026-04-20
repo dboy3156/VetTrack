@@ -38,6 +38,36 @@ function statusClass(status: CriticalEquipment["status"]): string {
     : "bg-amber-900 text-amber-200 border-amber-700";
 }
 
+function scoreLastSeen(timestamp?: string | null): number {
+  if (!timestamp) return Number.NEGATIVE_INFINITY;
+  const parsed = new Date(timestamp).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function hasKnownLocation(item: CriticalEquipment): number {
+  return item.lastSeenLocation && item.lastSeenLocation.trim().length > 0 ? 1 : 0;
+}
+
+function functionalPriority(status: CriticalEquipment["status"]): number {
+  return status === "critical" ? 0 : 1;
+}
+
+function sortByCodeBluePriority(items: CriticalEquipment[]): CriticalEquipment[] {
+  return [...items].sort((a, b) => {
+    // Stabilization contract: Proximity > Accessibility > Functional status.
+    const proximityDelta = scoreLastSeen(b.lastSeenTimestamp) - scoreLastSeen(a.lastSeenTimestamp);
+    if (proximityDelta !== 0) return proximityDelta;
+
+    const accessibilityDelta = hasKnownLocation(b) - hasKnownLocation(a);
+    if (accessibilityDelta !== 0) return accessibilityDelta;
+
+    const functionalDelta = functionalPriority(a.status) - functionalPriority(b.status);
+    if (functionalDelta !== 0) return functionalDelta;
+
+    return a.id.localeCompare(b.id);
+  });
+}
+
 export default function CodeBluePage() {
   const [, navigate] = useLocation();
   const { userId } = useAuth();
@@ -51,7 +81,7 @@ export default function CodeBluePage() {
     retry: false,
   });
 
-  const items = useMemo(() => data ?? [], [data]);
+  const items = useMemo(() => sortByCodeBluePriority(data ?? []), [data]);
 
   return (
     <AnimatePresence>
