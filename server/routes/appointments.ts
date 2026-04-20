@@ -199,6 +199,18 @@ function metadataRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function readPositiveWeightKgFromMetadata(metadata: Record<string, unknown>): number | null {
+  const raw = metadata.weightKg;
+  const parsed =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string"
+        ? Number.parseFloat(raw.trim())
+        : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
 router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parsed = createAppointmentSchema.safeParse(req.body);
@@ -274,6 +286,20 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   }
 
   try {
+    if (parsed.data.taskType === "medication") {
+      const weightKg = readPositiveWeightKgFromMetadata(metadataRecord(parsed.data.metadata));
+      if (weightKg == null) {
+        return res.status(400).json(
+          apiError({
+            code: "VALIDATION_FAILED",
+            reason: "MEDICATION_WEIGHT_REQUIRED",
+            message: "Patient Weight (kg) is required for medication tasks.",
+            requestId,
+          }),
+        );
+      }
+    }
+
     let payload = parsed.data;
 
     if (isCalculatorSourceMedication) {
