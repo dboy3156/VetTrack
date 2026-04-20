@@ -54,16 +54,24 @@ export default function InventoryPage() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Preserve user-driven drawer selection across data refreshes.
+  // Query param should initialize selection, not continuously override it.
+  const containerFromQuery = useMemo(() => {
+    const search = location.includes("?") ? location.slice(location.indexOf("?")) : "";
+    const value = new URLSearchParams(search).get("container");
+    return value && value.trim().length > 0 ? value.trim() : null;
+  }, [location]);
+
   useEffect(() => {
     if (!containersQ.data?.length) return;
-    const search = location.includes("?") ? location.slice(location.indexOf("?")) : "";
-    const fromQuery = new URLSearchParams(search).get("container");
     setSelectedId((prev) => {
-      if (fromQuery && containersQ.data.some((c) => c.id === fromQuery)) return fromQuery;
+      if (containerFromQuery && containersQ.data.some((c) => c.id === containerFromQuery)) {
+        if (prev == null) return containerFromQuery;
+      }
       if (prev && containersQ.data.some((c) => c.id === prev)) return prev;
       return containersQ.data[0].id;
     });
-  }, [containersQ.data, location]);
+  }, [containersQ.data, containerFromQuery]);
 
   const selected = containersQ.data?.find((c) => c.id === selectedId) ?? null;
 
