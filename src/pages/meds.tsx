@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { t } from "@/lib/i18n";
 import { Beaker, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
@@ -158,6 +159,11 @@ export default function MedicationHubPage() {
   const { getByDrugName } = useDrugFormulary();
   const canExecuteTask = canExecuteMedicationTask(role, effectiveRole);
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  const [, navigate] = useLocation();
+  if (authReady && resolvedRole === "student") {
+    navigate("/equipment");
+    return null;
+  }
   const canCreateMedicationTask = resolvedRole === "vet" || resolvedRole === "admin";
 
   const meQuery = useQuery({
