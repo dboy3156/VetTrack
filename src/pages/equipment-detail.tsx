@@ -65,6 +65,7 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import {
+  cn,
   formatDate,
   formatDateTime,
   formatRelativeTime,
@@ -104,10 +105,13 @@ export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const searchStr = useSearch();
-  const { isAdmin, email, userId, role } = useAuth();
+  const { isAdmin, email, userId, role, effectiveRole } = useAuth();
   const queryEnabled = !!userId;
   const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, senior_technician: 25, technician: 20, student: 10 };
-  const canDuplicate = (ROLE_LEVEL[role] ?? 0) >= 20;
+  const resolvedEquipmentRole = String(effectiveRole ?? role ?? "").toLowerCase();
+  /** Baseline DB/shift role is student — not elevated technician/vet for this session. */
+  const isStudentEquipmentRole = resolvedEquipmentRole === "student";
+  const canDuplicate = (ROLE_LEVEL[resolvedEquipmentRole] ?? 0) >= 20;
   const { settings } = useSettings();
   const { discard } = useSyncQueue();
   const queryClient = useQueryClient();
@@ -344,7 +348,7 @@ export default function EquipmentDetailPage() {
       queryClient.setQueryData([`/api/equipment/${id}`], updated);
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${id}/logs`] });
 
-      if (prev) {
+      if (prev && !isStudentEquipmentRole) {
         startUndoTimer({
           actionLabel: `Status updated to ${STATUS_LABELS[capturedStatus]}`,
           previousEquipment: prev,
@@ -359,6 +363,8 @@ export default function EquipmentDetailPage() {
         setTimeout(() => {
           if (isOffline) {
             toast.warning(t.equipmentDetail.toast.issueReportedOffline);
+          } else if (isStudentEquipmentRole) {
+            toast.success(t.equipmentDetail.toast.issueReported);
           } else {
             const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
             window.open(waUrl, "_blank");
@@ -407,7 +413,7 @@ export default function EquipmentDetailPage() {
         return;
       }
 
-      if (prev) {
+      if (prev && !isStudentEquipmentRole) {
         startUndoTimer({
           actionLabel: t.equipmentDetail.toast.checkedOut,
           previousEquipment: prev,
@@ -456,7 +462,7 @@ export default function EquipmentDetailPage() {
         toast.warning(`התראה תישלח לאחר ${usedDeadline} דקות אם לא יחובר`);
       }
 
-      if (prev) {
+      if (prev && !isStudentEquipmentRole) {
         startUndoTimer({
           actionLabel: t.equipmentDetail.toast.returned,
           previousEquipment: prev,
@@ -529,7 +535,7 @@ export default function EquipmentDetailPage() {
         return;
       }
 
-      if (prev) {
+      if (prev && !isStudentEquipmentRole) {
         startUndoTimer({
           actionLabel: t.equipmentDetail.toast.issueReported,
           previousEquipment: prev,
@@ -540,6 +546,8 @@ export default function EquipmentDetailPage() {
       setTimeout(() => {
         if (!navigator.onLine) {
           toast.warning(t.equipmentDetail.toast.issueWhatsAppOffline);
+        } else if (isStudentEquipmentRole) {
+          toast.success(t.equipmentDetail.toast.issueReported);
         } else {
           const waUrl = buildWhatsAppUrl(undefined, updated.name, "issue", scanLog?.note || capturedNote || "");
           window.open(waUrl, "_blank");
@@ -808,8 +816,8 @@ export default function EquipmentDetailPage() {
             </Button>
           ) : null}
 
-          {/* Secondary action row */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* Secondary action row — students: scan / take / return only (no room move). */}
+          <div className={cn("grid gap-2", isStudentEquipmentRole ? "grid-cols-2" : "grid-cols-3")}>
             <Button
               variant="outline"
               className="h-11 gap-1.5 text-sm font-medium rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] transition-all"
@@ -833,15 +841,17 @@ export default function EquipmentDetailPage() {
               <ClipboardEdit className="w-3.5 h-3.5" />
               Status
             </Button>
-            <Button
-              variant="outline"
-              className="h-11 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
-              onClick={() => setMoveRoomOpen(true)}
-              data-testid="btn-move-room"
-            >
-              <MoveHorizontal className="w-3.5 h-3.5" />
-              Move
-            </Button>
+            {!isStudentEquipmentRole && (
+              <Button
+                variant="outline"
+                className="h-11 gap-1.5 text-sm font-medium rounded-xl active:scale-[0.98] transition-all"
+                onClick={() => setMoveRoomOpen(true)}
+                data-testid="btn-move-room"
+              >
+                <MoveHorizontal className="w-3.5 h-3.5" />
+                Move
+              </Button>
+            )}
           </div>
 
           {/* In-use context indicator */}
@@ -884,24 +894,26 @@ export default function EquipmentDetailPage() {
                   <QrCode className="w-3.5 h-3.5 mr-1" />
                   Print QR
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const waUrl = buildWhatsAppUrl(
-                      undefined,
-                      equipment.name,
-                      equipment.status as EquipmentStatus,
-                      `Status report for ${equipment.name}`
-                    );
-                    window.open(waUrl, "_blank");
-                  }}
-                  className="h-11 text-green-700 border-green-200 hover:bg-green-50"
-                  data-testid="btn-whatsapp"
-                >
-                  <MessageCircle className="w-3.5 h-3.5 mr-1" />
-                  WhatsApp
-                </Button>
+                {!isStudentEquipmentRole && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const waUrl = buildWhatsAppUrl(
+                        undefined,
+                        equipment.name,
+                        equipment.status as EquipmentStatus,
+                        `Status report for ${equipment.name}`
+                      );
+                      window.open(waUrl, "_blank");
+                    }}
+                    className="h-11 text-green-700 border-green-200 hover:bg-green-50"
+                    data-testid="btn-whatsapp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                    WhatsApp
+                  </Button>
+                )}
               </div>
             </div>
 
