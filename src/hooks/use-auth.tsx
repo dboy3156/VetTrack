@@ -22,6 +22,7 @@ export type AccessDeniedReason =
 interface AuthState {
   userId: string | null; email: string | null; name: string | null;
   role: UserRole;
+  secondaryRole: string | null;
   effectiveRole: UserRole | ShiftRole;
   roleSource: "shift" | "permanent";
   activeShift: Shift | null;
@@ -42,6 +43,7 @@ interface SyncedUserResponse {
   email: string;
   name: string;
   role: UserRole;
+  secondaryRole?: string | null;
   effectiveRole?: UserRole | ShiftRole;
   roleSource?: "shift" | "permanent";
   activeShift?: Shift | null;
@@ -53,7 +55,7 @@ interface SyncedUserResponse {
 }
 
 const AuthContext = createContext<AuthContextType>({
-  userId: null, email: null, name: null, role: "technician",
+  userId: null, email: null, name: null, role: "technician", secondaryRole: null,
   effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
   isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
   signOut: async () => {},
@@ -81,6 +83,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
         email: offlineSnapshot.email,
         name: offlineSnapshot.name,
         role: offlineSnapshot.role as UserRole,
+        secondaryRole: null,
         effectiveRole: offlineSnapshot.role as UserRole,
         roleSource: "permanent",
         activeShift: null,
@@ -95,7 +98,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
     }
 
     return {
-      userId: null, email: null, name: null, role: "technician",
+      userId: null, email: null, name: null, role: "technician", secondaryRole: null,
       effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     };
@@ -123,7 +126,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
     setAuthState({ userId: "", email: "", name: "", bearerToken: null });
     queryClient.clear();
     setState({
-      userId: null, email: null, name: null, role: "technician",
+      userId: null, email: null, name: null, role: "technician", secondaryRole: null,
       effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     });
@@ -189,6 +192,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
           email: resolvedEmail,
           name: resolvedName,
           role,
+          secondaryRole: (data.secondaryRole ?? null) as string | null,
           effectiveRole: (data.effectiveRole ?? role) as UserRole | ShiftRole,
           roleSource: data.roleSource ?? "permanent",
           activeShift: data.activeShift ?? null,
@@ -197,7 +201,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
           accessDeniedReason: null,
           isLoaded: true,
           isSignedIn: true,
-          isAdmin: role === "admin",
+          isAdmin: role === "admin" || (data.secondaryRole ?? null) === "admin",
           isOfflineSession: false,
         });
 
@@ -208,7 +212,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
         clearHaltQueue();
         setAuthState({ userId: "", email: "", name: "", bearerToken: null });
         setState({
-          userId: null, email: null, name: null, role: "technician",
+          userId: null, email: null, name: null, role: "technician", secondaryRole: null,
           effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
           isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
         });
@@ -251,6 +255,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
         email: offlineSnapshot.email,
         name: offlineSnapshot.name,
         role: offlineSnapshot.role as UserRole,
+        secondaryRole: null,
         effectiveRole: offlineSnapshot.role as UserRole,
         roleSource: "permanent",
         activeShift: null,
@@ -265,7 +270,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     }
 
     return {
-      userId: null, email: null, name: null, role: "technician",
+      userId: null, email: null, name: null, role: "technician", secondaryRole: null,
       effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     };
@@ -320,7 +325,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
       clearHaltQueue();
       setAuthState({ userId: "", email: "", name: "", bearerToken: null });
       setState({
-        userId: null, email: null, name: null, role: "technician",
+        userId: null, email: null, name: null, role: "technician", secondaryRole: null,
         effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
         isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
       });
@@ -401,13 +406,15 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
             email: resolvedEmail,
             name: resolvedName,
             role,
+            secondaryRole: (data.secondaryRole ?? null) as string | null,
             effectiveRole: (data.effectiveRole ?? role) as UserRole | ShiftRole,
             roleSource: data.roleSource ?? "permanent",
             activeShift: data.activeShift ?? null,
             resolvedAt: data.resolvedAt ?? null,
             status,
             accessDeniedReason: null,
-            isLoaded: true, isSignedIn: true, isAdmin: role === "admin",
+            isLoaded: true, isSignedIn: true,
+            isAdmin: role === "admin" || (data.secondaryRole ?? null) === "admin",
             isOfflineSession: false
           });
 
@@ -437,7 +444,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
           clearHaltQueue();
           setAuthState({ userId: "", email: "", name: "", bearerToken: null });
           setState({
-            userId: null, email: null, name: null, role: "technician",
+            userId: null, email: null, name: null, role: "technician", secondaryRole: null,
             effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
             isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
           });
