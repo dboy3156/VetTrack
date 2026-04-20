@@ -3,8 +3,8 @@ import { Router } from "express";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, drugFormulary } from "../db.js";
+import { syncFormularyFromSeed } from "../lib/formulary-seed-sync.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
-import { SEEDED_FORMULARY } from "../../shared/drug-formulary-seed.js";
 
 const router = Router();
 
@@ -57,32 +57,7 @@ function toResponseRow(row: typeof drugFormulary.$inferSelect) {
 }
 
 export async function seedDefaultsIfClinicHasNoRows(clinicId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select({ id: drugFormulary.id })
-      .from(drugFormulary)
-      .where(eq(drugFormulary.clinicId, clinicId))
-      .limit(1);
-    if (existing) return;
-
-    const now = new Date();
-    await tx.insert(drugFormulary).values(
-      SEEDED_FORMULARY.map((entry) => ({
-        id: randomUUID(),
-        clinicId,
-        name: entry.name,
-        concentrationMgMl: String(entry.concentrationMgMl),
-        standardDose: String(entry.standardDose),
-        minDose: entry.minDose != null ? String(entry.minDose) : null,
-        maxDose: entry.maxDose != null ? String(entry.maxDose) : null,
-        doseUnit: entry.doseUnit,
-        defaultRoute: entry.defaultRoute ?? null,
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      })),
-    );
-  });
+  await syncFormularyFromSeed(clinicId);
 }
 
 router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
@@ -91,7 +66,7 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
 
   try {
     try {
-      await seedDefaultsIfClinicHasNoRows(clinicId);
+      await syncFormularyFromSeed(clinicId);
     } catch (err) {
       console.warn("[formulary] initial seed failed", {
         clinicId,

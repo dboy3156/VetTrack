@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { animals, db, drugFormulary, owners } from "../../db.js";
-import { seedDefaultsIfClinicHasNoRows } from "../../routes/formulary.js";
+import { syncFormularyFromSeed } from "../formulary-seed-sync.js";
 import { parsePatientBlocks } from "./confidenceScorer.js";
 import { enrichAndForecast, type AnimalRow, type FormularyDrugRow } from "./forecastEngine.js";
 import { createFormularyFuse } from "./fieldExtractor.js";
@@ -29,7 +29,7 @@ export async function runForecastPipeline(params: {
   windowHours: 24 | 72;
   weekendMode: boolean;
 }): Promise<ForecastResult> {
-  await seedDefaultsIfClinicHasNoRows(params.clinicId);
+  await syncFormularyFromSeed(params.clinicId);
 
   const formularyRows = await db
     .select()
