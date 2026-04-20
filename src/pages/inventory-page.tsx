@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { ErrorCard } from "@/components/ui/error-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -381,6 +382,11 @@ export default function InventoryPage() {
           </div>
         )}
 
+        {/* Fetch error */}
+        {containersQ.isError && (
+          <ErrorCard message={p.loadError} onRetry={() => containersQ.refetch()} />
+        )}
+
         {/* Empty state */}
         {containersQ.data?.length === 0 && !containersQ.isLoading && (
           <div className="flex flex-col items-center gap-5 rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
@@ -493,6 +499,13 @@ export default function InventoryPage() {
                   {[...Array(5)].map((_, i) => (
                     <Skeleton key={i} className="h-14 w-full rounded-lg" />
                   ))}
+                </div>
+              )}
+
+              {/* Items fetch error */}
+              {detailsQ.isError && (
+                <div className="p-4">
+                  <ErrorCard message={p.loadError} onRetry={() => detailsQ.refetch()} />
                 </div>
               )}
 

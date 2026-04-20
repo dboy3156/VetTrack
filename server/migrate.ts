@@ -37,7 +37,7 @@ export async function runMigrations(): Promise<void> {
 
     const files = fs
       .readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
+      .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql") && !f.startsWith("meta/"))
       .sort();
 
     for (const filename of files) {

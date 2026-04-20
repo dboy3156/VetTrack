@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { ErrorCard } from "@/components/ui/error-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -195,6 +196,8 @@ export default function InventoryItemsPage() {
           <div className="space-y-2">
             {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
+        ) : itemsQ.isError ? (
+          <ErrorCard message={p.loadError} onRetry={() => itemsQ.refetch()} />
         ) : filtered.length === 0 ? (
           <p className="text-center text-muted-foreground py-12 text-sm">{p.noItems}</p>
         ) : (

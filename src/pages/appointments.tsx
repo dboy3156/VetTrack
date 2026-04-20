@@ -1403,8 +1403,8 @@ export default function AppointmentsPage() {
       </div>
 
       <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
-        <DialogContent dir="rtl" className="text-right max-h-[85vh] flex flex-col overflow-hidden p-0">
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent dir="rtl" className="text-right max-h-[85dvh] flex flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6">
             <div className="flex items-start gap-2">
               {isMedicationForm ? (
                 <Button
@@ -1615,8 +1615,8 @@ export default function AppointmentsPage() {
       </Dialog>
 
       <Dialog open={conflictOpen} onOpenChange={setConflictOpen}>
-        <DialogContent dir="rtl" className="text-right max-h-[85vh] flex flex-col overflow-hidden p-0">
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent dir="rtl" className="text-right max-h-[85dvh] flex flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6">
             <DialogTitle>Scheduling conflict</DialogTitle>
             <DialogDescription>
               This time overlaps an existing task. Provide a reason to override.
