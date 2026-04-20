@@ -562,10 +562,25 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
         and(
           eq(users.clinicId, clinicId),
           isNull(users.deletedAt),
+          eq(users.role, "vet"),
+        ),
+      )
+      .orderBy(users.displayName, users.name);
+
+    const clinicTechnicians = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        displayName: users.displayName,
+        role: users.role,
+      })
+      .from(users)
+      .where(
+        and(
+          eq(users.clinicId, clinicId),
+          isNull(users.deletedAt),
           or(
-            eq(users.role, "vet"),
             eq(users.role, "technician"),
-            eq(users.role, "admin"),
             eq(users.role, "senior_technician"),
           ),
         ),
@@ -593,7 +608,16 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
       };
     });
 
-    return res.json({ day, vets });
+    const technicians = clinicTechnicians.map((tech) => {
+      const names = [tech.displayName?.trim() ?? "", tech.name?.trim() ?? ""].filter(Boolean);
+      const techShifts = dayShifts.filter((shift) => names.includes(shift.employeeName));
+      return {
+        ...tech,
+        shifts: techShifts,
+      };
+    });
+
+    return res.json({ day, vets, technicians });
   } catch (err) {
     console.error("appointments:meta", err);
     return res.status(500).json(
