@@ -140,7 +140,7 @@ function AuditLogRow({ log }: { log: AuditLog }) {
             <div className="flex items-center gap-1 mt-0.5">
               <User className="w-3 h-3 text-muted-foreground" style={{ flexShrink: 0 }} />
               <span className="text-xs text-muted-foreground truncate">
-                {log.performedByEmail ?? ""}
+                {log.performedByEmail?.trim() || t.common.unknown}
               </span>
             </div>
             {actorRole ? (

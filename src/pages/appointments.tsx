@@ -297,13 +297,13 @@ function looksLikeUuid(s: string): boolean {
 
 function formatDevice(animalId: string | null | undefined): string {
   if (!animalId) return "Unassigned device";
-  if (looksLikeUuid(animalId)) return `Device #${animalId.slice(0, 6)}`;
+  if (looksLikeUuid(animalId)) return "Assigned device";
   return animalId;
 }
 
 function formatLocation(ownerId: string | null | undefined): string | null {
   if (!ownerId) return null;
-  if (looksLikeUuid(ownerId)) return `#${ownerId.slice(0, 6)}`;
+  if (looksLikeUuid(ownerId)) return "Assigned owner";
   return ownerId;
 }
 
