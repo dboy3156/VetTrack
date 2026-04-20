@@ -273,7 +273,7 @@ export default function MedicationHubPage() {
                         {drugName}
                       </CardTitle>
                       <div className="text-xs text-muted-foreground">
-                        Task {task.id.slice(0, 8)} • {task.status}
+                        Medication task • {task.status}
                       </div>
                     </div>
                     <Badge variant={task.status === "in_progress" ? "default" : "secondary"}>
