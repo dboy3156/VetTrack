@@ -58,12 +58,22 @@ function parseCsvLine(line: string): string[] {
   return fields;
 }
 
+function normalizeHeader(h: string): string {
+  return h
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/^["']|["']$/g, "")
+    .replace(/[\s_-]+/g, "")
+    .replace(/[()[\]./\\]/g, "");
+}
+
 function previewParse(csv: string): ParsedRow[] {
   const lines = csv.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const nonEmpty = lines.filter((l) => l.trim().length > 0);
   if (nonEmpty.length < 2) return [];
   const [headerLine, ...dataLines] = nonEmpty;
-  const headers = parseCsvLine(headerLine).map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  const headers = parseCsvLine(headerLine).map(normalizeHeader);
 
   const idx = {
     name: headers.indexOf("name"),
