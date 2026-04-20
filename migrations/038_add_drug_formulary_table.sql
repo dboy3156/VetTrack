@@ -14,5 +14,3 @@ CREATE TABLE IF NOT EXISTS vt_drug_formulary (
 CREATE UNIQUE INDEX IF NOT EXISTS vt_drug_formulary_clinic_name_unique
   ON vt_drug_formulary (clinic_id, lower(name));
 
--- DOWN
-DROP TABLE IF EXISTS vt_drug_formulary;

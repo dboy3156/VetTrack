@@ -30,7 +30,3 @@ CREATE TABLE vt_po_lines (
 CREATE INDEX idx_po_clinic ON vt_purchase_orders(clinic_id, created_at DESC);
 CREATE INDEX idx_po_lines_po ON vt_po_lines(purchase_order_id);
 
--- DOWN
-DROP TABLE IF EXISTS vt_po_lines;
-DROP TABLE IF EXISTS vt_purchase_orders;
-DROP TYPE IF EXISTS vt_po_status;
