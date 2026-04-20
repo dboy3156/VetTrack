@@ -29,6 +29,7 @@ export interface User {
   name: string;
   displayName: string;
   role: UserRole;
+  secondaryRole?: string | null;
   effectiveRole?: UserRole | ShiftRole;
   roleSource?: "shift" | "permanent";
   activeShift?: Shift | null;

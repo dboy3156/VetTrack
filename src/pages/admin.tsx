@@ -687,6 +687,8 @@ function UsersSection() {
     user: User;
     newRole: UserRole;
   } | null>(null);
+  const [pendingSecondaryRole, setPendingSecondaryRole] = useState<string | null | undefined>(undefined);
+  const [pendingSecondaryRoleUserId, setPendingSecondaryRoleUserId] = useState<string | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     user: User;
     newStatus: "pending" | "active" | "blocked";
@@ -724,6 +726,19 @@ function UsersSection() {
       toast.success(t.adminPage.roleUpdated);
     },
     onError: () => toast.error(t.adminPage.roleUpdateFailed),
+  });
+
+  const updateSecondaryRoleMut = useMutation({
+    mutationFn: ({ id, secondaryRole }: { id: string; secondaryRole: string | null }) =>
+      api.users.updateSecondaryRole(id, secondaryRole),
+    onSuccess: () => {
+      navigator.vibrate?.(50);
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setPendingSecondaryRole(undefined);
+      setPendingSecondaryRoleUserId(null);
+      toast.success("Secondary role updated");
+    },
+    onError: () => toast.error("Failed to update secondary role"),
   });
 
   const updateStatusMut = useMutation({
@@ -842,6 +857,11 @@ function UsersSection() {
                       {user.displayName || user.name || user.email}
                     </p>
                     <RoleBadge role={user.role} />
+                    {user.secondaryRole && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-300">
+                        +{user.secondaryRole}
+                      </span>
+                    )}
                     <StatusBadge status={user.status} />
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
@@ -959,6 +979,32 @@ function UsersSection() {
                       <SelectItem value="technician">{t.adminPage.roleTechnician}</SelectItem>
                       <SelectItem value="senior_technician">{t.adminPage.roleSeniorTechnician}</SelectItem>
                       <SelectItem value="student">{t.adminPage.roleStudent}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={
+                      pendingSecondaryRoleUserId === user.id && pendingSecondaryRole !== undefined
+                        ? (pendingSecondaryRole ?? "none")
+                        : (user.secondaryRole ?? "none")
+                    }
+                    onValueChange={(val) => {
+                      const newVal = val === "none" ? null : val;
+                      setPendingSecondaryRoleUserId(user.id);
+                      setPendingSecondaryRole(newVal);
+                      updateSecondaryRoleMut.mutate({ id: user.id, secondaryRole: newVal });
+                    }}
+                  >
+                    <SelectTrigger
+                      className="w-32 h-8 text-xs"
+                      data-testid={`select-secondary-role-${user.id}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Secondary: None</SelectItem>
+                      <SelectItem value="admin">{t.adminPage.roleAdmin}</SelectItem>
+                      <SelectItem value="senior_technician">{t.adminPage.roleSeniorTechnician}</SelectItem>
+                      <SelectItem value="technician">{t.adminPage.roleTechnician}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
