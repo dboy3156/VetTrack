@@ -158,7 +158,7 @@ export default function MedicationHubPage() {
   const { getByDrugName } = useDrugFormulary();
   const isTech = isTechnicianRole(role, effectiveRole);
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  const canCreateMedicationTask = resolvedRole === "vet";
+  const canCreateMedicationTask = resolvedRole === "vet" || resolvedRole === "admin";
 
   const meQuery = useQuery({
     queryKey: ["/api/users/me"],
