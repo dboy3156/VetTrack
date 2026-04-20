@@ -107,7 +107,7 @@ export function computeUserGroups(equipment: Equipment[]): UserEquipmentGroup[] 
     if (!map.has(key)) {
       map.set(key, {
         userId: eq.checkedOutById,
-        userEmail: eq.checkedOutByEmail || eq.checkedOutById,
+        userEmail: eq.checkedOutByEmail || "Unknown user",
         items: [],
       });
     }
@@ -217,7 +217,7 @@ export function computeDashboardData(equipment: Equipment[]): DashboardData {
       if (!userMap.has(key)) {
         userMap.set(key, {
           userId: key,
-          userEmail: eq.checkedOutByEmail || key,
+          userEmail: eq.checkedOutByEmail || "Unknown user",
           items: [],
         });
       }

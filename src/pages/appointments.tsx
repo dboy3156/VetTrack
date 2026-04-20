@@ -228,11 +228,14 @@ function formatScheduledLabel(appointment: Appointment): string | null {
 function formatPrescribedByLabel(appointment: Appointment): string | null {
   if (appointment.taskType !== "medication") return null;
   const metadata = medicationMetadata(appointment);
-  const prescribedBy = typeof metadata?.prescribedByName === "string"
+  const prescribedByRaw = typeof metadata?.prescribedByName === "string"
     ? metadata.prescribedByName
     : typeof metadata?.createdBy === "string"
       ? metadata.createdBy
       : null;
+  const prescribedBy = prescribedByRaw && !looksLikeUuid(prescribedByRaw)
+    ? prescribedByRaw
+    : "Staff member";
   if (!prescribedBy) return null;
   return `Prescribed by ${prescribedBy}`;
 }
