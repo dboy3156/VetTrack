@@ -1213,7 +1213,7 @@ export default function AppointmentsPage() {
                 <option value="">All technicians</option>
                 {(metaQuery.data?.vets ?? []).map((vet) => (
                   <option key={vet.id} value={vet.id}>
-                    {vet.displayName || vet.name || vet.id}
+                    {vet.displayName || vet.name || "Unknown user"}
                   </option>
                 ))}
               </select>
@@ -1499,7 +1499,7 @@ export default function AppointmentsPage() {
         <option value="">Select technician</option>
         {(metaQuery.data?.vets ?? []).map((vet) => (
           <option key={vet.id} value={vet.id}>
-            {vet.displayName || vet.name || vet.id}
+            {vet.displayName || vet.name || "Unknown user"}
           </option>
         ))}
       </select>
