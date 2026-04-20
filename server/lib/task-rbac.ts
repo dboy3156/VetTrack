@@ -51,7 +51,7 @@ export function canPerformTaskAction(roleInput: string | null | undefined, actio
   }
 
   if (role === "student") {
-    return action === "task.read";
+    return false;
   }
 
   return false;
@@ -92,7 +92,7 @@ export function canPerformMedicationTaskAction(
   }
 
   if (role === "student") {
-    return action === "med.read";
+    return false;
   }
 
   return false;
