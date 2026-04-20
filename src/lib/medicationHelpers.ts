@@ -265,6 +265,9 @@ export function buildMedicationAppointmentRequest(args: {
   calcResult: SafeCalcResult;
   justification?: CalculatorJustification | null;
 }): CreateAppointmentRequest {
+  if (!Number.isFinite(args.weightKg) || (args.weightKg ?? 0) <= 0) {
+    throw new Error("Patient weight is required for medication tasks.");
+  }
   const start = new Date();
   const end = new Date(start.getTime() + 10 * 60 * 1000);
   return buildCalculatorMedicationTaskRequest(
