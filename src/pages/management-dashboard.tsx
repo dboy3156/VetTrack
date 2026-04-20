@@ -176,7 +176,7 @@ export default function ManagementDashboardPage() {
               <AlertTriangle className="w-4 h-4 text-muted-foreground" />
               {t.managementDashboardPage.criticalAlerts}
               {criticalItems.length > 0 && (
-                <span className="ml-auto text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
+                <span className="ms-auto text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
                   {criticalItems.length}
                 </span>
               )}
@@ -226,7 +226,7 @@ export default function ManagementDashboardPage() {
               <Users className="w-4 h-4 text-muted-foreground" />
               {t.managementDashboardPage.whoHasWhat}
               {userGroups.length > 0 && (
-                <span className="ml-auto text-xs text-muted-foreground">
+                <span className="ms-auto text-xs text-muted-foreground">
                   {userGroups.length} user{userGroups.length !== 1 ? "s" : ""}
                 </span>
               )}
@@ -251,7 +251,7 @@ export default function ManagementDashboardPage() {
                   return (
                     <div key={group.userId} className="border border-border/60 rounded-xl overflow-hidden">
                       <button
-                        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-muted/50 transition-colors text-left min-h-[44px]"
+                        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-muted/50 transition-colors text-start min-h-[44px]"
                         onClick={() => toggleUser(group.userId)}
                         data-testid={`user-group-toggle-${group.userId}`}
                       >
@@ -348,7 +348,7 @@ export default function ManagementDashboardPage() {
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Activity className="w-4 h-4 text-muted-foreground" />
               {t.managementDashboardPage.systemHealth}
-              <span className="ml-auto text-xs text-muted-foreground font-normal">{t.managementDashboardPage.refreshEveryMinute}</span>
+              <span className="ms-auto text-xs text-muted-foreground font-normal">{t.managementDashboardPage.refreshEveryMinute}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
