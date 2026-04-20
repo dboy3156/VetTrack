@@ -39,6 +39,16 @@ async function run(): Promise<void> {
   }
 
   {
+    const percentNamed = {
+      ...base,
+      name: "Hypertonic Saline 7.2%",
+      concentrationMgMl: 0,
+    };
+    const r = resolveFormularyData(percentNamed);
+    assert.equal(r.concentrationMgPerMl, 72);
+  }
+
+  {
     const r = resolveFormularyData(base, { minDoseMgPerKg: 0.3 });
     assert.equal(r.minDoseMgPerKg, undefined);
     assert.equal(r.maxDoseMgPerKg, undefined);

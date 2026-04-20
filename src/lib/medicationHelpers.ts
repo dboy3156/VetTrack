@@ -40,6 +40,15 @@ export interface SafeCalcResult {
 
 export type UICase = "FULL" | "STANDARD_ONLY" | "NO_RECOMMENDED" | "BROKEN";
 
+function concentrationFromPercentLabel(name: string): number | undefined {
+  const percentMatch = name.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (!percentMatch) return undefined;
+  const percent = Number.parseFloat(percentMatch[1]);
+  if (!Number.isFinite(percent) || percent <= 0) return undefined;
+  // 1% w/v ~= 10 mg/mL.
+  return percent * 10;
+}
+
 export function normaliseToMgPerKg(
   dose: number,
   unit: FormularyEntry["doseUnit"],
@@ -55,10 +64,16 @@ export function resolveFormularyData(
   formulary: FormularyEntry,
   clinical?: ClinicalEnrichment,
 ): ResolvedDose {
-  const concentrationMgPerMl =
-    Number.isFinite(formulary.concentrationMgMl) && formulary.concentrationMgMl > 0
-      ? formulary.concentrationMgMl
-      : 0;
+  const derivedPercentConcentration = concentrationFromPercentLabel(formulary.name);
+  const concentrationMgPerMl = (() => {
+    if (Number.isFinite(formulary.concentrationMgMl) && formulary.concentrationMgMl > 0) {
+      return formulary.concentrationMgMl;
+    }
+    if (derivedPercentConcentration && Number.isFinite(derivedPercentConcentration) && derivedPercentConcentration > 0) {
+      return derivedPercentConcentration;
+    }
+    return 0;
+  })();
 
   let recommendedDoseMgPerKg: number | undefined;
   const clinicalRec = clinical?.recommendedDoseMgPerKg;
