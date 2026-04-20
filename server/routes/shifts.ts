@@ -109,6 +109,7 @@ function normalizeWhitespace(value: string): string {
 
 function normalizeHeader(value: string): string {
   return value
+    .replace(/^\uFEFF/, "") // strip UTF-8 BOM from first CSV header cell
     .trim()
     .toLowerCase()
     .replace(/^["']|["']$/g, "")

@@ -1660,7 +1660,15 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
   const nonEmpty = lines.filter((l) => l.trim().length > 0);
   if (nonEmpty.length === 0) return { headers: [], rows: [] };
   const [headerLine, ...dataLines] = nonEmpty;
-  const headers = parseCsvLine(headerLine).map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  const normalizeImportHeader = (value: string) =>
+    value
+      .replace(/^\uFEFF/, "") // strip UTF-8 BOM (Excel/Sheets exports)
+      .trim()
+      .toLowerCase()
+      .replace(/^["']|["']$/g, "")
+      .replace(/[\s_-]+/g, "")
+      .replace(/[()[\]./\\]/g, "");
+  const headers = parseCsvLine(headerLine).map((h) => normalizeImportHeader(h));
   const rows = dataLines.map((l) => parseCsvLine(l));
   return { headers, rows };
 }
