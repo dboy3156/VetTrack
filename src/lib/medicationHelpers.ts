@@ -17,6 +17,7 @@ export interface ResolvedDose {
   minDoseMgPerKg: number | undefined;
   maxDoseMgPerKg: number | undefined;
   concentrationMgPerMl: number;
+  doseUnit: FormularyEntry["doseUnit"];
 }
 
 export type BlockReason =
@@ -82,6 +83,7 @@ export function resolveFormularyData(
     minDoseMgPerKg: minValid && maxValid ? rawMin : undefined,
     maxDoseMgPerKg: minValid && maxValid ? rawMax : undefined,
     concentrationMgPerMl,
+    doseUnit: formulary.doseUnit,
   };
 }
 

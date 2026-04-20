@@ -59,6 +59,30 @@ function canManageFormulary(role: string | null | undefined): boolean {
   return r === "vet" || r === "admin";
 }
 
+function doseUnitLabel(unit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet"): string {
+  if (unit === "mcg_per_kg") return "mcg/kg";
+  if (unit === "mEq_per_kg") return "mEq/kg";
+  if (unit === "tablet") return "tab/kg";
+  return "mg/kg";
+}
+
+function concentrationUnitLabel(unit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet"): string {
+  if (unit === "mEq_per_kg") return "mEq/mL";
+  if (unit === "tablet") return "mg/tab";
+  return "mg/mL";
+}
+
+function formatTabletFraction(tablets: number): string {
+  const rounded = Math.round(tablets * 4) / 4;
+  const whole = Math.trunc(rounded);
+  const fraction = Math.round((rounded - whole) * 4);
+  const fractionLabel =
+    fraction === 0 ? "" : fraction === 1 ? "1/4" : fraction === 2 ? "1/2" : "3/4";
+  if (whole === 0 && fractionLabel) return fractionLabel;
+  if (!fractionLabel) return String(whole);
+  return `${whole} ${fractionLabel}`;
+}
+
 // ─── Formulary Manager ───────────────────────────────────────────────────────
 
 interface FormularyManagerProps {
@@ -617,9 +641,10 @@ export function MedicationCalculator({
     const min = resolved.minDoseMgPerKg;
     const max = resolved.maxDoseMgPerKg;
     if (std === undefined) return null;
+    const doseUnit = doseUnitLabel(resolved.doseUnit);
     const unit = uiCase === "FULL" && min !== undefined && max !== undefined
-      ? `${std.toFixed(3)} mg/kg  (range ${min.toFixed(3)}–${max.toFixed(3)} mg/kg)`
-      : `${std.toFixed(3)} mg/kg`;
+      ? `${std.toFixed(3)} ${doseUnit}  (range ${min.toFixed(3)}–${max.toFixed(3)} ${doseUnit})`
+      : `${std.toFixed(3)} ${doseUnit}`;
     return unit;
   })();
 
@@ -710,14 +735,18 @@ export function MedicationCalculator({
           <option value="">- Select a drug -</option>
           {formularyList.map((entry) => (
             <option key={entry.id} value={entry.name}>
-              {entry.name} ({entry.concentrationMgMl} mg/mL{entry.defaultRoute ? ` · ${entry.defaultRoute}` : ""})
+              {entry.name} ({entry.concentrationMgMl} {concentrationUnitLabel(entry.doseUnit)}{entry.defaultRoute ? ` · ${entry.defaultRoute}` : ""})
             </option>
           ))}
         </select>
         {selectedDrugName ? (() => {
           const sel = formularyList.find((e) => e.name === selectedDrugName);
           return sel?.defaultRoute ? (
-            <p className="mt-1 text-xs text-gray-500">Route: <span className="font-semibold">{sel.defaultRoute}</span></p>
+            <p className="mt-1 text-xs text-gray-500">
+              Route: <span className="font-semibold">{sel.defaultRoute}</span>
+              <span className="mx-1">•</span>
+              Concentration: <span className="font-semibold">{sel.concentrationMgMl} {concentrationUnitLabel(sel.doseUnit)}</span>
+            </p>
           ) : null;
         })() : null}
       </section>
@@ -790,7 +819,11 @@ export function MedicationCalculator({
           >
             <p className="mb-1 text-sm font-medium uppercase tracking-wide text-gray-500">GIVE</p>
             <p className={`text-5xl font-black tracking-tight ${canExecute ? "text-blue-700" : "text-gray-400"}`}>
-              {calc.isBlocked || !Number.isFinite(calc.volumeMl) ? "—" : `${calc.volumeMl.toFixed(2)} mL`}
+              {calc.isBlocked || !Number.isFinite(calc.volumeMl)
+                ? "—"
+                : resolved?.doseUnit === "tablet"
+                  ? `${formatTabletFraction(calc.volumeMl)} tab`
+                  : `${calc.volumeMl.toFixed(2)} mL`}
             </p>
             {!calc.isBlocked && Number.isFinite(calc.totalMg) && calc.totalMg > 0 ? (
               <p className="mt-1 text-sm text-gray-500">= {calc.totalMg.toFixed(2)} mg total</p>
@@ -835,7 +868,9 @@ export function MedicationCalculator({
               {isSubmitting
                 ? "Assigning..."
                 : canExecute
-                  ? `Assign Medication — ${calc.volumeMl.toFixed(2)} mL`
+                  ? resolved?.doseUnit === "tablet"
+                    ? `Assign Medication — ${formatTabletFraction(calc.volumeMl)} tab`
+                    : `Assign Medication — ${calc.volumeMl.toFixed(2)} mL`
                   : "Assign Medication"}
             </button>
           </div>
