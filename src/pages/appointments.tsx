@@ -194,7 +194,7 @@ function toErrorMessage(err: Error): string {
 
 function canStartTask(a: Appointment, meId: string | undefined, role?: string | null, effectiveRole?: string | null): boolean {
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  if (resolvedRole === "admin" || resolvedRole === "vet") {
+  if (resolvedRole === "admin") {
     return ["scheduled", "assigned", "arrived"].includes(a.status);
   }
   if (!meId || !a.vetId || a.vetId !== meId) return false;
