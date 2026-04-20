@@ -225,16 +225,38 @@ function parseTime(value: string): string | null {
 }
 
 function detectShiftRole(shiftName: string): ShiftRole | null {
-  const normalized = normalizeWhitespace(shiftName);
-  if (normalized.includes("בכיר")) return "senior_technician";
-  if (normalized.includes("טכנאי") || normalized.includes("קבלה")) return "technician";
+  const normalized = normalizeWhitespace(shiftName).toLowerCase();
+
+  const isSeniorTechnician =
+    normalized.includes("בכיר") ||
+    normalized.includes("senior technician") ||
+    normalized.includes("senior_technician") ||
+    normalized.includes("senior-tech") ||
+    normalized.includes("senior tech") ||
+    normalized.includes("sr tech") ||
+    normalized.includes("lead technician");
+  if (isSeniorTechnician) return "senior_technician";
+
+  const isAdminShift =
+    normalized.includes("מנהל") ||
+    normalized.includes("אדמין") ||
+    normalized.includes("admin") ||
+    normalized.includes("manager");
+  if (isAdminShift) return "admin";
+
+  const isTechnicianShift =
+    normalized.includes("טכנאי") ||
+    normalized.includes("קבלה") ||
+    normalized.includes("technician") ||
+    normalized.includes("tech") ||
+    normalized.includes("reception");
+  if (isTechnicianShift) return "technician";
+
   return null;
 }
 
 function detectRole(shiftName: string): ShiftRole | null {
-  if (shiftName.includes("בכיר")) return "senior_technician";
-  if (shiftName.includes("טכנאי")) return "technician";
-  return null;
+  return detectShiftRole(shiftName);
 }
 
 function resolveHeaderIndex(headers: string[], variants: readonly string[]): number {
