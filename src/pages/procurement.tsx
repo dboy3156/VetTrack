@@ -221,12 +221,12 @@ export default function ProcurementPage() {
               return (
                 <div key={order.id} className="rounded-lg border bg-card">
                   <div
-                    className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                    className="flex flex-wrap items-start gap-3 px-4 py-3 cursor-pointer"
                     onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
                   >
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-[12rem]">
                       <p className="font-medium truncate">{order.supplierName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 flex gap-2 flex-wrap">
+                      <p className="text-xs text-muted-foreground mt-0.5 flex gap-2 flex-wrap leading-relaxed">
                         <span>{formatDate(order.orderedAt ?? order.createdAt)}</span>
                         <span>·</span>
                         <span>{(order.lines ?? []).length} {p.lineCount}</span>
@@ -249,7 +249,7 @@ export default function ProcurementPage() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border shrink-0 ${STATUS_BADGE[order.status]}`}>
                       {p[`status_${order.status}` as keyof typeof p] ?? order.status}
                     </span>
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1 ml-auto">
                       {isAdmin && order.status === "draft" && (
                         <Button
                           size="sm"
@@ -284,10 +284,12 @@ export default function ProcurementPage() {
                         </Button>
                       )}
                     </div>
-                    {expandedId === order.id
-                      ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                      : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                    }
+                    <div className="shrink-0 self-center">
+                      {expandedId === order.id
+                        ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                        : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      }
+                    </div>
                   </div>
 
                   {expandedId === order.id && (order.lines ?? []).length > 0 && (
