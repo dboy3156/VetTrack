@@ -455,10 +455,10 @@ export default function EquipmentListPage() {
         {/* Search + filters */}
         <div className="flex flex-col gap-2">
           <div className="relative">
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute start-3.5 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={t.equipmentList.search.placeholder}
-              className="pl-10"
+              className="ps-10"
               value={searchInput}
               onChange={(e) => handleSearchInputChange(e.target.value)}
               data-testid="search-input"
@@ -508,12 +508,12 @@ export default function EquipmentListPage() {
               </SheetHeader>
               <div className="px-4 py-3 border-b">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     placeholder={t.equipmentList.folders.searchPlaceholder}
                     value={folderSearch}
                     onChange={(e) => setFolderSearch(e.target.value)}
-                    className="pl-9"
+                    className="ps-9"
                     data-testid="folder-search"
                   />
                 </div>

@@ -556,10 +556,10 @@ export default function StabilityDashboardPage() {
           <CardContent className="space-y-3 pt-0">
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search logs..."
-                  className="pl-9"
+                  className="ps-9"
                   value={logSearch}
                   onChange={(e) => setLogSearch(e.target.value)}
                 />
