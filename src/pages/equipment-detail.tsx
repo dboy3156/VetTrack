@@ -106,7 +106,7 @@ export default function EquipmentDetailPage() {
   const searchStr = useSearch();
   const { isAdmin, email, userId, role } = useAuth();
   const queryEnabled = !!userId;
-  const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, technician: 20, viewer: 10 };
+  const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, senior_technician: 25, technician: 20, student: 10 };
   const canDuplicate = (ROLE_LEVEL[role] ?? 0) >= 20;
   const { settings } = useSettings();
   const { discard } = useSyncQueue();

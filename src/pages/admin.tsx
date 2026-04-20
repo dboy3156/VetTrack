@@ -637,7 +637,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   vet: t.adminPage.roleVet,
   technician: t.adminPage.roleTechnician,
   senior_technician: t.adminPage.roleSeniorTechnician,
-  student: t.adminPage.roleViewer,
+  student: t.adminPage.roleStudent,
 };
 
 function RoleBadge({ role }: { role: string }) {
@@ -958,7 +958,7 @@ function UsersSection() {
                       <SelectItem value="vet">{t.adminPage.roleVet}</SelectItem>
                       <SelectItem value="technician">{t.adminPage.roleTechnician}</SelectItem>
                       <SelectItem value="senior_technician">{t.adminPage.roleSeniorTechnician}</SelectItem>
-                      <SelectItem value="student">{t.adminPage.roleViewer}</SelectItem>
+                      <SelectItem value="student">{t.adminPage.roleStudent}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select

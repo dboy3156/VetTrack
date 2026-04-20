@@ -1328,33 +1328,39 @@ async function testRbacEnforcement() {
     );
   }
 
-  // 5.8 Viewer cannot scan equipment (requires vet+).
-  // Note: scan route order is requireAuth → scanLimiter → requireEffectiveRole("vet").
+  // 5.8 Student can scan equipment (stabilization: scan / take / return are student baseline).
+  // Route order: requireAuth → scanLimiter → requireEffectiveRole("student").
   // A 429 means the rate limiter ran BEFORE the role check — RBAC was not exercised.
-  // We must ensure scan budget headroom before this check so the role check is reached.
   const tempEquipId = await createTestEquipment("RBAC-Scan-Test");
   if (tempEquipId) {
     await ensureScanBudget(); // guarantee budget so rate limiter won't fire before RBAC
-    const viewerScanRes = await post(
+    const studentScanRes = await post(
       `/api/equipment/${tempEquipId}/scan`,
       { status: "ok" },
       "student"
     );
-    if (viewerScanRes.status === 403) {
-      ok("Viewer denied on POST /api/equipment/:id/scan (403)");
-    } else if (viewerScanRes.status === 429) {
+    if (studentScanRes.status >= 200 && studentScanRes.status < 300) {
+      ok("Student allowed on POST /api/equipment/:id/scan (2xx)");
+    } else if (studentScanRes.status === 429) {
       fail(
-        "Viewer denied on POST /api/equipment/:id/scan",
+        "Student allowed on POST /api/equipment/:id/scan",
         "HIGH",
-        "Got 429 (rate limited) instead of 403 — RBAC role check was not reached; scan budget may still be exhausted",
+        "Got 429 (rate limited) instead of 2xx — role check may not have been reached; scan budget exhausted",
         "Ensure ensureScanBudget() is called before RBAC scan tests so rate limiter does not fire first"
+      );
+    } else if (studentScanRes.status === 403) {
+      fail(
+        "Student allowed on POST /api/equipment/:id/scan",
+        "HIGH",
+        "Student received 403 — scan should allow student+ per stabilization plan",
+        "Ensure requireEffectiveRole('student') is applied to scan endpoint"
       );
     } else {
       fail(
-        "Viewer denied on POST /api/equipment/:id/scan",
+        "Student allowed on POST /api/equipment/:id/scan",
         "HIGH",
-        `Expected 403 for viewer, got ${viewerScanRes.status}`,
-        "Ensure requireEffectiveRole('vet') is applied to scan endpoint"
+        `Expected 2xx for student scan, got ${studentScanRes.status}`,
+        "Check scan handler and RBAC for student role"
       );
     }
     await deleteTestEquipment(tempEquipId);

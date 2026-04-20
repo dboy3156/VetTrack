@@ -114,19 +114,19 @@ const upload = multer({
 /*
  * PERMISSIONS MATRIX — /api/equipment
  * ─────────────────────────────────────────────────────
- * GET  /                  viewer+       List all equipment
- * GET  /critical          viewer+       List critical/needs-attention equipment
- * GET  /my                viewer+       List equipment checked out by current user
- * GET  /:id               viewer+       Get single equipment item
- * GET  /:id/logs          viewer+       Scan log history for item
- * GET  /:id/transfers     viewer+       Transfer log history for item
+ * GET  /                  student+      List all equipment
+ * GET  /critical          student+      List critical/needs-attention equipment
+ * GET  /my                student+      List equipment checked out by current user
+ * GET  /:id               student+      Get single equipment item
+ * GET  /:id/logs          student+      Scan log history for item
+ * GET  /:id/transfers     student+      Transfer log history for item
  * POST /                  technician+   Create new equipment
  * POST /import            admin-only    Bulk CSV import
  * POST /bulk-delete       admin-only    Bulk delete
  * POST /bulk-move         technician+   Bulk folder move
- * POST /:id/scan          vet+          Record a scan/status update
- * POST /:id/checkout      technician+   Check out equipment
- * POST /:id/return        technician+   Return equipment
+ * POST /:id/scan          student+      Record a scan/status update (student baseline per stabilization plan)
+ * POST /:id/checkout      student+      Check out equipment (authenticated; student role allowed)
+ * POST /:id/return        student+      Return equipment
  * POST /:id/revert        vet+          Undo last scan within window
  * PATCH /:id              technician+   Edit equipment metadata
  * DELETE /:id             admin-only    Delete single equipment item
@@ -531,9 +531,15 @@ router.get("/critical", requireAuth, async (req, res) => {
           isNull(equipment.deletedAt),
         ),
       )
+      // Stabilization plan: Proximity > Accessibility > Functional status
+      // Proximity: most recently seen first (operational "nearness" without GPS).
+      // Accessibility: known last/checked-out location before unknown.
+      // Functional: critical before needs_attention.
       .orderBy(
-        sql`CASE WHEN ${equipment.status} = 'critical' THEN 0 ELSE 1 END ASC`,
         desc(equipment.lastSeen),
+        sql`(CASE WHEN COALESCE(TRIM(${equipment.checkedOutLocation}), TRIM(${equipment.location})) IS NOT NULL AND LENGTH(TRIM(COALESCE(${equipment.checkedOutLocation}, ${equipment.location}, ''))) > 0 THEN 0 ELSE 1 END) ASC`,
+        sql`(CASE WHEN ${equipment.nfcTagId} IS NOT NULL OR ${equipment.roomId} IS NOT NULL THEN 0 ELSE 1 END) ASC`,
+        sql`CASE WHEN ${equipment.status} = 'critical' THEN 0 ELSE 1 END ASC`,
       );
 
     res.json(items);
@@ -944,7 +950,14 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
 });
 
 // POST /api/equipment/:id/checkout
-router.post("/:id/checkout", requireAuth, checkoutLimiter, validateUuid("id"), validateBody(checkoutSchema), async (req, res) => {
+router.post(
+  "/:id/checkout",
+  requireAuth,
+  checkoutLimiter,
+  requireEffectiveRole("student"),
+  validateUuid("id"),
+  validateBody(checkoutSchema),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -1082,7 +1095,7 @@ router.post("/:id/checkout", requireAuth, checkoutLimiter, validateUuid("id"), v
 });
 
 // POST /api/equipment/:id/return
-router.post("/:id/return", requireAuth, checkoutLimiter, validateUuid("id"), async (req, res) => {
+router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("student"), validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -1292,7 +1305,7 @@ router.post(
 );
 
 // POST /api/equipment/:id/scan
-router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("vet"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
+router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("student"), validateUuid("id"), validateBody(scanSchema), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
