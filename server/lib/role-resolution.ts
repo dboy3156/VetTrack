@@ -10,6 +10,7 @@ export interface RoleResolutionInput {
   userId?: string;
   userName: string;
   fallbackRole: PermanentVetTrackRole;
+  secondaryRole?: string | null;
   now?: Date;
 }
 
@@ -135,8 +136,17 @@ export async function resolveCurrentRole(input: RoleResolutionInput): Promise<Ro
     .limit(1);
 
   if (!activeShift) {
+    const ROLE_LEVELS: Record<string, number> = {
+      admin: 40, vet: 30, senior_technician: 25, technician: 20, student: 10,
+    };
+    const primaryLevel = ROLE_LEVELS[input.fallbackRole] ?? 0;
+    const secondaryLevel = input.secondaryRole ? (ROLE_LEVELS[input.secondaryRole] ?? 0) : 0;
+    const effectiveRole: EffectiveRole =
+      secondaryLevel > primaryLevel
+        ? (input.secondaryRole as EffectiveRole)
+        : input.fallbackRole;
     return {
-      effectiveRole: input.fallbackRole,
+      effectiveRole,
       permanentRole: input.fallbackRole,
       source: "permanent",
       activeShift: null,
