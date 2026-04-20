@@ -38,17 +38,6 @@ interface StaffUser {
   role: string;
 }
 
-const MEDICATION_EXECUTOR_ROLES = [
-  "technician",
-  "lead_technician",
-  "vet_tech",
-  "senior_technician",
-] as const;
-
-function isMedicationExecutorRole(roleInput: string | null | undefined): boolean {
-  const role = String(roleInput ?? "").trim().toLowerCase();
-  return (MEDICATION_EXECUTOR_ROLES as readonly string[]).includes(role);
-}
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -454,8 +443,7 @@ export function MedicationCalculator({
   const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
   const [isTechnicianLoading, setIsTechnicianLoading] = useState(true);
   const [technicianLoadError, setTechnicianLoadError] = useState<string | null>(null);
-  const currentRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  const currentUserCanExecuteMedication = isMedicationExecutorRole(currentRole);
+  const currentUserCanExecuteMedication = userId ? technicians.some((u) => u.id === userId) : false;
   const userCanManageFormulary = canManageFormulary(effectiveRole ?? role);
 
   const fetchTechnicians = useCallback(async () => {
@@ -463,14 +451,12 @@ export function MedicationCalculator({
     setTechnicianLoadError(null);
     try {
       const meta = await api.appointments.meta(todayIsoDate());
-      const eligible = meta.vets
-        .filter((user) => isMedicationExecutorRole(user.role))
-        .map((user) => ({
-          id: user.id,
-          name: user.displayName?.trim() || user.name?.trim() || user.id,
-          displayName: user.displayName,
-          role: user.role,
-        }));
+      const eligible = meta.technicians.map((user) => ({
+        id: user.id,
+        name: user.displayName?.trim() || user.name?.trim() || user.id,
+        displayName: user.displayName,
+        role: user.role,
+      }));
 
       setTechnicians(eligible);
       if (eligible.length === 0) {
@@ -557,7 +543,7 @@ export function MedicationCalculator({
       return null;
     }
     const selectedOption = technicians.find((u) => u.id === selectedTechnicianId);
-    if (selectedOption && isMedicationExecutorRole(selectedOption.role)) return selectedOption.id;
+    if (selectedOption) return selectedOption.id;
     if (currentUserCanExecuteMedication && currentUserOption) return currentUserOption.id;
     return null;
   }, [currentUserCanExecuteMedication, selectedTechnicianId, technicians, userId]);
