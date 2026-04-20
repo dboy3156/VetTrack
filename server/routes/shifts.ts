@@ -607,10 +607,8 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
     }
 
     const csvText = req.file.buffer.toString("utf-8");
-    const lines = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-    const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
-
-    if (nonEmptyLines.length === 0) {
+    const parsed = parseShiftsCsvContent(csvText, req.file.originalname || "shifts.csv");
+    if (parsed.totalRows === 0) {
       return res.status(400).json(
         apiError({
           code: "VALIDATION_FAILED",
@@ -620,78 +618,46 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
         }),
       );
     }
-
-    const headers = nonEmptyLines[0].split(",").map((value) => value.trim().toLowerCase());
-    const employeeIdx = headers.indexOf("employee");
-    const shiftIdx = headers.indexOf("shift");
-    const dateIdx = headers.indexOf("date");
-    const startIdx = headers.indexOf("start");
-    const endIdx = headers.indexOf("end");
-
-    if (employeeIdx === -1 || shiftIdx === -1 || dateIdx === -1 || startIdx === -1 || endIdx === -1) {
-      return res.status(400).json(
-        apiError({
+    if (parsed.validRows.length === 0) {
+      return res.status(400).json({
+        ...apiError({
           code: "VALIDATION_FAILED",
-          reason: "CSV_HEADERS_INVALID",
-          message: "CSV must include: Employee, Shift, Date, Start, End",
+          reason: "NO_VALID_SHIFT_ROWS",
+          message: "No valid shift rows found for import",
           requestId,
         }),
-      );
-    }
-
-    const values: Array<{
-      id: string;
-      clinicId: string;
-      employeeName: string;
-      role: ShiftRole;
-      date: string;
-      startTime: string;
-      endTime: string;
-    }> = [];
-
-    let totalRows = 0;
-    let skippedRows = 0;
-
-    for (let i = 1; i < nonEmptyLines.length; i++) {
-      const rawRow = nonEmptyLines[i];
-      const columns = rawRow.split(",").map((value) => value.trim().replace(/^"(.*)"$/s, "$1"));
-
-      totalRows += 1;
-
-      const employeeName = columns[employeeIdx] ?? "";
-      const shiftName = columns[shiftIdx] ?? "";
-      const date = columns[dateIdx] ?? "";
-      const startTime = columns[startIdx] ?? "";
-      const endTime = columns[endIdx] ?? "";
-      const role = detectRole(shiftName);
-
-      if (!employeeName || !role || !date || !startTime || !endTime) {
-        skippedRows += 1;
-        continue;
-      }
-
-      values.push({
-        id: randomUUID(),
-        clinicId,
-        employeeName,
-        role,
-        date,
-        startTime,
-        endTime,
+        issues: parsed.issues,
       });
     }
 
-    if (values.length > 0) {
-      await db.insert(shifts).values(values);
-    }
+    const values = parsed.validRows.map((row) => ({
+      id: createShiftDeterministicId({
+        date: row.date,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        employeeName: row.employeeName,
+        shiftName: row.shiftName,
+        role: row.role,
+      }),
+      clinicId,
+      employeeName: row.employeeName,
+      role: row.role,
+      date: row.date,
+      startTime: row.startTime,
+      endTime: row.endTime,
+    }));
+
+    await db.insert(shifts).values(values).onConflictDoNothing();
 
     console.log(
-      `[shifts import demo] totalRows=${totalRows} insertedRows=${values.length} skippedRows=${skippedRows}`
+      `[shifts import] filename=${parsed.filename} totalRows=${parsed.totalRows} insertedRows=${values.length} skippedRows=${parsed.issues.length}`
     );
 
     return res.json({
       success: true,
       inserted: values.length,
+      skippedRows: parsed.issues.length,
+      issues: parsed.issues,
     });
   } catch (error) {
     console.error(error);
