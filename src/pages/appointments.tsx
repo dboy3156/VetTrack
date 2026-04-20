@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Redirect } from "wouter";
 import { t } from "@/lib/i18n";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -349,7 +350,7 @@ function isVetOrAdmin(role: string | null | undefined, effectiveRole: string | n
 }
 
 export default function AppointmentsPage() {
-  const { userId, role, effectiveRole } = useAuth();
+  const { userId, role, effectiveRole, isLoaded } = useAuth();
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canCreateTask = resolvedRole !== "student";
   const queryClient = useQueryClient();
@@ -657,6 +658,11 @@ export default function AppointmentsPage() {
       overrideReason: overrideReason?.trim() || null,
     };
     createMutation.mutate(payload);
+  }
+
+  // Students have no access to appointments; redirect to equipment.
+  if (isLoaded && resolvedRole === "student") {
+    return <Redirect to="/equipment" replace />;
   }
 
   return (
