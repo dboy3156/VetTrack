@@ -72,6 +72,16 @@ function concentrationUnitLabel(unit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" 
   return "mg/mL";
 }
 
+function concentrationDisplay(name: string, concentration: number, unit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet"): string {
+  const base = `${concentration} ${concentrationUnitLabel(unit)}`;
+  if (unit === "tablet" || unit === "mEq_per_kg") return base;
+  const percentMatch = name.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (!percentMatch) return base;
+  const percent = Number.parseFloat(percentMatch[1]);
+  if (!Number.isFinite(percent) || percent <= 0) return base;
+  return `${percent}% (${base})`;
+}
+
 function formatTabletFraction(tablets: number): string {
   const rounded = Math.round(tablets * 4) / 4;
   const whole = Math.trunc(rounded);
@@ -735,7 +745,7 @@ export function MedicationCalculator({
           <option value="">- Select a drug -</option>
           {formularyList.map((entry) => (
             <option key={entry.id} value={entry.name}>
-              {entry.name} ({entry.concentrationMgMl} {concentrationUnitLabel(entry.doseUnit)}{entry.defaultRoute ? ` · ${entry.defaultRoute}` : ""})
+              {entry.name} ({concentrationDisplay(entry.name, entry.concentrationMgMl, entry.doseUnit)}{entry.defaultRoute ? ` · ${entry.defaultRoute}` : ""})
             </option>
           ))}
         </select>
@@ -745,7 +755,7 @@ export function MedicationCalculator({
             <p className="mt-1 text-xs text-gray-500">
               Route: <span className="font-semibold">{sel.defaultRoute}</span>
               <span className="mx-1">•</span>
-              Concentration: <span className="font-semibold">{sel.concentrationMgMl} {concentrationUnitLabel(sel.doseUnit)}</span>
+              Concentration: <span className="font-semibold">{concentrationDisplay(sel.name, sel.concentrationMgMl, sel.doseUnit)}</span>
             </p>
           ) : null;
         })() : null}
