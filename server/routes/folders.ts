@@ -4,7 +4,7 @@ import { db, folders, equipment } from "../db.js";
 import { eq, desc, and, isNull, lte } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { subDays } from "date-fns";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -101,6 +101,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "folder_created",
       performedBy: req.authUser!.id,
@@ -164,6 +165,7 @@ router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req
     }
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "folder_updated",
       performedBy: req.authUser!.id,
@@ -215,6 +217,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     }
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "folder_deleted",
       performedBy: req.authUser!.id,

@@ -102,6 +102,7 @@ function AuditLogRow({ log }: { log: AuditLog }) {
 
   const noteText = meta?.note as string | undefined;
   const equipmentName = meta?.equipmentName as string | undefined;
+  const actorRole = typeof meta?.actorRole === "string" ? meta.actorRole.trim() : "";
 
   return (
     <div className="border-b last:border-b-0" style={{ minHeight: 60 }}>
@@ -142,6 +143,11 @@ function AuditLogRow({ log }: { log: AuditLog }) {
                 {log.performedByEmail ?? ""}
               </span>
             </div>
+            {actorRole ? (
+              <p className="text-[10px] text-muted-foreground/90 mt-0.5 font-medium uppercase tracking-wide">
+                Role: {actorRole}
+              </p>
+            ) : null}
 
             {/* Note preview */}
             {noteText && !expanded && (

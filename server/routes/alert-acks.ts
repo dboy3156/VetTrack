@@ -4,7 +4,7 @@ import { db, alertAcks } from "../db.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { sendPushToOthers, checkDedupe } from "../lib/push.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 /*
  * PERMISSIONS MATRIX — /api/alert-acks
@@ -109,6 +109,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "alert_acknowledged",
       performedBy: req.authUser!.id,
@@ -170,6 +171,7 @@ router.delete("/", requireAuth, requireEffectiveRole("technician"), async (req, 
       );
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "alert_acknowledgment_removed",
       performedBy: req.authUser!.id,

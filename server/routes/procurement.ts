@@ -5,7 +5,7 @@ import { and, eq, desc, inArray } from "drizzle-orm";
 import { purchaseOrders, poLines, containerItems, inventoryLogs, inventoryItems, db } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -192,6 +192,7 @@ router.post("/", requireAuth, requireAdmin, validateBody(createPoSchema), async 
       .where(eq(poLines.purchaseOrderId, orderId));
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "task_created",
       performedBy: req.authUser!.name || req.authUser!.id,
