@@ -48,6 +48,13 @@ function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, " ");
 }
 
+function normalizeNameKey(name: string): string {
+  return normalizeName(name)
+    .toLowerCase()
+    .replace(/[.\-_/\\,]+/g, "")
+    .replace(/\s+/g, "");
+}
+
 export async function resolveCurrentRole(input: RoleResolutionInput): Promise<RoleResolutionResult> {
   const now = input.now ?? new Date();
   let normalizedName = normalizeName(input.userName);
@@ -62,6 +69,16 @@ export async function resolveCurrentRole(input: RoleResolutionInput): Promise<Ro
   }
 
   if (!normalizedName) {
+    return {
+      effectiveRole: input.fallbackRole,
+      permanentRole: input.fallbackRole,
+      source: "permanent",
+      activeShift: null,
+      resolvedAt: now,
+    };
+  }
+  const normalizedNameKey = normalizeNameKey(normalizedName);
+  if (!normalizedNameKey) {
     return {
       effectiveRole: input.fallbackRole,
       permanentRole: input.fallbackRole,
@@ -89,7 +106,7 @@ export async function resolveCurrentRole(input: RoleResolutionInput): Promise<Ro
     .from(shifts)
     .where(
       and(
-        sql`lower(trim(${shifts.employeeName})) = lower(trim(${normalizedName}))`,
+        sql`replace(replace(replace(replace(replace(lower(trim(${shifts.employeeName})), ' ', ''), '.', ''), '-', ''), '_', ''), '/', '') = ${normalizedNameKey}`,
         eq(shifts.clinicId, input.clinicId),
         or(
           and(
