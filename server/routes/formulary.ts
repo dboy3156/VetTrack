@@ -56,7 +56,7 @@ function toResponseRow(row: typeof drugFormulary.$inferSelect) {
   };
 }
 
-async function seedDefaultsIfClinicHasNoRows(clinicId: string): Promise<void> {
+export async function seedDefaultsIfClinicHasNoRows(clinicId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({ id: drugFormulary.id })

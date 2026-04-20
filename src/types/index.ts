@@ -831,3 +831,60 @@ export interface AuditLogFilters {
   to?: string;
   page?: number;
 }
+
+/** ICU pharmacy forecast (mirrors server `server/lib/forecast/types.ts`). */
+export type ForecastDrugType = "regular" | "cri" | "prn" | "ld";
+
+export type ForecastFlagReason =
+  | "DOSE_HIGH"
+  | "DOSE_LOW"
+  | "FREQ_MISSING"
+  | "DRUG_UNKNOWN"
+  | "PRN_MANUAL"
+  | "PATIENT_UNKNOWN"
+  | "LOW_CONFIDENCE";
+
+export interface ForecastDrugEntry {
+  drugName: string;
+  concentration: string;
+  packDescription: string;
+  route: string;
+  type: ForecastDrugType;
+  quantityUnits: number | null;
+  unitLabel: string;
+  flags: ForecastFlagReason[];
+}
+
+export interface ForecastPatientEntry {
+  recordNumber: string;
+  name: string;
+  species: string;
+  breed: string;
+  sex: string;
+  color: string;
+  weightKg: number;
+  ownerName: string;
+  ownerId: string;
+  ownerPhone: string;
+  drugs: ForecastDrugEntry[];
+  flags: ForecastFlagReason[];
+}
+
+export interface ForecastResult {
+  windowHours: 24 | 72;
+  weekendMode: boolean;
+  patients: ForecastPatientEntry[];
+  totalFlags: number;
+  parsedAt: string;
+}
+
+/** Response shape from POST /api/forecast/parse */
+export type ForecastParseResponse = ForecastResult & { parseId: string };
+
+export interface ForecastApproveResponse {
+  orderId: string;
+  deliveryMethod: "smtp" | "mailto";
+  mailtoUrl?: string;
+  /** True when the mailto body was truncated to keep the URL under client limits. */
+  mailtoBodyTruncated?: boolean;
+}

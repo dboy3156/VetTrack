@@ -48,7 +48,15 @@ export const owners = pgTable("vt_owners", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),
   fullName: text("full_name").notNull().default(""),
+  phone: text("phone"),
+  nationalId: text("national_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const clinics = pgTable("vt_clinics", {
+  id: text("id").primaryKey(),
+  pharmacyEmail: text("pharmacy_email"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -58,6 +66,10 @@ export const animals = pgTable("vt_animals", {
   ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
   name: text("name").notNull().default(""),
   species: text("species"),
+  recordNumber: text("record_number"),
+  breed: text("breed"),
+  sex: text("sex"),
+  color: text("color"),
   weightKg: numeric("weight_kg", { precision: 6, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -144,6 +156,9 @@ export const drugFormulary = pgTable(
     maxDose: numeric("max_dose", { precision: 10, scale: 4 }),
     doseUnit: varchar("dose_unit", { length: 20 }).notNull().default("mg_per_kg"),
     defaultRoute: varchar("default_route", { length: 100 }),
+    unitVolumeMl: numeric("unit_volume_ml", { precision: 10, scale: 4 }),
+    unitType: varchar("unit_type", { length: 20 }),
+    criBufferPct: numeric("cri_buffer_pct", { precision: 5, scale: 4 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     deletedAt: timestamp("deleted_at"),
@@ -153,6 +168,38 @@ export const drugFormulary = pgTable(
       table.clinicId,
       sql`lower(${table.name})`,
     ),
+  }),
+);
+
+export const pharmacyOrders = pgTable(
+  "vt_pharmacy_orders",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    approvedBy: text("approved_by").notNull(),
+    windowHours: integer("window_hours").notNull(),
+    delivery: text("delivery").notNull(),
+    payload: jsonb("payload").notNull(),
+  },
+  (table) => ({
+    clinicCreatedIdx: index("vt_pharmacy_orders_clinic_created_idx").on(table.clinicId, table.createdAt),
+  }),
+);
+
+/** Short-lived server parse; approve must use parse id + manual quantities only. */
+export const pharmacyForecastParses = pgTable(
+  "vt_pharmacy_forecast_parses",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    createdBy: text("created_by").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    result: jsonb("result").notNull(),
+  },
+  (table) => ({
+    clinicIdx: index("vt_pharmacy_forecast_parses_clinic_idx").on(table.clinicId),
+    expiresIdx: index("vt_pharmacy_forecast_parses_expires_idx").on(table.expiresAt),
   }),
 );
 

@@ -53,6 +53,8 @@ import type {
   BillingLedgerEntry,
   InventoryItem,
   PurchaseOrder,
+  ForecastParseResponse,
+  ForecastApproveResponse,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -83,6 +85,18 @@ const BASE_HEADERS: Record<string, string> = {
 
 function buildHeaders(): Record<string, string> {
   return { ...BASE_HEADERS, "X-Locale": getStoredLocale() };
+}
+
+/** Multipart uploads must not send `Content-Type: application/json` so the boundary is preserved. */
+function mergeRequestHeaders(init: RequestInit): Record<string, string> {
+  const merged: Record<string, string> = {
+    ...buildHeaders(),
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  if (typeof FormData !== "undefined" && init.body instanceof FormData) {
+    delete merged["Content-Type"];
+  }
+  return merged;
 }
 
 interface OfflineOptions {
@@ -184,7 +198,7 @@ export async function request<T>(
   silent?: boolean,
   timeoutMs?: number
 ): Promise<T> {
-  const headers = { ...buildHeaders(), ...(init.headers as Record<string, string> | undefined) };
+  const headers = mergeRequestHeaders(init);
 
   try {
     const res = await fetchWithTimeout(url, { ...init, headers }, timeoutMs ?? FETCH_TIMEOUT_MS);
@@ -1145,6 +1159,38 @@ export const api = {
       request<ShiftHandoverSession>("/api/shift-handover/session/end", {
         method: "POST",
         body: JSON.stringify(body ?? {}),
+      }),
+  },
+  forecast: {
+    parseJson: (body: { text: string; windowHours?: 24 | 72; weekendMode?: boolean }) =>
+      request<ForecastParseResponse>("/api/forecast/parse", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    parseMultipart: (file: File, params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (params?.windowHours != null) fd.append("windowHours", String(params.windowHours));
+      if (params?.weekendMode != null) fd.append("weekendMode", String(params.weekendMode));
+      return request<ForecastParseResponse>("/api/forecast/parse", {
+        method: "POST",
+        body: fd,
+      });
+    },
+    approve: (body: {
+      parseId: string;
+      manualQuantities: Record<string, number>;
+    }) =>
+      request<ForecastApproveResponse>("/api/forecast/approve", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    getPharmacyEmail: () =>
+      request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email"),
+    setPharmacyEmail: (pharmacyEmail: string | null) =>
+      request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email", {
+        method: "PATCH",
+        body: JSON.stringify({ pharmacyEmail }),
       }),
   },
 };
