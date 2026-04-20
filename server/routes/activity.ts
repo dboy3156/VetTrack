@@ -8,8 +8,8 @@ import { sql } from "drizzle-orm";
 /*
  * PERMISSIONS MATRIX — /api/activity
  * ─────────────────────────────────────────────────────
- * GET  /               viewer+   Combined scan/transfer activity feed
- * GET  /my-scan-count  viewer+   Count of scans made by the current user
+ * GET  /               student+  Combined scan/transfer activity feed
+ * GET  /my-scan-count  student+  Count of scans made by the current user
  * ─────────────────────────────────────────────────────
  * Viewer read access is intentional — all authenticated users should
  * be able to see activity history for transparency and onboarding.

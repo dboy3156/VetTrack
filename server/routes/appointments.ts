@@ -227,7 +227,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   if (parsed.data.taskType === "medication") {
     // Safety: only vet and admin may initiate medication tasks (non-calculator path).
     // Technicians are handled below (calculator-only). All other roles (senior_technician,
-    // viewer, etc.) are blocked here explicitly — even if hierarchy level would otherwise pass.
+    // student, etc.) are blocked here explicitly — even if hierarchy level would otherwise pass.
     const canInitiateMedication = role === "vet" || role === "admin" || isTechnician;
     if (!canInitiateMedication) {
       return res.status(403).json(

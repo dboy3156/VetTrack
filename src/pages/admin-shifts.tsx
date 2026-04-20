@@ -274,7 +274,7 @@ export default function AdminShiftsPage() {
                       {new Date(entry.importedAt).toLocaleString()} · {entry.rowCount} {t.adminShiftsPage.rowCount}
                     </div>
                     <div className="text-muted-foreground">
-                      {entry.importedByName || entry.importedByEmail || entry.importedBy}
+                      {entry.importedByName || entry.importedByEmail || t.common.unknown}
                     </div>
                   </div>
                 ))}

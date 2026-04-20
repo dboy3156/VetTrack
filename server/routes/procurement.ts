@@ -5,7 +5,7 @@ import { and, eq, desc, inArray } from "drizzle-orm";
 import { purchaseOrders, poLines, containerItems, inventoryLogs, inventoryItems, db } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -192,6 +192,7 @@ router.post("/", requireAuth, requireAdmin, validateBody(createPoSchema), async 
       .where(eq(poLines.purchaseOrderId, orderId));
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "task_created",
       performedBy: req.authUser!.name || req.authUser!.id,
@@ -227,6 +228,19 @@ router.patch("/:id/submit", requireAuth, requireAdmin, validateUuid("id"), async
       .where(eq(purchaseOrders.id, req.params.id));
 
     const [updated] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, req.params.id)).limit(1);
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "task_updated",
+      performedBy: req.authUser!.name || req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: req.params.id,
+      targetType: "purchase_order",
+      metadata: {
+        previousStatus: existing.status,
+        newStatus: updated?.status ?? "ordered",
+      },
+    });
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -344,6 +358,20 @@ router.patch("/:id/receive", requireAuth, requireEffectiveRole("technician"), va
       .innerJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
       .where(eq(poLines.purchaseOrderId, req.params.id));
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "task_updated",
+      performedBy: req.authUser!.name || req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: req.params.id,
+      targetType: "purchase_order",
+      metadata: {
+        previousStatus: existing.status,
+        newStatus: updated?.status ?? existing.status,
+        receiveLineCount: b.lines.length,
+      },
+    });
     res.json({ ...updated, lines: updatedLines });
   } catch (err) {
     console.error(err);
@@ -372,6 +400,19 @@ router.patch("/:id/cancel", requireAuth, requireAdmin, validateUuid("id"), async
       .where(eq(purchaseOrders.id, req.params.id));
 
     const [updated] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, req.params.id)).limit(1);
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "task_cancelled",
+      performedBy: req.authUser!.name || req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: req.params.id,
+      targetType: "purchase_order",
+      metadata: {
+        previousStatus: existing.status,
+        newStatus: updated?.status ?? "cancelled",
+      },
+    });
     res.json(updated);
   } catch (err) {
     console.error(err);

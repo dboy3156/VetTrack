@@ -29,6 +29,7 @@ export interface CreateMedicationTaskInput {
   overrideReason?: string | null;
   createdBy: string;
   createdByEmail: string;
+  actorRole?: string | null;
 }
 
 const IN_PROGRESS_TIMEOUT_MS = 5 * 60 * 1000;
@@ -143,6 +144,7 @@ async function createMedicationTaskInner(input: CreateMedicationTaskInput): Prom
     actionType: "medication_task_created",
     performedBy: input.createdBy,
     performedByEmail: input.createdByEmail,
+    actorRole: input.actorRole,
     targetId: row.id,
     targetType: "medication_task",
     metadata: {
@@ -162,6 +164,7 @@ export async function takeMedicationTask(
   userId: string,
   userEmail: string,
   clinicId: string,
+  actorRole?: string | null,
 ): Promise<MedicationTask> {
   try {
     const rows = await db
@@ -192,6 +195,7 @@ export async function takeMedicationTask(
       actionType: "medication_task_taken",
       performedBy: userId,
       performedByEmail: userEmail,
+      actorRole,
       targetId: task.id,
       targetType: "medication_task",
       metadata: {
@@ -214,6 +218,7 @@ export async function completeMedicationTask(
   userId: string,
   userEmail: string,
   clinicId: string,
+  actorRole?: string | null,
 ): Promise<MedicationTask> {
   try {
     const [pre] = await db
@@ -251,6 +256,7 @@ export async function completeMedicationTask(
         actionType: "medication_task_completed",
         performedBy: userId,
         performedByEmail: userEmail,
+        actorRole,
         targetId: task.id,
         targetType: "medication_task",
         metadata: {
@@ -327,6 +333,7 @@ export async function releaseExpiredMedicationTasks(clinicId?: string): Promise<
         actionType: "medication_task_released_stale",
         performedBy: row.assignedTo ?? "system",
         performedByEmail: "",
+        actorRole: "system",
         targetId: row.id,
         targetType: "medication_task",
         metadata: {
@@ -372,6 +379,7 @@ export async function releaseStaleMedicationTasks(): Promise<number> {
         actionType: "medication_task_released_stale",
         performedBy: row.assignedTo ?? "system",
         performedByEmail: "",
+        actorRole: "system",
         targetId: row.id,
         targetType: "medication_task",
         metadata: {

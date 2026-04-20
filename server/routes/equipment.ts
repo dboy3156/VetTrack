@@ -9,7 +9,7 @@ import { validateBody, validateUuid } from "../middleware/validate.js";
 import { scanLimiter, checkoutLimiter, writeLimiter } from "../middleware/rate-limiters.js";
 import { checkDedupe, sendPushToAll } from "../lib/push.js";
 import { invalidateAnalyticsCache } from "../lib/analytics-cache.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { trackSyncSuccess, trackSyncFail } from "../lib/sync-metrics.js";
 import { scheduleSmartReturnReminder, cancelSmartReturnReminder } from "../lib/role-notification-scheduler.js";
 import { recordEquipmentSeen } from "../lib/equipment-seen.js";
@@ -698,6 +698,7 @@ router.post("/", requireAuth, writeLimiter, requireEffectiveRole("technician"), 
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_created",
       performedBy: req.authUser!.id,
@@ -832,6 +833,7 @@ try {
     }
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_updated",
       performedBy: req.authUser!.id,
@@ -883,6 +885,7 @@ try {
       .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id), isNull(equipment.deletedAt)));
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_deleted",
       performedBy: req.authUser!.id,
@@ -1038,6 +1041,7 @@ router.post(
     const u = updated as EquipmentRow;
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_checked_out",
       performedBy: req.authUser!.id,
@@ -1199,6 +1203,7 @@ router.post("/:id/return", requireAuth, checkoutLimiter, requireEffectiveRole("s
     const u = updated as EquipmentRow;
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_returned",
       performedBy: req.authUser!.id,
@@ -1399,6 +1404,7 @@ router.post("/:id/scan", requireAuth, scanLimiter, requireEffectiveRole("student
     const eq2 = updatedEquipment as EquipmentRow;
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_scanned",
       performedBy: req.authUser!.id,
@@ -1529,6 +1535,7 @@ router.post("/:id/revert", requireAuth, requireEffectiveRole("vet"), validateUui
     });
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_reverted",
       performedBy: req.authUser!.id,
@@ -1666,7 +1673,15 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
   const nonEmpty = lines.filter((l) => l.trim().length > 0);
   if (nonEmpty.length === 0) return { headers: [], rows: [] };
   const [headerLine, ...dataLines] = nonEmpty;
-  const headers = parseCsvLine(headerLine).map((h) => h.toLowerCase().replace(/\s+/g, ""));
+  const normalizeImportHeader = (value: string) =>
+    value
+      .replace(/^\uFEFF/, "") // strip UTF-8 BOM (Excel/Sheets exports)
+      .trim()
+      .toLowerCase()
+      .replace(/^["']|["']$/g, "")
+      .replace(/[\s_-]+/g, "")
+      .replace(/[()[\]./\\]/g, "");
+  const headers = parseCsvLine(headerLine).map((h) => normalizeImportHeader(h));
   const rows = dataLines.map((l) => parseCsvLine(l));
   return { headers, rows };
 }
@@ -1842,6 +1857,7 @@ try {
     });
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_imported",
       performedBy: req.authUser!.id,
@@ -1901,6 +1917,7 @@ try {
       }
 
       logAudit({
+        actorRole: resolveAuditActorRole(req),
         clinicId,
         actionType: "equipment_bulk_deleted",
         performedBy: req.authUser!.id,
@@ -1974,6 +1991,7 @@ router.post("/bulk-move", requireAuth, writeLimiter, requireEffectiveRole("techn
     });
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "equipment_bulk_moved",
       performedBy: req.authUser!.id,
@@ -2087,6 +2105,7 @@ router.post(
       });
 
       logAudit({
+        actorRole: resolveAuditActorRole(req),
         clinicId,
         actionType: "room_bulk_verified",
         performedBy: req.authUser!.id,

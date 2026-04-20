@@ -228,11 +228,14 @@ function formatScheduledLabel(appointment: Appointment): string | null {
 function formatPrescribedByLabel(appointment: Appointment): string | null {
   if (appointment.taskType !== "medication") return null;
   const metadata = medicationMetadata(appointment);
-  const prescribedBy = typeof metadata?.prescribedByName === "string"
+  const prescribedByRaw = typeof metadata?.prescribedByName === "string"
     ? metadata.prescribedByName
     : typeof metadata?.createdBy === "string"
       ? metadata.createdBy
       : null;
+  const prescribedBy = prescribedByRaw && !looksLikeUuid(prescribedByRaw)
+    ? prescribedByRaw
+    : "Staff member";
   if (!prescribedBy) return null;
   return `Prescribed by ${prescribedBy}`;
 }
@@ -294,13 +297,13 @@ function looksLikeUuid(s: string): boolean {
 
 function formatDevice(animalId: string | null | undefined): string {
   if (!animalId) return "Unassigned device";
-  if (looksLikeUuid(animalId)) return `Device #${animalId.slice(0, 6)}`;
+  if (looksLikeUuid(animalId)) return "Assigned device";
   return animalId;
 }
 
 function formatLocation(ownerId: string | null | undefined): string | null {
   if (!ownerId) return null;
-  if (looksLikeUuid(ownerId)) return `#${ownerId.slice(0, 6)}`;
+  if (looksLikeUuid(ownerId)) return "Assigned owner";
   return ownerId;
 }
 

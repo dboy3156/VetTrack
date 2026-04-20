@@ -1,6 +1,6 @@
 /**
  * Task notification orchestration — enqueue-only from API paths; worker executes pushes.
- * "Manager" visibility: DB roles are admin | vet | technician | viewer — TASK_STARTED/COMPLETED
+ * "Manager" visibility: DB roles are admin | vet | technician | student — TASK_STARTED/COMPLETED
  * notify admin + vet (no `manager` role string in schema).
  */
 import { logAudit } from "./audit.js";
@@ -27,6 +27,7 @@ export interface TaskNotificationTask {
 export interface TaskNotificationActor {
   userId: string;
   email: string;
+  role?: string;
 }
 
 function taskTag(event: TaskNotificationEvent, taskId: string): string {
@@ -86,6 +87,7 @@ export async function dispatchTaskNotificationSync(
           actionType: "CRITICAL_NOTIFICATION_SENT",
           performedBy: actor?.userId ?? "system",
           performedByEmail: actor?.email ?? "system@vettrack.internal",
+          actorRole: actor?.role ?? "system",
           targetId: task.id,
           targetType: "task",
           metadata: {

@@ -5,13 +5,13 @@ import { animals, db, equipment, patientRoomAssignments, rooms, scanLogs, users 
 import { eq, and, isNull, isNotNull, sql, desc, gt } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 /*
  * PERMISSIONS MATRIX — /api/rooms
  * ─────────────────────────────────────────────────────
- * GET  /           viewer+       List rooms with equipment counts
- * GET  /:id        viewer+       Get single room
+ * GET  /           student+      List rooms with equipment counts
+ * GET  /:id        student+      Get single room
  * POST /           technician+   Create room
  * PATCH /:id       admin-only    Update room metadata
  * DELETE /:id      admin-only    Delete room (must be empty)
@@ -290,6 +290,7 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), validateBody(c
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "room_created",
       performedBy: req.authUser!.id,
@@ -368,6 +369,7 @@ router.patch("/:id", requireAuth, requireAdmin, validateBody(patchRoomSchema), a
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "room_updated",
       performedBy: req.authUser!.id,
@@ -432,6 +434,7 @@ router.delete("/:id", requireAuth, requireAdmin, async (req, res) => {
     await db.delete(rooms).where(and(eq(rooms.id, req.params.id), eq(rooms.clinicId, clinicId)));
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "room_deleted",
       performedBy: req.authUser!.id,

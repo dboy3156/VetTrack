@@ -107,7 +107,15 @@ export default function EquipmentDetailPage() {
   const searchStr = useSearch();
   const { isAdmin, email, userId, role, effectiveRole } = useAuth();
   const queryEnabled = !!userId;
-  const ROLE_LEVEL: Record<string, number> = { admin: 40, vet: 30, senior_technician: 25, technician: 20, student: 10 };
+  const ROLE_LEVEL: Record<string, number> = {
+    admin: 40,
+    vet: 30,
+    senior_technician: 25,
+    technician: 20,
+    // Backward compatibility for any stale session values.
+    viewer: 10,
+    student: 10,
+  };
   const resolvedEquipmentRole = String(effectiveRole ?? role ?? "").toLowerCase();
   /** Baseline DB/shift role is student — not elevated technician/vet for this session. */
   const isStudentEquipmentRole = resolvedEquipmentRole === "student";
