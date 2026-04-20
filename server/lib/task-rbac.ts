@@ -26,10 +26,10 @@ function normalizedRole(role: string | null | undefined): string {
  * Keep this small and explicit so route-level intent is easy to audit.
  *
  * DUAL-ROLE SAFETY CONTRACT:
- * Medication creation (med.task.create) is explicitly allow-listed to vet and admin only.
+ * Medication creation (med.task.create) is explicitly allow-listed to vet only.
  * Permission checks here use exact role strings — NOT numeric hierarchy levels — so no
  * role combination can accidentally inherit vet/physician-level permissions. A user with
- * a combined or shift-elevated role must still be explicitly "vet" or "admin" to create tasks.
+ * a combined or shift-elevated role must still be explicitly "vet" to create tasks.
  */
 export function canPerformTaskAction(roleInput: string | null | undefined, action: TaskAction): boolean {
   const role = normalizedRole(roleInput);
@@ -63,6 +63,11 @@ export function canPerformMedicationTaskAction(
 ): boolean {
   const role = normalizedRole(roleInput);
 
+  // Clinical safety policy: only veterinarians can create medication tasks.
+  if (action === "med.task.create") {
+    return role === "vet";
+  }
+
   if (role === "admin") return true;
 
   if (role === "vet") {
@@ -76,8 +81,8 @@ export function canPerformMedicationTaskAction(
     );
   }
 
-  // senior_technician can execute tasks (start/complete) but NOT create or approve.
-  // Safety: med.task.create is intentionally excluded — only vet/admin can initiate.
+  // senior_technician can execute tasks (start/complete) but NOT create.
+  // Safety: med.task.create is intentionally excluded — only vet can initiate.
   if (role === "senior_technician") {
     return action === "med.read" || action === "med.start" || action === "med.complete";
   }

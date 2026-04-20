@@ -229,7 +229,6 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   }
 
   const role = resolveTaskAuthRole(req);
-  const isTechnician = role === "technician";
   const source = (() => {
     const metadata = metadataRecord(parsed.data.metadata);
     return typeof metadata.source === "string" ? metadata.source.trim().toLowerCase() : "";
@@ -237,43 +236,19 @@ router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, re
   const isCalculatorSourceMedication = parsed.data.taskType === "medication" && source === "calculator";
 
   if (parsed.data.taskType === "medication") {
-    // Safety: only vet and admin may initiate medication tasks (non-calculator path).
-    // Technicians are handled below (calculator-only). All other roles (senior_technician,
-    // student, etc.) are blocked here explicitly — even if hierarchy level would otherwise pass.
-    const canInitiateMedication = role === "vet" || role === "admin" || isTechnician;
+    // Clinical policy: medication task creation is veterinarian-only.
+    const canInitiateMedication = role === "vet";
     if (!canInitiateMedication) {
       return res.status(403).json(
         apiError({
           code: "INSUFFICIENT_ROLE",
           reason: "MEDICATION_CREATE_NOT_PERMITTED",
-          message: "Only vets and admins may create medication tasks.",
+          message: "Only vets may create medication tasks.",
           requestId,
         }),
       );
     }
-    if (isTechnician) {
-      if (!isCalculatorSourceMedication) {
-        return res.status(403).json(
-          apiError({
-            code: "INSUFFICIENT_ROLE",
-            reason: "TECHNICIAN_CALCULATOR_ONLY",
-            message: "Technicians may only create calculator-origin medication tasks.",
-            requestId,
-          }),
-        );
-      }
-      if (!req.authUser?.id) {
-        return res.status(401).json(
-          apiError({
-            code: "UNAUTHORIZED",
-            reason: "MISSING_AUTH_USER",
-            message: "Authenticated user context is missing.",
-            requestId,
-          }),
-        );
-      }
-      parsed.data.vetId = req.authUser.id;
-    } else if (!requireMedicationActionPermission(req, res, "med.task.create")) {
+    if (!requireMedicationActionPermission(req, res, "med.task.create")) {
       return;
     }
   } else {

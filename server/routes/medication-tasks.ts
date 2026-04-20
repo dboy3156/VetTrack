@@ -144,7 +144,7 @@ router.post("/", async (req, res) => {
       apiError({
         code: "INSUFFICIENT_ROLE",
         reason: "MEDICATION_CREATE_NOT_PERMITTED",
-        message: "Only vets and admins may create medication tasks.",
+        message: "Only vets may create medication tasks.",
         requestId,
       }),
     );
