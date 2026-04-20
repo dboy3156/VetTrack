@@ -16,6 +16,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .filter(Boolean);
 
 export type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "student";
+type LegacyUserRole = UserRole | "viewer";
 
 export interface AuthUser {
   id: string;
@@ -46,6 +47,22 @@ const ROLE_HIERARCHY: Record<string, number> = {
   technician: 20,
   student: 10,
 };
+
+function normalizeUserRole(role: string | null | undefined): UserRole {
+  const normalized = (role ?? "").trim().toLowerCase();
+  // Backward compatibility for pre-migration values.
+  if (normalized === "viewer") return "student";
+  if (
+    normalized === "admin" ||
+    normalized === "vet" ||
+    normalized === "technician" ||
+    normalized === "senior_technician" ||
+    normalized === "student"
+  ) {
+    return normalized;
+  }
+  return "student";
+}
 
 const DEV_USER: AuthUser = {
   id: "dev-admin-001",
@@ -134,7 +151,7 @@ async function ensureDevUserRecord(devUser: AuthUser): Promise<AuthUser> {
     clerkId: row.clerkId,
     email: row.email,
     name: row.name,
-    role: row.role as UserRole,
+    role: normalizeUserRole(row.role),
     status: row.status,
     clinicId: devUser.clinicId,
   };
@@ -184,17 +201,16 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   const isDevBypass = isDevelopment && !hasClerkSecret;
 
   if (isDevBypass) {
-    const overrideRole = req.headers["x-dev-role-override"] as UserRole | undefined;
+    const overrideRole = req.headers["x-dev-role-override"] as LegacyUserRole | undefined;
     const overrideUserId = req.headers["x-dev-user-id-override"] as string | undefined;
     const overrideClinicId = req.headers["x-dev-clinic-id-override"] as string | undefined;
     const userPreset = overrideUserId ? DEV_USER_PRESETS[overrideUserId] : undefined;
     const baseUser: AuthUser = userPreset ? { ...DEV_USER, ...userPreset } : DEV_USER;
     const clinicId = (overrideClinicId ?? process.env.DEV_DEFAULT_CLINIC_ID ?? DEV_USER.clinicId).trim();
     const tenantUser: AuthUser = { ...baseUser, clinicId };
-    const devUser: AuthUser =
-      overrideRole && Object.keys(ROLE_HIERARCHY).includes(overrideRole)
-        ? { ...tenantUser, role: overrideRole }
-        : tenantUser;
+    const devUser: AuthUser = overrideRole
+      ? { ...tenantUser, role: normalizeUserRole(overrideRole) }
+      : tenantUser;
     const resolved = await ensureDevUserRecord(devUser);
     return { ok: true, user: resolved };
   }
@@ -416,7 +432,7 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
-      role: user.role as UserRole,
+      role: normalizeUserRole(user.role),
       status: user.status,
       clinicId: user.clinicId,
       locale: clerkLocale,

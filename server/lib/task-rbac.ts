@@ -16,7 +16,9 @@ export type MedicationTaskAction =
   | "med.complete";
 
 function normalizedRole(role: string | null | undefined): string {
-  return (role ?? "").trim().toLowerCase();
+  const normalized = (role ?? "").trim().toLowerCase();
+  // Backward compatibility for legacy role values after Viewer -> Student rename.
+  return normalized === "viewer" ? "student" : normalized;
 }
 
 /**
