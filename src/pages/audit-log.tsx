@@ -136,11 +136,11 @@ function AuditLogRow({ log }: { log: AuditLog }) {
               )}
             </div>
 
-            {/* Staff email only */}
+            {/* Staff: prefer display name, then email */}
             <div className="flex items-center gap-1 mt-0.5">
               <User className="w-3 h-3 text-muted-foreground" style={{ flexShrink: 0 }} />
               <span className="text-xs text-muted-foreground truncate">
-                {log.performedByEmail?.trim() || t.common.unknown}
+                {(log.performedByName && log.performedByName.trim()) || log.performedByEmail?.trim() || t.common.unknown}
               </span>
             </div>
             {actorRole ? (

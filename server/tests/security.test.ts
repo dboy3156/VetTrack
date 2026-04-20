@@ -73,7 +73,7 @@ async function testGlobalRateLimit() {
 async function testScanRateLimit() {
   console.log("\n[3] Rate Limit — scan endpoint 10/min (burst 12)");
   let hit429 = false;
-  // In dev mode, requireEffectiveRole("vet") will pass as we are admin; the rate limit fires before the handler returns 404
+  // In dev mode, requireEffectiveRole("student") passes for admin; the rate limit fires before the handler returns 404
   const fakeId = "00000000-0000-0000-0000-000000000000";
   for (let i = 0; i < 12; i++) {
     const r = await post(`/api/equipment/${fakeId}/scan`, { status: "ok" });

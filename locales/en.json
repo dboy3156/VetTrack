@@ -831,7 +831,7 @@
     "roleAdmin": "Admin",
     "roleVet": "Veterinarian",
     "roleTechnician": "Technician",
-    "roleViewer": "Student",
+    "roleStudent": "Student",
     "roleUpdated": "Role updated",
     "roleUpdateFailed": "Failed to update role",
     "statusUpdated": "Status updated",

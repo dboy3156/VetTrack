@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { db, auditLogs } from "../db.js";
-import { desc, eq, and, gte, lte, ilike } from "drizzle-orm";
+import { db, auditLogs, users } from "../db.js";
+import { desc, eq, and, gte, lte, ilike, sql, isNull } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
@@ -66,16 +66,29 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       }
     }
 
-    const query = db
-      .select()
+    const baseQuery = db
+      .select({
+        id: auditLogs.id,
+        clinicId: auditLogs.clinicId,
+        actionType: auditLogs.actionType,
+        performedBy: auditLogs.performedBy,
+        performedByEmail: auditLogs.performedByEmail,
+        performedByName: sql<string | null>`NULLIF(TRIM(COALESCE(${users.displayName}, ${users.name})), '')`,
+        targetId: auditLogs.targetId,
+        targetType: auditLogs.targetType,
+        metadata: auditLogs.metadata,
+        timestamp: auditLogs.timestamp,
+      })
       .from(auditLogs)
+      .leftJoin(
+        users,
+        and(eq(auditLogs.performedBy, users.id), eq(users.clinicId, clinicId), isNull(users.deletedAt)),
+      )
       .orderBy(desc(auditLogs.timestamp))
       .limit(PAGE_SIZE + 1)
       .offset(offset);
 
-    const rows = conditions.length > 0
-      ? await query.where(and(...conditions))
-      : await query;
+    const rows = conditions.length > 0 ? await baseQuery.where(and(...conditions)) : await baseQuery;
 
     const hasMore = rows.length > PAGE_SIZE;
     const items = rows.slice(0, PAGE_SIZE);

@@ -809,6 +809,8 @@ export interface AuditLog {
   actionType: string;
   performedBy: string;
   performedByEmail: string;
+  /** Resolved from vt_users when performedBy matches a user id in this clinic. */
+  performedByName?: string | null;
   targetId: string | null;
   targetType: string | null;
   metadata: Record<string, unknown> | null;
