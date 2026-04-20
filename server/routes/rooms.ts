@@ -10,8 +10,8 @@ import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 /*
  * PERMISSIONS MATRIX — /api/rooms
  * ─────────────────────────────────────────────────────
- * GET  /           viewer+       List rooms with equipment counts
- * GET  /:id        viewer+       Get single room
+ * GET  /           student+      List rooms with equipment counts
+ * GET  /:id        student+      Get single room
  * POST /           technician+   Create room
  * PATCH /:id       admin-only    Update room metadata
  * DELETE /:id      admin-only    Delete room (must be empty)

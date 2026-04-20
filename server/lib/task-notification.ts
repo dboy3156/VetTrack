@@ -1,6 +1,6 @@
 /**
  * Task notification orchestration — enqueue-only from API paths; worker executes pushes.
- * "Manager" visibility: DB roles are admin | vet | technician | viewer — TASK_STARTED/COMPLETED
+ * "Manager" visibility: DB roles are admin | vet | technician | student — TASK_STARTED/COMPLETED
  * notify admin + vet (no `manager` role string in schema).
  */
 import { logAudit } from "./audit.js";

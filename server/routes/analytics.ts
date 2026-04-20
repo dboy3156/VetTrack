@@ -11,7 +11,7 @@ import { INACTIVE_THRESHOLD_DAYS } from "../../shared/constants.js";
 /*
  * PERMISSIONS MATRIX — /api/analytics
  * ─────────────────────────────────────────────────────
- * GET  /   viewer+   Aggregate dashboard statistics
+ * GET  /   student+  Aggregate dashboard statistics
  * ─────────────────────────────────────────────────────
  * Viewer read access is intentional — dashboard stats are informational
  * and do not expose any PII or mutation capability.

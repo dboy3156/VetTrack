@@ -9,7 +9,7 @@ import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 /*
  * PERMISSIONS MATRIX — /api/alert-acks
  * ─────────────────────────────────────────────────────
- * GET  /             viewer+       Read current acknowledgments
+ * GET  /             student+      Read current acknowledgments
  * POST /             technician+   Claim an alert ("I'm handling this")
  * DELETE /           technician+   Remove an acknowledgment
  * ─────────────────────────────────────────────────────

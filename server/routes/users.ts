@@ -14,10 +14,10 @@ import { ensureUserEmail } from "../services/user-sync.service.js";
 /*
  * PERMISSIONS MATRIX — /api/users
  * ─────────────────────────────────────────────────────
- * GET   /me          viewer+     Current authenticated user's profile
+ * GET   /me          student+    Current authenticated user's profile
  * GET   /            admin-only  List all users
  * PATCH /:id/role    admin-only  Change a user's role
- * POST  /sync        viewer+     Sync Clerk identity to DB record
+ * POST  /sync        student+    Sync Clerk identity to DB record
  * ─────────────────────────────────────────────────────
  * Role is always resolved from the DB record — never from request
  * headers, body, or JWT claims.
