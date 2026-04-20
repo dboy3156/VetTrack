@@ -52,6 +52,35 @@ export interface LogAuditParams {
   targetId?: string | null;
   targetType?: string | null;
   metadata?: Record<string, unknown> | null;
+  /**
+   * When set, merged into stored metadata as `actorRole` (shift-aware effective role when provided).
+   * Skipped if metadata already defines `actorRole`.
+   */
+  actorRole?: string | null;
+}
+
+/** Minimal shape for Express `req` after auth middleware (avoids importing Express in this module). */
+export type AuditActorSource = {
+  effectiveRole?: string;
+  authUser?: { role?: string };
+};
+
+export function resolveAuditActorRole(source: AuditActorSource): string | null {
+  const r = String(source.effectiveRole ?? source.authUser?.role ?? "").trim().toLowerCase();
+  return r.length > 0 ? r : null;
+}
+
+function mergeAuditMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  actorRole: string | null | undefined,
+): Record<string, unknown> | null {
+  const base: Record<string, unknown> =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata) ? { ...metadata } : {};
+  const trimmed = actorRole != null ? String(actorRole).trim() : "";
+  if (trimmed && base.actorRole === undefined) {
+    base.actorRole = trimmed;
+  }
+  return Object.keys(base).length > 0 ? base : null;
 }
 
 export function logAudit(params: LogAuditParams): void {
@@ -60,6 +89,7 @@ export function logAudit(params: LogAuditParams): void {
       console.error("[audit] skipped: missing clinicId", { actionType: params.actionType });
       return;
     }
+    const mergedMetadata = mergeAuditMetadata(params.metadata, params.actorRole);
     db.insert(auditLogs)
       .values({
         id: randomUUID(),
@@ -69,7 +99,7 @@ export function logAudit(params: LogAuditParams): void {
         performedByEmail: params.performedByEmail,
         targetId: params.targetId ?? null,
         targetType: params.targetType ?? null,
-        metadata: params.metadata ?? null,
+        metadata: mergedMetadata,
       })
       .catch((err) => {
         console.error("[audit] Failed to write audit log:", err);

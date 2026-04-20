@@ -4,7 +4,7 @@ import multer from "multer";
 import { and, desc, eq } from "drizzle-orm";
 import { db, shiftImports, shifts, users } from "../db.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 type ShiftRole = "technician" | "senior_technician" | "admin";
 
@@ -539,6 +539,7 @@ router.post("/import/confirm", requireAuth, requireAdmin, uploadCsvFile, async (
     });
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "task_created",
       performedBy: req.authUser!.name || req.authUser!.id,

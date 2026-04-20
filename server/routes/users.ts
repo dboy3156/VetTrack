@@ -7,7 +7,7 @@ import { requireAuth, requireAuthAny, requireAdmin } from "../middleware/auth.js
 import { clerkClient } from "@clerk/express";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { resolveCurrentRole } from "../lib/role-resolution.js";
 import { ensureUserEmail } from "../services/user-sync.service.js";
 
@@ -319,6 +319,7 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "user_role_changed",
       performedBy: req.authUser!.id,
@@ -372,6 +373,7 @@ router.patch("/:id/status", requireAuth, requireAdmin, validateUuid("id"), valid
     }
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "user_status_changed",
       performedBy: req.authUser!.id,
@@ -448,6 +450,7 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "user_display_name_changed",
       performedBy: actorId,
@@ -556,6 +559,7 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
     }
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "user_deleted",
       performedBy: actorId,
@@ -632,6 +636,7 @@ router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res
       .returning();
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "user_restored",
       performedBy: actorId,
@@ -691,6 +696,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         .returning();
 
       logAudit({
+        actorRole: String(existing.role ?? "").trim().toLowerCase() || null,
         clinicId,
         actionType: "user_login",
         performedBy: existing.id,
@@ -758,6 +764,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
 
     if (wasCreated) {
       logAudit({
+        actorRole: String(newUser.role ?? "technician").trim().toLowerCase() || null,
         clinicId,
         actionType: "user_provisioned",
         performedBy: newUser.id,
@@ -768,6 +775,7 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
       });
     } else {
       logAudit({
+        actorRole: String(newUser.role ?? "").trim().toLowerCase() || null,
         clinicId,
         actionType: "user_login",
         performedBy: newUser.id,
@@ -885,6 +893,7 @@ router.post("/backfill-clerk", requireAuth, requireAdmin, authSensitiveLimiter, 
     }
 
     logAudit({
+      actorRole: resolveAuditActorRole(req),
       clinicId,
       actionType: "users_backfilled_from_clerk",
       performedBy: actor.id,
