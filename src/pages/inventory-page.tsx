@@ -368,7 +368,7 @@ export default function InventoryPage() {
       <div className="max-w-2xl mx-auto p-4 space-y-4">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <h1 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
             <Package className="w-7 h-7 text-primary shrink-0" aria-hidden />
             {p.title}
@@ -442,15 +442,17 @@ export default function InventoryPage() {
               {/* Card header */}
               <div
                 className={cn(
-                  "px-4 py-3 border-b text-sm font-semibold flex items-center justify-between",
+                  "px-4 py-3 border-b text-sm font-semibold flex flex-wrap items-start justify-between gap-2",
                   isRestocking
                     ? "bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-800"
                     : "bg-muted text-muted-foreground border-border",
                 )}
               >
-                <span>{isRestocking ? `🟡 Restocking — ${selected.name}` : selected.name}</span>
+                <span className="min-w-0 flex-1 break-words">
+                  {isRestocking ? `🟡 Restocking — ${selected.name}` : selected.name}
+                </span>
                 {selected.department && (
-                  <span className="text-xs font-normal opacity-60">{selected.department}</span>
+                  <span className="text-xs font-normal opacity-60 shrink-0">{selected.department}</span>
                 )}
               </div>
 

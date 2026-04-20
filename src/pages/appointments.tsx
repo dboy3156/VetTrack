@@ -713,7 +713,7 @@ export default function AppointmentsPage() {
               return (
                 <div className="rounded-xl border border-border/70 p-4 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <div className="text-sm font-semibold">{formatDevice(nbt.animalId)}</div>
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(formatLocation(nbt.ownerId), resolveVet(nbt.vetId), timeRange)}
@@ -809,8 +809,8 @@ export default function AppointmentsPage() {
                 <ul className="space-y-2">
                   {(dashboardQuery.data?.overdue ?? []).map((overdueItem) => (
                     <li key={overdueItem.id} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.overdue}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(overdueItem.animalId)}</span>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(overdueItem.animalId)}</span>
                         <Badge variant="outline" className={URGENT_BADGE_STYLES.overdue}>
                           overdue
                         </Badge>
@@ -831,8 +831,8 @@ export default function AppointmentsPage() {
                   ))}
                   {(recommendationsQuery.data?.urgentTasks ?? []).map((urgentItem) => (
                     <li key={`urgent-${urgentItem.id}`} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.critical}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(urgentItem.animalId)}</span>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(urgentItem.animalId)}</span>
                         <Badge variant="outline" className={URGENT_BADGE_STYLES.critical}>
                           critical
                         </Badge>
@@ -925,9 +925,9 @@ export default function AppointmentsPage() {
                     });
                     return (
                     <li key={todayTask.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.soon}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(todayTask.animalId)}</span>
-                        <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(todayTask.animalId)}</span>
+                        <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
                           {isDelayedMedicationTask(todayTask) ? (
                             <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
                               {t.appointmentsPage.delayed}
@@ -1046,9 +1046,9 @@ export default function AppointmentsPage() {
                     });
                     return (
                     <li key={myTask.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.normal}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{formatDevice(myTask.animalId)}</span>
-                        <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(myTask.animalId)}</span>
+                        <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
                           {isDelayedMedicationTask(myTask) ? (
                             <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
                               {t.appointmentsPage.delayed}
@@ -1313,11 +1313,11 @@ export default function AppointmentsPage() {
                         className={`absolute left-16 sm:left-24 right-3 rounded-lg border shadow-sm p-2 ${STATUS_COLORS[appointment.status]}`}
                         style={{ top: top + 1, height }}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-semibold truncate">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="text-xs font-semibold min-w-0 flex-1 break-words">
                             {formatDevice(appointment.animalId)}
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap justify-end gap-1 shrink-0">
                             {isDelayedMedicationTask(appointment) ? (
                               <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
                                 {t.appointmentsPage.delayed}
