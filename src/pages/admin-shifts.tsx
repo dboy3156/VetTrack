@@ -188,12 +188,12 @@ export default function AdminShiftsPage() {
                 <table className="w-full text-xs">
                   <thead className="bg-muted/60">
                     <tr>
-                      <th className="text-left p-2">#</th>
-                      <th className="text-left p-2">{t.adminShiftsPage.date}</th>
-                      <th className="text-left p-2">{t.adminShiftsPage.startTime}</th>
-                      <th className="text-left p-2">{t.adminShiftsPage.endTime}</th>
-                      <th className="text-left p-2">{t.adminShiftsPage.employeeName}</th>
-                      <th className="text-left p-2">{t.adminShiftsPage.role}</th>
+                      <th className="text-start p-2">#</th>
+                      <th className="text-start p-2">{t.adminShiftsPage.date}</th>
+                      <th className="text-start p-2">{t.adminShiftsPage.startTime}</th>
+                      <th className="text-start p-2">{t.adminShiftsPage.endTime}</th>
+                      <th className="text-start p-2">{t.adminShiftsPage.employeeName}</th>
+                      <th className="text-start p-2">{t.adminShiftsPage.role}</th>
                     </tr>
                   </thead>
                   <tbody>

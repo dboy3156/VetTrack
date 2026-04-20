@@ -264,12 +264,12 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
               <table className="w-full">
                 <thead>
                   <tr className="bg-muted/50">
-                    <th className="px-2 py-2 text-left font-medium text-muted-foreground w-8">#</th>
-                    <th className="px-2 py-2 text-left font-medium text-muted-foreground">Name</th>
-                    <th className="px-2 py-2 text-left font-medium text-muted-foreground">Serial</th>
-                    <th className="px-2 py-2 text-left font-medium text-muted-foreground">Status</th>
-                    <th className="px-2 py-2 text-left font-medium text-muted-foreground">Location</th>
-                    <th className="px-2 py-2 text-left font-medium text-muted-foreground min-w-32">Error</th>
+                    <th className="px-2 py-2 text-start font-medium text-muted-foreground w-8">#</th>
+                    <th className="px-2 py-2 text-start font-medium text-muted-foreground">Name</th>
+                    <th className="px-2 py-2 text-start font-medium text-muted-foreground">Serial</th>
+                    <th className="px-2 py-2 text-start font-medium text-muted-foreground">Status</th>
+                    <th className="px-2 py-2 text-start font-medium text-muted-foreground">Location</th>
+                    <th className="px-2 py-2 text-start font-medium text-muted-foreground min-w-32">Error</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,8 +314,8 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
                   <table className="w-full">
                     <thead className="sticky top-0">
                       <tr className="bg-muted/50">
-                        <th className="px-2 py-2 text-left font-medium text-muted-foreground w-8">Row</th>
-                        <th className="px-2 py-2 text-left font-medium text-muted-foreground">Reason</th>
+                        <th className="px-2 py-2 text-start font-medium text-muted-foreground w-8">Row</th>
+                        <th className="px-2 py-2 text-start font-medium text-muted-foreground">Reason</th>
                       </tr>
                     </thead>
                     <tbody>

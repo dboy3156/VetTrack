@@ -107,7 +107,7 @@ function AuditLogRow({ log }: { log: AuditLog }) {
   return (
     <div className="border-b last:border-b-0" style={{ minHeight: 60 }}>
       <button
-        className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
+        className="w-full text-start px-4 py-3 hover:bg-muted/30 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-start gap-3">

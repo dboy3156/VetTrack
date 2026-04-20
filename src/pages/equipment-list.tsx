@@ -484,7 +484,7 @@ export default function EquipmentListPage() {
           {/* Folder filter trigger */}
           <button
             onClick={() => setFolderSheetOpen(true)}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-left transition-colors ${
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-start transition-colors ${
               folderFilter !== "all"
                 ? "border-primary bg-primary/5 text-primary"
                 : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -537,7 +537,7 @@ export default function EquipmentListPage() {
                         setFolderSheetOpen(false);
                         setFolderSearch("");
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm text-left border-b border-border/50 transition-colors ${
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm text-start border-b border-border/50 transition-colors ${
                         folderFilter === f.id
                           ? "bg-primary/10 text-primary font-medium"
                           : "hover:bg-accent"
