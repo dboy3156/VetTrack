@@ -86,7 +86,7 @@ function fail(
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
-type Role = "admin" | "vet" | "technician" | "viewer";
+type Role = "admin" | "vet" | "technician" | "student";
 
 // DevUserId: named test user identities for multi-user tests.
 // Matches DEV_USER_PRESETS in server/middleware/auth.ts.
@@ -295,7 +295,7 @@ async function regressionSmoke(context: string) {
   // Smoke 5: Behavioral RBAC denial check (viewer cannot access user list)
   // This is a cheap behavioral test that validates auth middleware is still enforcing
   // role checks — no equipment creation needed.
-  const rbacSmokeRes = await get("/api/users", "viewer");
+  const rbacSmokeRes = await get("/api/users", "student");
   if (rbacSmokeRes.status === 403) {
     ok(`[${context}] Regression smoke: RBAC enforcement intact (viewer denied on /api/users)`);
   } else if (rbacSmokeRes.status >= 500) {
@@ -1142,7 +1142,7 @@ async function testAlertAcks() {
   const viewerAckRes = await post(
     "/api/alert-acks",
     { equipmentId: equipId, alertType: "issue" },
-    "viewer"
+    "student"
   );
   if (viewerAckRes.status === 403) {
     ok("Viewer correctly denied on POST /api/alert-acks (403)");
@@ -1187,7 +1187,7 @@ async function testRbacEnforcement() {
   // A 5xx indicates the server crashed reaching this endpoint — that is a FAIL.
   const adminPatchRoleRes = await patch(
     `/api/users/${fakeUuid}/role`,
-    { role: "viewer" },
+    { role: "student" },
     "admin"
   );
   if (adminPatchRoleRes.status >= 500) {
@@ -1316,7 +1316,7 @@ async function testRbacEnforcement() {
   }
 
   // 5.7 Viewer cannot GET /api/users (admin-only)
-  const viewerUsersRes = await get("/api/users", "viewer");
+  const viewerUsersRes = await get("/api/users", "student");
   if (viewerUsersRes.status === 403) {
     ok("Viewer denied on GET /api/users (403)");
   } else {
@@ -1338,7 +1338,7 @@ async function testRbacEnforcement() {
     const viewerScanRes = await post(
       `/api/equipment/${tempEquipId}/scan`,
       { status: "ok" },
-      "viewer"
+      "student"
     );
     if (viewerScanRes.status === 403) {
       ok("Viewer denied on POST /api/equipment/:id/scan (403)");
@@ -1363,7 +1363,7 @@ async function testRbacEnforcement() {
   // 5.9 Spoofed x-role header does not elevate viewer
   const spoofRes = await fetch(`${BASE}/api/users`, {
     headers: {
-      ...authHeaders("viewer"),
+      ...authHeaders("student"),
       "x-role": "admin",
     },
   });
@@ -1823,7 +1823,7 @@ async function testRegressionSmokeFull() {
   }
 
   // 8.4 Alert-acks accessible to viewer+
-  const acksRes = await get("/api/alert-acks", "viewer");
+  const acksRes = await get("/api/alert-acks", "student");
   if (acksRes.ok) {
     ok("Alert-acks list accessible to viewer+");
   } else {

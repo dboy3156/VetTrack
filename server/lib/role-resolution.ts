@@ -1,7 +1,7 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { db, shifts, users } from "../db.js";
 
-export type PermanentVetTrackRole = "admin" | "vet" | "technician" | "senior_technician" | "viewer";
+export type PermanentVetTrackRole = "admin" | "vet" | "technician" | "senior_technician" | "student";
 export type ShiftRole = "technician" | "senior_technician" | "admin";
 export type EffectiveRole = PermanentVetTrackRole | ShiftRole;
 

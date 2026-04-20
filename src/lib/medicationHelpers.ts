@@ -69,8 +69,9 @@ export function resolveFormularyData(
     recommendedDoseMgPerKg = Number.isFinite(normalised) ? normalised : undefined;
   }
 
-  const rawMin = clinical?.minDoseMgPerKg;
-  const rawMax = clinical?.maxDoseMgPerKg;
+  // Prefer clinicalEnrichment min/max; fall back to formulary-stored min/max.
+  const rawMin = clinical?.minDoseMgPerKg ?? (formulary.minDose ?? undefined);
+  const rawMax = clinical?.maxDoseMgPerKg ?? (formulary.maxDose ?? undefined);
   const minValid =
     rawMin !== undefined && rawMin !== null && Number.isFinite(rawMin) && rawMin > 0;
   const maxValid =

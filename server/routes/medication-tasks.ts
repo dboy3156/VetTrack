@@ -22,7 +22,7 @@ const createTaskSchema = z.object({
   calculationInput: z.object({
     weightKg: z.number().finite().positive(),
     prescribedDosePerKg: z.number().finite().positive(),
-    doseUnit: z.enum(["mg_per_kg", "mcg_per_kg"]),
+    doseUnit: z.enum(["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"]),
     concentrationMgPerMl: z.number().finite().positive().optional(),
   }),
   overrideReason: z.string().trim().max(1000).optional().nullable(),

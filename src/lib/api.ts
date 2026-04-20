@@ -747,7 +747,7 @@ export const api = {
     },
     listPending: () => request<User[]>("/api/users/pending"),
     listDeleted: () => request<User[]>("/api/users/deleted"),
-    updateRole: (id: string, role: "admin" | "vet" | "technician" | "senior_technician" | "viewer") =>
+    updateRole: (id: string, role: "admin" | "vet" | "technician" | "senior_technician" | "student") =>
       request<User>(
         `/api/users/${id}/role`,
         { method: "PATCH", body: JSON.stringify({ role }) }

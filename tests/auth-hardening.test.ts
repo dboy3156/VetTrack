@@ -113,7 +113,7 @@ async function run(): Promise<void> {
         clerkId: "c2",
         email: "pending@vettrack.dev",
         name: "Pending User",
-        role: "viewer",
+        role: "student",
         status: "pending",
         locale: "en",
       },

@@ -71,12 +71,18 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editConc, setEditConc] = useState("");
   const [editDose, setEditDose] = useState("");
-  const [editUnit, setEditUnit] = useState<"mg_per_kg" | "mcg_per_kg">("mg_per_kg");
+  const [editMinDose, setEditMinDose] = useState("");
+  const [editMaxDose, setEditMaxDose] = useState("");
+  const [editUnit, setEditUnit] = useState<"mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet">("mg_per_kg");
+  const [editRoute, setEditRoute] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addConc, setAddConc] = useState("");
   const [addDose, setAddDose] = useState("");
-  const [addUnit, setAddUnit] = useState<"mg_per_kg" | "mcg_per_kg">("mg_per_kg");
+  const [addMinDose, setAddMinDose] = useState("");
+  const [addMaxDose, setAddMaxDose] = useState("");
+  const [addUnit, setAddUnit] = useState<"mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet">("mg_per_kg");
+  const [addRoute, setAddRoute] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -84,7 +90,10 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
     setEditingId(entry.id);
     setEditConc(String(entry.concentrationMgMl));
     setEditDose(String(entry.standardDose));
+    setEditMinDose(entry.minDose != null ? String(entry.minDose) : "");
+    setEditMaxDose(entry.maxDose != null ? String(entry.maxDose) : "");
     setEditUnit(entry.doseUnit);
+    setEditRoute(entry.defaultRoute ?? "");
     setError(null);
   }
 
@@ -95,10 +104,19 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
       setError("Enter valid positive numbers.");
       return;
     }
+    const minD = editMinDose ? Number.parseFloat(editMinDose) : null;
+    const maxD = editMaxDose ? Number.parseFloat(editMaxDose) : null;
     setBusy(true);
     setError(null);
     try {
-      const patch: DrugFormularyPatch = { concentrationMgMl: conc, standardDose: dose, doseUnit: editUnit };
+      const patch: DrugFormularyPatch = {
+        concentrationMgMl: conc,
+        standardDose: dose,
+        minDose: minD && Number.isFinite(minD) && minD > 0 ? minD : null,
+        maxDose: maxD && Number.isFinite(maxD) && maxD > 0 ? maxD : null,
+        doseUnit: editUnit,
+        defaultRoute: editRoute.trim() || null,
+      };
       await updateDrug(id, patch);
       setEditingId(null);
     } catch (e) {
@@ -128,11 +146,21 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
     if (!name) { setError("Drug name is required."); return; }
     if (!Number.isFinite(conc) || conc <= 0) { setError("Enter valid concentration."); return; }
     if (!Number.isFinite(dose) || dose <= 0) { setError("Enter valid standard dose."); return; }
+    const minD = addMinDose ? Number.parseFloat(addMinDose) : null;
+    const maxD = addMaxDose ? Number.parseFloat(addMaxDose) : null;
     setBusy(true);
     setError(null);
     try {
-      await upsertDrug({ name, concentrationMgMl: conc, standardDose: dose, doseUnit: addUnit });
-      setAddName(""); setAddConc(""); setAddDose(""); setAddUnit("mg_per_kg");
+      await upsertDrug({
+        name,
+        concentrationMgMl: conc,
+        standardDose: dose,
+        minDose: minD && Number.isFinite(minD) && minD > 0 ? minD : null,
+        maxDose: maxD && Number.isFinite(maxD) && maxD > 0 ? maxD : null,
+        doseUnit: addUnit,
+        defaultRoute: addRoute.trim() || null,
+      });
+      setAddName(""); setAddConc(""); setAddDose(""); setAddMinDose(""); setAddMaxDose(""); setAddUnit("mg_per_kg"); setAddRoute("");
       setAddOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Add failed.");
@@ -183,12 +211,37 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                     <div>
                       <label className="text-[10px] text-muted-foreground">Unit</label>
                       <select
-                        value={editUnit} onChange={(e) => setEditUnit(e.target.value as "mg_per_kg" | "mcg_per_kg")}
+                        value={editUnit} onChange={(e) => setEditUnit(e.target.value as "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet")}
                         className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
                       >
                         <option value="mg_per_kg">mg/kg</option>
                         <option value="mcg_per_kg">mcg/kg</option>
+                        <option value="mEq_per_kg">mEq/kg</option>
+                        <option value="tablet">tablet</option>
                       </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Min dose</label>
+                      <input type="number" min="0.001" step="0.001" value={editMinDose}
+                        onChange={(e) => setEditMinDose(e.target.value)}
+                        placeholder="optional"
+                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Max dose</label>
+                      <input type="number" min="0.001" step="0.001" value={editMaxDose}
+                        onChange={(e) => setEditMaxDose(e.target.value)}
+                        placeholder="optional"
+                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Route</label>
+                      <input type="text" value={editRoute}
+                        onChange={(e) => setEditRoute(e.target.value)}
+                        placeholder="e.g. IV/IM"
+                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -212,7 +265,15 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                   <div>
                     <div className="text-xs font-semibold">{entry.name}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      {entry.concentrationMgMl} mg/mL • {entry.standardDose} {entry.doseUnit === "mcg_per_kg" ? "mcg/kg" : "mg/kg"}
+                      {entry.concentrationMgMl} {entry.doseUnit === "tablet" ? "mg/tab" : "mg/mL"} •{" "}
+                      {entry.minDose != null && entry.maxDose != null
+                        ? `${entry.minDose}–${entry.maxDose}`
+                        : String(entry.standardDose)}{" "}
+                      {entry.doseUnit === "mcg_per_kg" ? "mcg/kg"
+                        : entry.doseUnit === "mEq_per_kg" ? "mEq/kg"
+                        : entry.doseUnit === "tablet" ? "tab/kg"
+                        : "mg/kg"}
+                      {entry.defaultRoute ? ` • ${entry.defaultRoute}` : ""}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -263,12 +324,34 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Unit</label>
-              <select value={addUnit} onChange={(e) => setAddUnit(e.target.value as "mg_per_kg" | "mcg_per_kg")}
+              <select value={addUnit} onChange={(e) => setAddUnit(e.target.value as "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet")}
                 className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
               >
                 <option value="mg_per_kg">mg/kg</option>
                 <option value="mcg_per_kg">mcg/kg</option>
+                <option value="mEq_per_kg">mEq/kg</option>
+                <option value="tablet">tablet</option>
               </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Min dose</label>
+              <input type="number" min="0.001" step="0.001" value={addMinDose}
+                onChange={(e) => setAddMinDose(e.target.value)} placeholder="optional"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Max dose</label>
+              <input type="number" min="0.001" step="0.001" value={addMaxDose}
+                onChange={(e) => setAddMaxDose(e.target.value)} placeholder="optional"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Route</label>
+              <input type="text" value={addRoute}
+                onChange={(e) => setAddRoute(e.target.value)} placeholder="e.g. IV/IM"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
             </div>
           </div>
           <div className="flex gap-2">
@@ -436,10 +519,13 @@ export function MedicationCalculator({
   const performerId = resolvePerformerId();
   const noTechniciansAvailable = !isTechnicianLoading && technicians.length === 0;
 
+  const weightIsValid = Number.isFinite(weightKg) && weightKg > 0;
+
   const canExecute =
     !calc.isBlocked &&
     !isSubmitting &&
     !!resolved &&
+    weightIsValid &&
     !isTechnicianLoading &&
     !technicianLoadError &&
     !noTechniciansAvailable &&
@@ -612,10 +698,16 @@ export function MedicationCalculator({
           <option value="">- Select a drug -</option>
           {formularyList.map((entry) => (
             <option key={entry.id} value={entry.name}>
-              {entry.name} ({entry.concentrationMgMl} mg/mL)
+              {entry.name} ({entry.concentrationMgMl} mg/mL{entry.defaultRoute ? ` · ${entry.defaultRoute}` : ""})
             </option>
           ))}
         </select>
+        {selectedDrugName ? (() => {
+          const sel = formularyList.find((e) => e.name === selectedDrugName);
+          return sel?.defaultRoute ? (
+            <p className="mt-1 text-xs text-gray-500">Route: <span className="font-semibold">{sel.defaultRoute}</span></p>
+          ) : null;
+        })() : null}
       </section>
 
       {selectedDrugName && resolved ? (
@@ -634,10 +726,10 @@ export function MedicationCalculator({
             </div>
           )}
 
-          {/* Patient weight (optional — for deviation check) */}
+          {/* Patient weight (required) */}
           <section aria-label="Patient weight">
             <label htmlFor="weight-input" className="mb-1 block text-sm font-medium text-gray-700">
-              Patient Weight (kg) <span className="text-gray-400 font-normal text-xs">— optional, for deviation check</span>
+              Patient Weight (kg) <span className="text-red-600">*</span>
             </label>
             <input
               id="weight-input"
@@ -645,9 +737,15 @@ export function MedicationCalculator({
               value={weightKgRaw}
               onChange={(e) => setWeightKgRaw(e.target.value)}
               placeholder="e.g. 12.5"
+              required
               disabled={isSubmitting}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
+                weightKgRaw && !weightIsValid ? "border-red-400 bg-red-50" : "border-gray-300"
+              }`}
             />
+            {!weightIsValid && weightKgRaw === "" ? (
+              <p className="mt-1 text-xs text-red-600">Weight is required to create a medication task.</p>
+            ) : null}
           </section>
 
           {/* Desired dose in mg */}

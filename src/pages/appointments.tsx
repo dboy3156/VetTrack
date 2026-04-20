@@ -340,7 +340,7 @@ function isVetOrAdmin(role: string | null | undefined, effectiveRole: string | n
 export default function AppointmentsPage() {
   const { userId, role, effectiveRole } = useAuth();
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  const canCreateTask = resolvedRole !== "viewer";
+  const canCreateTask = resolvedRole !== "student";
   const queryClient = useQueryClient();
   const urgentRef = useRef<HTMLDivElement>(null);
   const myTasksRef = useRef<HTMLDivElement>(null);
