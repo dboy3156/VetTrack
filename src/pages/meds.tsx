@@ -57,7 +57,7 @@ function statusLabel(status: MedicationExecutionTask["status"]): string {
   }
 }
 
-function isTechnicianRole(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
+function canExecuteMedicationTask(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
   const r = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   return r === "technician" || r === "lead_technician" || r === "vet_tech" || r === "senior_technician" || r === "admin";
 }
@@ -156,7 +156,7 @@ export default function MedicationHubPage() {
   const { userId, role, effectiveRole } = useAuth();
   const authReady = Boolean(userId);
   const { getByDrugName } = useDrugFormulary();
-  const isTech = isTechnicianRole(role, effectiveRole);
+  const isTech = canExecuteMedicationTask(role, effectiveRole);
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canCreateMedicationTask = resolvedRole === "vet" || resolvedRole === "admin";
 
