@@ -59,7 +59,7 @@ function statusLabel(status: MedicationExecutionTask["status"]): string {
 
 function isTechnicianRole(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
   const r = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  return r === "technician" || r === "lead_technician" || r === "vet_tech" || r === "senior_technician";
+  return r === "technician" || r === "lead_technician" || r === "vet_tech" || r === "senior_technician" || r === "admin";
 }
 
 function completeButtonState(args: {
