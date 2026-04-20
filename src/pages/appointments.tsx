@@ -268,8 +268,12 @@ function completeButtonState(args: {
 
   const metadata = medicationMetadata(appointment);
   const acknowledgedBy = typeof metadata?.acknowledgedBy === "string" ? metadata.acknowledgedBy : "";
-  const meIdentifier = (meClerkId ?? "").trim() || meId;
-  if (!acknowledgedBy || acknowledgedBy !== meIdentifier) {
+  const meUserId = (meId ?? "").trim();
+  const meClerk = (meClerkId ?? "").trim();
+  const isAcknowledgedOwner =
+    !!acknowledgedBy &&
+    (acknowledgedBy === meUserId || (meClerk.length > 0 && acknowledgedBy === meClerk));
+  if (!isAcknowledgedOwner) {
     return {
       visible: true,
       disabled: true,

@@ -212,6 +212,17 @@ function medicationMetadataFromUnknown(value: unknown): MedicationMetadata {
   return record ? ({ ...record } as MedicationMetadata) : {};
 }
 
+function matchesAcknowledgedActor(
+  acknowledgedBy: string | null,
+  actor: { userId: string; clerkId?: string | null },
+): boolean {
+  const ack = (acknowledgedBy ?? "").trim();
+  if (!ack) return false;
+  const actorUserId = actor.userId.trim();
+  const actorClerkId = (actor.clerkId ?? "").trim();
+  return ack === actorUserId || (actorClerkId.length > 0 && ack === actorClerkId);
+}
+
 function computeDoseDeviation(meta: MedicationMetadata): number {
   if (!Number.isFinite(meta.doseMgPerKg) || !Number.isFinite(meta.defaultDoseMgPerKg)) return 0;
   return doseDeviationRatio(meta.doseMgPerKg as number, meta.defaultDoseMgPerKg as number);
@@ -1231,8 +1242,7 @@ export async function completeTask(
     const metadata = medicationMetadataFromUnknown(existing.metadata);
     const acknowledgedBy = typeof metadata.acknowledgedBy === "string" ? metadata.acknowledgedBy : null;
     const canOverride = actorCanOverrideMedicationOwnership(actorRole);
-    const actorIdentifier = actor.clerkId?.trim() || actor.userId;
-    if (!canOverride && acknowledgedBy !== actorIdentifier) {
+    if (!canOverride && !matchesAcknowledgedActor(acknowledgedBy, actor)) {
       throw new AppointmentServiceError(
         "TASK_NOT_OWNED_BY_TECH",
         403,
