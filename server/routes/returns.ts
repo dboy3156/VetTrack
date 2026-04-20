@@ -10,6 +10,7 @@ import {
   cancelChargeAlertJob,
   enqueueChargeAlertJob,
 } from "../workers/chargeAlertWorker.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -120,6 +121,22 @@ router.post(
         })
         .returning();
 
+      logAudit({
+        clinicId,
+        actionType: "equipment_returned",
+        performedBy: userId,
+        performedByEmail: req.authUser!.email,
+        actorRole: resolveAuditActorRole(req),
+        targetId: equipmentId,
+        targetType: "equipment",
+        metadata: {
+          returnId: created.id,
+          isPluggedIn: created.isPluggedIn,
+          plugInDeadlineMinutes: created.plugInDeadlineMinutes,
+          chargeAlertJobId: created.chargeAlertJobId,
+        },
+      });
+
       res.status(201).json(created);
     } catch (error) {
       console.error("[returns] create failed", error);
@@ -216,6 +233,29 @@ router.patch(
           };
         }
       }
+
+      logAudit({
+        clinicId,
+        actionType: "equipment_updated",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email,
+        actorRole: resolveAuditActorRole(req),
+        targetId: existing.equipmentId,
+        targetType: "equipment",
+        metadata: {
+          returnId,
+          previousState: {
+            isPluggedIn: existing.isPluggedIn,
+            plugInDeadlineMinutes: existing.plugInDeadlineMinutes,
+            chargeAlertJobId: existing.chargeAlertJobId,
+          },
+          newState: {
+            isPluggedIn: updated.isPluggedIn,
+            plugInDeadlineMinutes: updated.plugInDeadlineMinutes,
+            chargeAlertJobId: updated.chargeAlertJobId,
+          },
+        },
+      });
 
       res.json(updated);
     } catch (error) {

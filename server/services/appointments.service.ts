@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, billingItems, billingLedger, containers, db, inventoryJobs, owners, shifts, users } from "../db.js";
-import { logAudit } from "../lib/audit.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { markIdempotentAsync } from "../lib/idempotency.js";
 import { validateJustificationText, MedJustificationError, resolvePresetLabel } from "../lib/med-justification.js";
 import { incrementMetric } from "../lib/metrics.js";
@@ -718,6 +718,7 @@ function auditTaskChange(
     actionType: action,
     performedBy: actor.userId,
     performedByEmail: actor.email,
+    actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
     targetId: taskId,
     targetType: "task",
     metadata: { previousState: previous, newState: next },
@@ -871,6 +872,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
         actionType: "CRITICAL_TASK_EXECUTED",
         performedBy: actor.userId,
         performedByEmail: actor.email,
+        actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
         targetId: serialized.id,
         targetType: "task",
         metadata: {
@@ -997,6 +999,7 @@ export async function updateAppointment(
           actionType: "CRITICAL_TASK_EXECUTED",
           performedBy: actor.userId,
           performedByEmail: actor.email,
+          actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
           targetId: appointmentId,
           targetType: "task",
           metadata: {
@@ -1068,6 +1071,7 @@ export async function updateAppointment(
         actionType: "CRITICAL_TASK_EXECUTED",
         performedBy: actor.userId,
         performedByEmail: actor.email,
+        actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
         targetId: appointmentId,
         targetType: "task",
         metadata: {
@@ -1184,6 +1188,7 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     actionType: "task_started",
     performedBy: actor.userId,
     performedByEmail: actor.email,
+    actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
     targetId: taskId,
     targetType: "task",
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
@@ -1374,6 +1379,7 @@ export async function completeTask(
     actionType: "task_completed",
     performedBy: actor.userId,
     performedByEmail: actor.email,
+    actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
     targetId: taskId,
     targetType: "task",
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
@@ -1437,6 +1443,7 @@ export async function vetApproveTask(clinicIdInput: string, taskId: string, acto
     actionType: "task_updated",
     performedBy: actor.userId,
     performedByEmail: actor.email,
+    actorRole: resolveAuditActorRole({ effectiveRole: actor.role }),
     targetId: taskId,
     targetType: "task",
     metadata: { action: "vet_approved", vetApprovedBy: actorIdentifier },

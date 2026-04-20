@@ -12,6 +12,7 @@ import {
 } from "../services/medication-tasks.service.js";
 import { MedicationCalculationError, type CalculationResult } from "../services/medication-calculation.service.js";
 import type { MedicationTask } from "../db.js";
+import { resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -154,6 +155,7 @@ router.post("/", async (req, res) => {
       overrideReason: parsed.data.overrideReason ?? null,
       createdBy: req.authUser!.id,
       createdByEmail: req.authUser!.email,
+      actorRole: resolveAuditActorRole(req),
     });
     return res.status(201).json(serializeTask(task));
   } catch (err) {
@@ -165,7 +167,13 @@ router.post("/", async (req, res) => {
 router.post("/:id/take", async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    const task = await takeMedicationTask(req.params.id, req.authUser!.id, req.authUser!.email, req.clinicId!);
+    const task = await takeMedicationTask(
+      req.params.id,
+      req.authUser!.id,
+      req.authUser!.email,
+      req.clinicId!,
+      resolveAuditActorRole(req),
+    );
     return res.json(serializeTask(task));
   } catch (err) {
     sendError(res, err, requestId);
@@ -176,7 +184,13 @@ router.post("/:id/take", async (req, res) => {
 router.post("/:id/complete", async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
-    const task = await completeMedicationTask(req.params.id, req.authUser!.id, req.authUser!.email, req.clinicId!);
+    const task = await completeMedicationTask(
+      req.params.id,
+      req.authUser!.id,
+      req.authUser!.email,
+      req.clinicId!,
+      resolveAuditActorRole(req),
+    );
     return res.json(serializeTask(task));
   } catch (err) {
     sendError(res, err, requestId);
