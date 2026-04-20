@@ -44,6 +44,7 @@ export const SEEDED_FORMULARY: SeededDrugFormularyEntry[] = [
 
   // ── Steroids ─────────────────────────────────────────────────────────────────
   { name: "Prednisolone",     concentrationMgMl: 5,     standardDose: 1,      minDose: 0.5,    maxDose: 2.2,    doseUnit: "mg_per_kg",  defaultRoute: "PO" },
+  { name: "Prednisone",       concentrationMgMl: 5,     standardDose: 1,      minDose: 0.5,    maxDose: 2.2,    doseUnit: "mg_per_kg",  defaultRoute: "PO" },
 
   // ── Oral Analgesics / Behavioral ─────────────────────────────────────────────
   { name: "Gabapentin",       concentrationMgMl: 100,   standardDose: 10,     minDose: 5,      maxDose: 20,     doseUnit: "mg_per_kg",  defaultRoute: "PO" },
@@ -83,6 +84,7 @@ export const SEEDED_FORMULARY: SeededDrugFormularyEntry[] = [
 
   // ── Anti-emetics / GI ────────────────────────────────────────────────────────
   { name: "Maropitant",       concentrationMgMl: 10,    standardDose: 1,      minDose: 1,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "SC/IV" },
+  { name: "Maropitant (PO)",  concentrationMgMl: 10,    standardDose: 2,      minDose: 2,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "PO" },
   { name: "Cerenia",          concentrationMgMl: 10,    standardDose: 1,      minDose: 1,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "SC/IV" },
   { name: "Ondansetron",      concentrationMgMl: 2,     standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
   { name: "Metoclopramide",   concentrationMgMl: 5,     standardDose: 0.35,   minDose: 0.2,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
