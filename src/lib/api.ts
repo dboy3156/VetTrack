@@ -752,6 +752,11 @@ export const api = {
         `/api/users/${id}/role`,
         { method: "PATCH", body: JSON.stringify({ role }) }
       ),
+    updateSecondaryRole: (id: string, secondaryRole: string | null) =>
+      request<{ user: User }>(`/api/users/${id}/secondary-role`, {
+        method: "PATCH",
+        body: JSON.stringify({ secondaryRole }),
+      }),
     updateStatus: (id: string, status: "pending" | "active" | "blocked") =>
       request<User>(
         `/api/users/${id}/status`,

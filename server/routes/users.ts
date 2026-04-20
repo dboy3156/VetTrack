@@ -67,6 +67,7 @@ const userFields = {
 const adminListUserFields = {
   ...userFields,
   clerkId: users.clerkId,
+  secondaryRole: users.secondaryRole,
 };
 
 const VALID_ROLES = ["admin", "vet", "technician", "senior_technician", "student"] as const;
@@ -226,6 +227,7 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       name: item.name,
       displayName: item.displayName,
       role: item.role,
+      secondaryRole: item.secondaryRole ?? null,
       status: item.status,
       createdAt: item.createdAt,
     }));
@@ -337,6 +339,63 @@ router.patch("/:id/role", requireAuth, requireAdmin, validateUuid("id"), validat
         code: "INTERNAL_ERROR",
         reason: "USER_ROLE_UPDATE_FAILED",
         message: "Failed to update role",
+        requestId,
+      }),
+    );
+  }
+});
+
+const patchSecondaryRoleSchema = z.object({
+  secondaryRole: z.enum(["technician", "senior_technician", "admin"]).nullable(),
+});
+
+router.patch("/:id/secondary-role", requireAuth, requireAdmin, validateUuid("id"), validateBody(patchSecondaryRoleSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const { secondaryRole } = req.body as z.infer<typeof patchSecondaryRoleSchema>;
+
+    await db
+      .update(users)
+      .set({ secondaryRole })
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)));
+
+    const [updated] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.clinicId, clinicId), eq(users.id, req.params.id), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!updated) {
+      return res.status(404).json(
+        apiError({
+          code: "NOT_FOUND",
+          reason: "USER_NOT_FOUND",
+          message: "User not found",
+          requestId,
+        }),
+      );
+    }
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "user_secondary_role_changed",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "user",
+      metadata: { newSecondaryRole: secondaryRole, targetEmail: updated.email },
+    });
+
+    return res.json({ user: updated });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USER_SECONDARY_ROLE_UPDATE_FAILED",
+        message: "Failed to update secondary role",
         requestId,
       }),
     );
