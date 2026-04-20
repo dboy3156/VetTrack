@@ -24,6 +24,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  secondaryRole?: string | null;
   status: string;
   clinicId: string;
   locale?: string;
@@ -433,6 +434,7 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
       email: user.email,
       name: user.name,
       role: normalizeUserRole(user.role),
+      secondaryRole: user.secondaryRole ?? null,
       status: user.status,
       clinicId: user.clinicId,
       locale: clerkLocale,
@@ -676,6 +678,7 @@ export function requireEffectiveRole(minRole: UserRole) {
         userId: req.authUser.id,
         userName: req.authUser.name,
         fallbackRole: req.authUser.role,
+        secondaryRole: req.authUser.secondaryRole ?? null,
       });
       req.effectiveRole = effectiveRole;
       req.roleSource = source;
@@ -690,7 +693,7 @@ export function requireEffectiveRole(minRole: UserRole) {
         });
       }
 
-      if (req.authUser.role === "admin") {
+      if (req.authUser.role === "admin" || req.authUser.secondaryRole === "admin") {
         return next();
       }
 
