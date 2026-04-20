@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { Redirect } from "wouter";
 import { t } from "@/lib/i18n";
 import { Beaker, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
@@ -154,16 +154,11 @@ function VetTaskCard({ task }: { task: MedicationExecutionTask }) {
 
 export default function MedicationHubPage() {
   const queryClient = useQueryClient();
-  const { userId, role, effectiveRole } = useAuth();
-  const authReady = Boolean(userId);
+  const { userId, role, effectiveRole, isLoaded } = useAuth();
+  const authReady = isLoaded;
   const { getByDrugName } = useDrugFormulary();
   const canExecuteTask = canExecuteMedicationTask(role, effectiveRole);
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  const [, navigate] = useLocation();
-  if (authReady && resolvedRole === "student") {
-    navigate("/equipment");
-    return null;
-  }
   const canCreateMedicationTask = resolvedRole === "vet" || resolvedRole === "admin";
 
   const meQuery = useQuery({
@@ -226,6 +221,11 @@ export default function MedicationHubPage() {
       return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
     });
   }, [tasksQuery.data]);
+
+  // Students have no access to the medication hub; redirect to equipment.
+  if (isLoaded && resolvedRole === "student") {
+    return <Redirect to="/equipment" replace />;
+  }
 
   return (
     <Layout title={t.medsPage.title}>
