@@ -7,5 +7,5 @@
     "module": "Node16",
     "moduleDetection": "force"
   },
-  "include": ["server/**/*.ts"]
+  "include": ["server/**/*.ts", "lib/forecast/**/*.ts", "src/types/index.ts"]
 }

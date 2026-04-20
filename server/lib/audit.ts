@@ -2,6 +2,7 @@ import { db, auditLogs } from "../db.js";
 import { randomUUID } from "crypto";
 
 export type AuditActionType =
+  | "pharmacy_order_sent"
   | "user_login"
   | "user_provisioned"
   | "user_display_name_changed"

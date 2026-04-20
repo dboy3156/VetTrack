@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-20  
 **Status:** Approved for implementation  
+**Revision:** 2026-04-21 — hybrid data model (§5.1, §8)  
 **Feature route:** `/pharmacy-forecast`
 
 ---
@@ -106,6 +107,26 @@ Unit form (ampoule / vial / bag / tablet) and size come from `vt_inventory_conta
 | Owner name, owner ID, phone | `vt_owners` — joined via `vt_animals.owner_id` |
 | Drug concentration, unit form, unit volume, min/max dose bounds | Drug formulary (`useDrugFormulary`) |
 
+### 5.1 Hybrid schema rollout (revision)
+
+**Approved approach:** implement persistence the feature depends on in **phase 1**; add **sticker** columns in **phase 2** where clinical data entry will keep them current.
+
+**Phase 1 (required for the workflow):**
+
+- **`vt_clinics`** — one row per existing `clinic_id` (same string as `vt_users.clinic_id`). Columns at minimum: `id TEXT PRIMARY KEY`, **`pharmacy_email`**, optional timestamps. Backfill from distinct `vt_users.clinic_id`.
+- **`vt_animals.record_number`** — nullable text; **unique per `(clinic_id, record_number)`** when `record_number` is not null. Enables SmartFlow matching and `PATIENT_UNKNOWN`.
+- **`vt_pharmacy_orders`** — as §8.
+
+**Phase 2a (sticker — email-critical first):**
+
+- **`vt_owners`**: **`phone`**, and **national ID** (or equivalent) when available — so the pharmacy email can list owner phone/ID without placeholders where data exists.
+
+**Phase 2b (sticker — animal descriptors):**
+
+- **`vt_animals`**: **`breed`**, **`sex`**, **`color`** — optional text fields; email omits or marks “חסר” when null.
+
+Implementation may ship phase 1 first; UI and Hebrew email templates should tolerate missing phase-2 columns.
+
 ---
 
 ## 6. Validation UI (`/pharmacy-forecast`)
@@ -167,7 +188,7 @@ Footer: VetTrack attribution, approval timestamp, audit ID.
 1. **Primary — Nodemailer SMTP**: sends if `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` env vars are configured. Pharmacy recipient address stored in clinic settings.
 2. **Fallback — `mailto:` link**: pre-fills subject, body, and recipient. Opens device's native email app. Shown automatically if SMTP is not configured.
 
-**Pharmacy email address** is a new field added to the clinic settings table (`vt_clinics.pharmacy_email`). A settings UI entry must be added to `/settings` to allow admins to configure this. The approve flow blocks if this field is empty and SMTP is not configured.
+**Pharmacy email address** is a new field on **`vt_clinics.pharmacy_email`** (see §5.1, §8). A settings UI entry must be added to `/settings` (admin) to configure it. **Approve must not complete** if there is **no recipient** for the pharmacy: i.e. `pharmacy_email` is empty **and** the deployment cannot send via SMTP — and `mailto:` also requires that same address as the recipient. (If SMTP is configured and send succeeds, empty public `mailto` is irrelevant.)
 
 ### Audit Log
 
@@ -191,7 +212,22 @@ A snapshot of the full approved order (all patient-drug-quantity rows) is stored
 
 ---
 
-## 8. New Database Table
+## 8. New database objects
+
+### `vt_clinics`
+
+Clinic-level settings keyed by the same identifier as **`vt_users.clinic_id`**.
+
+```sql
+CREATE TABLE IF NOT EXISTS vt_clinics (
+  id              TEXT PRIMARY KEY,      -- equals vt_users.clinic_id for that tenant
+  pharmacy_email  TEXT,                 -- recipient for ICU order email / mailto
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Backfill: INSERT INTO vt_clinics (id) SELECT DISTINCT clinic_id FROM vt_users ON CONFLICT DO NOTHING;
+```
+
+### `vt_pharmacy_orders`
 
 ```sql
 CREATE TABLE vt_pharmacy_orders (
@@ -204,6 +240,8 @@ CREATE TABLE vt_pharmacy_orders (
   payload     JSONB NOT NULL             -- full order snapshot
 );
 ```
+
+**Other migrations (see §5.1):** `ALTER TABLE vt_animals ADD record_number …`; phased columns on `vt_owners` / `vt_animals` as needed.
 
 ---
 

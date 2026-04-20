@@ -41,6 +41,7 @@ import {
   Map,
   Pill,
   ShoppingCart,
+  Syringe,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -90,7 +91,15 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
-  const { isAdmin, role, userId } = useAuth();
+  const { isAdmin, role, userId, effectiveRole } = useAuth();
+  const resolvedNavRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  const canAccessPharmacyForecastNav =
+    resolvedNavRole === "technician" ||
+    resolvedNavRole === "lead_technician" ||
+    resolvedNavRole === "vet_tech" ||
+    resolvedNavRole === "senior_technician" ||
+    resolvedNavRole === "vet" ||
+    resolvedNavRole === "admin";
   const { pendingCount, failedCount, isSyncing, justSynced, triggerSync } = useSync();
   const { settings, update } = useSettings();
   const quickSettingsRef = useRef<HTMLDivElement>(null);
@@ -288,6 +297,14 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
     },
     { href: "/appointments", label: "Tasks", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
     { href: "/meds", label: "Medication Hub", icon: <Pill className="w-5 h-5" />, menuOnly: true },
+    ...(canAccessPharmacyForecastNav
+      ? [{
+          href: "/pharmacy-forecast",
+          label: t.pharmacyForecast.navLabel,
+          icon: <Syringe className="w-5 h-5" />,
+          menuOnly: true,
+        } satisfies NavItem]
+      : []),
     { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
     ...(canAccessHandoverInventory
       ? [
@@ -305,7 +322,7 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
-  ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, myCount, lh, t]);
+  ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, canAccessPharmacyForecastNav, myCount, lh, t]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
@@ -533,7 +550,7 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
           <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto">
             <nav className="flex flex-col gap-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
-              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/meds", "/rooms", "/shift-handover", "/inventory"].map((href) => {
+              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"].map((href) => {
                 const item = visibleItems.find((i) => i.href === href);
                 if (!item) return null;
                 return (

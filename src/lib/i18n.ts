@@ -339,6 +339,24 @@ const translations = {
 
   medsPage: d.medsPage,
 
+  pharmacyForecast: {
+    ...d.pharmacyForecast,
+    chipDrugs: (count: number) => tr(d.pharmacyForecast.chipDrugs, { count }),
+    chipCri: (count: number) => tr(d.pharmacyForecast.chipCri, { count }),
+    chipPrn: (count: number) => tr(d.pharmacyForecast.chipPrn, { count }),
+    chipLd: (count: number) => tr(d.pharmacyForecast.chipLd, { count }),
+    chipFlags: (count: number) => tr(d.pharmacyForecast.chipFlags, { count }),
+    approveBlocked: (n: number) => tr(d.pharmacyForecast.approveBlocked, { n }),
+    approveGateLabel: (code: string, fallback: string) =>
+      ({
+        UNRESOLVED_PATIENT_FLAGS: d.pharmacyForecast.approveGateUnresolvedPatientFlags,
+        UNRESOLVED_DRUG_FLAGS: d.pharmacyForecast.approveGateUnresolvedDrugFlags,
+        PRN_QUANTITY_REQUIRED: d.pharmacyForecast.approveGatePrnQuantityRequired,
+      } as Record<string, string>)[code] ?? fallback,
+    emailPreviewSummary: (patientCount: number, hours: number) =>
+      tr(d.pharmacyForecast.emailPreviewSummary, { patientCount, hours }),
+  },
+
   appointmentsPage: d.appointmentsPage,
 
 } as const;
