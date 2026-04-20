@@ -582,6 +582,8 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
           or(
             eq(users.role, "technician"),
             eq(users.role, "senior_technician"),
+            eq(users.secondaryRole, "technician"),
+            eq(users.secondaryRole, "senior_technician"),
           ),
         ),
       )
