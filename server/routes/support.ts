@@ -11,7 +11,7 @@ import { sendPushToAll } from "../lib/push.js";
 /*
  * PERMISSIONS MATRIX — /api/support
  * ─────────────────────────────────────────────────────
- * POST  /                  viewer+     Submit a support ticket
+ * POST  /                  student+    Submit a support ticket
  * GET   /                  admin-only  List all support tickets
  * GET   /unresolved-count  admin-only  Count of open/in-progress tickets
  * PATCH /:id               admin-only  Update ticket status / admin note

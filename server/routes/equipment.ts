@@ -114,12 +114,12 @@ const upload = multer({
 /*
  * PERMISSIONS MATRIX — /api/equipment
  * ─────────────────────────────────────────────────────
- * GET  /                  viewer+       List all equipment
- * GET  /critical          viewer+       List critical/needs-attention equipment
- * GET  /my                viewer+       List equipment checked out by current user
- * GET  /:id               viewer+       Get single equipment item
- * GET  /:id/logs          viewer+       Scan log history for item
- * GET  /:id/transfers     viewer+       Transfer log history for item
+ * GET  /                  student+      List all equipment
+ * GET  /critical          student+      List critical/needs-attention equipment
+ * GET  /my                student+      List equipment checked out by current user
+ * GET  /:id               student+      Get single equipment item
+ * GET  /:id/logs          student+      Scan log history for item
+ * GET  /:id/transfers     student+      Transfer log history for item
  * POST /                  technician+   Create new equipment
  * POST /import            admin-only    Bulk CSV import
  * POST /bulk-delete       admin-only    Bulk delete

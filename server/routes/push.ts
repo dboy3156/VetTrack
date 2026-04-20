@@ -12,10 +12,10 @@ import { sendPushToUser, getVapidPublicKey, isVapidReady } from "../lib/push.js"
  * PERMISSIONS MATRIX — /api/push
  * ─────────────────────────────────────────────────────
  * GET  /vapid-public-key   public        Retrieve VAPID public key
- * POST /subscribe          viewer+       Register push subscription
- * PATCH /subscribe         viewer+       Update subscription settings
- * DELETE /subscribe        viewer+       Remove push subscription
- * POST /test               viewer+       Send a test push notification to self
+ * POST /subscribe          student+      Register push subscription
+ * PATCH /subscribe         student+      Update subscription settings
+ * DELETE /subscribe        student+      Remove push subscription
+ * POST /test               student+      Send a test push notification to self
  * ─────────────────────────────────────────────────────
  */
 
