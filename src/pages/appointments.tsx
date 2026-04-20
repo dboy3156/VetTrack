@@ -435,7 +435,7 @@ export default function AppointmentsPage() {
 
   function resolveVet(vetId: string | null | undefined): string {
     if (!vetId) return "Unassigned";
-    return vetNameMap.get(vetId) ?? vetId.slice(0, 8);
+    return vetNameMap.get(vetId) ?? "Staff member";
   }
 
   const createMutation = useMutation({
