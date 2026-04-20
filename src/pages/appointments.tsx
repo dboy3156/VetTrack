@@ -192,7 +192,11 @@ function toErrorMessage(err: Error): string {
   return err.message;
 }
 
-function canStartTask(a: Appointment, meId: string | undefined): boolean {
+function canStartTask(a: Appointment, meId: string | undefined, role?: string | null, effectiveRole?: string | null): boolean {
+  const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  if (resolvedRole === "admin" || resolvedRole === "vet") {
+    return ["scheduled", "assigned", "arrived"].includes(a.status);
+  }
   if (!meId || !a.vetId || a.vetId !== meId) return false;
   return ["scheduled", "assigned", "arrived"].includes(a.status);
 }
@@ -758,7 +762,7 @@ export default function AppointmentsPage() {
                         {t.appointmentsPage.administerMedication}
                       </Button>
                     ) : null}
-                    {canStartTask(nbt, meQuery.data?.id) ? (
+                    {canStartTask(nbt, meQuery.data?.id, role, effectiveRole) ? (
                       <Button
                         size="sm"
                         variant="default"
@@ -965,7 +969,7 @@ export default function AppointmentsPage() {
                             {t.appointmentsPage.administerMedication}
                           </Button>
                         ) : null}
-                        {canStartTask(todayTask, meQuery.data?.id) ? (
+                        {canStartTask(todayTask, meQuery.data?.id, role, effectiveRole) ? (
                           <Button
                             size="sm"
                             variant="default"
@@ -1086,7 +1090,7 @@ export default function AppointmentsPage() {
                             {t.appointmentsPage.administerMedication}
                           </Button>
                         ) : null}
-                        {canStartTask(myTask, meQuery.data?.id) ? (
+                        {canStartTask(myTask, meQuery.data?.id, role, effectiveRole) ? (
                           <Button
                             size="sm"
                             variant="default"
@@ -1350,7 +1354,7 @@ export default function AppointmentsPage() {
                           <div className="text-[10px] mt-1 font-medium">Override applied</div>
                         ) : null}
                         <div className="flex gap-1 mt-2 flex-wrap">
-                          {canStartTask(appointment, meQuery.data?.id) ? (
+                          {canStartTask(appointment, meQuery.data?.id, role, effectiveRole) ? (
                             <Button
                               size="sm"
                               variant="default"
