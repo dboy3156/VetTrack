@@ -901,7 +901,7 @@ export const api = {
         { method: "DELETE", body: JSON.stringify(reason ? { reason } : {}) }
       ).then((r) => r.appointment),
     meta: (day: string) =>
-      request<{ day: string; vets: AppointmentVetMeta[] }>(`/api/appointments/meta?day=${encodeURIComponent(day)}`),
+      request<{ day: string; vets: AppointmentVetMeta[]; technicians: AppointmentVetMeta[] }>(`/api/appointments/meta?day=${encodeURIComponent(day)}`),
   },
   tasks: {
     dashboard: () => request<TaskDashboard>("/api/tasks/dashboard", {}, undefined, undefined, TASKS_FETCH_TIMEOUT_MS),
