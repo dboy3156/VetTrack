@@ -156,7 +156,7 @@ export default function MedicationHubPage() {
   const { userId, role, effectiveRole } = useAuth();
   const authReady = Boolean(userId);
   const { getByDrugName } = useDrugFormulary();
-  const isTech = canExecuteMedicationTask(role, effectiveRole);
+  const canExecuteTask = canExecuteMedicationTask(role, effectiveRole);
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canCreateMedicationTask = resolvedRole === "vet" || resolvedRole === "admin";
 
@@ -230,7 +230,7 @@ export default function MedicationHubPage() {
             {t.medsPage.title}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {isTech ? t.medsPage.executeDesc : t.medsPage.prescribeDesc}
+            {canExecuteTask ? t.medsPage.executeDesc : t.medsPage.prescribeDesc}
           </p>
         </div>
 
@@ -282,7 +282,7 @@ export default function MedicationHubPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {isTech ? (
+                  {canExecuteTask ? (
                     <VerificationCalculator
                       task={task}
                       formularyEntry={formularyEntry ?? null}
