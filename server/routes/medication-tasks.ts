@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { ensureUserClinicMembership } from "../middleware/ensure-user-clinic-membership.js";
+import { canPerformMedicationTaskAction } from "../lib/task-rbac.js";
 import {
   createMedicationTask,
   takeMedicationTask,
@@ -48,6 +49,11 @@ function apiError(params: { code: string; reason: string; message: string; reque
     message: params.message,
     requestId: params.requestId,
   };
+}
+
+function resolveTaskAuthRole(req: { authUser?: { role?: string }; effectiveRole?: string }): string {
+  if (req.authUser?.role === "admin") return "admin";
+  return req.effectiveRole ?? req.authUser?.role ?? "";
 }
 
 function serializeTask(task: MedicationTask) {
@@ -132,6 +138,18 @@ router.use(requireAuth, requireEffectiveRole("technician"), ensureUserClinicMemb
 
 router.post("/", async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const role = resolveTaskAuthRole(req);
+  if (!canPerformMedicationTaskAction(role, "med.task.create")) {
+    return res.status(403).json(
+      apiError({
+        code: "INSUFFICIENT_ROLE",
+        reason: "MEDICATION_CREATE_NOT_PERMITTED",
+        message: "Only vets and admins may create medication tasks.",
+        requestId,
+      }),
+    );
+  }
+
   const parsed = createTaskSchema.safeParse(req.body);
 
   if (!parsed.success) {
