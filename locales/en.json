@@ -1083,6 +1083,7 @@
     "statusArrived": "Arrived",
     "statusInProgress": "In Progress",
     "statusPending": "Pending",
+    "taskLabel": "Medication task",
     "unspecifiedDrug": "Unspecified",
     "approved": "Approved",
     "awaitingApproval": "Awaiting your approval",
