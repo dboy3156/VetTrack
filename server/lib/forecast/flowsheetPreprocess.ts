@@ -25,24 +25,48 @@ function prependRecordIdIfMissing(text: string, fileId: string): string {
   if (!t) return text;
   const firstLine = t.split("\n").find((l) => l.trim().length > 0)?.trim() ?? "";
   if (firstLine === fileId || firstLine.includes(fileId)) return text;
-  return `${fileId}\n\n${t}`;
+  /** Single `\n` keeps one `detectStructure` paragraph so chart id applies to med lines below. */
+  return `${fileId}\n${t}`;
 }
 
-/** When both appear, keep only lines inside MEDICATIONS … before PROCEDURES (exclusive of PROCEDURES block). */
+const PAGE_FOOTER_RE = /\n--\s*\d+\s+of\s+\d+\s+--/;
+
+/**
+ * SmartFlow PDFs often place `MEDICATIONS` and `PROCEDURES` as adjacent column headers; real drug rows
+ * follow `PROCEDURES` until the `-- N of M --` page footer. Older exports keep meds strictly between
+ * the two headers — when no page footer is found after PROCEDURES, fall back to that narrow window.
+ */
 function sliceMedicationsRegion(text: string): string {
   const u = text.toUpperCase();
-  let iMed = u.indexOf("\nMEDICATIONS");
-  if (iMed !== -1) iMed += 1;
-  else if (u.startsWith("MEDICATIONS")) iMed = 0;
-  else iMed = -1;
-  const iProc = u.indexOf("\nPROCEDURES");
-  if (iMed === -1 || iProc === -1 || iProc <= iMed) return text;
-  return text.slice(iMed, iProc).trim();
+  const chunks: string[] = [];
+  let searchFrom = 0;
+
+  while (true) {
+    let iMed = u.indexOf("\nMEDICATIONS", searchFrom);
+    if (iMed !== -1) iMed += 1;
+    else if (searchFrom === 0 && u.startsWith("MEDICATIONS")) iMed = 0;
+    else break;
+
+    const iProc = u.indexOf("\nPROCEDURES", iMed + 1);
+    if (iProc === -1 || iProc <= iMed) break;
+
+    const afterProc = iProc + "\nPROCEDURES".length;
+    const tail = text.slice(afterProc);
+    const relFooter = tail.search(PAGE_FOOTER_RE);
+    const iEnd = relFooter === -1 ? iProc : afterProc + relFooter;
+    const chunk = text.slice(iMed, iEnd).trim();
+    if (chunk.length > 0) chunks.push(chunk);
+    searchFrom = iEnd > iMed ? iEnd : iMed + 1;
+  }
+
+  if (chunks.length === 0) return text;
+  return chunks.join("\n\n");
 }
 
 function shouldDropLine(line: string): boolean {
   const t = line.trim();
   if (!t) return true;
+  if (/^(MEDICATIONS|PROCEDURES)$/i.test(t)) return true;
   if (PHARM_DOSE_RE.test(t)) return false;
   if (MONITORING_START_RE.test(t)) return true;
   if (FLUID_START_RE.test(t) && /\bml\/h(?:r)?\b/i.test(t)) return true;

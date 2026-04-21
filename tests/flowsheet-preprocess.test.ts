@@ -43,6 +43,12 @@ async function run(): Promise<void> {
   assert.ok(out6.startsWith("361848"), "prepends chart id from File Number for record hint");
   assert.ok(out6.includes("Cerenia"), "keeps med line after prepend");
 
+  const adjacentHeaders =
+    "-- 1 of 2 --\nMEDICATIONS\nPROCEDURES\nLRS 6 ml/hr\n10 Cerenia inj 4 mg IV\n\n-- 2 of 2 --\n";
+  const out7 = preprocessFlowsheetText(adjacentHeaders);
+  assert.ok(out7.includes("Cerenia"), "rows after adjacent MEDICATIONS/PROCEDURES live until page footer");
+  assert.ok(!out7.includes("LRS"), "drops rate-only fluid line in that layout");
+
   console.log("flowsheet preprocess: OK");
 }
 
