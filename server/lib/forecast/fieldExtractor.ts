@@ -31,8 +31,11 @@ function normalizeFreqToken(raw: string): number | null {
   return null;
 }
 
-/** Pull frequency tokens from tail of line (after dose). */
-function extractFreqPerDay(line: string): number | null {
+/**
+ * Administrations per 24-hour day from tokens (BID, TID, q12h, etc.).
+ * This value is multiplied by (forecastWindowHours / 24) for total doses in the order window.
+ */
+function extractAdministrationsPer24h(line: string): number | null {
   const lower = line.toLowerCase();
   const tokens = lower.split(/[\s,/()]+/).filter(Boolean);
   for (const t of tokens) {
@@ -92,7 +95,7 @@ export function extractDrugLine(line: string, fuse: FormularyFuse): ExtractedDru
 
   const rawName = extractRawName(trimmed);
   const dose = extractDose(trimmed);
-  const freqPerDay = isPrn ? null : extractFreqPerDay(trimmed);
+  const freqPerDay = isPrn ? null : extractAdministrationsPer24h(trimmed);
 
   let resolvedName: string | null = null;
   if (rawName.length >= 2 && !isCri) {

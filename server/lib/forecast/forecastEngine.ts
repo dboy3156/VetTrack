@@ -25,6 +25,9 @@ function ceilPositive(n: number): number {
   return Math.max(1, Math.ceil(n));
 }
 
+/** Forecast windows are multiples of one calendar day; frequency is always expressed per 24h. */
+export const FORECAST_HOURS_PER_DAY = 24;
+
 /** Absolute prescribed dose in mg (or tablet count tracked separately). */
 function absoluteDoseMg(drug: ScoredDrug, weightKg: number): number | null {
   if (drug.type === "cri" || drug.type === "prn") return null;
@@ -88,15 +91,21 @@ function describePack(row: FormularyDrugRow): string {
   return `${kind} · ${vol}`;
 }
 
+/**
+ * Vial/liquid quantity from scheduled (non-PRN) drugs:
+ *   totalMg = mgPerAdministration × administrationsPer24h × (forecastWindowHours / 24)
+ * Tablets: totalTabs = tabsPerAdmin × administrationsPer24h × (forecastWindowHours / 24)
+ */
 function physicalUnitsForRegular(
   drug: ScoredDrug,
   mgPerAdmin: number | null,
-  freqPerDay: number | null,
+  administrationsPer24h: number | null,
   windowHours: number,
   formulary: FormularyDrugRow | undefined,
 ): { qty: number | null; unitLabel: string; concentrationLabel: string } {
   const conc = formulary?.concentrationMgMl ?? 10;
   const unitVolMl = formulary?.unitVolumeMl != null ? Number(formulary.unitVolumeMl) : 1;
+  const windowDays = windowHours / FORECAST_HOURS_PER_DAY;
 
   const du = drug.doseUnit?.toLowerCase() ?? "";
   const isTablet =
@@ -104,15 +113,18 @@ function physicalUnitsForRegular(
     formulary?.doseUnit === "tablet" &&
     (du.includes("tablet") || du.includes("tab"));
 
-  if (isTablet && drug.doseValue != null && freqPerDay != null) {
-    const doses = freqPerDay * (windowHours / 24);
-    const qty = ceilPositive(drug.doseValue * doses);
+  if (isTablet && drug.doseValue != null && administrationsPer24h != null) {
+    const administrationsInWindow = administrationsPer24h * windowDays;
+    const qty = ceilPositive(drug.doseValue * administrationsInWindow);
     return { qty, unitLabel: "טבליות", concentrationLabel: `${conc} טבלה` };
   }
 
-  if (mgPerAdmin == null || freqPerDay == null) return { qty: null, unitLabel: "יח׳", concentrationLabel: `${conc} mg/mL` };
+  if (mgPerAdmin == null || administrationsPer24h == null) {
+    return { qty: null, unitLabel: "יח׳", concentrationLabel: `${conc} mg/mL` };
+  }
 
-  const mgTotal = mgPerAdmin * freqPerDay * (windowHours / 24);
+  const administrationsInWindow = administrationsPer24h * windowDays;
+  const mgTotal = mgPerAdmin * administrationsInWindow;
   const mgPerUnit = conc * unitVolMl;
   const qty = mgPerUnit > 0 ? ceilPositive(mgTotal / mgPerUnit) : null;
 
@@ -139,6 +151,14 @@ function criUnits(
   const buffer = formulary?.criBufferPct != null ? Number(formulary.criBufferPct) : 0.25;
   const mlTotal = rate * windowHours * (1 + buffer);
   return ceilPositive(mlTotal / unitVolMl);
+}
+
+function administrationsInOrderWindow(
+  administrationsPer24h: number | null,
+  windowHours: number,
+): number | null {
+  if (administrationsPer24h == null) return null;
+  return administrationsPer24h * (windowHours / FORECAST_HOURS_PER_DAY);
 }
 
 export function enrichAndForecast(params: {
@@ -194,7 +214,7 @@ export function enrichAndForecast(params: {
 
       const inferredFreq =
         drug.freqPerDay ??
-        (drug.type === "regular" && formulary != null ? 1 : null);
+        ((drug.type === "regular" || drug.type === "ld") && formulary != null ? 1 : null);
       if (drug.freqPerDay == null && inferredFreq != null) {
         flags = flags.filter((f) => f !== "FREQ_MISSING");
       }
@@ -203,6 +223,8 @@ export function enrichAndForecast(params: {
       let unitLabel = "יח׳";
       let packDescription = "";
       let concentrationStr = formulary ? `${formulary.concentrationMgMl} mg/mL` : "?";
+      let administrationsPer24h: number | null = null;
+      let administrationsInWindow: number | null = null;
 
       if (drug.type === "cri") {
         quantityUnits = criUnits(drug, params.windowHours, formulary);
@@ -221,6 +243,8 @@ export function enrichAndForecast(params: {
       } else {
         const mgAbs = absoluteDoseMg(drug, weightKg);
         const freqForCalc = drug.freqPerDay ?? inferredFreq;
+        administrationsPer24h = freqForCalc;
+        administrationsInWindow = administrationsInOrderWindow(freqForCalc, params.windowHours);
         const phys = physicalUnitsForRegular(drug, mgAbs, freqForCalc, params.windowHours, formulary);
         quantityUnits = phys.qty;
         unitLabel = phys.unitLabel;
@@ -237,6 +261,8 @@ export function enrichAndForecast(params: {
         quantityUnits,
         unitLabel,
         flags,
+        administrationsPer24h,
+        administrationsInWindow,
       });
     }
 

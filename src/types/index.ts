@@ -855,6 +855,10 @@ export interface ForecastDrugEntry {
   quantityUnits: number | null;
   unitLabel: string;
   flags: ForecastFlagReason[];
+  /** Administrations per 24h used for quantity (parsed or inferred). */
+  administrationsPer24h: number | null;
+  /** Total administrations in the selected order window (24 or 72h). */
+  administrationsInWindow: number | null;
 }
 
 export interface ForecastPatientEntry {

@@ -37,6 +37,8 @@ async function run(): Promise<void> {
             quantityUnits: null,
             unitLabel: "יח׳",
             flags: ["PRN_MANUAL"],
+            administrationsPer24h: null,
+            administrationsInWindow: null,
           },
         ],
       },

@@ -1118,6 +1118,7 @@
     "tabEmail": "Email preview",
     "patientUnknown": "Patient not matched in the system — verify before approving.",
     "quantity": "Quantity",
+    "quantityFrequencyBasis": "{per24} administrations per 24h · {inWindow} total doses in {hours}h order window",
     "approveNote": "After approval, your mail client opens with the merged order.",
     "approveOk": "Order ready — opening mail",
     "approveFailed": "Could not approve order",

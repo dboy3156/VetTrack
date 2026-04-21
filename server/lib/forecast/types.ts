@@ -28,6 +28,7 @@ export interface ExtractedDrug {
   doseUnit: string | null;
   /** When true, doseValue is per kg (mg/kg or mcg/kg) and needs animal weight. */
   doseIsPerKg: boolean;
+  /** Administrations per 24-hour period (e.g. BID=2, TID=3, q12h=2). Drives order quantity. */
   freqPerDay: number | null;
   ratePerHour: number | null;
   route: string | null;
@@ -59,6 +60,10 @@ export interface ForecastDrugEntry {
   quantityUnits: number | null;
   unitLabel: string;
   flags: FlagReason[];
+  /** Effective administrations per 24h used for quantity (parsed or inferred). */
+  administrationsPer24h: number | null;
+  /** Total administrations in the forecast window (24 or 72h). */
+  administrationsInWindow: number | null;
 }
 
 export interface ForecastPatientEntry {

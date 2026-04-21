@@ -31,6 +31,15 @@ export const forecastDrugEntrySchema = z.object({
   quantityUnits: z.number().finite().nullable(),
   unitLabel: z.string().max(80),
   flags: z.array(flagReasonSchema).max(20),
+  /** Present on new parses; older stored sessions may omit (coerced to null). */
+  administrationsPer24h: z.preprocess(
+    (v) => (v === undefined ? null : v),
+    z.number().finite().nullable(),
+  ),
+  administrationsInWindow: z.preprocess(
+    (v) => (v === undefined ? null : v),
+    z.number().finite().nullable(),
+  ),
 });
 
 export const forecastPatientEntrySchema = z.object({

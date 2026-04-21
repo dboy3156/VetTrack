@@ -355,6 +355,8 @@ const translations = {
       } as Record<string, string>)[code] ?? fallback,
     emailPreviewSummary: (patientCount: number, hours: number) =>
       tr(d.pharmacyForecast.emailPreviewSummary, { patientCount, hours }),
+    quantityFrequencyBasis: (per24: number, inWindow: number, hours: number) =>
+      tr(d.pharmacyForecast.quantityFrequencyBasis, { per24, inWindow, hours }),
   },
 
   appointmentsPage: d.appointmentsPage,

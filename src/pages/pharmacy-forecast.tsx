@@ -401,6 +401,17 @@ export default function PharmacyForecastPage() {
                                 <span className="font-semibold">{d.quantityUnits ?? "—"}</span> {d.unitLabel}
                               </div>
                             )}
+                            {mergedPreview &&
+                            d.administrationsPer24h != null &&
+                            d.administrationsInWindow != null ? (
+                              <p className="text-xs text-muted-foreground pt-1">
+                                {t.pharmacyForecast.quantityFrequencyBasis(
+                                  d.administrationsPer24h,
+                                  d.administrationsInWindow,
+                                  mergedPreview.windowHours,
+                                )}
+                              </p>
+                            ) : null}
                           </div>
                         );
                       })}

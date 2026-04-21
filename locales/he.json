@@ -1119,6 +1119,7 @@
     "tabEmail": "תצוגת מייל",
     "patientUnknown": "מטופל לא זוהה במערכת — וודא זיהוי לפני אישור.",
     "quantity": "כמות",
+    "quantityFrequencyBasis": "{per24} מתן ב-24 ש׳ · {inWindow} סה״כ במשך חלון {hours} ש׳",
     "approveNote": "לאחר האישור נפתח חלון דוא\"ל עם ההזמנה הממוזגת.",
     "approveOk": "ההזמנה נשלחה לעריכה במייל",
     "approveFailed": "שליחת ההזמנה נכשלה",
