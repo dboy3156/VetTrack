@@ -8,6 +8,10 @@ import type {
 } from "./types.js";
 import { extractDrugLine, type FormularyFuse } from "./fieldExtractor.js";
 
+const FLUID_FAMILY_IN_LINE = /\b(?:LRS|Plasma|FFP|DW|5DW|NGT)\b/i;
+const PHARM_DOSE_LINE_RE =
+  /\d+(?:\.\d+)?\s*(?:mg\/kg|mcg\/kg|mg\s*\/\s*kg|mcg\s*\/\s*kg|mg|mcg|mEq|%|tab|tabs|tablet)\b/i;
+
 function baseConfidence(extracted: ExtractedDrug): number {
   if (extracted.isCri && extracted.ratePerHour != null) return 0.95;
   if (extracted.isPrn) return 0.9;
@@ -47,6 +51,18 @@ export function scoreExtractedDrug(extracted: ExtractedDrug): ScoredDrug {
 
   if (confidence < 0.75 && !flags.includes("LOW_CONFIDENCE")) {
     flags.push("LOW_CONFIDENCE");
+  }
+
+  const line = extracted.rawLine;
+  if (FLUID_FAMILY_IN_LINE.test(line) && PHARM_DOSE_LINE_RE.test(line)) {
+    flags.push("FLUID_VS_DRUG_UNCLEAR");
+  }
+  if (
+    flags.includes("DRUG_UNKNOWN") &&
+    PHARM_DOSE_LINE_RE.test(line) &&
+    !flags.includes("LINE_AMBIGUOUS")
+  ) {
+    flags.push("LINE_AMBIGUOUS");
   }
 
   return {

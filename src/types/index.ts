@@ -842,7 +842,9 @@ export type ForecastFlagReason =
   | "DRUG_UNKNOWN"
   | "PRN_MANUAL"
   | "PATIENT_UNKNOWN"
-  | "LOW_CONFIDENCE";
+  | "LOW_CONFIDENCE"
+  | "LINE_AMBIGUOUS"
+  | "FLUID_VS_DRUG_UNCLEAR";
 
 export interface ForecastDrugEntry {
   drugName: string;

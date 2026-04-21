@@ -18,6 +18,8 @@ export const flagReasonSchema = z.enum([
   "PRN_MANUAL",
   "PATIENT_UNKNOWN",
   "LOW_CONFIDENCE",
+  "LINE_AMBIGUOUS",
+  "FLUID_VS_DRUG_UNCLEAR",
 ]);
 
 export const forecastDrugEntrySchema = z.object({

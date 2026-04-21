@@ -5,6 +5,7 @@ import { parsePatientBlocks } from "./confidenceScorer.js";
 import { enrichAndForecast, type AnimalRow, type FormularyDrugRow } from "./forecastEngine.js";
 import { createFormularyFuse } from "./fieldExtractor.js";
 import { detectStructure, extractRecordNumberHint } from "./structureDetector.js";
+import { preprocessFlowsheetText } from "./flowsheetPreprocess.js";
 import type { ForecastResult } from "./types.js";
 
 function mapFormularyRow(row: typeof drugFormulary.$inferSelect): FormularyDrugRow {
@@ -75,7 +76,8 @@ export async function runForecastPipeline(params: {
     });
   }
 
-  const blocks = detectStructure(params.rawText);
+  const cleaned = preprocessFlowsheetText(params.rawText);
+  const blocks = detectStructure(cleaned);
   const parsed = parsePatientBlocks(blocks, fuse, extractRecordNumberHint);
 
   return enrichAndForecast({

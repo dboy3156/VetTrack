@@ -9,7 +9,9 @@ export type FlagReason =
   | "DRUG_UNKNOWN"
   | "PRN_MANUAL"
   | "PATIENT_UNKNOWN"
-  | "LOW_CONFIDENCE";
+  | "LOW_CONFIDENCE"
+  | "LINE_AMBIGUOUS"
+  | "FLUID_VS_DRUG_UNCLEAR";
 
 /** Layer 1 output */
 export interface RawPatientBlock {
