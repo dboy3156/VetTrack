@@ -1127,6 +1127,7 @@
     "approveGateUnresolvedPatientFlags": "פתור את כל אזהרות המטופל לפני אישור ההזמנה למרקחה",
     "approveGateUnresolvedDrugFlags": "פתור את כל אזהרות התרופות לפני אישור ההזמנה למרקחה",
     "approveGatePrnQuantityRequired": "כל שורת PRN דורשת כמות של לפחות 1 לפני האישור",
+    "approveGateNoDrugLines": "אין תרופות להזמנה — בדקו את הקלט או כללי הסינון",
     "approveCannotShort": "לא ניתן לאשר עדיין",
     "emailPreviewSummary": "ICU · {patientCount} מטופלים · {hours} ש׳",
     "mailtoTruncatedWarning": "קישור המייל קוצר בגלל אורך; ההזמנה המלאה נשמרת ב-VetTrack.",

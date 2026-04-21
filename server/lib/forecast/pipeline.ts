@@ -48,6 +48,7 @@ export async function runForecastPipeline(params: {
 
   const pdfPatient = extractPdfPatientDemographics(params.rawText);
 
+  /** Used only when assembling the pharmacy forecast / order form — not for other app surfaces. */
   const exclusionRows = await db
     .select({ matchSubstring: pharmacyForecastExclusions.matchSubstring })
     .from(pharmacyForecastExclusions)

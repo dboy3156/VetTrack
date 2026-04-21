@@ -1126,6 +1126,7 @@
     "approveGateUnresolvedPatientFlags": "Resolve all patient warnings before approving the pharmacy order",
     "approveGateUnresolvedDrugFlags": "Resolve all drug warnings before approving the pharmacy order",
     "approveGatePrnQuantityRequired": "Every PRN line needs a quantity of at least 1 before approval",
+    "approveGateNoDrugLines": "No medications to order — check parse input or exclusion rules",
     "approveCannotShort": "Cannot approve yet",
     "emailPreviewSummary": "ICU · {patientCount} patients · {hours}h",
     "mailtoTruncatedWarning": "The mail link was shortened for length; the full order remains saved in VetTrack.",

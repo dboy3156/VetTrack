@@ -415,7 +415,7 @@ router.get("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, re
   }
 });
 
-/** Admin: substrings to exclude from pharmacy forecast output (non-pharmacy meds, etc.). */
+/** Admin/API only: clinic substrings excluded in `runForecastPipeline` when computing pharmacy order output (not exposed in the SPA). */
 router.get("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const clinicId = req.clinicId!;

@@ -137,7 +137,13 @@ export async function resolveCurrentRole(input: RoleResolutionInput): Promise<Ro
 
   if (!activeShift) {
     const ROLE_LEVELS: Record<string, number> = {
-      admin: 40, vet: 30, senior_technician: 25, technician: 20, student: 10,
+      admin: 40,
+      vet: 30,
+      senior_technician: 25,
+      lead_technician: 22,
+      vet_tech: 20,
+      technician: 20,
+      student: 10,
     };
     const primaryLevel = ROLE_LEVELS[input.fallbackRole] ?? 0;
     const secondaryLevel = input.secondaryRole ? (ROLE_LEVELS[input.secondaryRole] ?? 0) : 0;

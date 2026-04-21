@@ -168,20 +168,32 @@ export function enrichAndForecast(params: {
   formularyByNormalizedName: Map<string, FormularyDrugRow>;
   /** Patient display + weight from PDF extract; pharmacy does not use vt_animals. */
   pdfPatient: PdfPatientDemographics | null;
-  /** Lowercase substrings; if raw line or resolved name contains any, drug is omitted from output. */
+  /** Substrings (matched case-insensitively) against raw line, extracted name, and formulary-resolved name — drug omitted if any hit. */
   exclusionSubstrings: string[];
 }): ForecastResult {
   const patients: ForecastPatientEntry[] = [];
 
   const normalizeKey = (s: string) => s.trim().toLowerCase();
   const pdf = params.pdfPatient;
-  const exclusions = params.exclusionSubstrings.map((s) => s.trim().toLowerCase()).filter(Boolean);
 
-  function isExcludedDrug(rawLine: string, resolvedName: string | null): boolean {
-    const low = rawLine.toLowerCase();
-    const rn = (resolvedName ?? "").toLowerCase();
+  function normalizeForSubstringMatch(s: string): string {
+    return s.normalize("NFKC").trim().toLowerCase();
+  }
+
+  const exclusions = params.exclusionSubstrings
+    .map((s) => normalizeForSubstringMatch(s))
+    .filter((s) => s.length > 0);
+
+  /** Match against full line, extracted drug token, and resolved formulary name (CRI often has no resolved name). */
+  function isExcludedDrug(drug: ScoredDrug): boolean {
+    if (exclusions.length === 0) return false;
+    const haystacks = [drug.rawLine, drug.rawName, drug.resolvedName ?? ""]
+      .map((s) => normalizeForSubstringMatch(s))
+      .filter((s) => s.length > 0);
     for (const ex of exclusions) {
-      if (low.includes(ex) || (rn.length > 0 && rn.includes(ex))) return true;
+      for (const h of haystacks) {
+        if (h.includes(ex)) return true;
+      }
     }
     return false;
   }
@@ -200,7 +212,7 @@ export function enrichAndForecast(params: {
     const forecastDrugs: ForecastDrugEntry[] = [];
 
     for (const drug of block.drugs) {
-      if (isExcludedDrug(drug.rawLine, drug.resolvedName)) continue;
+      if (isExcludedDrug(drug)) continue;
 
       let flags = [...drug.flags];
 
