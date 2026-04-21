@@ -5,6 +5,21 @@ import { Button } from "@/components/ui/button";
 import { type AccessDeniedReason, useAuth } from "@/hooks/use-auth";
 import { t } from "@/lib/i18n";
 
+/**
+ * Agent-friendly diagnostics shown only on prolonged load timeout in dev.
+ * Keeps production UX unchanged (text stays the same there).
+ */
+function buildDevTimeoutDiagnostics(): string[] {
+  const envMode = (typeof import.meta !== "undefined" && import.meta.env?.MODE) || "unknown";
+  const pub = (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLERK_PUBLISHABLE_KEY) || "";
+  const clientMode = pub ? "clerk" : "dev-bypass";
+  return [
+    `mode=${clientMode} env=${envMode}`,
+    "Likely causes: API server down, wrong DATABASE_URL, pending user, or Clerk/server mode mismatch.",
+    "Try: pnpm run auth:preflight (env + mode + API reachability).",
+  ];
+}
+
 export function AuthGuard({ children }: { children: ReactNode }) {
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [location, navigate] = useLocation();
@@ -40,11 +55,21 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         </div>
       );
     }
+    const isDev = typeof import.meta !== "undefined" && import.meta.env?.DEV;
+    const diagnostics = isDev ? buildDevTimeoutDiagnostics() : null;
     return (
       <div className="flex h-screen flex-col items-center justify-center text-center p-6">
         <ShieldAlert className="h-16 w-16 text-amber-500 mb-4" />
         <h1 className="text-2xl font-bold">{t.auth.guard.loadingApp}</h1>
         <p>{t.api.networkUnavailable}</p>
+        {diagnostics ? (
+          <pre
+            className="mt-3 max-w-xl whitespace-pre-wrap rounded border border-dashed border-amber-400 bg-amber-50 p-3 text-left text-xs text-amber-900"
+            data-testid="auth-guard-dev-diagnostics"
+          >
+            {diagnostics.join("\n")}
+          </pre>
+        ) : null}
         <div className="mt-4 flex gap-3">
           <Button
             variant="outline"

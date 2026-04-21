@@ -150,6 +150,11 @@ export const drugFormulary = pgTable(
     id: text("id").primaryKey(),
     clinicId: text("clinic_id").notNull(),
     name: text("name").notNull(),
+    genericName: text("generic_name").notNull(),
+    brandNames: jsonb("brand_names").notNull().default(sql`'[]'::jsonb`),
+    targetSpecies: jsonb("target_species"),
+    category: text("category"),
+    dosageNotes: text("dosage_notes"),
     concentrationMgMl: numeric("concentration_mg_ml", { precision: 10, scale: 4 }).notNull(),
     standardDose: numeric("standard_dose", { precision: 10, scale: 4 }).notNull(),
     minDose: numeric("min_dose", { precision: 10, scale: 4 }),
@@ -164,7 +169,10 @@ export const drugFormulary = pgTable(
     deletedAt: timestamp("deleted_at"),
   },
   (table) => ({
-    clinicNameUnique: uniqueIndex("vt_drug_formulary_clinic_name_unique").on(
+    clinicGenericConcUnique: uniqueIndex("vt_drug_formulary_clinic_generic_conc_uq")
+      .on(table.clinicId, sql`lower(trim(${table.genericName}))`, table.concentrationMgMl)
+      .where(sql`${table.deletedAt} is null`),
+    clinicNameSearchIdx: index("vt_drug_formulary_clinic_name_search_idx").on(
       table.clinicId,
       sql`lower(${table.name})`,
     ),
@@ -247,6 +255,9 @@ export const medicationTasks = pgTable(
     statusIdx: index("vt_medication_tasks_status_idx").on(table.status),
     assignedIdx: index("vt_medication_tasks_assigned_idx").on(table.assignedTo),
     clinicStatusIdx: index("vt_med_tasks_clinic_status_idx").on(table.clinicId, table.status),
+    openAnimalDrugRouteUnique: uniqueIndex("vt_med_tasks_open_animal_drug_route_uq")
+      .on(table.clinicId, table.animalId, table.drugId, table.route)
+      .where(sql`${table.status} in ('pending', 'in_progress')`),
   }),
 );
 

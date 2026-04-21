@@ -19,6 +19,20 @@ import { AppErrorBoundary } from "@/components/ui/app-error-boundary";
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const CLERK_ENABLED = Boolean(PUBLISHABLE_KEY);
 
+// Local auth mode contract (deterministic):
+//   VITE_CLERK_PUBLISHABLE_KEY present => Clerk mode
+//   Missing publishable key           => dev bypass mode
+// Emits a single, secret-free startup line so operators and agents can confirm
+// which mode the browser is about to run in before hitting the UI.
+if (import.meta.env.DEV) {
+  const rawKey = typeof PUBLISHABLE_KEY === "string" ? PUBLISHABLE_KEY.trim() : "";
+  const keyPrefix = rawKey ? rawKey.slice(0, 7) : "(none)";
+  // eslint-disable-next-line no-console
+  console.info(
+    `[auth-mode] client=${CLERK_ENABLED ? "clerk" : "dev-bypass"} publishableKey=${keyPrefix} env=${import.meta.env.MODE}`,
+  );
+}
+
 const rootEl = document.getElementById("root");
 
 function AppBootstrap() {

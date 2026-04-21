@@ -26,6 +26,7 @@ import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.
 import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
 import { releaseStaleMedicationTasks } from "./services/medication-tasks.service.js";
 import healthRoutes from "./routes/health.js";
+import { resolveAuthModeFromEnv, describeAuthMode } from "./lib/auth-mode.js";
 
 const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
 const isProduction = process.env.NODE_ENV === "production";
@@ -175,7 +176,15 @@ app.use((req, _res, next) => {
 
 // Always mount official Clerk middleware at app level when Clerk auth is enabled.
 // In dev bypass mode (no secret), requireAuth falls back to local dev identity.
-if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
+const authModeResolution = resolveAuthModeFromEnv();
+
+// Secret-free startup banner so operators and agents can confirm the server
+// auth mode without reading env files. Logged once at boot (non-production).
+if (!isProduction) {
+  console.log(`[auth-mode] server ${describeAuthMode(authModeResolution)}`);
+}
+
+if (authModeResolution.mode === "clerk") {
   if (!process.env.CLERK_PUBLISHABLE_KEY?.trim() && process.env.VITE_CLERK_PUBLISHABLE_KEY?.trim()) {
     process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
   }

@@ -1,7 +1,7 @@
 # Medication formulary — composite identity & sync (extend in place)
 
 **Date:** 2026-04-21  
-**Status:** Draft for implementation  
+**Status:** Implemented (2026-04-21)  
 **Related:** `vt_drug_formulary`, `shared/drug-formulary-seed.ts`, `server/lib/formulary-seed-sync.ts`, `server/routes/formulary.ts`  
 **Amends / supersedes (in part):** [2026-04-20-drug-formulary-seed-sync-design.md](./2026-04-20-drug-formulary-seed-sync-design.md) — uniqueness and match key move from **`(clinic_id, lower(name))`** to **`(clinic_id, normalized generic_name, concentration_mg_ml)`** for active rows; customized-row and soft-delete **policies** remain aligned with that doc unless noted below.
 

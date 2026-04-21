@@ -3,13 +3,18 @@ import { Router } from "express";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, drugFormulary } from "../db.js";
-import { syncFormularyFromSeed } from "../lib/formulary-seed-sync.js";
+import { normalizeJsonStringArray, syncFormularyFromSeed } from "../lib/formulary-seed-sync.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 
 const router = Router();
 
 const createOrUpsertFormularySchema = z.object({
   name: z.string().trim().min(1).max(200),
+  genericName: z.string().trim().min(1).max(200),
+  brandNames: z.array(z.string().trim().min(1)).max(50).optional(),
+  targetSpecies: z.array(z.string().trim().min(1)).max(20).optional(),
+  category: z.string().trim().max(120).optional().nullable(),
+  dosageNotes: z.string().trim().max(2000).optional().nullable(),
   concentrationMgMl: z.number().finite().positive(),
   standardDose: z.number().finite().positive(),
   minDose: z.number().finite().positive().optional().nullable(),
@@ -45,6 +50,11 @@ function toResponseRow(row: typeof drugFormulary.$inferSelect) {
     id: row.id,
     clinicId: row.clinicId,
     name: row.name,
+    genericName: row.genericName,
+    brandNames: normalizeJsonStringArray(row.brandNames),
+    targetSpecies: row.targetSpecies == null ? null : normalizeJsonStringArray(row.targetSpecies),
+    category: row.category ?? null,
+    dosageNotes: row.dosageNotes ?? null,
     concentrationMgMl: Number(row.concentrationMgMl),
     standardDose: Number(row.standardDose),
     minDose: row.minDose != null ? Number(row.minDose) : null,
@@ -112,7 +122,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
   const payload = parsed.data;
   const now = new Date();
   const normalizedName = payload.name.trim();
-  const normalizedLowerName = normalizedName.toLowerCase();
+  const normalizedGeneric = payload.genericName.trim();
+  const normalizedLowerGeneric = normalizedGeneric.toLowerCase();
 
   try {
     const [existing] = await db
@@ -121,7 +132,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
       .where(
         and(
           eq(drugFormulary.clinicId, clinicId),
-          sql`lower(${drugFormulary.name}) = ${normalizedLowerName}`,
+          sql`lower(trim(${drugFormulary.genericName})) = ${normalizedLowerGeneric}`,
+          eq(drugFormulary.concentrationMgMl, String(payload.concentrationMgMl)),
         ),
       )
       .limit(1);
@@ -132,6 +144,11 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
           .update(drugFormulary)
           .set({
             name: normalizedName,
+            genericName: normalizedGeneric,
+            brandNames: payload.brandNames ?? [],
+            targetSpecies: payload.targetSpecies ?? null,
+            category: payload.category ?? null,
+            dosageNotes: payload.dosageNotes ?? null,
             concentrationMgMl: String(payload.concentrationMgMl),
             standardDose: String(payload.standardDose),
             minDose: payload.minDose != null ? String(payload.minDose) : null,
@@ -148,8 +165,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
       return res.status(409).json(
         apiError({
           code: "CONFLICT",
-          reason: "FORMULARY_NAME_EXISTS",
-          message: "A formulary entry with this name already exists",
+          reason: "FORMULARY_DUPLICATE_GENERIC_CONCENTRATION",
+          message: "An active formulary entry already exists for this generic name and concentration",
           requestId,
         }),
       );
@@ -161,6 +178,11 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
         id: randomUUID(),
         clinicId,
         name: normalizedName,
+        genericName: normalizedGeneric,
+        brandNames: payload.brandNames ?? [],
+        targetSpecies: payload.targetSpecies ?? null,
+        category: payload.category ?? null,
+        dosageNotes: payload.dosageNotes ?? null,
         concentrationMgMl: String(payload.concentrationMgMl),
         standardDose: String(payload.standardDose),
         minDose: payload.minDose != null ? String(payload.minDose) : null,
@@ -180,8 +202,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
       return res.status(409).json(
         apiError({
           code: "CONFLICT",
-          reason: "FORMULARY_NAME_EXISTS",
-          message: "A formulary entry with this name already exists",
+          reason: "FORMULARY_DUPLICATE_GENERIC_CONCENTRATION",
+          message: "An active formulary entry already exists for this generic name and concentration",
           requestId,
         }),
       );
@@ -209,6 +231,12 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
   }
 
   const patchSchema = z.object({
+    name: z.string().trim().min(1).max(200).optional(),
+    genericName: z.string().trim().min(1).max(200).optional(),
+    brandNames: z.array(z.string().trim().min(1)).max(50).optional(),
+    targetSpecies: z.array(z.string().trim().min(1)).max(20).optional().nullable(),
+    category: z.string().trim().max(120).optional().nullable(),
+    dosageNotes: z.string().trim().max(2000).optional().nullable(),
     concentrationMgMl: z.number().finite().positive().optional(),
     standardDose: z.number().finite().positive().optional(),
     minDose: z.number().finite().positive().optional().nullable(),
@@ -233,6 +261,12 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
   try {
     const now = new Date();
     const updateFields: Record<string, unknown> = { updatedAt: now };
+    if (patch.name !== undefined) updateFields.name = patch.name.trim();
+    if (patch.genericName !== undefined) updateFields.genericName = patch.genericName.trim();
+    if (patch.brandNames !== undefined) updateFields.brandNames = patch.brandNames;
+    if ("targetSpecies" in patch) updateFields.targetSpecies = patch.targetSpecies ?? null;
+    if ("category" in patch) updateFields.category = patch.category ?? null;
+    if ("dosageNotes" in patch) updateFields.dosageNotes = patch.dosageNotes ?? null;
     if (patch.concentrationMgMl !== undefined) updateFields.concentrationMgMl = String(patch.concentrationMgMl);
     if (patch.standardDose !== undefined) updateFields.standardDose = String(patch.standardDose);
     if ("minDose" in patch) updateFields.minDose = patch.minDose != null ? String(patch.minDose) : null;
@@ -240,11 +274,28 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
     if (patch.doseUnit !== undefined) updateFields.doseUnit = patch.doseUnit;
     if ("defaultRoute" in patch) updateFields.defaultRoute = patch.defaultRoute ?? null;
 
-    const [updated] = await db
-      .update(drugFormulary)
-      .set(updateFields)
-      .where(and(eq(drugFormulary.id, id), eq(drugFormulary.clinicId, clinicId), isNull(drugFormulary.deletedAt)))
-      .returning();
+    let updated: typeof drugFormulary.$inferSelect | undefined;
+    try {
+      const rows = await db
+        .update(drugFormulary)
+        .set(updateFields)
+        .where(and(eq(drugFormulary.id, id), eq(drugFormulary.clinicId, clinicId), isNull(drugFormulary.deletedAt)))
+        .returning();
+      updated = rows[0];
+    } catch (err) {
+      const code = typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : "";
+      if (code === "23505") {
+        return res.status(409).json(
+          apiError({
+            code: "CONFLICT",
+            reason: "FORMULARY_DUPLICATE_GENERIC_CONCENTRATION",
+            message: "Update would duplicate generic name and concentration",
+            requestId,
+          }),
+        );
+      }
+      throw err;
+    }
 
     if (!updated) {
       return res.status(404).json(

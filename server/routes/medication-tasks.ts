@@ -100,14 +100,15 @@ function serializeTask(task: MedicationTask) {
 
 function sendError(res: Response, err: unknown, requestId: string): void {
   if (err instanceof MedTaskError) {
-    res.status(err.status).json(
-      apiError({
+    res.status(err.status).json({
+      ...apiError({
         code: err.code,
         reason: err.code,
         message: err.message,
         requestId,
       }),
-    );
+      details: err.details ?? null,
+    });
     return;
   }
 

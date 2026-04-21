@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { SEEDED_FORMULARY } from "../shared/drug-formulary-seed.ts";
 
+function seedCompositeKey(entry: (typeof SEEDED_FORMULARY)[number]): string {
+  return `${entry.genericName.trim().toLowerCase()}\0${entry.concentrationMgMl}`;
+}
+
 const REQUIRED_SEED_DRUGS = [
   "Propofol",
   "Ketamine",
@@ -73,7 +77,17 @@ async function run(): Promise<void> {
     assert.ok(byName.has(key), `Missing required seed drug: ${drugName}`);
   }
 
+  const compositeKeys = new Set<string>();
   for (const entry of SEEDED_FORMULARY) {
+    assert.ok(
+      typeof entry.genericName === "string" && entry.genericName.trim().length > 0,
+      `Missing or empty genericName for ${entry.name}`,
+    );
+
+    const ck = seedCompositeKey(entry);
+    assert.ok(!compositeKeys.has(ck), `Duplicate seed composite key (generic + concentration): ${ck} (${entry.name})`);
+    compositeKeys.add(ck);
+
     assert.ok(Number.isFinite(entry.concentrationMgMl) && entry.concentrationMgMl > 0, `Invalid concentration for ${entry.name}`);
     assert.ok(Number.isFinite(entry.standardDose) && entry.standardDose > 0, `Invalid standard dose for ${entry.name}`);
 

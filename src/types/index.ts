@@ -334,6 +334,11 @@ export interface DrugFormularyEntry {
   id: string;
   clinicId: string;
   name: string;
+  genericName: string;
+  brandNames?: string[];
+  targetSpecies?: string[] | null;
+  category?: string | null;
+  dosageNotes?: string | null;
   concentrationMgMl: number;
   standardDose: number;
   minDose?: number | null;
@@ -346,6 +351,11 @@ export interface DrugFormularyEntry {
 
 export interface CreateDrugFormularyRequest {
   name: string;
+  genericName: string;
+  brandNames?: string[];
+  targetSpecies?: string[];
+  category?: string | null;
+  dosageNotes?: string | null;
   concentrationMgMl: number;
   standardDose: number;
   minDose?: number | null;

@@ -5,6 +5,11 @@ type FormularyRowLike = {
   id: string;
   clinicId: string;
   name: string;
+  genericName: string;
+  brandNames: unknown;
+  targetSpecies: unknown;
+  category: string | null;
+  dosageNotes: string | null;
   concentrationMgMl: string;
   standardDose: string;
   minDose: string | null;
@@ -25,6 +30,11 @@ function baseRow(partial: Partial<FormularyRowLike>): FormularyRowLike {
     id: "row-id",
     clinicId: "clinic-1",
     name: "Propofol",
+    genericName: "Propofol",
+    brandNames: [],
+    targetSpecies: null,
+    category: null,
+    dosageNotes: null,
     concentrationMgMl: "10",
     standardDose: "4",
     minDose: "2",
@@ -48,6 +58,7 @@ async function run(): Promise<void> {
 
   const {
     activeRowEligibleForSeedSync,
+    formularySeedCompositeKey,
     numEq,
     optionalDoseEq,
     seedEntryToColumns,
@@ -65,6 +76,7 @@ async function run(): Promise<void> {
 
   const entry = {
     name: "Propofol",
+    genericName: "Propofol",
     concentrationMgMl: 10,
     standardDose: 4,
     minDose: 2,
@@ -73,7 +85,14 @@ async function run(): Promise<void> {
     defaultRoute: "IV",
   };
 
+  assert.equal(formularySeedCompositeKey(entry), `propofol\0${10}`);
+
   assert.equal(activeRowEligibleForSeedSync(baseRow({}) as RowArg, entry), true);
+
+  assert.equal(
+    activeRowEligibleForSeedSync(baseRow({ genericName: "Other" }) as RowArg, entry),
+    false,
+  );
 
   assert.equal(
     activeRowEligibleForSeedSync(baseRow({ concentrationMgMl: "11" }) as RowArg, entry),
@@ -90,9 +109,26 @@ async function run(): Promise<void> {
     false,
   );
 
+  assert.equal(
+    activeRowEligibleForSeedSync(
+      baseRow({ brandNames: ["Brand"] }) as RowArg,
+      { ...entry, brandNames: ["Brand"] },
+    ),
+    true,
+  );
+
+  assert.equal(
+    activeRowEligibleForSeedSync(
+      baseRow({ brandNames: ["A"] }) as RowArg,
+      { ...entry, brandNames: ["B"] },
+    ),
+    false,
+  );
+
   const cols = seedEntryToColumns(entry, "c1", new Date(0));
   assert.equal(cols.clinicId, "c1");
   assert.equal(cols.name, "Propofol");
+  assert.equal(cols.genericName, "Propofol");
 
   console.log("  PASS: formulary-seed-sync");
 }

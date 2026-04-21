@@ -18,6 +18,11 @@ export type DrugDoseUnit = "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
 
 export interface DrugFormularyEntry {
   name: string;
+  genericName: string;
+  brandNames?: string[];
+  targetSpecies?: string[] | null;
+  category?: string | null;
+  dosageNotes?: string | null;
   concentrationMgMl: number;
   standardDose: number;
   minDose?: number | null;
@@ -30,9 +35,17 @@ type DrugFormularyStore = Record<string, DrugFormularyEntry>;
 
 export const SEEDED_FORMULARY: DrugFormularyEntry[] = SHARED_SEEDED_FORMULARY.map((entry) => ({
   name: entry.name,
+  genericName: entry.genericName,
+  brandNames: entry.brandNames,
+  targetSpecies: entry.targetSpecies ?? null,
+  category: entry.category ?? null,
+  dosageNotes: entry.dosageNotes ?? null,
   concentrationMgMl: entry.concentrationMgMl,
   standardDose: entry.standardDose,
+  minDose: entry.minDose ?? null,
+  maxDose: entry.maxDose ?? null,
   doseUnit: entry.doseUnit,
+  defaultRoute: entry.defaultRoute ?? null,
 }));
 
 function normalizeDrugKey(name: string): string {
@@ -48,6 +61,10 @@ function sanitizeEntry(raw: unknown): DrugFormularyEntry | null {
   const candidate = raw as Partial<DrugFormularyEntry>;
   const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
   if (!name) return null;
+  const genericName =
+    typeof candidate.genericName === "string" && candidate.genericName.trim().length > 0
+      ? candidate.genericName.trim()
+      : name;
   if (!isFinitePositiveNumber(candidate.concentrationMgMl)) return null;
   if (!isFinitePositiveNumber(candidate.standardDose)) return null;
   const validUnits: DrugDoseUnit[] = ["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"];
@@ -56,6 +73,11 @@ function sanitizeEntry(raw: unknown): DrugFormularyEntry | null {
   const rawMax = typeof candidate.maxDose === "number" && Number.isFinite(candidate.maxDose) && candidate.maxDose > 0 ? candidate.maxDose : null;
   return {
     name,
+    genericName,
+    brandNames: Array.isArray(candidate.brandNames) ? candidate.brandNames.filter((s): s is string => typeof s === "string") : undefined,
+    targetSpecies: Array.isArray(candidate.targetSpecies) ? candidate.targetSpecies.filter((s): s is string => typeof s === "string") : null,
+    category: typeof candidate.category === "string" ? candidate.category : null,
+    dosageNotes: typeof candidate.dosageNotes === "string" ? candidate.dosageNotes : null,
     concentrationMgMl: candidate.concentrationMgMl as number,
     standardDose: candidate.standardDose as number,
     minDose: rawMin,
@@ -68,9 +90,17 @@ function sanitizeEntry(raw: unknown): DrugFormularyEntry | null {
 function fromApiEntry(entry: ApiDrugFormularyEntry): DrugFormularyEntry | null {
   return sanitizeEntry({
     name: entry.name,
+    genericName: entry.genericName,
+    brandNames: entry.brandNames,
+    targetSpecies: entry.targetSpecies ?? undefined,
+    category: entry.category,
+    dosageNotes: entry.dosageNotes,
     concentrationMgMl: entry.concentrationMgMl,
     standardDose: entry.standardDose,
+    minDose: entry.minDose,
+    maxDose: entry.maxDose,
     doseUnit: entry.doseUnit,
+    defaultRoute: entry.defaultRoute,
   });
 }
 
@@ -135,9 +165,17 @@ export function useDrugFormulary() {
     mutationFn: (entry: DrugFormularyEntry) =>
       api.formulary.upsert({
         name: entry.name,
+        genericName: entry.genericName,
+        brandNames: entry.brandNames,
+        targetSpecies: entry.targetSpecies ?? undefined,
+        category: entry.category,
+        dosageNotes: entry.dosageNotes,
         concentrationMgMl: entry.concentrationMgMl,
         standardDose: entry.standardDose,
+        minDose: entry.minDose,
+        maxDose: entry.maxDose,
         doseUnit: entry.doseUnit,
+        defaultRoute: entry.defaultRoute,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/formulary"], exact: true });

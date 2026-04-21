@@ -176,6 +176,7 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
     try {
       await upsertDrug({
         name,
+        genericName: name,
         concentrationMgMl: conc,
         standardDose: dose,
         minDose: minD && Number.isFinite(minD) && minD > 0 ? minD : null,
