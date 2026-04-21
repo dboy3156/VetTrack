@@ -37,6 +37,12 @@ async function run(): Promise<void> {
     "merges name-only line with following dose-only line",
   );
 
+  const fileNumFlow =
+    "File Number: 361848\nNOISE\nMEDICATIONS\n10 Cerenia inj 4 mg IV\nPROCEDURES\nX\n";
+  const out6 = preprocessFlowsheetText(fileNumFlow);
+  assert.ok(out6.startsWith("361848"), "prepends chart id from File Number for record hint");
+  assert.ok(out6.includes("Cerenia"), "keeps med line after prepend");
+
   console.log("flowsheet preprocess: OK");
 }
 

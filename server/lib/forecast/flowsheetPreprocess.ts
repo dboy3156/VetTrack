@@ -14,6 +14,20 @@ function normalizeRaw(s: string): string {
     .replace(/\u00a0/g, " ");
 }
 
+/** SmartFlow exports `File Number: ######` once per PDF; meds slice may drop it. Prepend digits so `extractRecordNumberHint` sees a chart #. */
+function extractMedicalRecordIdFromFileNumber(fullText: string): string | null {
+  const m = fullText.match(/\bFile\s*Number:\s*(\d{4,10})\b/i);
+  return m?.[1] ?? null;
+}
+
+function prependRecordIdIfMissing(text: string, fileId: string): string {
+  const t = text.trim();
+  if (!t) return text;
+  const firstLine = t.split("\n").find((l) => l.trim().length > 0)?.trim() ?? "";
+  if (firstLine === fileId || firstLine.includes(fileId)) return text;
+  return `${fileId}\n\n${t}`;
+}
+
 /** When both appear, keep only lines inside MEDICATIONS … before PROCEDURES (exclusive of PROCEDURES block). */
 function sliceMedicationsRegion(text: string): string {
   const u = text.toUpperCase();
@@ -65,9 +79,12 @@ function mergeContinuations(lines: string[]): string[] {
 /** SmartFlow Flowsheet paste/PDF text — normalize, optional meds region, drop obvious non-med lines. */
 export function preprocessFlowsheetText(raw: string): string {
   const normalized = normalizeRaw(String(raw ?? ""));
+  const fileId = extractMedicalRecordIdFromFileNumber(normalized);
   const region = sliceMedicationsRegion(normalized);
   const rawLines = region.split("\n");
   const merged = mergeContinuations(rawLines.map((l) => l.trim()).filter(Boolean));
   const kept = merged.filter((l) => !shouldDropLine(l));
-  return kept.join("\n\n");
+  const joined = kept.join("\n\n");
+  if (fileId) return prependRecordIdIfMissing(joined, fileId);
+  return joined;
 }
