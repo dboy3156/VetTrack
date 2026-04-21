@@ -35,7 +35,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://vettrack:vettrack@localhost:5432/vettrack_test
       SESSION_SECRET: ci-test-secret-that-is-long-enough-32chars
-      PORT: 3000
+      PORT: 3001
 
     steps:
       - name: ⬇️ Checkout
@@ -59,7 +59,9 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: 🏗️ Frontend build
-        run: pnpm build
+        run: |
+          export VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY:-pk_test_ci_dummy_publishable_key}"
+          pnpm build
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
 
@@ -88,7 +90,7 @@ jobs:
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
       VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
       ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
-      PORT: 3000
+      PORT: 3001
 
     steps:
       - name: ⬇️ Checkout
@@ -128,7 +130,7 @@ jobs:
       ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }}
-      PORT: 3000
+      PORT: 3001
 
     steps:
       - name: ⬇️ Checkout
