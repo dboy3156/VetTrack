@@ -81,6 +81,10 @@ export const SEEDED_FORMULARY: SeededDrugFormularyEntry[] = [
   { name: "Cephalexin",       concentrationMgMl: 25,    standardDose: 25,     minDose: 22,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "PO" },
   { name: "Meropenem",        concentrationMgMl: 50,    standardDose: 8,      minDose: 8,      maxDose: 24,     doseUnit: "mg_per_kg",  defaultRoute: "IV/SC" },
   { name: "Gentamicin",       concentrationMgMl: 50,    standardDose: 6,      minDose: 6,      maxDose: 9,      doseUnit: "mg_per_kg",  defaultRoute: "IV/SC" },
+  { name: "Augmentin 5% 50mg/ml", concentrationMgMl: 50, standardDose: 15,    minDose: 10,     maxDose: 50,     doseUnit: "mg_per_kg",  defaultRoute: "IV/SC" },
+  { name: "Cisapride tab 2.5", concentrationMgMl: 2.5, standardDose: 1,      minDose: 0.5,    maxDose: 2,      doseUnit: "tablet",     defaultRoute: "PO" },
+  { name: "Cisapride syrup 1mg/ml", concentrationMgMl: 1, standardDose: 0.25, minDose: 0.1, maxDose: 0.5, doseUnit: "mg_per_kg", defaultRoute: "PO" },
+  { name: "Diphenhydramine",  concentrationMgMl: 10,    standardDose: 2,      minDose: 1,      maxDose: 4,      doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
 
   // ── Anti-emetics / GI ────────────────────────────────────────────────────────
   { name: "Maropitant",       concentrationMgMl: 10,    standardDose: 1,      minDose: 1,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "SC/IV" },

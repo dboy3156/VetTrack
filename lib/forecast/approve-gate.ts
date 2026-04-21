@@ -4,6 +4,13 @@ import type { ForecastResult } from "../../src/types/index.ts";
 export function validateMergedForecastForApproval(
   result: ForecastResult,
 ): { ok: true } | { ok: false; code: string; message: string } {
+  if (result.patients.length === 0) {
+    return {
+      ok: false,
+      code: "NO_DRUG_LINES",
+      message: "No medications to order — check parse input or exclusion rules",
+    };
+  }
   for (const p of result.patients) {
     if (p.flags.length > 0) {
       return {

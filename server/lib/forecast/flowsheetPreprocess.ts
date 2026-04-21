@@ -1,3 +1,5 @@
+import { cleanMedicationLine, isBloodProductLine } from "./medicationLineCleanup.js";
+
 const PHARM_DOSE_RE =
   /\d+(?:\.\d+)?\s*(?:mg\/kg|mcg\/kg|mg\s*\/\s*kg|mcg\s*\/\s*kg|mg|mcg|mEq|%|tab|tabs|tablet)\b/i;
 
@@ -80,7 +82,9 @@ function keepMedicationLine(line: string): boolean {
   if (t.length < 4) return false;
   if (/^\s*--\s*\d+\s+of\s+\d+\s+--\s*$/i.test(t)) return false;
   if (PHARM_DOSE_RE.test(t)) return true;
-  return /^\d+(?:\.\d+)?\s+\S.+\s+\/.+/.test(t);
+  if (/^\d+(?:\.\d+)?\s+\S.+\s+\/.+/.test(t)) return true;
+  if (/\b(?:Butorphanol|Morphine|Famotidine|Ondansetron|Cerenia|Maropitant)\b/i.test(t) && /\d/.test(t)) return true;
+  return false;
 }
 
 /** Merge "DrugName…" then next line "12.3 mg PO …" into one line (never glue monitoring/fluids to the next row). */
@@ -116,7 +120,11 @@ export function preprocessFlowsheetText(raw: string): string {
   const region = sliceMedicationsRegion(normalized);
   const rawLines = region.split("\n");
   const merged = mergeContinuations(rawLines.map((l) => l.trim()).filter(Boolean));
-  const kept = merged.filter((l) => !shouldDropLine(l)).filter(keepMedicationLine);
+  const kept = merged
+    .filter((l) => !shouldDropLine(l))
+    .map((l) => cleanMedicationLine(l))
+    .filter((l) => !isBloodProductLine(l))
+    .filter(keepMedicationLine);
   /** Single `\n` keeps one `detectStructure` paragraph (one patient block with many drug lines). */
   const joined = kept.join("\n");
   if (fileId) return prependRecordIdIfMissing(joined, fileId);

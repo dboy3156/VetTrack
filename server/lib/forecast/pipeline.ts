@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { db, drugFormulary } from "../../db.js";
+import { db, drugFormulary, pharmacyForecastExclusions } from "../../db.js";
 import { syncFormularyFromSeed } from "../formulary-seed-sync.js";
 import { parsePatientBlocks } from "./confidenceScorer.js";
 import { enrichAndForecast, type FormularyDrugRow } from "./forecastEngine.js";
@@ -48,6 +48,12 @@ export async function runForecastPipeline(params: {
 
   const pdfPatient = extractPdfPatientDemographics(params.rawText);
 
+  const exclusionRows = await db
+    .select({ matchSubstring: pharmacyForecastExclusions.matchSubstring })
+    .from(pharmacyForecastExclusions)
+    .where(eq(pharmacyForecastExclusions.clinicId, params.clinicId));
+  const exclusionSubstrings = exclusionRows.map((r) => r.matchSubstring.trim()).filter(Boolean);
+
   const cleaned = preprocessFlowsheetText(params.rawText);
   const blocks = detectStructure(cleaned);
   const parsed = parsePatientBlocks(blocks, fuse, extractRecordNumberHint);
@@ -58,5 +64,6 @@ export async function runForecastPipeline(params: {
     weekendMode: params.weekendMode,
     formularyByNormalizedName,
     pdfPatient,
+    exclusionSubstrings,
   });
 }

@@ -1192,5 +1192,24 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ pharmacyEmail }),
       }),
+    getPharmacyForecastExclusions: () =>
+      request<{
+        exclusions: Array<{
+          id: string;
+          clinicId: string;
+          matchSubstring: string;
+          note: string | null;
+          createdAt: string;
+        }>;
+      }>("/api/forecast/clinic/pharmacy-forecast-exclusions"),
+    addPharmacyForecastExclusion: (body: { matchSubstring: string; note?: string }) =>
+      request<{ exclusion: { id: string; matchSubstring: string; note: string | null } }>(
+        "/api/forecast/clinic/pharmacy-forecast-exclusions",
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+    deletePharmacyForecastExclusion: (id: string) =>
+      request<{ ok: boolean }>(`/api/forecast/clinic/pharmacy-forecast-exclusions/${id}`, {
+        method: "DELETE",
+      }),
   },
 };

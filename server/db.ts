@@ -57,7 +57,7 @@ export const owners = pgTable("vt_owners", {
 export const clinics = pgTable("vt_clinics", {
   id: text("id").primaryKey(),
   pharmacyEmail: text("pharmacy_email"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const animals = pgTable("vt_animals", {
@@ -200,6 +200,27 @@ export const pharmacyForecastParses = pgTable(
   (table) => ({
     clinicIdx: index("vt_pharmacy_forecast_parses_clinic_idx").on(table.clinicId),
     expiresIdx: index("vt_pharmacy_forecast_parses_expires_idx").on(table.expiresAt),
+  }),
+);
+
+/** Substrings matched case-insensitively against parsed med lines to drop non-pharmacy items. */
+export const pharmacyForecastExclusions = pgTable(
+  "vt_pharmacy_forecast_exclusions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    matchSubstring: text("match_substring").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicMatchUnique: uniqueIndex("vt_pharmacy_forecast_exclusions_clinic_match_unique").on(
+      table.clinicId,
+      sql`lower(${table.matchSubstring})`,
+    ),
+    clinicIdx: index("vt_pharmacy_forecast_exclusions_clinic_idx").on(table.clinicId),
   }),
 );
 

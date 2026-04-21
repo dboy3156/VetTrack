@@ -148,11 +148,23 @@ export function enrichAndForecast(params: {
   formularyByNormalizedName: Map<string, FormularyDrugRow>;
   /** Patient display + weight from PDF extract; pharmacy does not use vt_animals. */
   pdfPatient: PdfPatientDemographics | null;
+  /** Lowercase substrings; if raw line or resolved name contains any, drug is omitted from output. */
+  exclusionSubstrings: string[];
 }): ForecastResult {
   const patients: ForecastPatientEntry[] = [];
 
   const normalizeKey = (s: string) => s.trim().toLowerCase();
   const pdf = params.pdfPatient;
+  const exclusions = params.exclusionSubstrings.map((s) => s.trim().toLowerCase()).filter(Boolean);
+
+  function isExcludedDrug(rawLine: string, resolvedName: string | null): boolean {
+    const low = rawLine.toLowerCase();
+    const rn = (resolvedName ?? "").toLowerCase();
+    for (const ex of exclusions) {
+      if (low.includes(ex) || (rn.length > 0 && rn.includes(ex))) return true;
+    }
+    return false;
+  }
 
   for (const block of params.parsedBlocks) {
     const recFromParse = block.recordNumber?.trim() ?? "";
@@ -168,6 +180,8 @@ export function enrichAndForecast(params: {
     const forecastDrugs: ForecastDrugEntry[] = [];
 
     for (const drug of block.drugs) {
+      if (isExcludedDrug(drug.rawLine, drug.resolvedName)) continue;
+
       let flags = [...drug.flags];
 
       const formulary =
@@ -177,6 +191,13 @@ export function enrichAndForecast(params: {
 
       const prescribedPerKg = prescribedMgPerKg(drug);
       flags = checkDoseBounds(drug, prescribedPerKg, formulary, flags);
+
+      const inferredFreq =
+        drug.freqPerDay ??
+        (drug.type === "regular" && formulary != null ? 1 : null);
+      if (drug.freqPerDay == null && inferredFreq != null) {
+        flags = flags.filter((f) => f !== "FREQ_MISSING");
+      }
 
       let quantityUnits: number | null = null;
       let unitLabel = "יח׳";
@@ -199,8 +220,8 @@ export function enrichAndForecast(params: {
         packDescription = formulary ? describePack(formulary) : "";
       } else {
         const mgAbs = absoluteDoseMg(drug, weightKg);
-        const freq = drug.freqPerDay;
-        const phys = physicalUnitsForRegular(drug, mgAbs, freq, params.windowHours, formulary);
+        const freqForCalc = drug.freqPerDay ?? inferredFreq;
+        const phys = physicalUnitsForRegular(drug, mgAbs, freqForCalc, params.windowHours, formulary);
         quantityUnits = phys.qty;
         unitLabel = phys.unitLabel;
         concentrationStr = phys.concentrationLabel.split("·")[0]?.trim() ?? concentrationStr;
@@ -218,6 +239,8 @@ export function enrichAndForecast(params: {
         flags,
       });
     }
+
+    if (forecastDrugs.length === 0) continue;
 
     patients.push({
       recordNumber: displayRecord,

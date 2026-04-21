@@ -5,7 +5,7 @@ import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import nodemailer from "nodemailer";
 
-import { db, clinics, pharmacyForecastParses, pharmacyOrders } from "../db.js";
+import { db, clinics, pharmacyForecastParses, pharmacyOrders, pharmacyForecastExclusions } from "../db.js";
 import { requireAuth, requireEffectiveRole, requireAdmin } from "../middleware/auth.js";
 import { ensureUserClinicMembership } from "../middleware/ensure-user-clinic-membership.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
@@ -410,6 +410,102 @@ router.get("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, re
       code: "INTERNAL_ERROR",
       reason: "READ_FAILED",
       message: "Could not read clinic email",
+      requestId,
+    }));
+  }
+});
+
+/** Admin: substrings to exclude from pharmacy forecast output (non-pharmacy meds, etc.). */
+router.get("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  try {
+    const rows = await db
+      .select()
+      .from(pharmacyForecastExclusions)
+      .where(eq(pharmacyForecastExclusions.clinicId, clinicId));
+    return res.json({ exclusions: rows });
+  } catch (err) {
+    console.error("[forecast/exclusions get]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "READ_FAILED",
+      message: "Could not load exclusions",
+      requestId,
+    }));
+  }
+});
+
+router.post("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const schema = z.object({
+    matchSubstring: z.string().min(1).max(200),
+    note: z.string().max(500).optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(apiError({
+      code: "VALIDATION_FAILED",
+      reason: "INVALID_BODY",
+      message: "matchSubstring required (1–200 chars)",
+      requestId,
+    }));
+  }
+  const matchSubstring = parsed.data.matchSubstring.trim();
+  try {
+    const [row] = await db
+      .insert(pharmacyForecastExclusions)
+      .values({
+        clinicId,
+        matchSubstring,
+        note: parsed.data.note?.trim() || null,
+      })
+      .returning();
+    return res.json({ exclusion: row });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("unique") || msg.includes("duplicate")) {
+      return res.status(409).json(apiError({
+        code: "CONFLICT",
+        reason: "DUPLICATE_EXCLUSION",
+        message: "This match substring already exists for the clinic",
+        requestId,
+      }));
+    }
+    console.error("[forecast/exclusions post]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "INSERT_FAILED",
+      message: "Could not add exclusion",
+      requestId,
+    }));
+  }
+});
+
+router.delete("/clinic/pharmacy-forecast-exclusions/:id", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const id = z.string().uuid().safeParse(req.params.id);
+  if (!id.success) {
+    return res.status(400).json(apiError({
+      code: "VALIDATION_FAILED",
+      reason: "INVALID_ID",
+      message: "Invalid exclusion id",
+      requestId,
+    }));
+  }
+  try {
+    await db
+      .delete(pharmacyForecastExclusions)
+      .where(and(eq(pharmacyForecastExclusions.id, id.data), eq(pharmacyForecastExclusions.clinicId, clinicId)));
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[forecast/exclusions delete]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "DELETE_FAILED",
+      message: "Could not delete exclusion",
       requestId,
     }));
   }
