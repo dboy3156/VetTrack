@@ -25,7 +25,7 @@ async function run(): Promise<void> {
     "keeps line with mg (additive or drug) — do not drop whole compound line",
   );
 
-  const medsRegion = `NOISE LINE\nMEDICATIONS\n10 Cerenia\nPROCEDURES\nXRAY\n`;
+  const medsRegion = `NOISE LINE\nMEDICATIONS\n10 Cerenia inj 4 mg IV\nPROCEDURES\nXRAY\n`;
   const out4 = preprocessFlowsheetText(medsRegion);
   assert.ok(!out4.includes("XRAY"), "region slice excludes after PROCEDURES when both anchors exist");
   assert.ok(out4.includes("Cerenia"), "region keeps med inside window");

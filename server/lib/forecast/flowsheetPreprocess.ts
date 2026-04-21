@@ -74,6 +74,15 @@ function shouldDropLine(line: string): boolean {
   return false;
 }
 
+/** After noise drops, keep only rows that look like medications (dose with unit or `0.3 Name / Name`). */
+function keepMedicationLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 4) return false;
+  if (/^\s*--\s*\d+\s+of\s+\d+\s+--\s*$/i.test(t)) return false;
+  if (PHARM_DOSE_RE.test(t)) return true;
+  return /^\d+(?:\.\d+)?\s+\S.+\s+\/.+/.test(t);
+}
+
 /** Merge "DrugName…" then next line "12.3 mg PO …" into one line (never glue monitoring/fluids to the next row). */
 function mergeContinuations(lines: string[]): string[] {
   const out: string[] = [];
@@ -107,8 +116,9 @@ export function preprocessFlowsheetText(raw: string): string {
   const region = sliceMedicationsRegion(normalized);
   const rawLines = region.split("\n");
   const merged = mergeContinuations(rawLines.map((l) => l.trim()).filter(Boolean));
-  const kept = merged.filter((l) => !shouldDropLine(l));
-  const joined = kept.join("\n\n");
+  const kept = merged.filter((l) => !shouldDropLine(l)).filter(keepMedicationLine);
+  /** Single `\n` keeps one `detectStructure` paragraph (one patient block with many drug lines). */
+  const joined = kept.join("\n");
   if (fileId) return prependRecordIdIfMissing(joined, fileId);
   return joined;
 }
