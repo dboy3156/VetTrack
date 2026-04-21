@@ -6,6 +6,7 @@ import type {
   ParsedPatientBlock,
   ScoredDrug,
 } from "./types.js";
+import { hasPdfIdentity, type PdfPatientDemographics } from "./flowsheetDemographics.js";
 
 export interface FormularyDrugRow {
   id: string;
@@ -18,20 +19,6 @@ export interface FormularyDrugRow {
   unitVolumeMl: number | null;
   unitType: string | null;
   criBufferPct: number | null;
-}
-
-export interface AnimalRow {
-  id: string;
-  recordNumber: string | null;
-  name: string;
-  species: string | null;
-  breed: string | null;
-  sex: string | null;
-  color: string | null;
-  weightKg: number | null;
-  ownerFullName: string | null;
-  ownerNationalId: string | null;
-  ownerPhone: string | null;
 }
 
 function ceilPositive(n: number): number {
@@ -159,20 +146,24 @@ export function enrichAndForecast(params: {
   windowHours: 24 | 72;
   weekendMode: boolean;
   formularyByNormalizedName: Map<string, FormularyDrugRow>;
-  animalsByRecord: Map<string, AnimalRow>;
+  /** Patient display + weight from PDF extract; pharmacy does not use vt_animals. */
+  pdfPatient: PdfPatientDemographics | null;
 }): ForecastResult {
   const patients: ForecastPatientEntry[] = [];
 
   const normalizeKey = (s: string) => s.trim().toLowerCase();
+  const pdf = params.pdfPatient;
 
   for (const block of params.parsedBlocks) {
-    const rec = block.recordNumber?.trim();
-    const animal = rec ? (params.animalsByRecord.get(rec) ?? null) : null;
+    const recFromParse = block.recordNumber?.trim() ?? "";
+    const displayRecord = pdf?.recordNumber?.trim() || recFromParse;
 
     const animalFlags = [...block.flags];
-    if (rec && !animal) animalFlags.push("PATIENT_UNKNOWN");
+    const identified = hasPdfIdentity(pdf) || Boolean(recFromParse);
+    if (!identified) animalFlags.push("PATIENT_UNKNOWN");
 
-    const weightKg = animal?.weightKg != null && animal.weightKg > 0 ? animal.weightKg : 12;
+    const weightKg =
+      pdf?.weightKg != null && pdf.weightKg > 0 ? pdf.weightKg : 12;
 
     const forecastDrugs: ForecastDrugEntry[] = [];
 
@@ -229,16 +220,16 @@ export function enrichAndForecast(params: {
     }
 
     patients.push({
-      recordNumber: rec ?? "",
-      name: animal?.name ?? "",
-      species: animal?.species ?? "",
-      breed: animal?.breed ?? "",
-      sex: animal?.sex ?? "",
-      color: animal?.color ?? "",
+      recordNumber: displayRecord,
+      name: pdf?.name ?? "",
+      species: pdf?.species ?? "",
+      breed: pdf?.breed ?? "",
+      sex: pdf?.sex ?? "",
+      color: pdf?.color ?? "",
       weightKg,
-      ownerName: animal?.ownerFullName ?? "",
-      ownerId: animal?.ownerNationalId ?? "",
-      ownerPhone: animal?.ownerPhone ?? "",
+      ownerName: pdf?.ownerName ?? "",
+      ownerId: "",
+      ownerPhone: pdf?.ownerPhone ?? "",
       drugs: forecastDrugs,
       flags: animalFlags,
     });

@@ -3,7 +3,7 @@ import { z } from "zod";
 /** Limits to reduce abuse via oversized approve payloads */
 
 const MAX_PATIENTS = 120;
-const MAX_DRUGS_PER_PATIENT = 60;
+const MAX_DRUGS_PER_PATIENT = 220;
 const MAX_MANUAL_KEYS = 400;
 const SHORT = 2000;
 const MED = 6000;
