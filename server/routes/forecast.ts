@@ -58,6 +58,19 @@ function parseTimeoutEnv(raw: string | undefined, fallbackMs: number): number {
 }
 
 /**
+ * Coerce SMTP_IP_FAMILY env to a value Node `net.connect` understands (0 | 4 | 6).
+ * 0 = let the OS choose (default Node behavior — tries AAAA first on Linux).
+ * 4 = IPv4 only (safe default for Railway/Fly containers without v6 egress).
+ * 6 = IPv6 only.
+ */
+function parseIpFamilyEnv(raw: string | undefined, fallback: 0 | 4 | 6): 0 | 4 | 6 {
+  if (!raw || !raw.trim()) return fallback;
+  const parsed = parseInt(raw, 10);
+  if (parsed === 0 || parsed === 4 || parsed === 6) return parsed;
+  return fallback;
+}
+
+/**
  * Produce a short, safe description of an SMTP failure for the client UI.
  * Never includes credentials; only the library error code / summary line.
  */
@@ -394,6 +407,12 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
           port: parseInt(process.env.SMTP_PORT ?? "587", 10),
           secure: process.env.SMTP_SECURE === "true",
           auth: { user: smtpUser, pass: smtpPass },
+          // Force IPv4. Railway / Fly / Heroku containers commonly have no
+          // outbound IPv6 route, so letting DNS resolve smtp.gmail.com to AAAA
+          // first causes `ESOCKET · ENETUNREACH <ipv6>:587` before nodemailer
+          // ever falls back to A records. Override via SMTP_IP_FAMILY=0 if a
+          // host actually does have v6 and prefers it.
+          family: parseIpFamilyEnv(process.env.SMTP_IP_FAMILY, 4),
           // Explicit timeouts keep the request from hanging when a network path
           // blocks port 587 (common on residential ISPs / corporate networks).
           // Defaults are intentionally short; override via env if needed.
