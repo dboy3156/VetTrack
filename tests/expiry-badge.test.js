@@ -1,12 +1,13 @@
-"use strict";
-
 /**
  * Expiry badge state tests.
- * Run with: node tests/expiry-badge.test.js
  */
 
-const fs = require("fs");
-const path = require("path");
+import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const utilsPath = path.join(__dirname, "..", "src", "lib", "utils.ts");
 const utilsSource = fs.readFileSync(utilsPath, "utf8");
@@ -21,62 +22,32 @@ function getExpiryBadgeState(expiryDate, now = new Date()) {
   return "healthy";
 }
 
-let passed = 0;
-let failed = 0;
+const fixedNow = new Date("2026-04-17T00:00:00.000Z");
 
-function ok(label) {
-  console.log(`  ✅ PASS: ${label}`);
-  passed++;
-}
+describe("Expiry badge logic tests", () => {
+  it("Utility exposes getExpiryBadgeState with expected threshold logic", () => {
+    expect(
+      utilsSource.includes("export type ExpiryBadgeState = \"expired\" | \"expiring_soon\" | \"healthy\";") &&
+        utilsSource.includes("export function getExpiryBadgeState(") &&
+        utilsSource.includes("if (daysUntilExpiry < 0) return \"expired\";") &&
+        utilsSource.includes("if (daysUntilExpiry <= 7) return \"expiring_soon\";") &&
+        utilsSource.includes("return \"healthy\";"),
+    ).toBe(true);
+  });
 
-function fail(label, detail) {
-  console.error(`  ❌ FAIL: ${label}${detail ? ` — ${detail}` : ""}`);
-  failed++;
-}
+  it("Renders red CalendarX state when expiryDate is in the past", () => {
+    expect(getExpiryBadgeState("2026-04-10", fixedNow)).toBe("expired");
+  });
 
-function assert(condition, label, detail) {
-  if (condition) ok(label);
-  else fail(label, detail);
-}
+  it("Renders orange CalendarClock state when expiryDate is within 7 days", () => {
+    expect(getExpiryBadgeState("2026-04-20", fixedNow)).toBe("expiring_soon");
+  });
 
-function run() {
-  console.log("=== Expiry badge logic tests ===");
+  it("Renders green CalendarCheck state when expiryDate is 8+ days away", () => {
+    expect(getExpiryBadgeState("2026-04-29", fixedNow)).toBe("healthy");
+  });
 
-  assert(
-    utilsSource.includes("export type ExpiryBadgeState = \"expired\" | \"expiring_soon\" | \"healthy\";") &&
-      utilsSource.includes("export function getExpiryBadgeState(") &&
-      utilsSource.includes("if (daysUntilExpiry < 0) return \"expired\";") &&
-      utilsSource.includes("if (daysUntilExpiry <= 7) return \"expiring_soon\";") &&
-      utilsSource.includes("return \"healthy\";"),
-    "Utility exposes getExpiryBadgeState with expected threshold logic",
-  );
-
-  const fixedNow = new Date("2026-04-17T00:00:00.000Z");
-
-  assert(
-    getExpiryBadgeState("2026-04-10", fixedNow) === "expired",
-    "Renders red CalendarX state when expiryDate is in the past",
-  );
-
-  assert(
-    getExpiryBadgeState("2026-04-20", fixedNow) === "expiring_soon",
-    "Renders orange CalendarClock state when expiryDate is within 7 days",
-  );
-
-  assert(
-    getExpiryBadgeState("2026-04-29", fixedNow) === "healthy",
-    "Renders green CalendarCheck state when expiryDate is 8+ days away",
-  );
-
-  assert(
-    getExpiryBadgeState(null, fixedNow) === null,
-    "Renders nothing when expiryDate is null",
-  );
-
-  console.log(`\nResults: ${passed} passed, ${failed} failed`);
-  if (failed > 0) {
-    process.exit(1);
-  }
-}
-
-run();
+  it("Renders nothing when expiryDate is null", () => {
+    expect(getExpiryBadgeState(null, fixedNow)).toBe(null);
+  });
+});

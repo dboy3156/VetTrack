@@ -1,25 +1,9 @@
-"use strict";
+import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const fs = require("fs");
-const path = require("path");
-
-let passed = 0;
-let failed = 0;
-
-function ok(label) {
-  console.log(`  ✅ PASS: ${label}`);
-  passed++;
-}
-
-function fail(label, detail) {
-  console.error(`  ❌ FAIL: ${label}${detail ? ` — ${detail}` : ""}`);
-  failed++;
-}
-
-function assert(condition, label, detail) {
-  if (condition) ok(label);
-  else fail(label, detail);
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function readFile(relPath) {
   return fs.readFileSync(path.join(__dirname, "..", relPath), "utf8");
@@ -29,55 +13,55 @@ const codeBluePage = readFile("src/pages/code-blue.tsx");
 const layout = readFile("src/components/layout.tsx");
 const routesSource = readFile("src/app/routes.tsx");
 
-console.log("\n=== Code Blue page structure tests ===");
+describe("Code Blue page structure tests", () => {
+  it("Code Blue page fetches critical equipment via API client", () => {
+    expect(codeBluePage).toContain("api.equipment.getCriticalEquipment");
+  });
 
-assert(
-  codeBluePage.includes("api.equipment.getCriticalEquipment"),
-  "Code Blue page fetches critical equipment via API client",
-);
+  it("Auto-refresh is configured to 15 seconds", () => {
+    // Interval is wrapped with leader tab-election (may pause when backgrounded).
+    expect(
+      codeBluePage.includes("15_000") &&
+        (codeBluePage.includes("refetchInterval: 15_000") || codeBluePage.includes("refetchInterval: leaderPoll(15_000)")),
+    ).toBe(true);
+  });
 
-assert(
-  codeBluePage.includes("refetchInterval: 15_000"),
-  "Auto-refresh is configured to 15 seconds",
-);
+  it("Header contains Code Blue Hebrew label with alert icon", () => {
+    expect(codeBluePage.includes("CODE BLUE — ציוד קריטי") && codeBluePage.includes("AlertTriangle")).toBe(true);
+  });
 
-assert(
-  codeBluePage.includes("CODE BLUE — ציוד קריטי") &&
-    codeBluePage.includes("AlertTriangle"),
-  "Header contains Code Blue Hebrew label with alert icon",
-);
+  it("Timestamp is rendered via relative-time formatter (not raw ISO)", () => {
+    expect(
+      codeBluePage.includes("formatCodeBlueRelativeTime(item.lastSeenTimestamp)") &&
+        !codeBluePage.includes("item.lastSeenTimestamp ??"),
+    ).toBe(true);
+  });
 
-assert(
-  codeBluePage.includes("formatCodeBlueRelativeTime(item.lastSeenTimestamp)") &&
-    !codeBluePage.includes("item.lastSeenTimestamp ??"),
-  "Timestamp is rendered via relative-time formatter (not raw ISO)",
-);
+  it("Dismiss button exists and navigates back", () => {
+    expect(
+      codeBluePage.includes("onClick={() => navigate(\"/\")}") &&
+        codeBluePage.includes("<X className=\"w-4 h-4 mr-1\" />"),
+    ).toBe(true);
+  });
 
-assert(
-  codeBluePage.includes("onClick={() => navigate(\"/\")}") &&
-    codeBluePage.includes("<X className=\"w-4 h-4 mr-1\" />"),
-  "Dismiss button exists and navigates back",
-);
+  it("Empty-state rendering exists when no equipment is returned", () => {
+    expect(
+      codeBluePage.includes("items.length === 0") &&
+        codeBluePage.includes("אין כרגע ציוד קריטי או ציוד שדורש תשומת לב."),
+    ).toBe(true);
+  });
 
-assert(
-  codeBluePage.includes("items.length === 0") &&
-    codeBluePage.includes("אין כרגע ציוד קריטי או ציוד שדורש תשומת לב."),
-  "Empty-state rendering exists when no equipment is returned",
-);
+  it("Code Blue nav button is role-gated to admin/vet", () => {
+    expect(
+      layout.includes("const canAccessCodeBlue = isAdmin || role === \"vet\"") &&
+        layout.includes("href: \"/code-blue\""),
+    ).toBe(true);
+  });
 
-assert(
-  layout.includes("const canAccessCodeBlue = isAdmin || role === \"vet\"") &&
-    layout.includes("href: \"/code-blue\""),
-  "Code Blue nav button is role-gated to admin/vet",
-);
-
-assert(
-  routesSource.includes("const CodeBluePage = lazy(() => import(\"@/pages/code-blue\"));") &&
-    routesSource.includes('<Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>'),
-  "Code Blue route is registered behind AuthGuard",
-);
-
-console.log(`\nResults: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  process.exit(1);
-}
+  it("Code Blue route is registered behind AuthGuard", () => {
+    expect(
+      routesSource.includes("const CodeBluePage = lazy(() => import(\"@/pages/code-blue\"));") &&
+        routesSource.includes('<Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>'),
+    ).toBe(true);
+  });
+});

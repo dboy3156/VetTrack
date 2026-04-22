@@ -1,7 +1,7 @@
 /**
  * Phase 2 — idempotency key stability (mirrors server/lib/equipment-seen.ts logic).
  */
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import { createHash } from "crypto";
 
 function jerusalemHourBucket(d: Date): string {
@@ -27,13 +27,19 @@ function buildSeenIdempotencyKey(animalId: string, itemId: string, at: Date): st
   return createHash("sha256").update(raw).digest("hex");
 }
 
-const d1 = new Date("2026-06-10T08:15:00.000Z");
-const k1 = buildSeenIdempotencyKey("animal-a", "equip-b", d1);
-const k2 = buildSeenIdempotencyKey("animal-a", "equip-b", d1);
-assert.strictEqual(k1, k2, "same animal+equipment+hour must produce same key");
+describe("Phase 2 idempotency key stability", () => {
+  it("same animal+equipment+hour must produce same key", () => {
+    const d1 = new Date("2026-06-10T08:15:00.000Z");
+    const k1 = buildSeenIdempotencyKey("animal-a", "equip-b", d1);
+    const k2 = buildSeenIdempotencyKey("animal-a", "equip-b", d1);
+    expect(k1).toBe(k2);
+  });
 
-const d2 = new Date("2026-06-10T10:15:00.000Z");
-const k3 = buildSeenIdempotencyKey("animal-a", "equip-b", d2);
-assert.notStrictEqual(k1, k3, "different hour bucket must differ");
-
-console.log("✅ phase2-revenue-engine.test.ts passed");
+  it("different hour bucket must differ", () => {
+    const d1 = new Date("2026-06-10T08:15:00.000Z");
+    const k1 = buildSeenIdempotencyKey("animal-a", "equip-b", d1);
+    const d2 = new Date("2026-06-10T10:15:00.000Z");
+    const k3 = buildSeenIdempotencyKey("animal-a", "equip-b", d2);
+    expect(k1).not.toBe(k3);
+  });
+});

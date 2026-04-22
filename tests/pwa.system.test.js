@@ -1,33 +1,4 @@
-"use strict";
-
-// ═══════════════════════════════════════════════════════════════════
-// pwa.system.test.js
-// Full System Validation — VetTrack PWA
-//
-// Proves: offline queue · reconnect sync · conflict resolution
-//         service worker cache · multi-client consistency
-//         camera lifecycle (open → live → stop → no leak)
-// ═══════════════════════════════════════════════════════════════════
-
-// ── Hard assertions ───────────────────────────────────────────────
-
-function assert(condition, label) {
-  if (!condition) throw new Error(`ASSERTION FAILED: ${label}`);
-  console.log(`  ✅ ${label}`);
-}
-
-async function assertRejects(asyncFn, fragment, label) {
-  let threw = false;
-  let msg = "";
-  try { await asyncFn(); } catch (e) { threw = true; msg = e.message; }
-  if (!threw)
-    throw new Error(`ASSERTION FAILED: ${label} — expected rejection, got none`);
-  if (fragment && !msg.includes(fragment))
-    throw new Error(`ASSERTION FAILED: ${label} — threw "${msg}" but expected fragment "${fragment}"`);
-  console.log(`  ✅ ${label}`);
-}
-
-function section(name) { console.log(`\n── ${name}`); }
+import { describe, it, expect } from "vitest";
 
 // ═══════════════════════════════════════════════════════════════════
 // INFRASTRUCTURE MOCKS
@@ -113,16 +84,13 @@ class PWAClient {
     this._local.set(id, { ...local, ...patch });
 
     if (!this.online) {
-      // Enqueue with version captured at snapshot time
       this._queue.enqueue({ id, patch: { ...patch, version: snapshotVersion } });
     } else {
-      // Write-through
       try {
         const result = this._server.apply(id, { ...patch, version: snapshotVersion });
         this._local.set(id, { ...result });
         this._network.fetch(`/api/equipment/${id}`, patch);
       } catch (e) {
-        // Rollback optimistic change
         this._local.set(id, { ...local });
         throw e;
       }
@@ -147,7 +115,7 @@ class PWAClient {
           trueServerState: truth,
         };
         this._conflicts.push(entry);
-        this._local.set(op.id, { ...truth }); // rollback to server truth
+        this._local.set(op.id, { ...truth });
         results.push(entry);
       }
     }
@@ -237,11 +205,10 @@ class QrScannerSim {
     this._phase  = "idle";
   }
 
-  // Simulates a successful QR decode: library calls stop() internally then surfaces result
   simulateScanSuccess(rawValue) {
     if (this._phase !== "scanning")
       throw new Error(`Cannot decode: scanner phase is "${this._phase}"`);
-    this.stop();          // stops tracks (phase → idle)
+    this.stop();
     this._phase = "result";
     return rawValue;
   }
@@ -252,156 +219,151 @@ class QrScannerSim {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// TEST RUNNER
+// SECTION 1 — OFFLINE QUEUE
 // ═══════════════════════════════════════════════════════════════════
 
-async function run() {
+describe("Section 1: Offline Queue", () => {
+  it("Queue grows without network calls and optimistic UI is reflected immediately", () => {
+    const net1    = new NetworkMock();
+    const server1 = new Server();
+    const client1 = new PWAClient("Technician-A", server1, net1);
 
-  // ───────────────────────────────────────────────────────────────
-  // SECTION 1 — OFFLINE QUEUE
-  // ───────────────────────────────────────────────────────────────
-  section("Section 1: Offline Queue");
+    server1.seed({ id: "eq-1a", name: "Ventilator",    status: "ok", version: 1 });
+    server1.seed({ id: "eq-1b", name: "Defibrillator", status: "ok", version: 1 });
+    server1.seed({ id: "eq-1c", name: "Ultrasound",    status: "ok", location: "Bay 1", version: 1 });
 
-  const net1    = new NetworkMock();
-  const server1 = new Server();
-  const client1 = new PWAClient("Technician-A", server1, net1);
+    client1.hydrate(server1.get("eq-1a"));
+    client1.hydrate(server1.get("eq-1b"));
+    client1.hydrate(server1.get("eq-1c"));
 
-  // Three separate equipment records — each at v1
-  server1.seed({ id: "eq-1a", name: "Ventilator",    status: "ok", version: 1 });
-  server1.seed({ id: "eq-1b", name: "Defibrillator", status: "ok", version: 1 });
-  server1.seed({ id: "eq-1c", name: "Ultrasound",    status: "ok", location: "Bay 1", version: 1 });
+    client1.goOffline();
+    net1.reset();
 
-  client1.hydrate(server1.get("eq-1a"));
-  client1.hydrate(server1.get("eq-1b"));
-  client1.hydrate(server1.get("eq-1c"));
+    client1.update("eq-1a", { status: "issue" });
+    expect(client1.queueSize).toBe(1);
+    expect(net1.callCount).toBe(0);
 
-  client1.goOffline();
-  net1.reset();
+    client1.update("eq-1b", { status: "maintenance" });
+    expect(client1.queueSize).toBe(2);
+    expect(net1.callCount).toBe(0);
 
-  // Action 1
-  client1.update("eq-1a", { status: "issue" });
-  assert(client1.queueSize === 1, "Queue length = 1 after action 1");
-  assert(net1.callCount === 0, "No network call after action 1 (offline)");
+    client1.update("eq-1c", { location: "OR-3" });
+    expect(client1.queueSize).toBe(3);
+    expect(net1.callCount).toBe(0);
 
-  // Action 2
-  client1.update("eq-1b", { status: "maintenance" });
-  assert(client1.queueSize === 2, "Queue length = 2 after action 2");
-  assert(net1.callCount === 0, "No network call after action 2 (offline)");
+    expect(client1.getLocalState("eq-1a").status).toBe("issue");
+    expect(client1.getLocalState("eq-1b").status).toBe("maintenance");
+    expect(client1.getLocalState("eq-1c").location).toBe("OR-3");
 
-  // Action 3
-  client1.update("eq-1c", { location: "OR-3" });
-  assert(client1.queueSize === 3, "Queue length = 3 after action 3");
-  assert(net1.callCount === 0, "Zero network calls during offline period");
+    expect(server1.get("eq-1a").version).toBe(1);
+    expect(server1.get("eq-1b").version).toBe(1);
+    expect(server1.get("eq-1c").version).toBe(1);
+  });
+});
 
-  // Optimistic UI reflects latest local values immediately
-  assert(client1.getLocalState("eq-1a").status   === "issue",       "Optimistic UI: eq-1a status=issue");
-  assert(client1.getLocalState("eq-1b").status   === "maintenance", "Optimistic UI: eq-1b status=maintenance");
-  assert(client1.getLocalState("eq-1c").location === "OR-3",        "Optimistic UI: eq-1c location=OR-3");
+// ═══════════════════════════════════════════════════════════════════
+// SECTION 2 — RECONNECT + SYNC
+// ═══════════════════════════════════════════════════════════════════
 
-  // Server is untouched
-  assert(server1.get("eq-1a").version === 1, "Server eq-1a unchanged while offline");
-  assert(server1.get("eq-1b").version === 1, "Server eq-1b unchanged while offline");
-  assert(server1.get("eq-1c").version === 1, "Server eq-1c unchanged while offline");
+describe("Section 2: Reconnect and Sync", () => {
+  it("Sync applies ops in enqueue order, clears queue, and updates server state", () => {
+    const net1    = new NetworkMock();
+    const server1 = new Server();
+    const client1 = new PWAClient("Technician-A", server1, net1);
 
-  // ───────────────────────────────────────────────────────────────
-  // SECTION 2 — RECONNECT + SYNC
-  // ───────────────────────────────────────────────────────────────
-  section("Section 2: Reconnect and Sync");
+    server1.seed({ id: "eq-1a", name: "Ventilator",    status: "ok", version: 1 });
+    server1.seed({ id: "eq-1b", name: "Defibrillator", status: "ok", version: 1 });
+    server1.seed({ id: "eq-1c", name: "Ultrasound",    status: "ok", location: "Bay 1", version: 1 });
 
-  client1.goOnline();
-  const sync2 = client1.sync();
+    client1.hydrate(server1.get("eq-1a"));
+    client1.hydrate(server1.get("eq-1b"));
+    client1.hydrate(server1.get("eq-1c"));
 
-  assert(sync2.length === 3, "3 ops processed during sync");
-  assert(sync2.filter(r => r.status === "applied").length === 3, "All 3 ops applied (no conflicts)");
-  assert(client1.queueSize === 0, "Queue fully drained after sync");
-  assert(net1.callCount === 3, "Exactly 3 network calls made during sync");
+    client1.goOffline();
+    net1.reset();
 
-  // Verify call order matches enqueue order
-  const urls2 = net1.calls.map(c => c.url);
-  assert(urls2[0].includes("eq-1a"), "First network call targets eq-1a (correct order)");
-  assert(urls2[1].includes("eq-1b"), "Second network call targets eq-1b (correct order)");
-  assert(urls2[2].includes("eq-1c"), "Third network call targets eq-1c (correct order)");
+    client1.update("eq-1a", { status: "issue" });
+    client1.update("eq-1b", { status: "maintenance" });
+    client1.update("eq-1c", { location: "OR-3" });
 
-  // Server state updated correctly
-  assert(server1.get("eq-1a").status   === "issue",       "Server eq-1a: status=issue after sync");
-  assert(server1.get("eq-1b").status   === "maintenance", "Server eq-1b: status=maintenance after sync");
-  assert(server1.get("eq-1c").location === "OR-3",        "Server eq-1c: location=OR-3 after sync");
+    client1.goOnline();
+    const sync2 = client1.sync();
 
-  // Client local state matches server (versions consistent)
-  assert(client1.getLocalState("eq-1a").version === 2, "Client eq-1a local version = 2 (matches server)");
-  assert(client1.getLocalState("eq-1b").version === 2, "Client eq-1b local version = 2 (matches server)");
-  assert(client1.getLocalState("eq-1c").version === 2, "Client eq-1c local version = 2 (matches server)");
+    expect(sync2.length).toBe(3);
+    expect(sync2.filter(r => r.status === "applied").length).toBe(3);
+    expect(client1.queueSize).toBe(0);
+    expect(net1.callCount).toBe(3);
 
-  // ───────────────────────────────────────────────────────────────
-  // SECTION 3 — CONFLICT RESOLUTION (CRITICAL)
-  // ───────────────────────────────────────────────────────────────
-  section("Section 3: Conflict Resolution");
+    const urls2 = net1.calls.map(c => c.url);
+    expect(urls2[0]).toContain("eq-1a");
+    expect(urls2[1]).toContain("eq-1b");
+    expect(urls2[2]).toContain("eq-1c");
 
-  const server3  = new Server();
-  const netA3    = new NetworkMock();
-  const netB3    = new NetworkMock();
-  const clientA3 = new PWAClient("A", server3, netA3);
-  const clientB3 = new PWAClient("B", server3, netB3);
+    expect(server1.get("eq-1a").status).toBe("issue");
+    expect(server1.get("eq-1b").status).toBe("maintenance");
+    expect(server1.get("eq-1c").location).toBe("OR-3");
 
-  server3.seed({ id: "eq-3", name: "Infusion Pump", status: "ok", version: 1 });
-  clientA3.hydrate(server3.get("eq-3"));
-  clientB3.hydrate(server3.get("eq-3"));
+    expect(client1.getLocalState("eq-1a").version).toBe(2);
+    expect(client1.getLocalState("eq-1b").version).toBe(2);
+    expect(client1.getLocalState("eq-1c").version).toBe(2);
+  });
+});
 
-  // A goes offline — queues a stale write
-  clientA3.goOffline();
-  clientA3.update("eq-3", { status: "issue" });
-  assert(clientA3.queueSize === 1, "A has 1 op queued offline (snapshot @v1)");
-  assert(clientA3.getLocalState("eq-3").status === "issue", "A sees optimistic state: issue");
+// ═══════════════════════════════════════════════════════════════════
+// SECTION 3 — CONFLICT RESOLUTION
+// ═══════════════════════════════════════════════════════════════════
 
-  // B stays online — advances server to v2
-  clientB3.update("eq-3", { status: "maintenance" });
-  assert(server3.get("eq-3").version === 2,            "Server at v2 after B's online write");
-  assert(server3.get("eq-3").status  === "maintenance","Server reflects B's update: maintenance");
+describe("Section 3: Conflict Resolution", () => {
+  it("Stale update rejected, UI rolls back to server truth, conflict logged, overwrite impossible", () => {
+    const server3  = new Server();
+    const netA3    = new NetworkMock();
+    const netB3    = new NetworkMock();
+    const clientA3 = new PWAClient("A", server3, netA3);
+    const clientB3 = new PWAClient("B", server3, netB3);
 
-  // A comes back and tries to sync stale v1 op
-  clientA3.goOnline();
-  const syncA3 = clientA3.sync();
+    server3.seed({ id: "eq-3", name: "Infusion Pump", status: "ok", version: 1 });
+    clientA3.hydrate(server3.get("eq-3"));
+    clientB3.hydrate(server3.get("eq-3"));
 
-  assert(syncA3.length === 1,                              "A synced 1 op");
-  assert(syncA3[0].status === "rejected",                  "A's op rejected (version mismatch)");
-  assert(syncA3[0].reason.includes("VERSION_MISMATCH"),    "Rejection reason is VERSION_MISMATCH");
-  assert(clientA3.conflictLog.length === 1,                "Conflict recorded in A's conflict log");
+    clientA3.goOffline();
+    clientA3.update("eq-3", { status: "issue" });
+    expect(clientA3.queueSize).toBe(1);
+    expect(clientA3.getLocalState("eq-3").status).toBe("issue");
 
-  // UI rolls back to server truth — NOT A's stale optimistic value
-  const aLocal3    = clientA3.getLocalState("eq-3");
-  const serverTruth3 = server3.get("eq-3");
-  assert(aLocal3.status  === serverTruth3.status,  "A UI reflects server truth after rollback: status");
-  assert(aLocal3.version === serverTruth3.version, "A UI reflects server truth after rollback: version");
-  assert(aLocal3.status  === "maintenance",        "A UI shows 'maintenance' (B's write), not 'issue' (A's stale)");
+    clientB3.update("eq-3", { status: "maintenance" });
+    expect(server3.get("eq-3").version).toBe(2);
+    expect(server3.get("eq-3").status).toBe("maintenance");
 
-  // Conflict log records the true server state at rejection time
-  assert(
-    clientA3.conflictLog[0].trueServerState.status === "maintenance",
-    "Conflict log records correct server truth: status=maintenance"
-  );
+    clientA3.goOnline();
+    const syncA3 = clientA3.sync();
 
-  // FAIL IF: overwrite — server must NEVER accept A's stale op directly
-  let overwrote = false;
-  try {
-    server3.apply("eq-3", { status: "issue", version: 1 }); // stale — must throw
-    overwrote = true;
-  } catch (_) { /* expected rejection */ }
-  if (overwrote)
-    throw new Error("CRITICAL: server accepted stale-version op — silent overwrite is possible");
-  console.log("  ✅ Overwrite impossible — server rejects any patch with stale version");
+    expect(syncA3.length).toBe(1);
+    expect(syncA3[0].status).toBe("rejected");
+    expect(syncA3[0].reason).toContain("VERSION_MISMATCH");
+    expect(clientA3.conflictLog.length).toBe(1);
 
-  // FAIL IF: conflict was silent (no conflict log entry)
-  if (clientA3.conflictLog.length === 0)
-    throw new Error("CRITICAL: conflict occurred but was not logged — silent failure");
-  console.log("  ✅ Conflict was logged (not a silent failure)");
+    const aLocal3     = clientA3.getLocalState("eq-3");
+    const serverTruth3 = server3.get("eq-3");
+    expect(aLocal3.status).toBe(serverTruth3.status);
+    expect(aLocal3.version).toBe(serverTruth3.version);
+    expect(aLocal3.status).toBe("maintenance");
 
-  // ───────────────────────────────────────────────────────────────
-  // SECTION 4 — SERVICE WORKER CACHE
-  // ───────────────────────────────────────────────────────────────
-  section("Section 4: Service Worker Cache");
+    expect(clientA3.conflictLog[0].trueServerState.status).toBe("maintenance");
 
-  const swCache = new SWCache();
-  const ASSETS  = [
+    // Overwrite must be impossible
+    expect(() => server3.apply("eq-3", { status: "issue", version: 1 })).toThrow();
+
+    // Conflict must not be silent
+    expect(clientA3.conflictLog.length).toBeGreaterThan(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// SECTION 4 — SERVICE WORKER CACHE
+// ═══════════════════════════════════════════════════════════════════
+
+describe("Section 4: Service Worker Cache", () => {
+  const ASSETS = [
     "/",
     "/index.html",
     "/assets/app.js",
@@ -409,235 +371,219 @@ async function run() {
     "/manifest.json",
   ];
 
-  // First load: online → network fetch + cache population
-  for (const url of ASSETS) {
-    const r = swCache.fetchOrCache(url);
-    assert(r.source === "network", `${url}: served from network on first load`);
-    assert(r.status === 200,       `${url}: network response status 200`);
-    assert(!!r.body,               `${url}: response body is non-empty`);
-  }
-  assert(swCache.size === ASSETS.length, `All ${ASSETS.length} assets cached after first load`);
+  it("All assets served from network on first load and cached", () => {
+    const swCache = new SWCache();
+    for (const url of ASSETS) {
+      const r = swCache.fetchOrCache(url);
+      expect(r.source).toBe("network");
+      expect(r.status).toBe(200);
+      expect(r.body).toBeTruthy();
+    }
+    expect(swCache.size).toBe(ASSETS.length);
+  });
 
-  // Device goes offline
-  swCache.goOffline();
+  it("All assets served from cache while offline (no crash)", () => {
+    const swCache = new SWCache();
+    for (const url of ASSETS) swCache.fetchOrCache(url); // prime cache
 
-  // Offline reload — every asset must be served from cache without crashing
-  for (const url of ASSETS) {
-    const r = swCache.fetchOrCache(url);
-    assert(r.source === "cache", `${url}: served from cache while offline`);
-    assert(r.status === 200,     `${url}: cached response status 200 (no error)`);
-    assert(!!r.body,             `${url}: cached body non-empty (no blank page)`);
-  }
+    swCache.goOffline();
 
-  // App shell always resolves — no crash
-  const shell4 = swCache.match("/");
-  assert(shell4 !== null, "App shell '/' resolvable offline — no crash on reload");
+    for (const url of ASSETS) {
+      const r = swCache.fetchOrCache(url);
+      expect(r.source).toBe("cache");
+      expect(r.status).toBe(200);
+      expect(r.body).toBeTruthy();
+    }
+  });
 
-  // Un-cached resource throws CACHE_MISS (not a silent blank or 200)
-  let threwCacheMiss = false;
-  try {
-    swCache.fetchOrCache("/api/data/uncached");
-  } catch (e) {
-    threwCacheMiss = e.message.includes("CACHE_MISS");
-  }
-  assert(threwCacheMiss, "Un-cached route throws CACHE_MISS — not a silent 200");
+  it("App shell '/' resolvable offline — no crash on reload", () => {
+    const swCache = new SWCache();
+    for (const url of ASSETS) swCache.fetchOrCache(url);
 
-  // ───────────────────────────────────────────────────────────────
-  // SECTION 5 — MULTI-CLIENT CONSISTENCY
-  // ───────────────────────────────────────────────────────────────
-  section("Section 5: Multi-Client Consistency");
+    swCache.goOffline();
+    expect(swCache.match("/")).not.toBeNull();
+  });
 
-  const server5  = new Server();
-  const netC5    = new NetworkMock();
-  const netD5    = new NetworkMock();
-  const clientC5 = new PWAClient("C", server5, netC5);
-  const clientD5 = new PWAClient("D", server5, netD5);
+  it("Un-cached route throws CACHE_MISS — not a silent 200", () => {
+    const swCache = new SWCache();
+    swCache.goOffline();
+    expect(() => swCache.fetchOrCache("/api/data/uncached")).toThrow("CACHE_MISS");
+  });
+});
 
-  server5.seed({ id: "eq-5", status: "ok", location: "Bay 1", notes: "", version: 1 });
-  clientC5.hydrate(server5.get("eq-5"));
-  clientD5.hydrate(server5.get("eq-5"));
+// ═══════════════════════════════════════════════════════════════════
+// SECTION 5 — MULTI-CLIENT CONSISTENCY
+// ═══════════════════════════════════════════════════════════════════
 
-  // Both go offline simultaneously — neither knows about the other's pending change
-  clientC5.goOffline();
-  clientD5.goOffline();
-  netC5.reset(); netD5.reset();
+describe("Section 5: Multi-Client Consistency", () => {
+  it("Final state is deterministic (first-sync-wins), rejected client sees server truth", () => {
+    const server5  = new Server();
+    const netC5    = new NetworkMock();
+    const netD5    = new NetworkMock();
+    const clientC5 = new PWAClient("C", server5, netC5);
+    const clientD5 = new PWAClient("D", server5, netD5);
 
-  clientC5.update("eq-5", { location: "Bay 2" });
-  clientD5.update("eq-5", { notes: "Serviced 2025-04" });
+    server5.seed({ id: "eq-5", status: "ok", location: "Bay 1", notes: "", version: 1 });
+    clientC5.hydrate(server5.get("eq-5"));
+    clientD5.hydrate(server5.get("eq-5"));
 
-  assert(clientC5.queueSize === 1, "C: 1 op queued offline");
-  assert(clientD5.queueSize === 1, "D: 1 op queued offline");
-  assert(netC5.callCount === 0,    "C: no network calls while offline");
-  assert(netD5.callCount === 0,    "D: no network calls while offline");
+    clientC5.goOffline();
+    clientD5.goOffline();
+    netC5.reset(); netD5.reset();
 
-  // C syncs first — succeeds at v1 → server advances to v2
-  clientC5.goOnline();
-  const syncC5 = clientC5.sync();
-  assert(syncC5[0].status === "applied",        "C's op applied first");
-  assert(server5.get("eq-5").version === 2,     "Server at v2 after C syncs");
-  assert(server5.get("eq-5").location === "Bay 2", "Server location = Bay 2 from C");
+    clientC5.update("eq-5", { location: "Bay 2" });
+    clientD5.update("eq-5", { notes: "Serviced 2025-04" });
 
-  // D syncs — stale v1 patch vs server v2 → rejected
-  clientD5.goOnline();
-  const syncD5 = clientD5.sync();
-  assert(syncD5[0].status === "rejected",  "D's op rejected (server advanced to v2 via C)");
-  assert(clientD5.conflictLog.length === 1,"D's conflict logged");
+    expect(clientC5.queueSize).toBe(1);
+    expect(clientD5.queueSize).toBe(1);
+    expect(netC5.callCount).toBe(0);
+    expect(netD5.callCount).toBe(0);
 
-  // D's UI rolls back to server truth — sees C's location
-  const dLocal5 = clientD5.getLocalState("eq-5");
-  assert(dLocal5.location === "Bay 2",   "D sees C's location after rollback (server truth)");
-  assert(dLocal5.version  === 2,         "D at server version after rollback");
+    clientC5.goOnline();
+    const syncC5 = clientC5.sync();
+    expect(syncC5[0].status).toBe("applied");
+    expect(server5.get("eq-5").version).toBe(2);
+    expect(server5.get("eq-5").location).toBe("Bay 2");
 
-  // Final server state is deterministic — exactly what C wrote, exactly v2
-  const final5 = server5.get("eq-5");
-  assert(final5.version  === 2,         "Final server version = 2 (deterministic)");
-  assert(final5.location === "Bay 2",   "Final location deterministic: first-sync-wins");
+    clientD5.goOnline();
+    const syncD5 = clientD5.sync();
+    expect(syncD5[0].status).toBe("rejected");
+    expect(clientD5.conflictLog.length).toBe(1);
 
-  // ───────────────────────────────────────────────────────────────
-  // SECTION 6 — CAMERA LIFECYCLE (QR SCAN)
-  // ───────────────────────────────────────────────────────────────
-  section("Section 6.1: Camera Open");
+    const dLocal5 = clientD5.getLocalState("eq-5");
+    expect(dLocal5.location).toBe("Bay 2");
+    expect(dLocal5.version).toBe(2);
 
-  const media6   = new MockMediaDevices();
-  const scanner6 = new QrScannerSim(media6);
+    const final5 = server5.get("eq-5");
+    expect(final5.version).toBe(2);
+    expect(final5.location).toBe("Bay 2");
+  });
+});
 
-  // Open camera
-  const stream6a = await scanner6.start();
+// ═══════════════════════════════════════════════════════════════════
+// SECTION 6 — CAMERA LIFECYCLE (QR SCAN)
+// ═══════════════════════════════════════════════════════════════════
 
-  assert(media6.callCount === 1,
-    "getUserMedia called exactly once to open camera");
-  assert(stream6a instanceof MockMediaStream,
-    "getUserMedia returns a MediaStream object");
-  assert(stream6a.active === true,
-    "stream.active === true immediately after start()");
+describe("Section 6.1: Camera Open", () => {
+  it("getUserMedia called once, returns live stream with correct constraints", async () => {
+    const media6   = new MockMediaDevices();
+    const scanner6 = new QrScannerSim(media6);
 
-  const tracks6a = stream6a.getVideoTracks();
-  assert(tracks6a.length === 1,
-    "Exactly 1 video track present on stream");
-  assert(tracks6a[0].readyState === "live",
-    "track.readyState === 'live' (camera is running)");
+    const stream6a = await scanner6.start();
 
-  // Verify constraint passed: facingMode environment (single-call fix)
-  const callConstraints = JSON.parse(media6.callLog[0].constraints);
-  assert(
-    callConstraints.facingMode === "environment",
-    "getUserMedia called with facingMode:'environment' (not deviceId enumeration)"
-  );
+    expect(media6.callCount).toBe(1);
+    expect(stream6a).toBeInstanceOf(MockMediaStream);
+    expect(stream6a.active).toBe(true);
 
-  section("Section 6.2: Permission — Single Request Per Session");
+    const tracks6a = stream6a.getVideoTracks();
+    expect(tracks6a.length).toBe(1);
+    expect(tracks6a[0].readyState).toBe("live");
 
-  media6.resetCallLog();
-  scanner6.stop();                   // end session 1
-  const stream6b = await scanner6.start(); // start session 2
+    const callConstraints = JSON.parse(media6.callLog[0].constraints);
+    expect(callConstraints.facingMode).toBe("environment");
+  });
+});
 
-  assert(media6.callCount === 1,
-    "getUserMedia called once for second scan session (permission not re-requested redundantly)");
-  assert(stream6b.id !== stream6a.id,
-    "Second session has a distinct stream ID (not reusing closed stream)");
+describe("Section 6.2: Permission — Single Request Per Session", () => {
+  it("getUserMedia called once per session and returns distinct stream", async () => {
+    const media6   = new MockMediaDevices();
+    const scanner6 = new QrScannerSim(media6);
 
-  section("Section 6.3: Stream Validation — Live State During Scanning");
+    const stream6a = await scanner6.start();
+    media6.resetCallLog();
+    scanner6.stop();
+    const stream6b = await scanner6.start();
 
-  const activeStream6 = scanner6.stream;
-  assert(activeStream6 !== null,
-    "Scanner holds stream reference while in scanning phase");
-  assert(activeStream6.active === true,
-    "Stream is active during scanning phase");
-  assert(activeStream6.getVideoTracks().every(t => t.readyState === "live"),
-    "All video tracks readyState === 'live' during scanning");
-  assert(scanner6.phase === "scanning",
-    "Scanner phase is 'scanning' while stream is live");
+    expect(media6.callCount).toBe(1);
+    expect(stream6b.id).not.toBe(stream6a.id);
 
-  section("Section 6.4: Scan Complete → Camera Stop");
+    scanner6.stop();
+  });
+});
 
-  const streamBeforeDecode  = scanner6.stream;
-  const tracksBeforeDecode  = streamBeforeDecode.getVideoTracks();
+describe("Section 6.3: Stream Validation — Live State During Scanning", () => {
+  it("Stream and tracks are live during scanning phase", async () => {
+    const media6   = new MockMediaDevices();
+    const scanner6 = new QrScannerSim(media6);
 
-  scanner6.simulateScanSuccess("https://vettrack.app/equipment/eq-abc123");
+    await scanner6.start();
 
-  // Camera must be fully stopped after decode
-  assert(tracksBeforeDecode[0].readyState === "ended",
-    "track.readyState === 'ended' after scan success (camera light off)");
-  assert(streamBeforeDecode.active === false,
-    "stream.active === false after scan success (no dangling stream)");
-  assert(scanner6.stream === null,
-    "Scanner holds no stream reference after decode (no memory leak)");
-  assert(scanner6.phase === "result",
-    "Scanner phase transitions to 'result' after successful decode");
+    const activeStream6 = scanner6.stream;
+    expect(activeStream6).not.toBeNull();
+    expect(activeStream6.active).toBe(true);
+    expect(activeStream6.getVideoTracks().every(t => t.readyState === "live")).toBeTruthy();
+    expect(scanner6.phase).toBe("scanning");
 
-  section("Section 6.5: Multiple Scans — No Reuse, No Leaks");
+    scanner6.stop();
+  });
+});
 
-  media6.resetCallLog();
-  const completedStreams = [];
-  const seenStreamIds   = new Set();
+describe("Section 6.4: Scan Complete → Camera Stop", () => {
+  it("Tracks ended and stream released after successful decode", async () => {
+    const media6   = new MockMediaDevices();
+    const scanner6 = new QrScannerSim(media6);
 
-  for (let i = 0; i < 3; i++) {
-    const s = await scanner6.start();
+    await scanner6.start();
 
-    assert(s.active === true,
-      `Scan cycle ${i + 1}: stream active immediately after start`);
-    assert(!seenStreamIds.has(s.id),
-      `Scan cycle ${i + 1}: stream ID is new (no stream reuse)`);
-    seenStreamIds.add(s.id);
+    const streamBeforeDecode = scanner6.stream;
+    const tracksBeforeDecode = streamBeforeDecode.getVideoTracks();
 
-    scanner6.simulateScanSuccess(`/equipment/eq-item-${i}`);
+    scanner6.simulateScanSuccess("https://vettrack.app/equipment/eq-abc123");
 
-    assert(s.active === false,
-      `Scan cycle ${i + 1}: stream inactive after decode`);
-    assert(s.getVideoTracks().every(t => t.readyState === "ended"),
-      `Scan cycle ${i + 1}: all tracks ended after decode`);
+    expect(tracksBeforeDecode[0].readyState).toBe("ended");
+    expect(streamBeforeDecode.active).toBe(false);
+    expect(scanner6.stream).toBeNull();
+    expect(scanner6.phase).toBe("result");
+  });
+});
 
-    completedStreams.push(s);
-  }
+describe("Section 6.5: Multiple Scans — No Reuse, No Leaks", () => {
+  it("Each scan cycle gets a fresh stream, all prior streams dead after decode", async () => {
+    const media6   = new MockMediaDevices();
+    const scanner6 = new QrScannerSim(media6);
 
-  assert(media6.callCount === 3,
-    "getUserMedia called exactly 3 times for 3 scan cycles (1 per cycle)");
-  assert(seenStreamIds.size === 3,
-    "3 distinct stream IDs across 3 cycles — zero stream reuse");
+    // prime a scan so scanner6 is in result phase before the loop
+    await scanner6.start();
+    scanner6.simulateScanSuccess("prime");
 
-  // All completed streams fully dead (camera indicator off, no leak)
-  for (const s of completedStreams) {
-    assert(!s.active,
-      `Stream ${s.id}: inactive after full lifecycle (no dangling camera)`);
-    assert(s.getVideoTracks().every(t => t.readyState === "ended"),
-      `Stream ${s.id}: all tracks ended (no memory leak)`);
-  }
+    media6.resetCallLog();
+    const completedStreams = [];
+    const seenStreamIds   = new Set();
 
-  section("Section 6.6: Permission Denied — Graceful Rejection");
+    for (let i = 0; i < 3; i++) {
+      const s = await scanner6.start();
 
-  const mediaDenied  = new MockMediaDevices();
-  const scannerDenied = new QrScannerSim(mediaDenied);
-  mediaDenied.denyPermission();
+      expect(s.active).toBe(true);
+      expect(seenStreamIds.has(s.id)).toBe(false);
+      seenStreamIds.add(s.id);
 
-  await assertRejects(
-    () => scannerDenied.start(),
-    "NotAllowedError",
-    "start() throws NotAllowedError when camera permission is denied"
-  );
-  assert(scannerDenied.stream === null,
-    "No stream held after permission denial (clean state)");
-  assert(scannerDenied.phase === "idle",
-    "Phase stays 'idle' after permission denial (no phantom scanning state)");
+      scanner6.simulateScanSuccess(`/equipment/eq-item-${i}`);
 
-  // FAIL IF: multiple getUserMedia calls after single denial
-  assert(mediaDenied.callCount === 1,
-    "getUserMedia called exactly once even when denied (no retry loop)");
+      expect(s.active).toBe(false);
+      expect(s.getVideoTracks().every(t => t.readyState === "ended")).toBeTruthy();
 
-  // ═══════════════════════════════════════════════════════════════
-  // SUMMARY
-  // ═══════════════════════════════════════════════════════════════
+      completedStreams.push(s);
+    }
 
-  console.log(`\n${"─".repeat(62)}`);
-  console.log("✅ pwa.system.test.js PASSED — all hard assertions satisfied");
-  console.log("   Proven:");
-  console.log("   1. Offline queue grows without any network calls");
-  console.log("   2. Reconnect sync applies ops in enqueue order, clears queue");
-  console.log("   3. Stale updates rejected; UI rolls back to server truth");
-  console.log("   4. Service worker serves all assets offline; no silent blank");
-  console.log("   5. Multi-client final state is deterministic (first-sync-wins)");
-  console.log("   6. Camera: one getUserMedia per session, live→ended, zero leaks");
-}
+    expect(media6.callCount).toBe(3);
+    expect(seenStreamIds.size).toBe(3);
 
-run().catch(err => {
-  console.error("\n💥 pwa.system.test.js FAILED:", err.message);
-  process.exit(1);
+    for (const s of completedStreams) {
+      expect(s.active).toBe(false);
+      expect(s.getVideoTracks().every(t => t.readyState === "ended")).toBeTruthy();
+    }
+  });
+});
+
+describe("Section 6.6: Permission Denied — Graceful Rejection", () => {
+  it("start() throws NotAllowedError, no stream held, phase stays idle", async () => {
+    const mediaDenied   = new MockMediaDevices();
+    const scannerDenied = new QrScannerSim(mediaDenied);
+    mediaDenied.denyPermission();
+
+    await expect(scannerDenied.start()).rejects.toThrow("NotAllowedError");
+    expect(scannerDenied.stream).toBeNull();
+    expect(scannerDenied.phase).toBe("idle");
+    expect(mediaDenied.callCount).toBe(1);
+  });
 });

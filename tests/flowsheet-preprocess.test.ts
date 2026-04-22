@@ -1,81 +1,79 @@
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { scoreExtractedDrug } from "../server/lib/forecast/confidenceScorer.ts";
 import { createFormularyFuse, extractDrugLine } from "../server/lib/forecast/fieldExtractor.ts";
 import { preprocessFlowsheetText } from "../server/lib/forecast/flowsheetPreprocess.ts";
 
-async function run(): Promise<void> {
-  console.log("\n-- flowsheet preprocess");
+describe("Flowsheet preprocess", () => {
+  it("drops high-confidence monitoring lines and keeps med lines", () => {
+    const monitoring = "Resp. rate\t28\t32\n10 Cerenia inj\t4 mg IV\n";
+    const out1 = preprocessFlowsheetText(monitoring);
+    expect(out1.includes("Resp. rate")).toBe(false);
+    expect(out1.includes("Cerenia")).toBe(true);
+  });
 
-  const monitoring = "Resp. rate\t28\t32\n10 Cerenia inj\t4 mg IV\n";
-  const out1 = preprocessFlowsheetText(monitoring);
-  assert.ok(!out1.includes("Resp. rate"), "drops high-confidence monitoring line");
-  assert.ok(out1.includes("Cerenia"), "keeps med line");
+  it("drops rate-only fluid lines (LRS, Plasma)", () => {
+    const fluidOnly = "LRS 6 ml/hr\nPlasma 5 ml/hr -\n";
+    const out2 = preprocessFlowsheetText(fluidOnly);
+    expect(out2.includes("LRS")).toBe(false);
+    expect(out2.includes("Plasma")).toBe(false);
+  });
 
-  const fluidOnly = "LRS 6 ml/hr\nPlasma 5 ml/hr -\n";
-  const out2 = preprocessFlowsheetText(fluidOnly);
-  assert.equal(out2.includes("LRS"), false, "drops LRS rate-only line");
-  assert.equal(out2.includes("Plasma"), false, "drops Plasma rate-only line");
+  it("keeps drug lines and additive lines with mg dose alongside fluid lines", () => {
+    const fluidWithDrugMg =
+      "LRS 6 ml/hr\n/ 100ml<br>Pramin 1 mg / 100ml 6\t6\n10 Famotidine\t4 mg SSIV\n";
+    const out3 = preprocessFlowsheetText(fluidWithDrugMg);
+    expect(out3.includes("Famotidine")).toBe(true);
+    expect(out3.includes("Pramin") || out3.includes("mg")).toBeTruthy();
+  });
 
-  const fluidWithDrugMg =
-    "LRS 6 ml/hr\n/ 100ml<br>Pramin 1 mg / 100ml 6\t6\n10 Famotidine\t4 mg SSIV\n";
-  const out3 = preprocessFlowsheetText(fluidWithDrugMg);
-  assert.ok(out3.includes("Famotidine"), "keeps true drug line");
-  assert.ok(
-    out3.includes("Pramin") || out3.includes("mg"),
-    "keeps line with mg (additive or drug) — do not drop whole compound line",
-  );
+  it("slices meds region between MEDICATIONS and PROCEDURES anchors", () => {
+    const medsRegion = `NOISE LINE\nMEDICATIONS\n10 Cerenia inj 4 mg IV\nPROCEDURES\nXRAY\n`;
+    const out4 = preprocessFlowsheetText(medsRegion);
+    expect(out4.includes("XRAY")).toBe(false);
+    expect(out4.includes("Cerenia")).toBe(true);
+  });
 
-  const medsRegion = `NOISE LINE\nMEDICATIONS\n10 Cerenia inj 4 mg IV\nPROCEDURES\nXRAY\n`;
-  const out4 = preprocessFlowsheetText(medsRegion);
-  assert.ok(!out4.includes("XRAY"), "region slice excludes after PROCEDURES when both anchors exist");
-  assert.ok(out4.includes("Cerenia"), "region keeps med inside window");
+  it("merges name-only line with following dose-only continuation line", () => {
+    const continuation = "3.75 Remeron (Mirtazipine)\n3.75 mg PO אופיר\n";
+    const out5 = preprocessFlowsheetText(continuation);
+    const oneLine = out5.replace(/\n/g, " ");
+    expect(
+      /(?:Mirtazapine|Remeron).*\b3\.75\s*mg\s*PO|\b3\.75\s*mg\s*PO.*(?:Mirtazapine|Remeron)/s.test(oneLine),
+    ).toBeTruthy();
+  });
 
-  const continuation = "3.75 Remeron (Mirtazipine)\n3.75 mg PO אופיר\n";
-  const out5 = preprocessFlowsheetText(continuation);
-  assert.ok(
-    /Remeron.*3\.75\s*mg\s*PO|3\.75\s*mg\s*PO.*Remeron/s.test(out5.replace(/\n/g, " ")),
-    "merges name-only line with following dose-only line",
-  );
+  it("prepends chart id from File Number and keeps meds line", () => {
+    const fileNumFlow =
+      "File Number: 361848\nNOISE\nMEDICATIONS\n10 Cerenia inj 4 mg IV\nPROCEDURES\nX\n";
+    const out6 = preprocessFlowsheetText(fileNumFlow);
+    expect(out6.startsWith("361848")).toBe(true);
+    expect(out6.includes("Cerenia")).toBe(true);
+  });
 
-  const fileNumFlow =
-    "File Number: 361848\nNOISE\nMEDICATIONS\n10 Cerenia inj 4 mg IV\nPROCEDURES\nX\n";
-  const out6 = preprocessFlowsheetText(fileNumFlow);
-  assert.ok(out6.startsWith("361848"), "prepends chart id from File Number for record hint");
-  assert.ok(out6.includes("Cerenia"), "keeps med line after prepend");
+  it("handles adjacent MEDICATIONS/PROCEDURES headers correctly", () => {
+    const adjacentHeaders =
+      "-- 1 of 2 --\nMEDICATIONS\nPROCEDURES\nLRS 6 ml/hr\n10 Cerenia inj 4 mg IV\n\n-- 2 of 2 --\n";
+    const out7 = preprocessFlowsheetText(adjacentHeaders);
+    expect(out7.includes("Cerenia")).toBe(true);
+    expect(out7.includes("LRS")).toBe(false);
+  });
+});
 
-  const adjacentHeaders =
-    "-- 1 of 2 --\nMEDICATIONS\nPROCEDURES\nLRS 6 ml/hr\n10 Cerenia inj 4 mg IV\n\n-- 2 of 2 --\n";
-  const out7 = preprocessFlowsheetText(adjacentHeaders);
-  assert.ok(out7.includes("Cerenia"), "rows after adjacent MEDICATIONS/PROCEDURES live until page footer");
-  assert.ok(!out7.includes("LRS"), "drops rate-only fluid line in that layout");
+describe("Flowsheet confidence flags", () => {
+  it("flags FLUID_VS_DRUG_UNCLEAR when fluid token and mg dose appear on same line", async () => {
+    const fuse = await createFormularyFuse(["Cerenia"]);
+    const fluidDrug = "LRS 6 ml/hr bag with 10 mg metoclopramide IV";
+    const ext1 = extractDrugLine(fluidDrug, fuse);
+    const s1 = scoreExtractedDrug(ext1);
+    expect(s1.flags.includes("FLUID_VS_DRUG_UNCLEAR")).toBeTruthy();
+  });
 
-  console.log("flowsheet preprocess: OK");
-}
-
-async function runConfidenceFlags(): Promise<void> {
-  console.log("\n-- flowsheet confidence flags");
-  const fuse = await createFormularyFuse(["Cerenia"]);
-  const fluidDrug = "LRS 6 ml/hr bag with 10 mg metoclopramide IV";
-  const ext1 = extractDrugLine(fluidDrug, fuse);
-  const s1 = scoreExtractedDrug(ext1);
-  assert.ok(s1.flags.includes("FLUID_VS_DRUG_UNCLEAR"), "fluid token + mg dose on same line");
-
-  const emptyFuse = await createFormularyFuse([]);
-  const unknown = "999 Xyznoname 12 mg IV";
-  const ext2 = extractDrugLine(unknown, emptyFuse);
-  const s2 = scoreExtractedDrug(ext2);
-  assert.ok(s2.flags.includes("DRUG_UNKNOWN"));
-  assert.ok(s2.flags.includes("LINE_AMBIGUOUS"), "unknown name with mg gets LINE_AMBIGUOUS");
-
-  console.log("flowsheet confidence flags: OK");
-}
-
-async function main(): Promise<void> {
-  await run();
-  await runConfidenceFlags();
-}
-
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
+  it("flags DRUG_UNKNOWN and LINE_AMBIGUOUS for unknown drug with mg dose", async () => {
+    const emptyFuse = await createFormularyFuse([]);
+    const unknown = "999 Xyznoname 12 mg IV";
+    const ext2 = extractDrugLine(unknown, emptyFuse);
+    const s2 = scoreExtractedDrug(ext2);
+    expect(s2.flags.includes("DRUG_UNKNOWN")).toBeTruthy();
+    expect(s2.flags.includes("LINE_AMBIGUOUS")).toBeTruthy();
+  });
 });

@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import {
   extractPdfPatientDemographics,
   hasPdfIdentity,
@@ -10,8 +10,7 @@ const sample = `
 (אמצע שולחן) שון
 3.9 kg BLS
 Canine - Poodle - M
-Age:
-White
+Colour: White
 CLIENT
 Tel:
 Tel: 050-1234567
@@ -20,25 +19,53 @@ DVM: --
 File Number: 361848
 `;
 
-async function run(): Promise<void> {
-  const d = extractPdfPatientDemographics(sample);
-  assert.equal(d.recordNumber, "361848");
-  assert.equal(d.weightKg, 3.9);
-  assert.equal(d.species, "Canine");
-  assert.equal(d.breed, "Poodle");
-  assert.equal(d.sex, "M");
-  assert.equal(d.color, "White");
-  assert.ok(d.name.includes("שון") || d.name.length > 0);
-  assert.ok(hasPdfIdentity(d));
+const ageColourSample = `
+File Number: 99999
+Canine - Mix - M
+Age: 4 years
+Colour: Tricolor
+Weight: 32 kg
+CRI: 5 mcg/kg/min
+`;
 
-  const empty = extractPdfPatientDemographics("no identifiers here");
-  assert.equal(empty.recordNumber, null);
-  assert.equal(hasPdfIdentity(empty), false);
+describe("Flowsheet demographics extraction", () => {
+  it("extracts all fields from full sample", () => {
+    const d = extractPdfPatientDemographics(sample);
+    expect(d.recordNumber).toBe("361848");
+    expect(d.weightKg).toBe(3.9);
+    expect(d.species).toBe("Canine");
+    expect(d.breed).toBe("Poodle");
+    expect(d.sex).toBe("M");
+    expect(d.color).toBe("White");
+    expect(d.name.includes("שון") || d.name.length > 0).toBeTruthy();
+    expect(hasPdfIdentity(d)).toBeTruthy();
+  });
 
-  console.log("flowsheet demographics: OK");
-}
+  it("extracts age, colour, and weight from ageColourSample", () => {
+    const ac = extractPdfPatientDemographics(ageColourSample);
+    expect(ac.age).toBe("4 years");
+    expect(ac.color).toBe("Tricolor");
+    expect(ac.weightKg).toBe(32);
+    expect(ac.weightUncertain).toBe(false);
+  });
 
-run().catch((e) => {
-  console.error(e);
-  process.exit(1);
+  it("extracts weight when CRI line precedes weight line", () => {
+    const criFirst = `
+CRI: 5 mcg/kg/min
+Weight: 32 kg
+`;
+    const wonly = extractPdfPatientDemographics(criFirst);
+    expect(wonly.weightKg).toBe(32);
+    expect(wonly.weightUncertain).toBe(false);
+  });
+
+  it("returns null recordNumber and fails hasPdfIdentity on empty input", () => {
+    const empty = extractPdfPatientDemographics("no identifiers here");
+    expect(empty.recordNumber).toBe(null);
+    expect(hasPdfIdentity(empty)).toBe(false);
+  });
+
+  it("hasPdfIdentity returns true when given a fallback record number", () => {
+    expect(hasPdfIdentity(null, "404040")).toBe(true);
+  });
 });

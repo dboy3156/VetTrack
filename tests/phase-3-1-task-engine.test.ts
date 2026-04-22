@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import {
   dbStatusToServiceStatus,
   isTaskActive,
@@ -6,49 +6,100 @@ import {
   type AppointmentLike,
 } from "../server/domain/service-task.adapter.js";
 
-async function run(): Promise<void> {
-  console.log("\n-- Phase 3.1 Smart Task Engine (adapter + lifecycle helpers)");
+describe("Phase 3.1 Smart Task Engine (adapter + lifecycle helpers)", () => {
+  it("dbStatusToServiceStatus maps pending", () => {
+    expect(dbStatusToServiceStatus("pending")).toBe("pending");
+  });
 
-  assert.equal(dbStatusToServiceStatus("pending"), "pending");
-  assert.equal(dbStatusToServiceStatus("assigned"), "assigned");
-  assert.equal(dbStatusToServiceStatus("scheduled"), "assigned");
-  assert.equal(dbStatusToServiceStatus("arrived"), "assigned");
-  assert.equal(dbStatusToServiceStatus("in_progress"), "in_progress");
-  assert.equal(dbStatusToServiceStatus("completed"), "completed");
-  assert.equal(dbStatusToServiceStatus("cancelled"), "cancelled");
-  assert.equal(dbStatusToServiceStatus("no_show"), "cancelled");
+  it("dbStatusToServiceStatus maps assigned", () => {
+    expect(dbStatusToServiceStatus("assigned")).toBe("assigned");
+  });
 
-  assert.equal(isTaskActive("pending"), true);
-  assert.equal(isTaskActive("assigned"), true);
-  assert.equal(isTaskActive("in_progress"), true);
-  assert.equal(isTaskActive("completed"), false);
-  assert.equal(isTaskActive("cancelled"), false);
+  it("dbStatusToServiceStatus maps scheduled to assigned", () => {
+    expect(dbStatusToServiceStatus("scheduled")).toBe("assigned");
+  });
 
-  const pendingLike: AppointmentLike = {
-    id: "t1",
-    clinicId: "c1",
-    animalId: null,
-    ownerId: null,
-    vetId: null,
-    startTime: "2026-04-16T10:00:00.000Z",
-    endTime: "2026-04-16T11:00:00.000Z",
-    status: "pending",
-    conflictOverride: false,
-    overrideReason: null,
-    notes: null,
-    priority: "high",
-    taskType: "repair",
-    createdAt: "2026-04-16T09:00:00.000Z",
-    updatedAt: "2026-04-16T09:00:00.000Z",
-  };
-  const stPending = toServiceTask(pendingLike);
-  assert.equal(stPending.technicianId, null);
-  assert.equal(stPending.status, "pending");
+  it("dbStatusToServiceStatus maps arrived to assigned", () => {
+    expect(dbStatusToServiceStatus("arrived")).toBe("assigned");
+  });
 
-  console.log("  PASS: phase 3.1 task engine adapter");
-}
+  it("dbStatusToServiceStatus maps in_progress", () => {
+    expect(dbStatusToServiceStatus("in_progress")).toBe("in_progress");
+  });
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  it("dbStatusToServiceStatus maps completed", () => {
+    expect(dbStatusToServiceStatus("completed")).toBe("completed");
+  });
+
+  it("dbStatusToServiceStatus maps cancelled", () => {
+    expect(dbStatusToServiceStatus("cancelled")).toBe("cancelled");
+  });
+
+  it("dbStatusToServiceStatus maps no_show to cancelled", () => {
+    expect(dbStatusToServiceStatus("no_show")).toBe("cancelled");
+  });
+
+  it("isTaskActive returns true for pending", () => {
+    expect(isTaskActive("pending")).toBe(true);
+  });
+
+  it("isTaskActive returns true for assigned", () => {
+    expect(isTaskActive("assigned")).toBe(true);
+  });
+
+  it("isTaskActive returns true for in_progress", () => {
+    expect(isTaskActive("in_progress")).toBe(true);
+  });
+
+  it("isTaskActive returns false for completed", () => {
+    expect(isTaskActive("completed")).toBe(false);
+  });
+
+  it("isTaskActive returns false for cancelled", () => {
+    expect(isTaskActive("cancelled")).toBe(false);
+  });
+
+  it("toServiceTask with pending status maps technicianId to null", () => {
+    const pendingLike: AppointmentLike = {
+      id: "t1",
+      clinicId: "c1",
+      animalId: null,
+      ownerId: null,
+      vetId: null,
+      startTime: "2026-04-16T10:00:00.000Z",
+      endTime: "2026-04-16T11:00:00.000Z",
+      status: "pending",
+      conflictOverride: false,
+      overrideReason: null,
+      notes: null,
+      priority: "high",
+      taskType: "repair",
+      createdAt: "2026-04-16T09:00:00.000Z",
+      updatedAt: "2026-04-16T09:00:00.000Z",
+    };
+    const stPending = toServiceTask(pendingLike);
+    expect(stPending.technicianId).toBe(null);
+  });
+
+  it("toServiceTask with pending status preserves pending", () => {
+    const pendingLike: AppointmentLike = {
+      id: "t1",
+      clinicId: "c1",
+      animalId: null,
+      ownerId: null,
+      vetId: null,
+      startTime: "2026-04-16T10:00:00.000Z",
+      endTime: "2026-04-16T11:00:00.000Z",
+      status: "pending",
+      conflictOverride: false,
+      overrideReason: null,
+      notes: null,
+      priority: "high",
+      taskType: "repair",
+      createdAt: "2026-04-16T09:00:00.000Z",
+      updatedAt: "2026-04-16T09:00:00.000Z",
+    };
+    const stPending = toServiceTask(pendingLike);
+    expect(stPending.status).toBe("pending");
+  });
 });

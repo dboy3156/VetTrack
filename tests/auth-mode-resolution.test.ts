@@ -1,60 +1,88 @@
-import assert from "node:assert/strict";
+import { describe, it, expect, beforeAll } from "vitest";
 
-async function run(): Promise<void> {
-  const { resolveAuthMode, resolveAuthModeFromEnv, describeAuthMode } = await import(
-    "../server/lib/auth-mode.ts"
-  );
+let resolveAuthMode: (opts: Record<string, string | undefined>) => { mode: string; reason: string; hasSecret: boolean; hasPublishable?: boolean; nodeEnv?: string };
+let resolveAuthModeFromEnv: (env: NodeJS.ProcessEnv) => { mode: string; reason: string; hasSecret: boolean; hasPublishable?: boolean; nodeEnv?: string };
+let describeAuthMode: (result: { mode: string; reason: string; hasSecret: boolean; hasPublishable?: boolean; nodeEnv?: string }) => string;
 
-  console.log("\n-- auth-mode resolution");
+beforeAll(async () => {
+  const mod = await import("../server/lib/auth-mode.ts");
+  resolveAuthMode = mod.resolveAuthMode;
+  resolveAuthModeFromEnv = mod.resolveAuthModeFromEnv;
+  describeAuthMode = mod.describeAuthMode;
+});
 
-  // Dev bypass when nothing is set.
-  const empty = resolveAuthMode({});
-  assert.equal(empty.mode, "dev-bypass");
-  assert.equal(empty.reason, "secret-missing");
-  assert.equal(empty.hasSecret, false);
+describe("auth-mode resolution", () => {
+  it("dev bypass when nothing is set", () => {
+    const empty = resolveAuthMode({});
+    expect(empty.mode).toBe("dev-bypass");
+    expect(empty.reason).toBe("secret-missing");
+    expect(empty.hasSecret).toBe(false);
+  });
 
-  // Clerk when secret present.
-  const clerk = resolveAuthMode({ clerkSecretKey: "sk_test_abc" });
-  assert.equal(clerk.mode, "clerk");
-  assert.equal(clerk.reason, "secret-present");
-  assert.equal(clerk.hasSecret, true);
+  it("clerk mode when secret present", () => {
+    const clerk = resolveAuthMode({ clerkSecretKey: "sk_test_abc" });
+    expect(clerk.mode).toBe("clerk");
+    expect(clerk.reason).toBe("secret-present");
+    expect(clerk.hasSecret).toBe(true);
+  });
 
-  // CLERK_ENABLED=false forces dev bypass even with a secret.
-  const disabled = resolveAuthMode({ clerkSecretKey: "sk_test_abc", clerkEnabled: "false" });
-  assert.equal(disabled.mode, "dev-bypass");
-  assert.equal(disabled.reason, "clerk-explicitly-disabled");
+  it("CLERK_ENABLED=false forces dev bypass even with a secret", () => {
+    const disabled = resolveAuthMode({ clerkSecretKey: "sk_test_abc", clerkEnabled: "false" });
+    expect(disabled.mode).toBe("dev-bypass");
+    expect(disabled.reason).toBe("clerk-explicitly-disabled");
+  });
 
-  // Publishable key alone does not switch to clerk mode (server is authoritative).
-  const pubOnly = resolveAuthMode({ vitePublishableKey: "pk_test_abc" });
-  assert.equal(pubOnly.mode, "dev-bypass");
-  assert.equal(pubOnly.hasPublishable, true);
+  it("publishable key alone does not switch to clerk mode", () => {
+    const pubOnly = resolveAuthMode({ vitePublishableKey: "pk_test_abc" });
+    expect(pubOnly.mode).toBe("dev-bypass");
+    expect(pubOnly.hasPublishable).toBe(true);
+  });
 
-  // Whitespace-only values are treated as unset.
-  const blanks = resolveAuthMode({ clerkSecretKey: "   ", clerkPublishableKey: "" });
-  assert.equal(blanks.mode, "dev-bypass");
-  assert.equal(blanks.hasSecret, false);
-  assert.equal(blanks.hasPublishable, false);
+  it("whitespace-only values are treated as unset", () => {
+    const blanks = resolveAuthMode({ clerkSecretKey: "   ", clerkPublishableKey: "" });
+    expect(blanks.mode).toBe("dev-bypass");
+    expect(blanks.hasSecret).toBe(false);
+    expect(blanks.hasPublishable).toBe(false);
+  });
 
-  // resolveAuthModeFromEnv reads from the passed env bag.
-  const fromEnv = resolveAuthModeFromEnv({
-    CLERK_SECRET_KEY: "sk_test_xyz",
-    VITE_CLERK_PUBLISHABLE_KEY: "pk_test_xyz",
-    NODE_ENV: "development",
-  } as NodeJS.ProcessEnv);
-  assert.equal(fromEnv.mode, "clerk");
-  assert.equal(fromEnv.hasPublishable, true);
-  assert.equal(fromEnv.nodeEnv, "development");
+  it("resolveAuthModeFromEnv reads from the passed env bag", () => {
+    const fromEnv = resolveAuthModeFromEnv({
+      CLERK_SECRET_KEY: "sk_test_xyz",
+      VITE_CLERK_PUBLISHABLE_KEY: "pk_test_xyz",
+      NODE_ENV: "development",
+    } as NodeJS.ProcessEnv);
+    expect(fromEnv.mode).toBe("clerk");
+    expect(fromEnv.hasPublishable).toBe(true);
+    expect(fromEnv.nodeEnv).toBe("development");
+  });
 
-  // describeAuthMode is redaction-friendly (does not contain the key itself).
-  const description = describeAuthMode(fromEnv);
-  assert.ok(!description.includes("sk_test_xyz"), "description must not leak secret");
-  assert.ok(description.includes("mode=clerk"));
-  assert.ok(description.includes("hasSecret=true"));
+  it("describeAuthMode does not leak secret", () => {
+    const fromEnv = resolveAuthModeFromEnv({
+      CLERK_SECRET_KEY: "sk_test_xyz",
+      VITE_CLERK_PUBLISHABLE_KEY: "pk_test_xyz",
+      NODE_ENV: "development",
+    } as NodeJS.ProcessEnv);
+    const description = describeAuthMode(fromEnv);
+    expect(!description.includes("sk_test_xyz")).toBeTruthy();
+  });
 
-  console.log("   ok resolveAuthMode / resolveAuthModeFromEnv / describeAuthMode");
-}
+  it("describeAuthMode includes mode=clerk", () => {
+    const fromEnv = resolveAuthModeFromEnv({
+      CLERK_SECRET_KEY: "sk_test_xyz",
+      VITE_CLERK_PUBLISHABLE_KEY: "pk_test_xyz",
+      NODE_ENV: "development",
+    } as NodeJS.ProcessEnv);
+    const description = describeAuthMode(fromEnv);
+    expect(description.includes("mode=clerk")).toBeTruthy();
+  });
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  it("describeAuthMode includes hasSecret=true", () => {
+    const fromEnv = resolveAuthModeFromEnv({
+      CLERK_SECRET_KEY: "sk_test_xyz",
+      VITE_CLERK_PUBLISHABLE_KEY: "pk_test_xyz",
+      NODE_ENV: "development",
+    } as NodeJS.ProcessEnv);
+    const description = describeAuthMode(fromEnv);
+    expect(description.includes("hasSecret=true")).toBeTruthy();
+  });
 });

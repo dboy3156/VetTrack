@@ -1,21 +1,4 @@
-"use strict";
-
-let passed = 0;
-let failed = 0;
-
-function assert(condition, label) {
-  if (!condition) {
-    console.error(`  ❌ FAIL: ${label}`);
-    failed++;
-  } else {
-    console.log(`  ✅ PASS: ${label}`);
-    passed++;
-  }
-}
-
-function section(name) {
-  console.log(`\n── ${name}`);
-}
+import { describe, it, expect } from "vitest";
 
 // ── Simulated async store with version-based optimistic locking ───
 class EquipmentStore {
@@ -73,125 +56,174 @@ async function optimisticUpdate(store, id, mutateFn, maxRetries = 50) {
   }
 }
 
-async function runConcurrencyTests() {
-  // ── Test 1: N concurrent writers, no lost updates ─────────────
-  section("Concurrent Increment — No Lost Updates");
+describe("Concurrent Increment — No Lost Updates", () => {
+  it(`All 20 optimistic updates eventually succeeded`, async () => {
+    const store1 = new EquipmentStore();
+    store1.seed({ id: "eq-1", counter: 0, version: 1 });
 
-  const store1 = new EquipmentStore();
-  store1.seed({ id: "eq-1", counter: 0, version: 1 });
+    const N = 20;
+    const incrementFn = (rec) => ({ version: rec.version, counter: rec.counter + 1 });
 
-  const N = 20;
-  const incrementFn = (rec) => ({ version: rec.version, counter: rec.counter + 1 });
+    const results1 = await Promise.allSettled(
+      Array.from({ length: N }, () => optimisticUpdate(store1, "eq-1", incrementFn))
+    );
 
-  const results1 = await Promise.allSettled(
-    Array.from({ length: N }, () => optimisticUpdate(store1, "eq-1", incrementFn))
-  );
+    const ok1 = results1.filter((r) => r.status === "fulfilled").length;
+    expect(ok1).toBe(N);
+  }, 30000);
 
-  const ok1 = results1.filter((r) => r.status === "fulfilled").length;
-  const err1 = results1.filter((r) => r.status === "rejected").length;
-  const final1 = store1.records.get("eq-1");
+  it("No writers were permanently rejected", async () => {
+    const store1 = new EquipmentStore();
+    store1.seed({ id: "eq-1", counter: 0, version: 1 });
 
-  console.log(
-    `  ${N} writers → ${ok1} succeeded, ${err1} rejected, ` +
-    `${store1.conflicts} conflicts detected internally`
-  );
+    const N = 20;
+    const incrementFn = (rec) => ({ version: rec.version, counter: rec.counter + 1 });
 
-  assert(ok1 === N, `All ${N} optimistic updates eventually succeeded (got ${ok1})`);
-  assert(err1 === 0, "No writers were permanently rejected");
-  assert(
-    final1.counter === N,
-    `Counter = ${N} (no lost updates), got ${final1.counter}`
-  );
-  assert(
-    final1.version === N + 1,
-    `Version = ${N + 1}, got ${final1.version}`
-  );
+    const results1 = await Promise.allSettled(
+      Array.from({ length: N }, () => optimisticUpdate(store1, "eq-1", incrementFn))
+    );
 
-  // ── Test 2: Concurrent writes to independent records don't cross ─
-  section("Isolated Concurrent Writes — No Cross-Contamination");
+    const err1 = results1.filter((r) => r.status === "rejected").length;
+    expect(err1).toBe(0);
+  }, 30000);
 
-  const store2 = new EquipmentStore();
-  const ids = ["eq-a", "eq-b", "eq-c", "eq-d"];
-  ids.forEach((id) => store2.seed({ id, count: 0, version: 1 }));
+  it(`Counter = 20 (no lost updates)`, async () => {
+    const store1 = new EquipmentStore();
+    store1.seed({ id: "eq-1", counter: 0, version: 1 });
 
-  const WRITERS_PER_ID = 5;
-  await Promise.all(
-    ids.flatMap((id) =>
-      Array.from({ length: WRITERS_PER_ID }, () =>
-        optimisticUpdate(store2, id, (rec) => ({ version: rec.version, count: rec.count + 1 }))
+    const N = 20;
+    const incrementFn = (rec) => ({ version: rec.version, counter: rec.counter + 1 });
+
+    await Promise.allSettled(
+      Array.from({ length: N }, () => optimisticUpdate(store1, "eq-1", incrementFn))
+    );
+
+    const final1 = store1.records.get("eq-1");
+    expect(final1.counter).toBe(N);
+  }, 30000);
+
+  it(`Version = 21`, async () => {
+    const store1 = new EquipmentStore();
+    store1.seed({ id: "eq-1", counter: 0, version: 1 });
+
+    const N = 20;
+    const incrementFn = (rec) => ({ version: rec.version, counter: rec.counter + 1 });
+
+    await Promise.allSettled(
+      Array.from({ length: N }, () => optimisticUpdate(store1, "eq-1", incrementFn))
+    );
+
+    const final1 = store1.records.get("eq-1");
+    expect(final1.version).toBe(N + 1);
+  }, 30000);
+});
+
+describe("Isolated Concurrent Writes — No Cross-Contamination", () => {
+  it("Each isolated record reaches correct count and version", async () => {
+    const store2 = new EquipmentStore();
+    const ids = ["eq-a", "eq-b", "eq-c", "eq-d"];
+    ids.forEach((id) => store2.seed({ id, count: 0, version: 1 }));
+
+    const WRITERS_PER_ID = 5;
+    await Promise.all(
+      ids.flatMap((id) =>
+        Array.from({ length: WRITERS_PER_ID }, () =>
+          optimisticUpdate(store2, id, (rec) => ({ version: rec.version, count: rec.count + 1 }))
+        )
       )
-    )
-  );
-
-  for (const id of ids) {
-    const rec = store2.records.get(id);
-    assert(
-      rec.count === WRITERS_PER_ID,
-      `${id}: count = ${WRITERS_PER_ID}, got ${rec.count}`
     );
-    assert(
-      rec.version === WRITERS_PER_ID + 1,
-      `${id}: version = ${WRITERS_PER_ID + 1}, got ${rec.version}`
-    );
-  }
 
-  // ── Test 3: Read-your-writes consistency ──────────────────────
-  section("Read-Your-Writes Consistency");
-
-  const store3 = new EquipmentStore();
-  store3.seed({ id: "eq-ryw", value: 0, version: 1 });
-
-  // Sequential chain: each write reads the result of the previous
-  let prev = store3.records.get("eq-ryw");
-  for (let i = 1; i <= 5; i++) {
-    const result = await store3.write("eq-ryw", { version: prev.version, value: i * 10 });
-    const read = await store3.read("eq-ryw");
-    assert(
-      read.value === result.value,
-      `After write ${i}: read returns written value (${result.value}), got ${read.value}`
-    );
-    prev = result;
-  }
-
-  const finalRyw = store3.records.get("eq-ryw");
-  assert(finalRyw.value === 50, `Final value = 50, got ${finalRyw.value}`);
-  assert(finalRyw.version === 6, `Final version = 6, got ${finalRyw.version}`);
-
-  // ── Test 4: Conflict rate is non-zero under true concurrency ──
-  section("Conflict Detection — Conflicts Observed Under Contention");
-
-  const store4 = new EquipmentStore();
-  store4.seed({ id: "eq-hot", counter: 0, version: 1 });
-
-  // Fire all writes simultaneously without retry — expect conflicts
-  const rawWrites = await Promise.allSettled(
-    Array.from({ length: 10 }, async () => {
-      const rec = await store4.read("eq-hot");
-      // Intentional: don't retry; all will race on the same version
-      return store4.write("eq-hot", { version: rec.version, counter: rec.counter + 1 });
-    })
-  );
-
-  const rawOk = rawWrites.filter((r) => r.status === "fulfilled").length;
-  const rawErr = rawWrites.filter((r) => r.status === "rejected").length;
-  console.log(`  10 unretried concurrent writers → ${rawOk} succeeded, ${rawErr} conflicted`);
-
-  assert(rawOk >= 1, "At least 1 write wins the race");
-  assert(rawErr >= 1, "At least 1 conflict detected (proves locking works)");
-  assert(rawOk + rawErr === 10, "All 10 outcomes accounted for");
-}
-
-runConcurrencyTests()
-  .then(() => {
-    console.log(`\n${"─".repeat(48)}`);
-    console.log(`Results: ${passed} passed, ${failed} failed`);
-    if (failed > 0) {
-      console.error(`\n❌ concurrency.test.js FAILED (${failed} assertion(s) failed)`);
-      process.exit(1);
+    for (const id of ids) {
+      const rec = store2.records.get(id);
+      expect(rec.count).toBe(WRITERS_PER_ID);
+      expect(rec.version).toBe(WRITERS_PER_ID + 1);
     }
-    console.log("\n✅ concurrency.test.js PASSED");
-  })
-  .catch((err) => {
-    console.error("\n💥 concurrency.test.js threw an unexpected error:", err.message);
-    process.exit(1);
+  }, 30000);
+});
+
+describe("Read-Your-Writes Consistency", () => {
+  it("After each write, read returns written value", async () => {
+    const store3 = new EquipmentStore();
+    store3.seed({ id: "eq-ryw", value: 0, version: 1 });
+
+    let prev = store3.records.get("eq-ryw");
+    for (let i = 1; i <= 5; i++) {
+      const result = await store3.write("eq-ryw", { version: prev.version, value: i * 10 });
+      const read = await store3.read("eq-ryw");
+      expect(read.value).toBe(result.value);
+      prev = result;
+    }
   });
+
+  it("Final value = 50", async () => {
+    const store3 = new EquipmentStore();
+    store3.seed({ id: "eq-ryw", value: 0, version: 1 });
+
+    let prev = store3.records.get("eq-ryw");
+    for (let i = 1; i <= 5; i++) {
+      prev = await store3.write("eq-ryw", { version: prev.version, value: i * 10 });
+    }
+
+    expect(store3.records.get("eq-ryw").value).toBe(50);
+  });
+
+  it("Final version = 6", async () => {
+    const store3 = new EquipmentStore();
+    store3.seed({ id: "eq-ryw", value: 0, version: 1 });
+
+    let prev = store3.records.get("eq-ryw");
+    for (let i = 1; i <= 5; i++) {
+      prev = await store3.write("eq-ryw", { version: prev.version, value: i * 10 });
+    }
+
+    expect(store3.records.get("eq-ryw").version).toBe(6);
+  });
+});
+
+describe("Conflict Detection — Conflicts Observed Under Contention", () => {
+  it("At least 1 write wins the race", async () => {
+    const store4 = new EquipmentStore();
+    store4.seed({ id: "eq-hot", counter: 0, version: 1 });
+
+    const rawWrites = await Promise.allSettled(
+      Array.from({ length: 10 }, async () => {
+        const rec = await store4.read("eq-hot");
+        return store4.write("eq-hot", { version: rec.version, counter: rec.counter + 1 });
+      })
+    );
+
+    const rawOk = rawWrites.filter((r) => r.status === "fulfilled").length;
+    expect(rawOk).toBeGreaterThanOrEqual(1);
+  });
+
+  it("At least 1 conflict detected (proves locking works)", async () => {
+    const store4 = new EquipmentStore();
+    store4.seed({ id: "eq-hot", counter: 0, version: 1 });
+
+    const rawWrites = await Promise.allSettled(
+      Array.from({ length: 10 }, async () => {
+        const rec = await store4.read("eq-hot");
+        return store4.write("eq-hot", { version: rec.version, counter: rec.counter + 1 });
+      })
+    );
+
+    const rawErr = rawWrites.filter((r) => r.status === "rejected").length;
+    expect(rawErr).toBeGreaterThanOrEqual(1);
+  });
+
+  it("All 10 outcomes accounted for", async () => {
+    const store4 = new EquipmentStore();
+    store4.seed({ id: "eq-hot", counter: 0, version: 1 });
+
+    const rawWrites = await Promise.allSettled(
+      Array.from({ length: 10 }, async () => {
+        const rec = await store4.read("eq-hot");
+        return store4.write("eq-hot", { version: rec.version, counter: rec.counter + 1 });
+      })
+    );
+
+    const rawOk = rawWrites.filter((r) => r.status === "fulfilled").length;
+    const rawErr = rawWrites.filter((r) => r.status === "rejected").length;
+    expect(rawOk + rawErr).toBe(10);
+  });
+});

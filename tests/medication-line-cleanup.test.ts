@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import {
   cleanMedicationLine,
   extractLastMedicationSegment,
@@ -6,30 +6,27 @@ import {
   stripVolumeSuffixes,
 } from "../server/lib/forecast/medicationLineCleanup.ts";
 
-async function run(): Promise<void> {
-  assert.ok(
-    !stripVolumeSuffixes("10 Drug / 100ml Pramin 1 mg / 100ml 15").includes("100ml"),
-    "strips /100ml-style volume suffixes",
-  );
+describe("Medication line cleanup", () => {
+  it("strips /100ml-style volume suffixes", () => {
+    expect(stripVolumeSuffixes("10 Drug / 100ml Pramin 1 mg / 100ml 15").includes("100ml")).toBe(false);
+  });
 
-  assert.equal(
-    cleanMedicationLine("10% diphenhydramine 10 mg שי").includes("שי"),
-    false,
-    "strips short trailing Hebrew staff tag",
-  );
+  it("strips short trailing Hebrew staff tag", () => {
+    expect(cleanMedicationLine("10% diphenhydramine 10 mg שי").includes("שי")).toBe(false);
+  });
 
-  assert.equal(isBloodProductLine("PC 50 ml 12 ml/hr"), true);
-  assert.equal(isBloodProductLine("10 Cerenia 4 mg IV"), false);
+  it("identifies blood product lines", () => {
+    expect(isBloodProductLine("PC 50 ml 12 ml/hr")).toBe(true);
+  });
 
-  const composite =
-    "ראשון הזנה יום NGT 12 ml/hr - 12 - לא לא - 10 Butorphanol";
-  const last = extractLastMedicationSegment(composite);
-  assert.ok(last.includes("Butorphanol"), "extracts trailing drug segment from composite line");
+  it("does not flag non-blood-product lines", () => {
+    expect(isBloodProductLine("10 Cerenia 4 mg IV")).toBe(false);
+  });
 
-  console.log("medication line cleanup: OK");
-}
-
-run().catch((e) => {
-  console.error(e);
-  process.exit(1);
+  it("extracts trailing drug segment from composite line", () => {
+    const composite =
+      "ראשון הזנה יום NGT 12 ml/hr - 12 - לא לא - 10 Butorphanol";
+    const last = extractLastMedicationSegment(composite);
+    expect(last.includes("Butorphanol")).toBe(true);
+  });
 });

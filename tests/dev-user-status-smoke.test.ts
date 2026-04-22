@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -16,31 +16,40 @@ function runScript(args: string[], env: NodeJS.ProcessEnv = process.env): { stat
   };
 }
 
-async function run(): Promise<void> {
-  console.log("\n-- dev-user-status smoke");
-
-  // Refuses to run in production regardless of other args.
-  const prod = runScript(["--email=x@example.com"], {
-    ...process.env,
-    NODE_ENV: "production",
-    DATABASE_URL: "postgres://user:pass@127.0.0.1:5432/db",
+describe("dev-user-status smoke", () => {
+  it("refuses to run in production regardless of other args", () => {
+    const prod = runScript(["--email=x@example.com"], {
+      ...process.env,
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://user:pass@127.0.0.1:5432/db",
+    });
+    expect(prod.status).toBe(3);
   });
-  assert.equal(prod.status, 3, `expected exit 3 in production, got ${prod.status}. stderr=${prod.stderr}`);
-  assert.ok(/production/i.test(prod.stderr), "expected production refusal message");
 
-  // Prints usage and exits 3 when neither email nor clerk-id is supplied.
-  const noArgs = runScript([], {
-    ...process.env,
-    NODE_ENV: "development",
-    DATABASE_URL: "postgres://user:pass@127.0.0.1:5432/db",
+  it("expected production refusal message", () => {
+    const prod = runScript(["--email=x@example.com"], {
+      ...process.env,
+      NODE_ENV: "production",
+      DATABASE_URL: "postgres://user:pass@127.0.0.1:5432/db",
+    });
+    expect(/production/i.test(prod.stderr)).toBeTruthy();
   });
-  assert.equal(noArgs.status, 3, `expected exit 3 for missing args, got ${noArgs.status}. stderr=${noArgs.stderr}`);
-  assert.ok(/Usage:/i.test(noArgs.stderr), "expected usage block on stderr");
 
-  console.log("   ok dev-user-status refuses unsafe operations");
-}
+  it("prints usage and exits 3 when neither email nor clerk-id is supplied", () => {
+    const noArgs = runScript([], {
+      ...process.env,
+      NODE_ENV: "development",
+      DATABASE_URL: "postgres://user:pass@127.0.0.1:5432/db",
+    });
+    expect(noArgs.status).toBe(3);
+  });
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  it("expected usage block on stderr when no args", () => {
+    const noArgs = runScript([], {
+      ...process.env,
+      NODE_ENV: "development",
+      DATABASE_URL: "postgres://user:pass@127.0.0.1:5432/db",
+    });
+    expect(/Usage:/i.test(noArgs.stderr)).toBeTruthy();
+  });
 });

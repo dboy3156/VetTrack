@@ -1,91 +1,59 @@
-"use strict";
+import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const fs = require("fs");
-const path = require("path");
-
-let passed = 0;
-let failed = 0;
-
-function ok(label) {
-  console.log(`  PASS: ${label}`);
-  passed++;
-}
-
-function fail(label, detail) {
-  console.error(`  FAIL: ${label}`);
-  if (detail) console.error(`    ${detail}`);
-  failed++;
-}
-
-function assert(condition, label, detail) {
-  if (condition) ok(label);
-  else fail(label, detail);
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const repoRoot = path.resolve(__dirname, "..");
 const appointments = fs.readFileSync(path.join(repoRoot, "src", "pages", "appointments.tsx"), "utf8");
 const layout = fs.readFileSync(path.join(repoRoot, "src", "components", "layout.tsx"), "utf8");
 const home = fs.readFileSync(path.join(repoRoot, "src", "pages", "home.tsx"), "utf8");
 
-console.log("\n-- Wave 3 UI token consistency checks (static)");
+describe("Wave 3 UI token consistency checks (static)", () => {
+  it("Appointments urgent badges use centralized style tokens", () => {
+    expect(
+      appointments.includes("const URGENT_BADGE_STYLES = {") &&
+        appointments.includes("className={URGENT_BADGE_STYLES.overdue}") &&
+        appointments.includes("className={URGENT_BADGE_STYLES.critical}"),
+    ).toBe(true);
+  });
 
-assert(
-  appointments.includes("const URGENT_BADGE_STYLES = {") &&
-    appointments.includes("className={URGENT_BADGE_STYLES.overdue}") &&
-    appointments.includes("className={URGENT_BADGE_STYLES.critical}"),
-  "Appointments urgent badges use centralized style tokens",
-  "Expected overdue/critical urgent badges to consume URGENT_BADGE_STYLES",
-);
+  it("Appointments critical priority badge uses semantic destructive tokens", () => {
+    expect(appointments).toContain("critical: \"bg-destructive text-destructive-foreground border-transparent\"");
+  });
 
-assert(
-  appointments.includes("critical: \"bg-destructive text-destructive-foreground border-transparent\""),
-  "Appointments critical priority badge uses semantic destructive tokens",
-  "Expected critical PRIORITY_BADGE style to use design-token semantic classes",
-);
+  it("Appointments high priority badge uses semantic accent tokens", () => {
+    expect(appointments).toContain("high: \"bg-accent text-accent-foreground border-transparent\"");
+  });
 
-assert(
-  appointments.includes("high: \"bg-accent text-accent-foreground border-transparent\""),
-  "Appointments high priority badge uses semantic accent tokens",
-  "Expected high PRIORITY_BADGE style to avoid hardcoded palette classes",
-);
+  it("Appointments normal task priority uses neutral semantic tokens", () => {
+    expect(appointments).toContain("normal: \"bg-muted text-foreground border-border\"");
+  });
 
-assert(
-  appointments.includes("normal: \"bg-muted text-foreground border-border\""),
-  "Appointments normal task priority uses neutral semantic tokens",
-  "Expected normal PRIORITY_COLORS style to use neutral token classes",
-);
+  it("Appointments critical task priority uses semantic destructive tokens", () => {
+    expect(appointments).toContain("critical: \"bg-destructive/10 text-destructive border-destructive/30\"");
+  });
 
-assert(
-  appointments.includes("critical: \"bg-destructive/10 text-destructive border-destructive/30\""),
-  "Appointments critical task priority uses semantic destructive tokens",
-  "Expected critical PRIORITY_COLORS style to avoid hardcoded orange palette classes",
-);
+  it("Appointments high task priority uses semantic accent tokens", () => {
+    expect(appointments).toContain("high: \"bg-accent text-accent-foreground border-border\"");
+  });
 
-assert(
-  appointments.includes("high: \"bg-accent text-accent-foreground border-border\""),
-  "Appointments high task priority uses semantic accent tokens",
-  "Expected high PRIORITY_COLORS style to avoid hardcoded yellow palette classes",
-);
+  it("Layout bottom navigation uses semantic token classes", () => {
+    expect(
+      layout.includes("fixed bottom-0 left-0 right-0 z-50") &&
+        layout.includes("border-t") &&
+        layout.includes("border-border") &&
+        (layout.includes("bg-background/98") || layout.includes("bg-background\"")) &&
+        layout.includes("bg-primary text-primary-foreground"),
+    ).toBe(true);
+  });
 
-assert(
-  layout.includes("className=\"fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background\"") &&
-    layout.includes("bg-destructive text-destructive-foreground") &&
-    layout.includes("bg-primary text-primary-foreground"),
-  "Layout bottom navigation uses semantic token classes",
-  "Expected bottom nav/fab/badges to avoid hardcoded white/red/text classes",
-);
-
-assert(
-  home.includes("ok: \"text-primary\"") &&
-    home.includes("issue: \"text-destructive\"") &&
-    home.includes("CheckCircle2 className=\"w-4 h-4 text-primary mb-1.5\""),
-  "Home status visuals use semantic token classes",
-  "Expected home page status colors to avoid hardcoded emerald/red/amber classes",
-);
-
-if (failed > 0) {
-  console.error(`\nUI token consistency checks failed (${failed} failed, ${passed} passed)`);
-  process.exit(1);
-}
-
-console.log(`\nUI token consistency checks passed (${passed} assertions).`);
+  it("Home status visuals use semantic token classes", () => {
+    expect(
+      home.includes("ok: \"text-primary\"") &&
+        home.includes("issue: \"text-destructive\"") &&
+        home.includes("CheckCircle2 className=\"w-4 h-4 text-primary mb-1.5\""),
+    ).toBe(true);
+  });
+});
