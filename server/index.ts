@@ -3,7 +3,10 @@ process.on("unhandledRejection", (r) =>
   console.error("💥 UNHANDLED PROMISE:", r),
 );
 
-import "dotenv/config";
+// MUST be first — populates process.env from .env.local + .env before any
+// other module is evaluated (e.g. ./lib/envValidation, ./db which read
+// DATABASE_URL / SMTP_* at import time).
+import "./lib/env-bootstrap.js";
 
 import { validateEnv } from "./lib/envValidation.js";
 validateEnv();
@@ -16,6 +19,7 @@ import xss from "xss";
 import { clerkMiddleware } from "@clerk/express";
 import { readFileSync } from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { runMigrations } from "./migrate.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
@@ -26,8 +30,9 @@ import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.
 import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
 import { releaseStaleMedicationTasks } from "./services/medication-tasks.service.js";
 import healthRoutes from "./routes/health.js";
+import { resolveAuthModeFromEnv, describeAuthMode } from "./lib/auth-mode.js";
 
-const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
+const { version: appVersion } = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf-8")) as { version?: string };
 const isProduction = process.env.NODE_ENV === "production";
 
 const app = express();
@@ -175,7 +180,15 @@ app.use((req, _res, next) => {
 
 // Always mount official Clerk middleware at app level when Clerk auth is enabled.
 // In dev bypass mode (no secret), requireAuth falls back to local dev identity.
-if (process.env.CLERK_SECRET_KEY && process.env.CLERK_ENABLED !== "false") {
+const authModeResolution = resolveAuthModeFromEnv();
+
+// Secret-free startup banner so operators and agents can confirm the server
+// auth mode without reading env files. Logged once at boot (non-production).
+if (!isProduction) {
+  console.log(`[auth-mode] server ${describeAuthMode(authModeResolution)}`);
+}
+
+if (authModeResolution.mode === "clerk") {
   if (!process.env.CLERK_PUBLISHABLE_KEY?.trim() && process.env.VITE_CLERK_PUBLISHABLE_KEY?.trim()) {
     process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
   }
@@ -193,18 +206,18 @@ if (process.env.NODE_ENV === "production") {
   // Vite content-hashed assets: safe to cache indefinitely (new content = new URL).
   app.use(
     "/assets",
-    express.static(path.join(__dirname, "../dist/public/assets"), {
+    express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/assets"), {
       maxAge: "1y",
       immutable: true,
     })
   );
   // Everything else (icons, sw.js, manifest): short cache.
-  app.use(express.static(path.join(__dirname, "../dist/public"), { maxAge: 0 }));
+  app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public"), { maxAge: 0 }));
   // SPA shell: never cache — browsers must always get the latest index.html
   // so they pick up new content-hashed asset filenames after a deployment.
   app.get("*", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    res.sendFile(path.join(__dirname, "../dist/public/index.html"));
+    res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/index.html"));
   });
 }
 

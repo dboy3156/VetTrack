@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 import { animals, appointments, billingItems, billingLedger, containers, db, inventoryJobs, owners, shifts, users } from "../db.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
@@ -128,6 +128,59 @@ const VALID_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> =
 };
 
 const DB_ACTIVE_STATUSES: AppointmentStatus[] = ["pending", "assigned", "scheduled", "arrived", "in_progress"];
+
+function resolveMedicationDedupFingerprint(meta: Record<string, unknown>): {
+  drugId: string | null;
+  normalizedName: string | null;
+} {
+  const rawId = meta.drugId;
+  const drugId = typeof rawId === "string" && rawId.trim().length > 0 ? rawId.trim() : null;
+  const rawName =
+    (typeof meta.drugName === "string" ? meta.drugName : null) ??
+    (typeof meta.medicationName === "string" ? meta.medicationName : null);
+  const normalizedName =
+    rawName && rawName.trim().length > 0 ? rawName.trim().toLowerCase() : null;
+  return { drugId, normalizedName };
+}
+
+function medicationAppointmentDedupCondition(fingerprint: {
+  drugId: string | null;
+  normalizedName: string | null;
+}) {
+  if (fingerprint.drugId) {
+    return sql`(${appointments.metadata}->>'drugId') = ${fingerprint.drugId}`;
+  }
+  if (fingerprint.normalizedName) {
+    return sql`lower(trim(coalesce(${appointments.metadata}->>'drugName', ${appointments.metadata}->>'medicationName', ''))) = ${fingerprint.normalizedName}`;
+  }
+  return null;
+}
+
+async function findOpenDuplicateMedicationAppointment(
+  clinicId: string,
+  animalId: string,
+  metadata: Record<string, unknown>,
+): Promise<{ id: string } | null> {
+  const fingerprint = resolveMedicationDedupFingerprint(metadata);
+  const matchSql = medicationAppointmentDedupCondition(fingerprint);
+  if (!matchSql) return null;
+
+  const [row] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.clinicId, clinicId),
+        eq(appointments.animalId, animalId),
+        eq(appointments.taskType, "medication"),
+        inArray(appointments.status, DB_ACTIVE_STATUSES),
+        matchSql,
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
 
 type MedicationJustificationKind = "preset" | "custom";
 
@@ -806,6 +859,17 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
     metadataRecord = normalizeMedicationMetadataOrThrow(metadataInput, actor);
     if (metadataRecord) {
       metadataRecord.scheduled_at = scheduledAt.toISOString();
+    }
+    if (animalId && metadataRecord) {
+      const dupAppt = await findOpenDuplicateMedicationAppointment(clinicId, animalId, metadataRecord);
+      if (dupAppt) {
+        throw new AppointmentServiceError(
+          "DUPLICATE_ACTIVE_MEDICATION_TASK",
+          409,
+          "An active medication task already exists for this patient and medication.",
+          { existingAppointmentId: dupAppt.id },
+        );
+      }
     }
   }
 

@@ -45,6 +45,9 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admin: 40,
   vet: 30,
   senior_technician: 25,
+  /** Alias roles used by Clerk/org metadata — must clear technician floor for forecast APIs */
+  lead_technician: 22,
+  vet_tech: 20,
   technician: 20,
   student: 10,
 };

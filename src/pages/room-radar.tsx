@@ -86,11 +86,11 @@ function SyncBadge({ status }: { status: string }) {
 }
 
 const STATUS_BAR_COLORS: Record<EquipmentStatus, string> = {
-  ok: "border-s-emerald-500",
-  issue: "border-s-red-500",
-  maintenance: "border-s-amber-500",
-  sterilized: "border-s-blue-500",
-  critical: "border-s-red-600",
+  ok: "border-s-status-ok",
+  issue: "border-s-status-issue",
+  maintenance: "border-s-status-maintenance",
+  sterilized: "border-s-status-sterilized",
+  critical: "border-s-destructive",
   needs_attention: "border-s-orange-500",
 };
 
@@ -140,7 +140,7 @@ function RadarEquipmentCard({ equipment: eq, justVerified }: RadarEquipmentCardP
   const quickAction = !isCheckedOut && eq.status === "ok"
     ? { label: "Take", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, cls: "text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" }
     : isCheckedOut && (checkedOutByMe || isAdmin) && eq.status === "ok"
-    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, cls: "text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40" }
+    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, cls: "text-primary border-primary/30 hover:bg-primary/10 dark:hover:bg-primary/15" }
     : null;
 
   const handleQuickAction = (e: React.MouseEvent) => {
@@ -482,7 +482,12 @@ export default function RoomRadarPage() {
           </Link>
 
           {roomLoading ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2" role="status" aria-live="polite" aria-busy="true">
+              <span className="sr-only">{t.common.loading}</span>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                {t.common.loading}
+              </p>
               <Skeleton className="h-7 w-40" />
               <Skeleton className="h-5 w-28" />
             </div>
@@ -517,7 +522,7 @@ export default function RoomRadarPage() {
         {/* Stats row */}
         {!isLoading && roomEquipment.length > 0 && (
           <div className="flex gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-full px-3 py-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold bg-primary/5 border border-primary/20 text-primary rounded-full px-3 py-1.5">
               <span className="font-bold">{availableCount}</span>
               <span className="text-[11px]">Available</span>
             </div>
@@ -585,7 +590,12 @@ export default function RoomRadarPage() {
 
         {/* Equipment list */}
         {isLoading ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{t.common.loading}</span>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              {t.common.loading}
+            </p>
             {[...Array(3)].map((_, i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
@@ -665,7 +675,11 @@ export default function RoomRadarPage() {
             {activityOpen && (
               <div className="divide-y divide-border/60 bg-card">
                 {activityLoading ? (
-                  <div className="flex flex-col gap-3 p-4">
+                  <div className="flex flex-col gap-3 p-4" role="status" aria-live="polite" aria-busy="true">
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground -mt-1">
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                      {t.common.loading}
+                    </p>
                     {[...Array(3)].map((_, i) => (
                       <Skeleton key={i} className="h-10 rounded-lg" />
                     ))}

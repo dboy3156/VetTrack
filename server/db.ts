@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-import { getPostgresqlConnectionString } from "./lib/postgresql";
+import { getPostgresqlConnectionString } from "./lib/postgresql.js";
 import {
   pgTable,
   pgEnum,
@@ -19,9 +19,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// Managed Postgres providers (Neon, Supabase, Heroku, Railway public proxy, …)
+// require TLS and signal it via `sslmode=require` in the URL. Enable SSL when
+// either the URL asks for it or we're in production.
+const DB_URL = getPostgresqlConnectionString();
+const URL_REQUIRES_SSL = /[?&]sslmode=(require|verify-ca|verify-full)\b/i.test(DB_URL);
+
 export const pool = new Pool({
-  connectionString: getPostgresqlConnectionString(),
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  connectionString: DB_URL,
+  ssl:
+    process.env.NODE_ENV === "production" || URL_REQUIRES_SSL
+      ? { rejectUnauthorized: false }
+      : false,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -57,7 +66,7 @@ export const owners = pgTable("vt_owners", {
 export const clinics = pgTable("vt_clinics", {
   id: text("id").primaryKey(),
   pharmacyEmail: text("pharmacy_email"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const animals = pgTable("vt_animals", {
@@ -129,7 +138,7 @@ export const rooms = pgTable("vt_rooms", {
 export const occupancySourceEnum = pgEnum("vt_occupancy_source", ["manual"]);
 export const billingChargeKindEnum = pgEnum("vt_billing_charge_kind", ["per_scan_hour", "per_unit"]);
 export const billingLedgerItemTypeEnum = pgEnum("vt_billing_ledger_item_type", ["EQUIPMENT", "CONSUMABLE"]);
-export const billingLedgerStatusEnum = pgEnum("vt_billing_ledger_status", ["pending", "synced"]);
+export const billingLedgerStatusEnum = pgEnum("vt_billing_ledger_status", ["pending", "synced", "voided"]);
 export const usageSessionStatusEnum = pgEnum("vt_usage_session_status", ["open", "closed"]);
 export const inventoryLogTypeEnum = pgEnum("vt_inventory_log_type", ["restock", "blind_audit", "adjustment"]);
 
@@ -150,6 +159,11 @@ export const drugFormulary = pgTable(
     id: text("id").primaryKey(),
     clinicId: text("clinic_id").notNull(),
     name: text("name").notNull(),
+    genericName: text("generic_name").notNull(),
+    brandNames: jsonb("brand_names").notNull().default(sql`'[]'::jsonb`),
+    targetSpecies: jsonb("target_species"),
+    category: text("category"),
+    dosageNotes: text("dosage_notes"),
     concentrationMgMl: numeric("concentration_mg_ml", { precision: 10, scale: 4 }).notNull(),
     standardDose: numeric("standard_dose", { precision: 10, scale: 4 }).notNull(),
     minDose: numeric("min_dose", { precision: 10, scale: 4 }),
@@ -164,7 +178,10 @@ export const drugFormulary = pgTable(
     deletedAt: timestamp("deleted_at"),
   },
   (table) => ({
-    clinicNameUnique: uniqueIndex("vt_drug_formulary_clinic_name_unique").on(
+    clinicGenericConcUnique: uniqueIndex("vt_drug_formulary_clinic_generic_conc_uq")
+      .on(table.clinicId, sql`lower(trim(${table.genericName}))`, table.concentrationMgMl)
+      .where(sql`${table.deletedAt} is null`),
+    clinicNameSearchIdx: index("vt_drug_formulary_clinic_name_search_idx").on(
       table.clinicId,
       sql`lower(${table.name})`,
     ),
@@ -196,10 +213,38 @@ export const pharmacyForecastParses = pgTable(
     createdBy: text("created_by").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     result: jsonb("result").notNull(),
+    /** SHA-256 hex of uploaded PDF or pasted text — idempotent re-parse within TTL. */
+    contentHash: text("content_hash"),
   },
   (table) => ({
     clinicIdx: index("vt_pharmacy_forecast_parses_clinic_idx").on(table.clinicId),
     expiresIdx: index("vt_pharmacy_forecast_parses_expires_idx").on(table.expiresAt),
+    idemIdx: index("vt_pharmacy_forecast_parses_idem_idx").on(
+      table.clinicId,
+      table.createdBy,
+      table.contentHash,
+    ),
+  }),
+);
+
+/** Substrings matched case-insensitively against parsed med lines to drop non-pharmacy items. */
+export const pharmacyForecastExclusions = pgTable(
+  "vt_pharmacy_forecast_exclusions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    matchSubstring: text("match_substring").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicMatchUnique: uniqueIndex("vt_pharmacy_forecast_exclusions_clinic_match_unique").on(
+      table.clinicId,
+      sql`lower(${table.matchSubstring})`,
+    ),
+    clinicIdx: index("vt_pharmacy_forecast_exclusions_clinic_idx").on(table.clinicId),
   }),
 );
 
@@ -226,6 +271,9 @@ export const medicationTasks = pgTable(
     statusIdx: index("vt_medication_tasks_status_idx").on(table.status),
     assignedIdx: index("vt_medication_tasks_assigned_idx").on(table.assignedTo),
     clinicStatusIdx: index("vt_med_tasks_clinic_status_idx").on(table.clinicId, table.status),
+    openAnimalDrugRouteUnique: uniqueIndex("vt_med_tasks_open_animal_drug_route_uq")
+      .on(table.clinicId, table.animalId, table.drugId, table.route)
+      .where(sql`${table.status} in ('pending', 'in_progress')`),
   }),
 );
 

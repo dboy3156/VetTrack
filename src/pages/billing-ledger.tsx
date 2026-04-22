@@ -42,7 +42,7 @@ import { Receipt, Plus, Ban } from "lucide-react";
 const STATUS_BADGE: Record<BillingLedgerEntry["status"], string> = {
   pending: "bg-amber-100 text-amber-800 border-amber-200",
   synced: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  voided: "bg-slate-100 text-slate-500 border-slate-200 line-through",
+  voided: "bg-muted text-muted-foreground border-border line-through",
 };
 
 function formatCents(cents: number) {

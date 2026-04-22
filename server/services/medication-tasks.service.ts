@@ -14,6 +14,7 @@ export class MedTaskError extends Error {
     public readonly code: string,
     public readonly status: number,
     message: string,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "MedTaskError";
@@ -38,6 +39,34 @@ const STALE_IN_PROGRESS_MS = 30 * 60 * 1000;
 /** Exclusive upper bound (ml) — matches medication-calculation.service MAX_SAFE_VOLUME_ML. */
 const MAX_EXCLUSIVE_VOLUME_ML = 100;
 const VALID_ROUTES = ["IV", "IM", "PO", "SC"] as const;
+
+function isPostgresUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const o = err as { code?: string; cause?: { code?: string } };
+  return o.code === "23505" || o.cause?.code === "23505";
+}
+
+async function findOpenMedicationTaskDuplicate(params: {
+  clinicId: string;
+  animalId: string;
+  drugId: string;
+  route: string;
+}): Promise<string | null> {
+  const [row] = await db
+    .select({ id: medicationTasks.id })
+    .from(medicationTasks)
+    .where(
+      and(
+        eq(medicationTasks.clinicId, params.clinicId),
+        eq(medicationTasks.animalId, params.animalId),
+        eq(medicationTasks.drugId, params.drugId),
+        eq(medicationTasks.route, params.route),
+        inArray(medicationTasks.status, ["pending", "in_progress"]),
+      ),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
 
 function validateCompletionVolume(snapshot: unknown): void {
   if (snapshot === null || snapshot === undefined || typeof snapshot !== "object") {
@@ -116,24 +145,61 @@ async function createMedicationTaskInner(input: CreateMedicationTaskInput): Prom
     throw new MedTaskError("REASON_REQUIRED", 400, "Override reason is required for this dose.");
   }
 
-  const [row] = await db
-    .insert(medicationTasks)
-    .values({
-      id: randomUUID(),
-      clinicId: input.clinicId,
-      animalId: input.animalId,
-      drugId: input.drugId,
-      route: normalizedRoute,
-      calculationSnapshot: {
-        version: 1,
-        data: result,
-      },
-      safetyLevel: result.safety.level,
-      overrideReason: trimmedOverrideReason,
-      status: "pending",
-      createdBy: input.createdBy,
-    })
-    .returning();
+  const dupIdEarly = await findOpenMedicationTaskDuplicate({
+    clinicId: input.clinicId,
+    animalId: input.animalId,
+    drugId: input.drugId,
+    route: normalizedRoute,
+  });
+  if (dupIdEarly) {
+    throw new MedTaskError(
+      "DUPLICATE_ACTIVE_MEDICATION_TASK",
+      409,
+      "An active medication task already exists for this patient, drug, and route.",
+      { existingTaskId: dupIdEarly },
+    );
+  }
+
+  let row: MedicationTask | undefined;
+  try {
+    const inserted = await db
+      .insert(medicationTasks)
+      .values({
+        id: randomUUID(),
+        clinicId: input.clinicId,
+        animalId: input.animalId,
+        drugId: input.drugId,
+        route: normalizedRoute,
+        calculationSnapshot: {
+          version: 1,
+          data: result,
+        },
+        safetyLevel: result.safety.level,
+        overrideReason: trimmedOverrideReason,
+        status: "pending",
+        createdBy: input.createdBy,
+      })
+      .returning();
+    row = inserted[0];
+  } catch (err) {
+    if (isPostgresUniqueViolation(err)) {
+      const dupId = await findOpenMedicationTaskDuplicate({
+        clinicId: input.clinicId,
+        animalId: input.animalId,
+        drugId: input.drugId,
+        route: normalizedRoute,
+      });
+      if (dupId) {
+        throw new MedTaskError(
+          "DUPLICATE_ACTIVE_MEDICATION_TASK",
+          409,
+          "An active medication task already exists for this patient, drug, and route.",
+          { existingTaskId: dupId },
+        );
+      }
+    }
+    throw err;
+  }
 
   if (!row) {
     throw new MedTaskError("TASK_CREATE_FAILED", 500, "Failed to create medication task.");

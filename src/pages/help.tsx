@@ -78,8 +78,8 @@ export default function HelpPage() {
         <Section title={t.helpPage.dailyTasks}>
           <CheatItem
             icon={QrCode}
-            iconBg="bg-blue-50 dark:bg-blue-950/50"
-            iconColor="text-blue-600 dark:text-blue-400"
+            iconBg="bg-primary/10 dark:bg-primary/20"
+            iconColor="text-primary"
             title={t.helpPage.scanQrTitle}
             description={t.helpPage.scanQrDescription}
           />
@@ -149,8 +149,8 @@ export default function HelpPage() {
         <Section title={t.helpPage.assetRadar}>
           <CheatItem
             icon={Radar}
-            iconBg="bg-blue-50 dark:bg-blue-950/50"
-            iconColor="text-blue-600 dark:text-blue-400"
+            iconBg="bg-primary/10 dark:bg-primary/20"
+            iconColor="text-primary"
             title={t.helpPage.healthRingTitle}
             description={t.helpPage.healthRingDescription}
           />
@@ -227,8 +227,8 @@ export default function HelpPage() {
           />
           <CheatItem
             icon={Wifi}
-            iconBg="bg-blue-50 dark:bg-blue-950/50"
-            iconColor="text-blue-600 dark:text-blue-400"
+            iconBg="bg-primary/10 dark:bg-primary/20"
+            iconColor="text-primary"
             title={t.helpPage.pushAlertsTitle}
             description={t.helpPage.pushAlertsDescription}
           />

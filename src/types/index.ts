@@ -334,24 +334,46 @@ export interface DrugFormularyEntry {
   id: string;
   clinicId: string;
   name: string;
+  genericName: string;
+  brandNames?: string[];
+  targetSpecies?: string[] | null;
+  category?: string | null;
+  dosageNotes?: string | null;
   concentrationMgMl: number;
   standardDose: number;
   minDose?: number | null;
   maxDose?: number | null;
   doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
   defaultRoute?: string | null;
+  unitType?: "vial" | "ampule" | "tablet" | "capsule" | "bag" | null;
+  unitVolumeMl?: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateDrugFormularyRequest {
   name: string;
+  genericName: string;
+  brandNames?: string[];
+  targetSpecies?: string[];
+  category?: string | null;
+  dosageNotes?: string | null;
   concentrationMgMl: number;
   standardDose: number;
   minDose?: number | null;
   maxDose?: number | null;
   doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
   defaultRoute?: string | null;
+  unitType?: "vial" | "ampule" | "tablet" | "capsule" | "bag" | null;
+  unitVolumeMl?: number | null;
+}
+
+export interface PharmacyForecastExclusion {
+  id: string;
+  clinicId: string;
+  matchSubstring: string;
+  note?: string | null;
+  createdAt: string;
 }
 
 /** GET /api/tasks/dashboard — single payload for Daily Recall UI. */
@@ -842,7 +864,13 @@ export type ForecastFlagReason =
   | "DRUG_UNKNOWN"
   | "PRN_MANUAL"
   | "PATIENT_UNKNOWN"
-  | "LOW_CONFIDENCE";
+  | "LOW_CONFIDENCE"
+  | "LINE_AMBIGUOUS"
+  | "FLUID_VS_DRUG_UNCLEAR"
+  | "WEIGHT_UNKNOWN"
+  | "WEIGHT_UNCERTAIN"
+  | "DUPLICATE_LINE"
+  | "ALL_DRUGS_EXCLUDED";
 
 export interface ForecastDrugEntry {
   drugName: string;
@@ -853,6 +881,10 @@ export interface ForecastDrugEntry {
   quantityUnits: number | null;
   unitLabel: string;
   flags: ForecastFlagReason[];
+  /** Administrations per 24h used for quantity (parsed or inferred). */
+  administrationsPer24h: number | null;
+  /** Total administrations in the selected order window (24 or 72h). */
+  administrationsInWindow: number | null;
 }
 
 export interface ForecastPatientEntry {
@@ -861,6 +893,7 @@ export interface ForecastPatientEntry {
   species: string;
   breed: string;
   sex: string;
+  age: string;
   color: string;
   weightKg: number;
   ownerName: string;
@@ -887,4 +920,33 @@ export interface ForecastApproveResponse {
   mailtoUrl?: string;
   /** True when the mailto body was truncated to keep the URL under client limits. */
   mailtoBodyTruncated?: boolean;
+}
+
+export interface DrugAuditEntry {
+  forecastedQty: number | null;
+  onHandQty: number;
+  orderQty: number;
+  confirmed: boolean;
+}
+
+export interface PatientAuditState {
+  recordNumber: string;
+  warningAcknowledgements: Record<string, boolean>;
+  weightOverride: number | null;
+  patientNameOverride: string | null;
+  /** keyed by drug.drugName */
+  drugs: Record<string, DrugAuditEntry>;
+}
+
+export interface AuditState {
+  forecastRunId: string;
+  patients: Record<string, PatientAuditState>;
+}
+
+export interface ForecastApprovePayload {
+  parseId: string;
+  manualQuantities: Record<string, number>;
+  pharmacistDoseAcks: string[];
+  auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
+  patientWeightOverrides?: Record<string, number>;
 }

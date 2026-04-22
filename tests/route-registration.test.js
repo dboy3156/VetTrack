@@ -1,26 +1,9 @@
-"use strict";
+import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const fs = require("fs");
-const path = require("path");
-
-let passed = 0;
-let failed = 0;
-
-function ok(label) {
-  console.log(`  ✅ PASS: ${label}`);
-  passed++;
-}
-
-function fail(label, detail) {
-  console.error(`  ❌ FAIL: ${label}`);
-  if (detail) console.error(`     ${detail}`);
-  failed++;
-}
-
-function assert(condition, label, detail) {
-  if (condition) ok(label);
-  else fail(label, detail);
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverIndexPath = path.join(repoRoot, "server", "index.ts");
@@ -51,16 +34,10 @@ const requiredPrefixes = [
   "/api/containers",
 ];
 
-console.log("\n── Route Registration Smoke Test");
-for (const prefix of requiredPrefixes) {
-  const hasMount = source.includes(`"${prefix}"`);
-  assert(hasMount, `Mounted route: ${prefix}`, `Missing route prefix "${prefix}" in server bootstrap files`);
-}
-
-console.log(`\n${"─".repeat(48)}`);
-console.log(`Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  console.error(`\n❌ route-registration.test.js FAILED (${failed} assertion(s) failed)`);
-  process.exit(1);
-}
-console.log("\n✅ route-registration.test.js PASSED");
+describe("Route Registration Smoke Test", () => {
+  for (const prefix of requiredPrefixes) {
+    it(`Mounted route: ${prefix}`, () => {
+      expect(source).toContain(`"${prefix}"`);
+    });
+  }
+});

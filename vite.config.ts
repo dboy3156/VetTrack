@@ -47,4 +47,22 @@ export default defineConfig({
     outDir: "dist/public",
     sourcemap: "hidden",
   },
+  test: {
+    environment: "node",
+    setupFiles: ["./tests/vitest-setup.ts"],
+    include: ["tests/**/*.test.{ts,js}"],
+    exclude: [
+      "**/node_modules/**",
+      // DB integration tests — require DATABASE_URL + applied migrations
+      "tests/restock.service.test.ts",
+      "tests/migrations/**",
+      "tests/phase-2-3-medication-package-integration.test.ts",
+      // Live-server integration tests — require dev server running on :3001
+      "tests/charge-alert-worker.test.js",
+      "tests/code-blue-mode-equipment.test.js",
+      "tests/expiry-api.test.js",
+      "tests/expiry-check-worker.test.js",
+      "tests/returns-api.test.js",
+    ],
+  },
 });

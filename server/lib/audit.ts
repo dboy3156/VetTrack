@@ -7,6 +7,7 @@ export type AuditActionType =
   | "user_provisioned"
   | "user_display_name_changed"
   | "user_role_changed"
+  | "user_secondary_role_changed"
   | "user_status_changed"
   | "user_deleted"
   | "user_restored"

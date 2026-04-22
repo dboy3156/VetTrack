@@ -1,10 +1,12 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { animals, db, drugFormulary, owners } from "../../db.js";
+import { db, drugFormulary, pharmacyForecastExclusions } from "../../db.js";
 import { syncFormularyFromSeed } from "../formulary-seed-sync.js";
 import { parsePatientBlocks } from "./confidenceScorer.js";
-import { enrichAndForecast, type AnimalRow, type FormularyDrugRow } from "./forecastEngine.js";
+import { enrichAndForecast, type FormularyDrugRow } from "./forecastEngine.js";
+import { extractPdfPatientDemographics } from "./flowsheetDemographics.js";
 import { createFormularyFuse } from "./fieldExtractor.js";
 import { detectStructure, extractRecordNumberHint } from "./structureDetector.js";
+import { preprocessFlowsheetText } from "./flowsheetPreprocess.js";
 import type { ForecastResult } from "./types.js";
 
 function mapFormularyRow(row: typeof drugFormulary.$inferSelect): FormularyDrugRow {
@@ -22,7 +24,7 @@ function mapFormularyRow(row: typeof drugFormulary.$inferSelect): FormularyDrugR
   };
 }
 
-/** Run parse → fuzzy match → forecast with DB enrichment for one clinic. */
+/** Run parse → fuzzy match → forecast. Patient identity comes from PDF text, not vt_animals. */
 export async function runForecastPipeline(params: {
   rawText: string;
   clinicId: string;
@@ -44,38 +46,17 @@ export async function runForecastPipeline(params: {
     formularyByNormalizedName.set(row.name.trim().toLowerCase(), mapFormularyRow(row));
   }
 
-  const rowsJoined = await db
-    .select({
-      animal: animals,
-      ownerFullName: owners.fullName,
-      ownerPhone: owners.phone,
-      ownerNationalId: owners.nationalId,
-    })
-    .from(animals)
-    .leftJoin(owners, eq(animals.ownerId, owners.id))
-    .where(and(eq(animals.clinicId, params.clinicId)));
+  const pdfPatient = extractPdfPatientDemographics(params.rawText);
 
-  const animalsByRecord = new Map<string, AnimalRow>();
-  for (const row of rowsJoined) {
-    const rn = row.animal.recordNumber?.trim();
-    if (!rn) continue;
-    animalsByRecord.set(rn, {
-      id: row.animal.id,
-      recordNumber: rn,
-      name: row.animal.name,
-      species: row.animal.species ?? null,
-      breed: row.animal.breed ?? null,
-      sex: row.animal.sex ?? null,
-      color: row.animal.color ?? null,
-      weightKg:
-        row.animal.weightKg != null ? Number(row.animal.weightKg as unknown as string) : null,
-      ownerFullName: row.ownerFullName ?? null,
-      ownerNationalId: row.ownerNationalId ?? null,
-      ownerPhone: row.ownerPhone ?? null,
-    });
-  }
+  /** Used only when assembling the pharmacy forecast / order form — not for other app surfaces. */
+  const exclusionRows = await db
+    .select({ matchSubstring: pharmacyForecastExclusions.matchSubstring })
+    .from(pharmacyForecastExclusions)
+    .where(eq(pharmacyForecastExclusions.clinicId, params.clinicId));
+  const exclusionSubstrings = exclusionRows.map((r) => r.matchSubstring.trim()).filter(Boolean);
 
-  const blocks = detectStructure(params.rawText);
+  const cleaned = preprocessFlowsheetText(params.rawText);
+  const blocks = detectStructure(cleaned);
   const parsed = parsePatientBlocks(blocks, fuse, extractRecordNumberHint);
 
   return enrichAndForecast({
@@ -83,6 +64,7 @@ export async function runForecastPipeline(params: {
     windowHours: params.windowHours,
     weekendMode: params.weekendMode,
     formularyByNormalizedName,
-    animalsByRecord,
+    pdfPatient,
+    exclusionSubstrings,
   });
 }

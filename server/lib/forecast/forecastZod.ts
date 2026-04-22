@@ -3,7 +3,7 @@ import { z } from "zod";
 /** Limits to reduce abuse via oversized approve payloads */
 
 const MAX_PATIENTS = 120;
-const MAX_DRUGS_PER_PATIENT = 60;
+const MAX_DRUGS_PER_PATIENT = 220;
 const MAX_MANUAL_KEYS = 400;
 const SHORT = 2000;
 const MED = 6000;
@@ -18,6 +18,12 @@ export const flagReasonSchema = z.enum([
   "PRN_MANUAL",
   "PATIENT_UNKNOWN",
   "LOW_CONFIDENCE",
+  "LINE_AMBIGUOUS",
+  "FLUID_VS_DRUG_UNCLEAR",
+  "WEIGHT_UNKNOWN",
+  "WEIGHT_UNCERTAIN",
+  "DUPLICATE_LINE",
+  "ALL_DRUGS_EXCLUDED",
 ]);
 
 export const forecastDrugEntrySchema = z.object({
@@ -29,6 +35,15 @@ export const forecastDrugEntrySchema = z.object({
   quantityUnits: z.number().finite().nullable(),
   unitLabel: z.string().max(80),
   flags: z.array(flagReasonSchema).max(20),
+  /** Present on new parses; older stored sessions may omit (coerced to null). */
+  administrationsPer24h: z.preprocess(
+    (v) => (v === undefined ? null : v),
+    z.number().finite().nullable(),
+  ),
+  administrationsInWindow: z.preprocess(
+    (v) => (v === undefined ? null : v),
+    z.number().finite().nullable(),
+  ),
 });
 
 export const forecastPatientEntrySchema = z.object({
@@ -37,6 +52,7 @@ export const forecastPatientEntrySchema = z.object({
   species: z.string().max(120),
   breed: z.string().max(120),
   sex: z.string().max(40),
+  age: z.preprocess((v) => (v === undefined || v === null ? "" : v), z.string().max(120)),
   color: z.string().max(120),
   weightKg: z.number().finite(),
   ownerName: z.string().max(200),
@@ -74,6 +90,12 @@ export const forecastParseRequestSchema = z.object({
 
 export const approvePayloadSchema = z.object({
   parseId: z.string().uuid(),
+  /** Keys are `normalizeQuantityKey(record, drug)` for lines with DOSE_HIGH / DOSE_LOW. */
+  pharmacistDoseAcks: z.array(z.string().max(400)).optional(),
+  /** Keys `${recordNumber}|${flag}` — patient-level warnings explicitly acknowledged in the audit tab. */
+  patientFlagAcks: z.array(z.string().max(400)).max(2000).optional(),
+  /** `normalizeQuantityKey` for drug lines the pharmacist marked Confirmed in the audit tab. */
+  confirmedDrugKeys: z.array(z.string().max(400)).max(MAX_MANUAL_KEYS).optional(),
   manualQuantities: z
     .record(z.string().max(300), z.number().finite().nonnegative())
     .superRefine((rec, ctx) => {
@@ -97,4 +119,9 @@ export const approvePayloadSchema = z.object({
         }
       }
     }),
+  auditTrace: z.record(
+    z.string(),
+    z.object({ forecastedQty: z.number().nullable(), onHandQty: z.number().int().min(0) }),
+  ).optional(),
+  patientWeightOverrides: z.record(z.string(), z.number().positive()).optional(),
 });

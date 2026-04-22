@@ -1,3 +1,4 @@
+// Not using `Layout` navigationLocked; if that is added, wrap tappable regions with [data-restock-allow] (see layout.tsx).
 import { t } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -193,7 +194,8 @@ export default function InventoryItemsPage() {
         />
 
         {itemsQ.isPending ? (
-          <div className="space-y-2">
+          <div className="space-y-2" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{t.common.loading}</span>
             {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
         ) : itemsQ.isError ? (
@@ -210,7 +212,7 @@ export default function InventoryItemsPage() {
                   <button
                     type="button"
                     onClick={() => toggleCategory(category)}
-                    className="w-full flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-sm font-medium text-left transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted/50 text-sm font-medium text-left transition-colors"
                   >
                     {isExpanded
                       ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

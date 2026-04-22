@@ -1,26 +1,9 @@
-"use strict";
+import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const fs = require("fs");
-const path = require("path");
-
-let passed = 0;
-let failed = 0;
-
-function ok(label) {
-  console.log(`  ✅ PASS: ${label}`);
-  passed++;
-}
-
-function fail(label, detail) {
-  console.error(`  ❌ FAIL: ${label}`);
-  if (detail) console.error(`     ${detail}`);
-  failed++;
-}
-
-function assert(condition, label, detail) {
-  if (condition) ok(label);
-  else fail(label, detail);
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const repoRoot = path.resolve(__dirname, "..");
 const routesDir = path.join(repoRoot, "server", "routes");
@@ -33,23 +16,22 @@ const routeFiles = fs
 // New contract should provide code+reason+message+requestId (plus error for compatibility).
 const legacyErrorShape = /res\.status\([^)]+\)\.json\(\{\s*error\s*:/m;
 
-console.log("\n── Phase 5 error shape guard");
+describe("Phase 5 error shape guard", () => {
+  for (const file of routeFiles) {
+    it(`No legacy error shape in ${file}`, () => {
+      const fullPath = path.join(routesDir, file);
+      const source = fs.readFileSync(fullPath, "utf8");
+      expect(legacyErrorShape.test(source)).toBe(false);
+    });
+  }
 
-let offenders = 0;
-for (const file of routeFiles) {
-  const fullPath = path.join(routesDir, file);
-  const source = fs.readFileSync(fullPath, "utf8");
-  const hasLegacy = legacyErrorShape.test(source);
-  assert(!hasLegacy, `No legacy error shape in ${file}`, "Found res.status(...).json({ error: ... })");
-  if (hasLegacy) offenders++;
-}
-
-assert(offenders === 0, "All route files use standardized error contract", `Legacy offenders: ${offenders}`);
-
-console.log(`\n${"─".repeat(48)}`);
-console.log(`Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  console.error(`\n❌ phase-5-error-shape-guard.test.js FAILED (${failed} assertion(s) failed)`);
-  process.exit(1);
-}
-console.log("\n✅ phase-5-error-shape-guard.test.js PASSED");
+  it("All route files use standardized error contract", () => {
+    let offenders = 0;
+    for (const file of routeFiles) {
+      const fullPath = path.join(routesDir, file);
+      const source = fs.readFileSync(fullPath, "utf8");
+      if (legacyErrorShape.test(source)) offenders++;
+    }
+    expect(offenders).toBe(0);
+  });
+});

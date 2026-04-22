@@ -7,340 +7,489 @@ import {
   CheckCircle2,
   Scan,
   FileDown,
-  ArrowRight,
-  ShieldCheck,
-  Zap,
+  Shield,
   MapPin,
   LayoutDashboard,
+  BarChart3,
+  Smartphone,
+  Sparkles,
+  Building2,
+  Package,
+  Radio,
+  Star,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
+import { MarketingLayout } from "@/components/marketing-layout";
+
+function SectionTitle({
+  kicker,
+  title,
+  subtitle,
+  className,
+  id,
+}: {
+  kicker?: string;
+  title: string;
+  subtitle: string;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <div className={cn("text-center max-w-3xl mx-auto mb-12 md:mb-16", className)}>
+      {kicker ? (
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-3">{kicker}</p>
+      ) : null}
+      <h2
+        id={id}
+        className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight text-balance mb-4"
+      >
+        {title}
+      </h2>
+      <p className="text-muted-foreground text-lg leading-relaxed text-pretty">{subtitle}</p>
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const { isLoaded, isSignedIn, isOfflineSession } = useAuth();
+  const showAuthCta = (isLoaded || isOfflineSession) && !isSignedIn;
+  const showAppCta = (isLoaded || isOfflineSession) && isSignedIn;
+  const lp = t.landingPage;
+
+  const quickLinks = [
+    { id: "scan" as const, label: lp.quickLinkScan },
+    { id: "map" as const, label: lp.quickLinkMap },
+    { id: "alerts" as const, label: lp.quickLinkAlerts },
+    { id: "handoff" as const, label: lp.quickLinkHandoff },
+    { id: "inventory" as const, label: lp.quickLinkInventory },
+    { id: "reports" as const, label: lp.quickLinkReports },
+  ];
+
+  const stats = [
+    { value: lp.stat1Value, label: lp.stat1Label },
+    { value: lp.stat2Value, label: lp.stat2Label },
+    { value: lp.stat3Value, label: lp.stat3Label },
+  ];
+
+  const previewRows = [
+    { name: lp.previewRow1Name, status: lp.previewRow1Status, issue: false },
+    { name: lp.previewRow2Name, status: lp.previewRow2Status, issue: false },
+    { name: lp.previewRow3Name, status: lp.previewRow3Status, issue: true },
+  ];
+
+  const howSteps: {
+    n: "01" | "02" | "03";
+    title: string;
+    body: string;
+    icon: typeof QrCode;
+  }[] = [
+    { n: "01", title: lp.how1Title, body: lp.how1Body, icon: QrCode },
+    { n: "02", title: lp.how2Title, body: lp.how2Body, icon: Scan },
+    { n: "03", title: lp.how3Title, body: lp.how3Body, icon: FileDown },
+  ];
 
   return (
     <>
       <Helmet>
-        <title>VetTrack — Veterinary Equipment QR Tracking System</title>
-        <meta
-          name="description"
-          content="VetTrack — veterinary equipment QR tracking for vet hospitals and ER clinics. Real-time status, offline sync, alerts, and shift handoffs from any phone."
-        />
-        <meta
-          name="keywords"
-          content="veterinary equipment tracking software, vet hospital QR tracking system, ER veterinary workflow tool, animal hospital equipment management, veterinary management software"
-        />
+        <title>{lp.seoTitle}</title>
+        <meta name="description" content={lp.seoDescription} />
+        <meta name="keywords" content={lp.seoKeywords} />
         <link rel="canonical" href="https://vettrack.replit.app/landing" />
-        <meta property="og:title" content="VetTrack — Veterinary Equipment QR Tracking System" />
-        <meta
-          property="og:description"
-          content="Mobile-first QR equipment tracking for veterinary hospitals and ER clinics. Real-time status, offline support, issue alerts, and shift handoffs — all from any device."
-        />
+        <meta property="og:title" content={lp.ogTitle} />
+        <meta property="og:description" content={lp.ogDescription} />
         <meta property="og:image" content="https://vettrack.replit.app/og-image.png" />
         <meta property="og:url" content="https://vettrack.replit.app/landing" />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="VetTrack — Veterinary Equipment QR Tracking System" />
-        <meta
-          name="twitter:description"
-          content="Mobile-first QR equipment tracking for veterinary hospitals and ER clinics."
-        />
+        <meta name="twitter:title" content={lp.twitterTitle} />
+        <meta name="twitter:description" content={lp.twitterDescription} />
         <meta name="twitter:image" content="https://vettrack.replit.app/og-image.png" />
       </Helmet>
 
-      <div className="min-h-[100dvh] bg-white font-sans">
-        {/* ── Navigation ────────────────────────────────── */}
-        <header className="sticky top-safe z-50 bg-white/95 backdrop-blur border-b border-gray-100">
-          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-            <Link href="/landing" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
-                <QrCode className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">VetTrack</span>
-            </Link>
-            <nav className="flex items-center gap-4">
-              {(isLoaded || isOfflineSession) && (isSignedIn ? (
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  Back to App
-                </Link>
-              ) : (
-                <Link
-                  href="/signin"
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-                >
-                  Sign In
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </header>
-
+      <MarketingLayout showAppCta={showAppCta} showAuthCta={showAuthCta}>
         <main>
-          {/* ── Hero ─────────────────────────────────────── */}
-          <section className="bg-gradient-to-b from-blue-50 to-white py-16 px-4 text-center">
-            <div className="max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
-                <Zap className="w-3 h-3" />
-                Built for veterinary ER teams
+          <section className="relative pt-10 pb-16 md:pt-16 md:pb-24 px-4 sm:px-6" aria-labelledby="hero-heading">
+            <div className="max-w-6xl mx-auto">
+              <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-16 items-center">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/60 px-3 py-1.5 text-xs font-semibold text-foreground/90 shadow-sm mb-6">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden />
+                    <span>{lp.heroBadge}</span>
+                  </div>
+                  <h1
+                    id="hero-heading"
+                    className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-balance leading-[1.1] mb-6"
+                  >
+                    {lp.heroTitleBefore}{" "}
+                    <span className="text-primary">{lp.heroTitleHighlight}</span>
+                  </h1>
+                  <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed max-w-xl mb-8">
+                    {lp.heroBody}
+                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+                    {showAppCta && (
+                      <Link
+                        href="/"
+                        className={cn(
+                          "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
+                          "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
+                          "hover:bg-primary/90 active:scale-[0.99] motion-reduce:active:scale-100 transition-all duration-200",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        )}
+                      >
+                        <LayoutDashboard className="w-5 h-5" />
+                        {lp.heroCtaDashboard}
+                      </Link>
+                    )}
+                    {showAuthCta && (
+                      <Link
+                        href="/signin"
+                        className={cn(
+                          "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
+                          "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
+                          "hover:bg-primary/90 active:scale-[0.99] motion-reduce:active:scale-100 transition-all duration-200",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        )}
+                      >
+                        <Scan className="w-5 h-5" />
+                        {lp.heroCtaGetStarted}
+                      </Link>
+                    )}
+                    <span className="text-sm text-muted-foreground sm:pl-2 text-center sm:text-left">
+                      {lp.heroNoCard}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      {lp.heroTrust1}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      {lp.heroTrust2}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      {lp.heroTrust3}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div
+                    className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent blur-2xl"
+                    aria-hidden
+                  />
+                  <div
+                    className={cn(
+                      "relative rounded-3xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-2xl",
+                      "p-5 sm:p-6 space-y-4"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Smartphone className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground font-medium">
+                            {lp.previewFloorSnapshot}
+                          </p>
+                          <p className="text-sm font-semibold truncate">{lp.previewLiveBoard}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                        {lp.previewLive}
+                      </span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {previewRows.map((row) => (
+                        <div
+                          key={row.name}
+                          className="flex items-center justify-between gap-2 rounded-2xl border border-border/60 bg-background/50 px-3 py-2.5"
+                        >
+                          <span className="text-sm font-medium truncate">{row.name}</span>
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold uppercase px-2 py-0.5 rounded-md shrink-0",
+                              row.issue
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {row.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+                      <Radio className="w-3.5 h-3.5 text-primary" aria-hidden />
+                      <span>{lp.previewSyncNote}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
+            </div>
+          </section>
 
-              <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight mb-5">
-                Veterinary Equipment QR Tracking{" "}
-                <span className="text-blue-600">That Saves Every Minute.</span>
-              </h1>
-
-              <p className="text-lg text-gray-600 leading-relaxed mb-8 max-w-2xl mx-auto">
-                VetTrack is the QR-based equipment tracking system designed for veterinary
-                hospitals and ER clinics. Scan, assign, and report — even without internet.
-                No more lost equipment, missed maintenance, or shift confusion.
-              </p>
-
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                {(isLoaded || isOfflineSession) && (isSignedIn ? (
-                  <Link
-                    href="/"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
+          <section
+            className="border-y border-border/60 bg-muted/30 py-3.5"
+            aria-label={lp.productAreasAria}
+          >
+            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5 -mx-1 px-1">
+                {quickLinks.map((l) => (
+                  <span
+                    key={l.id}
+                    className="inline-flex items-center rounded-full border border-border/60 bg-card px-3.5 py-1.5 text-xs sm:text-sm font-medium text-foreground/90 whitespace-nowrap shadow-sm"
                   >
-                    <LayoutDashboard className="w-5 h-5" />
-                    Back to App
-                  </Link>
-                ) : (
-                  <Link
-                    href="/signin"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3.5 rounded-xl text-base transition-colors shadow-sm"
-                  >
-                    <Scan className="w-5 h-5" />
-                    Get Started Free
-                  </Link>
+                    {l.label}
+                  </span>
                 ))}
               </div>
             </div>
           </section>
 
-          {/* ── Trust bar ────────────────────────────────── */}
-          <section className="border-y border-gray-100 bg-gray-50 py-5 px-4">
-            <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-gray-500 font-medium">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Works offline</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />QR code scanning</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Real-time alerts</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Shift handoffs</span>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-blue-500" />Monthly PDF reports</span>
-            </div>
-          </section>
-
-          {/* ── Features grid ────────────────────────────── */}
-          <section className="py-16 px-4" aria-labelledby="features-heading">
-            <div className="max-w-5xl mx-auto">
-              <div className="text-center mb-12">
-                <h2 id="features-heading" className="text-3xl font-bold text-gray-900 mb-3">
-                  Built for the speed of clinical work
-                </h2>
-                <p className="text-gray-500 max-w-xl mx-auto">
-                  Every feature is designed around the real pressures of a vet hospital floor —
-                  fast decisions, constant movement, and zero tolerance for confusion.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-4">
-                    <QrCode className="w-5 h-5 text-blue-600" />
+          <section className="py-12 md:py-16 px-4 sm:px-6" aria-label={lp.statsOutcomesAria}>
+            <div className="max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-8">
+                {stats.map((s) => (
+                  <div
+                    key={s.label}
+                    className="text-center sm:text-left rounded-2xl border border-border/50 bg-card/50 px-6 py-6 md:py-7"
+                  >
+                    <p className="text-3xl sm:text-4xl font-extrabold text-primary tabular-nums tracking-tight mb-2">
+                      {s.value}
+                    </p>
+                    <p className="text-sm text-muted-foreground leading-snug max-w-xs mx-auto sm:mx-0">
+                      {s.label}
+                    </p>
                   </div>
-                  <h3 className="font-bold text-gray-900 mb-2">One-Tap QR Scanning</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Scan any piece of equipment with your phone to update its status, check it out,
-                    or report an issue — no app download required.
-                  </p>
-                </article>
-
-                <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-4">
-                    <WifiOff className="w-5 h-5 text-amber-500" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-2">Offline-First Reliability</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    VetTrack works without Wi-Fi or cellular signal. Changes queue locally and
-                    sync automatically the moment you're back online.
-                  </p>
-                </article>
-
-                <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mb-4">
-                    <Bell className="w-5 h-5 text-red-500" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-2">Severity-Graded Alerts</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    CRITICAL issues, overdue maintenance, sterilization reminders, and inactive
-                    equipment — all surfaced instantly with "I'm handling this" acknowledgment.
-                  </p>
-                </article>
-
-                <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-4">
-                    <MapPin className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-2">Checkout & Ownership</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Every technician checks equipment in and out by name. "My Equipment" shows
-                    exactly what each person holds — with Return All for clean shift handoffs.
-                  </p>
-                </article>
-
-                <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-4">
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-2">Role-Based Access</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Admin and Technician roles keep floor staff focused on their work while giving
-                    managers full visibility into equipment status and history.
-                  </p>
-                </article>
-
-                <article className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-sm transition-shadow">
-                  <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mb-4">
-                    <FileDown className="w-5 h-5 text-purple-500" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-2">Monthly PDF Reports</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Generate one-click compliance reports covering maintenance history,
-                    sterilization records, and issue logs — ready for audits and reviews.
-                  </p>
-                </article>
+                ))}
               </div>
             </div>
           </section>
 
-          {/* ── How it works ─────────────────────────────── */}
-          <section className="bg-blue-50 py-16 px-4" aria-labelledby="how-it-works-heading">
+          <section className="py-12 md:py-20 px-4 sm:px-6" aria-labelledby="platform-heading">
+            <div className="max-w-6xl mx-auto">
+              <SectionTitle
+                kicker={lp.bentoKicker}
+                id="platform-heading"
+                title={lp.bentoTitle}
+                subtitle={lp.bentoSubtitle}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 md:gap-5">
+                <article
+                  className={cn(
+                    "md:col-span-3 rounded-3xl border border-border/70 bg-gradient-to-br from-card to-card/50 p-6 sm:p-8",
+                    "shadow-sm hover:shadow-md transition-shadow duration-300"
+                  )}
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+                    <QrCode className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground mb-2">{lp.bento1Title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">{lp.bento1Body}</p>
+                </article>
+                <article
+                  className={cn(
+                    "md:col-span-3 rounded-3xl border border-border/70 bg-gradient-to-br from-card to-card/50 p-6 sm:p-8",
+                    "shadow-sm hover:shadow-md transition-shadow duration-300"
+                  )}
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-5">
+                    <WifiOff className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground mb-2">{lp.bento2Title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">{lp.bento2Body}</p>
+                </article>
+                <article className="md:col-span-2 rounded-2xl border border-border/60 bg-card p-6 hover:border-primary/20 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center mb-4">
+                    <Bell className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h3 className="font-bold text-foreground mb-1.5">{lp.bento3Title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{lp.bento3Body}</p>
+                </article>
+                <article className="md:col-span-2 rounded-2xl border border-border/60 bg-card p-6 hover:border-primary/20 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                    <MapPin className="w-5 h-5 text-primary" />
+                  </div>
+                  <h3 className="font-bold text-foreground mb-1.5">{lp.bento4Title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{lp.bento4Body}</p>
+                </article>
+                <article className="md:col-span-2 rounded-2xl border border-border/60 bg-card p-6 hover:border-primary/20 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4">
+                    <BarChart3 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <h3 className="font-bold text-foreground mb-1.5">{lp.bento5Title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{lp.bento5Body}</p>
+                </article>
+                <article className="md:col-span-3 rounded-2xl border border-border/60 bg-card p-6 sm:p-7 hover:border-primary/20 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-4">
+                    <Package className="w-5 h-5 text-foreground" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-2">{lp.bento6Title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{lp.bento6Body}</p>
+                </article>
+                <article className="md:col-span-3 rounded-2xl border border-border/60 bg-card p-6 sm:p-7 hover:border-primary/20 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-4">
+                    <Shield className="w-5 h-5 text-foreground" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-2">{lp.bento7Title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{lp.bento7Body}</p>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="py-16 md:py-24 px-4 sm:px-6 bg-muted/25 border-y border-border/50"
+            aria-labelledby="how-heading"
+          >
+            <div className="max-w-6xl mx-auto">
+              <SectionTitle
+                kicker={lp.howKicker}
+                id="how-heading"
+                title={lp.howTitle}
+                subtitle={lp.howSubtitle}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 relative">
+                <div
+                  className="hidden md:block absolute top-10 start-[16%] end-[16%] h-0.5 bg-border/80 -z-0"
+                  aria-hidden
+                />
+                {howSteps.map((step) => {
+                  const Icon = step.icon;
+                  return (
+                    <div key={step.n} className="relative z-[1] flex flex-col items-center text-center">
+                      <div
+                        className={cn(
+                          "w-16 h-16 rounded-2xl flex items-center justify-center mb-5 shadow-lg",
+                          "bg-primary text-primary-foreground"
+                        )}
+                      >
+                        <Icon className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                        {t.landingPage.howStepLabel(step.n)}
+                      </h3>
+                      <p className="text-lg font-bold text-foreground mb-2">{step.title}</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
+                        {step.body}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="py-16 md:py-24 px-4 sm:px-6" aria-labelledby="quote-heading">
             <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-12">
-                <h2 id="how-it-works-heading" className="text-3xl font-bold text-gray-900 mb-3">
-                  Up and running in 3 steps
-                </h2>
-                <p className="text-gray-500">No training sessions. No IT tickets. Just scan and go.</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
-                    1
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">Print & Stick</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Generate QR code labels from the admin panel and attach them to any piece of
-                    equipment. One label — all the data.
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
-                    2
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">Scan & Log</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Staff scan with any smartphone camera. Update status, check out, or report
-                    an issue in under 5 seconds — with or without internet.
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-extrabold mb-4 shadow-sm">
-                    3
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">Track & Report</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Monitor your entire fleet live on the management dashboard. Export monthly
-                    compliance reports whenever you need them.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* ── Testimonial / social proof ────────────────── */}
-          <section className="py-16 px-4" aria-labelledby="testimonial-heading">
-            <div className="max-w-2xl mx-auto text-center">
-              <h2 id="testimonial-heading" className="sr-only">What veterinary teams say</h2>
-              <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
-                <div className="flex justify-center mb-4">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <svg key={s} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <blockquote>
-                  <p className="text-xl font-medium text-gray-900 italic mb-4">
-                    "No more whiteboards, no more confusion. We know exactly where every
-                    ventilator and monitor is, and who has it."
-                  </p>
-                  <footer>
-                    <cite className="not-italic">
-                      <span className="block font-semibold text-gray-900">ER Veterinary Team</span>
-                      <span className="text-sm text-gray-500">24-hour Animal Hospital</span>
-                    </cite>
-                  </footer>
-                </blockquote>
-              </div>
-            </div>
-          </section>
-
-          {/* ── Final CTA ─────────────────────────────────── */}
-          <section className="bg-blue-600 py-16 px-4 text-center text-white" aria-labelledby="cta-heading">
-            <div className="max-w-2xl mx-auto">
-              <h2 id="cta-heading" className="text-3xl font-bold mb-4">
-                Ready to stop losing equipment?
+              <h2 id="quote-heading" className="sr-only">
+                {lp.quoteHeadingSr}
               </h2>
-              <p className="text-blue-100 mb-8 leading-relaxed">
-                VetTrack is free to get started. No credit card. No setup fee.
-                Your team can be scanning equipment in minutes.
-              </p>
+              <div
+                className={cn(
+                  "relative rounded-3xl p-8 sm:p-10 md:p-12",
+                  "border border-border/60 bg-card/60 backdrop-blur-sm",
+                  "shadow-[0_24px_80px_-32px_rgba(0,0,0,0.25)]"
+                )}
+              >
+                <div
+                  className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/5 to-transparent pointer-events-none"
+                  aria-hidden
+                />
+                <div className="relative">
+                  <div
+                    className="flex justify-center gap-0.5 mb-6"
+                    role="img"
+                    aria-label={lp.quoteStarsAria}
+                  >
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} className="w-5 h-5 fill-amber-400 text-amber-400" aria-hidden />
+                    ))}
+                  </div>
+                  <blockquote>
+                    <p className="text-xl sm:text-2xl font-medium text-foreground text-balance leading-snug mb-6">
+                      {lp.quoteBody}
+                    </p>
+                    <footer className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <cite className="not-italic font-semibold text-foreground">
+                          {lp.quoteAttribution}
+                        </cite>
+                        <p className="text-sm text-muted-foreground">{lp.quoteOrg}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Building2 className="w-4 h-4" aria-hidden />
+                        <span>{lp.quoteMultiSite}</span>
+                      </div>
+                    </footer>
+                  </blockquote>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="relative py-20 md:py-28 px-4 sm:px-6 text-primary-foreground overflow-hidden"
+            aria-labelledby="final-cta"
+          >
+            <div className="absolute inset-0 bg-primary" aria-hidden />
+            <div
+              className="absolute inset-0 opacity-40"
+              style={{
+                background:
+                  "radial-gradient(800px 400px at 20% 20%, white 0%, transparent 50%), radial-gradient(600px 300px at 80% 80%, hsl(200 100% 70% / 0.3) 0%, transparent 55%)",
+              }}
+              aria-hidden
+            />
+            <div className="relative max-w-3xl mx-auto text-center z-[1]">
+              <h2
+                id="final-cta"
+                className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4 text-balance"
+              >
+                {lp.finalTitle}
+              </h2>
+              <p className="text-primary-foreground/90 text-lg mb-10 leading-relaxed">{lp.finalBody}</p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                {(isLoaded || isOfflineSession) && (isSignedIn ? (
+                {showAppCta && (
                   <Link
                     href="/"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-blue-50 transition-colors shadow-sm"
+                    className={cn(
+                      "w-full sm:w-auto inline-flex items-center justify-center gap-2",
+                      "rounded-2xl font-bold px-8 py-3.5 min-h-[52px] bg-background text-foreground",
+                      "hover:bg-background/90 active:scale-[0.99] transition-all",
+                      "shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/40"
+                    )}
                   >
                     <LayoutDashboard className="w-5 h-5" />
-                    Back to App
+                    {lp.finalCtaApp}
                   </Link>
-                ) : (
+                )}
+                {showAuthCta && (
                   <Link
                     href="/signin"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-bold px-8 py-3.5 rounded-xl text-base hover:bg-blue-50 transition-colors shadow-sm"
+                    className={cn(
+                      "w-full sm:w-auto inline-flex items-center justify-center gap-2",
+                      "rounded-2xl font-bold px-8 py-3.5 min-h-[52px] bg-background text-foreground",
+                      "hover:bg-background/90 active:scale-[0.99] transition-all",
+                      "shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/40"
+                    )}
                   >
                     <Scan className="w-5 h-5" />
-                    Start Tracking Now
+                    {lp.finalCtaSignIn}
                   </Link>
-                ))}
+                )}
               </div>
             </div>
           </section>
         </main>
-
-        {/* ── Footer ───────────────────────────────────── */}
-        <footer className="border-t border-gray-100 bg-white py-8 px-4">
-          <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center">
-                <QrCode className="w-3 h-3 text-white" />
-              </div>
-              <span className="font-semibold text-gray-700">VetTrack</span>
-              <span>· QR Equipment Tracking for Veterinary Clinics</span>
-            </div>
-            <nav className="flex items-center gap-4">
-              <Link href="/" className="hover:text-blue-600 transition-colors">Dashboard</Link>
-              <Link href="/equipment" className="hover:text-blue-600 transition-colors">Equipment</Link>
-            </nav>
-          </div>
-        </footer>
-      </div>
+      </MarketingLayout>
     </>
   );
 }

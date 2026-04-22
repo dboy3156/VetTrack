@@ -16,3 +16,25 @@ test-results/
 playwright-ui-session.json
 drift-main/
 awesome-cursor-skills-main/
+
+# Dev / debug scratch files (never commit)
+.tmp-*
+*.tmp
+
+# Extracted third-party bundles (not part of this repo)
+superpowers-main/
+superpowers-main.zip
+
+# Playwright artifacts
+playwright-ui-screenshots/
+playwright-report/
+
+# Python build artifacts (desktop/cleaner)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+desktop/cleaner/build/
+desktop/cleaner/dist/

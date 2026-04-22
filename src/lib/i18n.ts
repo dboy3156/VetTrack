@@ -278,6 +278,11 @@ const translations = {
     greeting: (name: string) => tr(d.homePage.greeting, { name }),
   },
 
+  landingPage: {
+    ...d.landingPage,
+    howStepLabel: (stepNum: string) => tr(d.landingPage.howStepLabel, { stepNum }),
+  },
+
   helpPage: d.helpPage,
 
   roomRadarPage: {
@@ -352,9 +357,12 @@ const translations = {
         UNRESOLVED_PATIENT_FLAGS: d.pharmacyForecast.approveGateUnresolvedPatientFlags,
         UNRESOLVED_DRUG_FLAGS: d.pharmacyForecast.approveGateUnresolvedDrugFlags,
         PRN_QUANTITY_REQUIRED: d.pharmacyForecast.approveGatePrnQuantityRequired,
+        NO_DRUG_LINES: d.pharmacyForecast.approveGateNoDrugLines,
       } as Record<string, string>)[code] ?? fallback,
     emailPreviewSummary: (patientCount: number, hours: number) =>
       tr(d.pharmacyForecast.emailPreviewSummary, { patientCount, hours }),
+    quantityFrequencyBasis: (per24: number, inWindow: number, hours: number) =>
+      tr(d.pharmacyForecast.quantityFrequencyBasis, { per24, inWindow, hours }),
   },
 
   appointmentsPage: d.appointmentsPage,

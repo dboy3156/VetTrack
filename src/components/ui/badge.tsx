@@ -14,7 +14,7 @@ const badgeVariants = cva(
         ok: "border-emerald-200 bg-emerald-100 text-emerald-800",
         issue: "border-red-200 bg-red-100 text-red-800",
         maintenance: "border-amber-200 bg-amber-100 text-amber-800",
-        sterilized: "border-blue-200 bg-blue-100 text-blue-800",
+        sterilized: "border-primary/30 bg-primary/10 text-primary",
       },
     },
     defaultVariants: { variant: "default" },

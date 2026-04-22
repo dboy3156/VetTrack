@@ -1,26 +1,9 @@
-"use strict";
+import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const fs = require("fs");
-const path = require("path");
-
-let passed = 0;
-let failed = 0;
-
-function ok(label) {
-  console.log(`  ✅ PASS: ${label}`);
-  passed++;
-}
-
-function fail(label, detail) {
-  console.error(`  ❌ FAIL: ${label}`);
-  if (detail) console.error(`     ${detail}`);
-  failed++;
-}
-
-function assert(condition, label, detail) {
-  if (condition) ok(label);
-  else fail(label, detail);
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const repoRoot = path.resolve(__dirname, "..");
 const tenantMiddlewarePath = path.join(repoRoot, "server", "middleware", "tenant-context.ts");
@@ -29,21 +12,6 @@ const routesDir = path.join(repoRoot, "server", "routes");
 
 const tenantMiddleware = fs.readFileSync(tenantMiddlewarePath, "utf8");
 const authMiddleware = fs.readFileSync(authMiddlewarePath, "utf8");
-
-console.log("\n── Multi-Tenancy Hardening Smoke Test");
-
-assert(
-  tenantMiddleware.includes("req.clinicId = clinicId") &&
-    tenantMiddleware.includes("Best-effort clinic hint"),
-  "Tenant middleware sets clinic when inferrable and always continues",
-  "tenant-context must attach req.clinicId when possible; requireAuth enforces access"
-);
-
-assert(
-  authMiddleware.includes("req.clinicId = result.user.clinicId"),
-  "Auth middleware attaches req.clinicId",
-  "createRequireAuth/createRequireAuthAny must attach clinicId to request context"
-);
 
 const routeFiles = fs
   .readdirSync(routesDir)
@@ -55,34 +23,33 @@ const dbRouteFiles = routeFiles.filter((filePath) => {
   return src.includes("from(equipment)") || src.includes("from(users)") || src.includes("from(folders)") || src.includes("from(rooms)");
 });
 
-for (const filePath of dbRouteFiles) {
-  const src = fs.readFileSync(filePath, "utf8");
-  const rel = path.relative(repoRoot, filePath).replace(/\\/g, "/");
-  assert(
-    src.includes("req.clinicId"),
-    `Route references clinic context: ${rel}`,
-    `Expected ${rel} to reference req.clinicId for tenant scoping`
-  );
-}
+describe("Multi-Tenancy Hardening Smoke Test", () => {
+  it("Tenant middleware sets clinic when inferrable and always continues", () => {
+    expect(
+      tenantMiddleware.includes("req.clinicId = clinicId") &&
+        tenantMiddleware.includes("Best-effort clinic hint")
+    ).toBeTruthy();
+  });
 
-const equipmentRoute = fs.readFileSync(path.join(routesDir, "equipment.ts"), "utf8");
-assert(
-  equipmentRoute.includes("eq(equipment.clinicId, clinicId)"),
-  "Equipment queries are clinic-scoped",
-  "Expected equipment route to scope queries by equipment.clinicId"
-);
+  it("Auth middleware attaches req.clinicId", () => {
+    expect(authMiddleware).toContain("req.clinicId = result.user.clinicId");
+  });
 
-const usersRoute = fs.readFileSync(path.join(routesDir, "users.ts"), "utf8");
-assert(
-  usersRoute.includes("eq(users.clinicId, clinicId)"),
-  "User queries are clinic-scoped",
-  "Expected users route to scope queries by users.clinicId"
-);
+  for (const filePath of dbRouteFiles) {
+    const src = fs.readFileSync(filePath, "utf8");
+    const rel = path.relative(repoRoot, filePath).replace(/\\/g, "/");
+    it(`Route references clinic context: ${rel}`, () => {
+      expect(src).toContain("req.clinicId");
+    });
+  }
 
-console.log(`\n${"─".repeat(48)}`);
-console.log(`Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  console.error(`\n❌ multi-tenancy-hardening.test.js FAILED (${failed} assertion(s) failed)`);
-  process.exit(1);
-}
-console.log("\n✅ multi-tenancy-hardening.test.js PASSED");
+  it("Equipment queries are clinic-scoped", () => {
+    const equipmentRoute = fs.readFileSync(path.join(routesDir, "equipment.ts"), "utf8");
+    expect(equipmentRoute).toContain("eq(equipment.clinicId, clinicId)");
+  });
+
+  it("User queries are clinic-scoped", () => {
+    const usersRoute = fs.readFileSync(path.join(routesDir, "users.ts"), "utf8");
+    expect(usersRoute).toContain("eq(users.clinicId, clinicId)");
+  });
+});

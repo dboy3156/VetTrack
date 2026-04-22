@@ -31,8 +31,11 @@ function normalizeFreqToken(raw: string): number | null {
   return null;
 }
 
-/** Pull frequency tokens from tail of line (after dose). */
-function extractFreqPerDay(line: string): number | null {
+/**
+ * Administrations per 24-hour day from tokens (BID, TID, q12h, etc.).
+ * This value is multiplied by (forecastWindowHours / 24) for total doses in the order window.
+ */
+function extractAdministrationsPer24h(line: string): number | null {
   const lower = line.toLowerCase();
   const tokens = lower.split(/[\s,/()]+/).filter(Boolean);
   for (const t of tokens) {
@@ -49,12 +52,27 @@ function extractCriRate(line: string): number | null {
 
 /**
  * Best-effort drug name: substring before first dose-like number sequence.
+ * Also strips leading bare integers (volume/count without unit) and trailing "inj" noise
+ * so that lines like "10 Cerenia inj" resolve to "Cerenia" for formulary matching.
  */
 function extractRawName(line: string): string {
   const withoutRoute = line.replace(/\b(IV|IM|SC|PO|SID|PRN)\b/gi, " ").trim();
   const doseStart = withoutRoute.search(/\d+(?:\.\d+)?\s*(mg|mcg|mEq|%|tab|tabs|tablet)/i);
   const slice = doseStart > 0 ? withoutRoute.slice(0, doseStart) : withoutRoute;
-  return slice.replace(/[,|]+/g, " ").replace(/\s+/g, " ").trim() || withoutRoute.trim();
+  let name = slice.replace(/[,|]+/g, " ").replace(/\s+/g, " ").trim() || withoutRoute.trim();
+  // Strip leading bare number (no dose unit) that precedes the drug name
+  name = name.replace(/^\d+(?:\.\d+)?\s*(?:ml|mL)?\s+(?!\d)/i, "").trim();
+  // Strip parenthetical content that duplicates or annotates the drug name (e.g. "Mirtazapine (Mirtazapine)")
+  name = name.replace(/\s*\([^)]{1,60}\)\s*/g, " ").replace(/\s+/g, " ").trim();
+  // Strip trailing Hebrew words (e.g. Hebrew brand annotation: "Optalgin inj ןיגלטפוא")
+  name = name.replace(/\s+[\u0590-\u05FF][\u0590-\u05FF\s]*$/, "").trim();
+  // Strip trailing pharmaceutical form suffixes (inj, syr, sol, susp, tab, cap — may be exposed after Hebrew removal)
+  name = name.replace(/\s+(?:inj\.?|syr\.?|sol\.?|susp\.?|tab\.?|caps?\.?)\s*$/i, "").trim();
+  // Strip ⭐ PRN marker if still present
+  name = name.replace(/^[\u2B50\u2605\u2606]\s*/u, "").trim();
+  // Strip leading non-letter noise (e.g. "..." remaining after Hebrew prefix stripped in cleanup)
+  name = name.replace(/^[^A-Za-z\u0590-\u05FF]+/, "").trim();
+  return name || withoutRoute.trim();
 }
 
 function extractDose(line: string): { value: number | null; unit: string | null; perKg: boolean } {
@@ -92,7 +110,7 @@ export function extractDrugLine(line: string, fuse: FormularyFuse): ExtractedDru
 
   const rawName = extractRawName(trimmed);
   const dose = extractDose(trimmed);
-  const freqPerDay = isPrn ? null : extractFreqPerDay(trimmed);
+  const freqPerDay = isPrn ? null : extractAdministrationsPer24h(trimmed);
 
   let resolvedName: string | null = null;
   if (rawName.length >= 2 && !isCri) {

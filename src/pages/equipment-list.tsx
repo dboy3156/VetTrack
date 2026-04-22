@@ -68,6 +68,8 @@ import {
 import { formatRelativeTime, getExpiryBadgeState } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useSettings } from "@/hooks/use-settings";
+import { cn } from "@/lib/utils";
 import { QrScanner } from "@/components/qr-scanner";
 import { VirtualizedEquipmentList } from "@/components/VirtualizedEquipmentList";
 import {
@@ -95,6 +97,7 @@ const PAGE_SIZE = 9;
 const SKELETON_MIN_MS = 1200;
 
 export default function EquipmentListPage() {
+  const { settings } = useSettings();
   const queryClient = useQueryClient();
   const { userId, isAdmin } = useAuth();
   const [, navigate] = useLocation();
@@ -194,7 +197,7 @@ export default function EquipmentListPage() {
   const totalCount = equipmentPage?.total ?? 0;
 
   /** Clears paginated equipment cache, resets local UI state, and runs a fresh fetch (used by ErrorCard retry). */
-  const handleEquipmentHardReset = useCallback(async () => {
+  const refetchAll = useCallback(async () => {
     setSelected(new Set());
     setSelectMode(false);
     setPage(1);
@@ -350,6 +353,8 @@ export default function EquipmentListPage() {
 
   // Virtualization is active when filtered results exceed threshold and select mode is off.
   const isVirtualized = filtered.length > VIRTUALIZATION_THRESHOLD && !selectMode;
+  /** Matches compact vs comfortable list card padding (8px less vertical when compact). */
+  const virtualizedItemHeight = settings.density === "compact" ? 104 : 112;
 
   // Stable pagination guards — out-of-bound pages are impossible.
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -725,7 +730,7 @@ export default function EquipmentListPage() {
         {isError && (
           <ErrorCard
             message={t.equipmentList.errors.loadFailed}
-            onRetry={handleEquipmentHardReset}
+            onRetry={() => refetchAll()}
           />
         )}
 
@@ -765,15 +770,14 @@ export default function EquipmentListPage() {
           ) : filtered.length > VIRTUALIZATION_THRESHOLD && !selectMode ? (
             <div data-testid="equipment-list">
               {/*
-                Row height 112px: card has p-4 (32px vertical padding) + ~80px content
-                (icon 40px + text baseline). Using minHeight: 72 in the card (no aspectRatio)
-                means content never overflows the fixed row. Gap of 12px (pb-3 on outer div)
-                is baked into the row height.
+                Row height 112 (comfortable) or 104 (compact): card padding p-4 vs p-3
+                from settings.density, plus ~80px content. minHeight: 72 in the card
+                keeps the row stable. pb-3 on the virtualized row wrapper is in the item height.
               */}
               <VirtualizedEquipmentList
                 items={filtered}
                 height={600}
-                itemHeight={112}
+                itemHeight={virtualizedItemHeight}
                 renderItem={renderVirtualizedRow}
               />
             </div>
@@ -846,10 +850,12 @@ function EquipmentItem({
   onToggleSelect: () => void;
   virtualized?: boolean;
 }) {
+  const { settings } = useSettings();
   const { userId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const statusVariant = statusToBadgeVariant(eq.status);
+  const listCardContentPad = settings.density === "compact" ? "p-3" : "p-4";
   const isCheckedOut = !!eq.checkedOutById;
   const checkedOutByMe = eq.checkedOutById === userId;
   const expiryState = getExpiryBadgeState(eq.expiryDate);
@@ -879,7 +885,7 @@ function EquipmentItem({
   const quickAction = !isCheckedOut && eq.status === "ok"
     ? { label: "In Use", icon: LogIn, action: () => checkoutMut.mutate(), pending: checkoutMut.isPending, className: "text-emerald-700 border-emerald-200 hover:bg-emerald-50" }
     : (isCheckedOut && (checkedOutByMe || isAdmin)) && eq.status === "ok"
-    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, className: "text-blue-700 border-blue-200 hover:bg-blue-50" }
+    ? { label: "Return", icon: LogOut, action: () => setReturnDialogOpen(true), pending: returnMut.isPending, className: "text-primary border-primary/30 hover:bg-primary/10" }
     : eq.status === "issue"
     ? { label: "View Issue", icon: AlertTriangle, action: null, href: `/equipment/${eq.id}`, pending: false, className: "text-red-600 border-red-200 hover:bg-red-50" }
     : null;
@@ -915,7 +921,7 @@ function EquipmentItem({
               flexShrink 0 on all trailing elements prevents sibling shift during load.
             */}
             <CardContent
-              className="p-4 flex items-center gap-3"
+              className={cn(listCardContentPad, "flex items-center gap-3")}
               style={virtualized ? { minHeight: 72 } : { aspectRatio: "5/4", minHeight: 72 }}
             >
               {/* Icon / Image — explicit w/h + loading=lazy prevents CLS */}
@@ -964,22 +970,22 @@ function EquipmentItem({
                     {formatRelativeTime(eq.lastSeen?.toString())}
                   </span>
                   {expiryState === "expired" && (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-800">
+                    <Badge variant="issue" className="px-2 py-0.5 text-[11px] font-medium">
                       <CalendarX className="w-3 h-3" />
                       פג תוקף
-                    </span>
+                    </Badge>
                   )}
                   {expiryState === "expiring_soon" && (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-orange-100 text-orange-800">
+                    <Badge variant="maintenance" className="px-2 py-0.5 text-[11px] font-medium">
                       <CalendarClock className="w-3 h-3" />
                       פחות מ-7 ימים
-                    </span>
+                    </Badge>
                   )}
                   {expiryState === "healthy" && (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-green-100 text-green-800">
+                    <Badge variant="ok" className="px-2 py-0.5 text-[11px] font-medium">
                       <CalendarCheck className="w-3 h-3" />
                       בתוקף
-                    </span>
+                    </Badge>
                   )}
                 </div>
               </div>

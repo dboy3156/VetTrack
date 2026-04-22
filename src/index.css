@@ -282,3 +282,99 @@ nav,
     background: white !important;
   }
 }
+
+/* ── VetTrack micro-interaction keyframes ─────────────────── */
+
+@keyframes scanAmbient {
+  0%, 100% { transform: scale(1);    opacity: 0.45; }
+  50%       { transform: scale(1.22); opacity: 0;    }
+}
+
+@keyframes alertPing {
+  0%   { transform: scale(1);   opacity: 0.75; }
+  70%  { transform: scale(2.4); opacity: 0;    }
+  100% { transform: scale(2.4); opacity: 0;    }
+}
+
+@keyframes badgePop {
+  0%   { transform: scale(1);             }
+  25%  { transform: scale(1.6) rotate(-8deg); }
+  55%  { transform: scale(0.9) rotate(4deg);  }
+  78%  { transform: scale(1.12);          }
+  100% { transform: scale(1);             }
+}
+
+@keyframes menuReveal {
+  from { opacity: 0; transform: translateY(-10px) scaleY(0.97); }
+  to   { opacity: 1; transform: translateY(0)     scaleY(1);    }
+}
+
+@keyframes navItemFade {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+@keyframes accentGrow {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes syncSuccessBoom {
+  0%   { transform: scale(0.88); opacity: 0;
+         box-shadow: 0 0 0 0 rgba(16,185,129,0.55); }
+  18%  { transform: scale(1.06); opacity: 1;
+         box-shadow: 0 0 0 7px rgba(16,185,129,0);  }
+  35%  { transform: scale(1);                        }
+  72%  { opacity: 1;                                 }
+  100% { opacity: 0; transform: scale(0.94);         }
+}
+
+@keyframes checkPop {
+  0%   { transform: scale(0) rotate(-20deg); }
+  100% { transform: scale(1) rotate(0deg);   }
+}
+
+@keyframes scanningBar {
+  0%, 100% { opacity: 0.35; transform: scaleX(0.55); }
+  50%       { opacity: 1;    transform: scaleX(1);    }
+}
+
+/* Honour reduced-motion: stop decorative @keyframes; layout uses inline `style={{ animation: ... }}` and Tailwind arbitrary `[animation:…]` — both must be covered. Do not add global `transition: none` here (state opacity transitions stay visible). */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .qr-scan-line,
+  [class*="scanAmbient_"],
+  [class*="menuReveal_"],
+  [class*="alertPing_"],
+  [class*="badgePop_"],
+  [class*="navItemFade_"],
+  [class*="accentGrow_"],
+  [class*="syncSuccessBoom_"],
+  [class*="checkPop_"],
+  [class*="scanningBar_"],
+  [style*="scanAmbient"],
+  [style*="alertPing"],
+  [style*="badgePop"],
+  [style*="syncSuccessBoom"],
+  [style*="checkPop"],
+  [style*="scanningBar"],
+  [style*="menuReveal"],
+  [style*="navItemFade"],
+  [style*="accentGrow"] {
+    animation: none !important;
+  }
+}
+
+/* Bottom nav active-tab pill: instant jump when user prefers reduced motion */
+.vt-bottom-nav-tab-pill {
+  transition: left 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vt-bottom-nav-tab-pill {
+    transition: none;
+  }
+}

@@ -1,11 +1,14 @@
-import type { ForecastDrugEntry, ForecastPatientEntry, ForecastResult } from "@/types";
+import type {
+  ForecastDrugEntry,
+  ForecastFlagReason,
+  ForecastPatientEntry,
+  ForecastResult,
+} from "@/types";
+import { normalizeQuantityKey } from "@/shared/normalizeQuantityKey";
 
-/** Must match server `mergeApproval.normalizeQuantityKey`. */
-export function normalizeQuantityKey(recordNumber: string, drugName: string): string {
-  const rn = String(recordNumber).trim();
-  const dn = drugName.trim().toLowerCase().replace(/\s+/g, " ");
-  return `${rn}__${dn}`;
-}
+export { normalizeQuantityKey };
+
+const QUANTITY_RESOLVABLE_FLAGS: ForecastFlagReason[] = ["PRN_MANUAL"];
 
 export function applyManualQuantities(
   result: ForecastResult,
@@ -22,7 +25,10 @@ export function applyManualQuantities(
       const n = Number(manual);
       if (!Number.isFinite(n) || n < 0) return { ...d };
       const qty = Math.floor(n);
-      const flags = n >= 1 ? ([] as typeof d.flags) : d.flags;
+      const flags =
+        qty >= 1
+          ? d.flags.filter((f) => !QUANTITY_RESOLVABLE_FLAGS.includes(f))
+          : d.flags;
       return {
         ...d,
         quantityUnits: qty,

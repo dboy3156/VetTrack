@@ -40,11 +40,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { ShoppingCart, Plus, ChevronDown, ChevronUp, Trash2, Send, PackageCheck, X } from "lucide-react";
 
 const STATUS_BADGE: Record<PurchaseOrderStatus, string> = {
-  draft: "bg-slate-100 text-slate-700 border-slate-200",
-  ordered: "bg-blue-100 text-blue-800 border-blue-200",
-  partial: "bg-amber-100 text-amber-800 border-amber-200",
-  received: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  cancelled: "bg-red-100 text-red-800 border-red-200",
+  draft: "bg-muted text-muted-foreground border-border",
+  ordered: "bg-primary/10 text-primary border-border",
+  partial: "bg-muted/80 text-foreground border-amber-500/20",
+  received: "bg-status-ok/10 text-status-ok border-border",
+  cancelled: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 type ReceiveLine = { lineId: string; quantityReceived: number; containerId: string };

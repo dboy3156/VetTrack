@@ -6,7 +6,10 @@ import type {
   RawPatientBlock,
   ScoredDrug,
 } from "./types.js";
+import { PHARM_DOSE_RE } from "../../../src/lib/constants/regex.js";
 import { extractDrugLine, type FormularyFuse } from "./fieldExtractor.js";
+
+const FLUID_FAMILY_IN_LINE = /\b(?:LRS|Plasma|FFP|DW|5DW|NGT)\b/i;
 
 function baseConfidence(extracted: ExtractedDrug): number {
   if (extracted.isCri && extracted.ratePerHour != null) return 0.95;
@@ -47,6 +50,18 @@ export function scoreExtractedDrug(extracted: ExtractedDrug): ScoredDrug {
 
   if (confidence < 0.75 && !flags.includes("LOW_CONFIDENCE")) {
     flags.push("LOW_CONFIDENCE");
+  }
+
+  const line = extracted.rawLine;
+  if (FLUID_FAMILY_IN_LINE.test(line) && PHARM_DOSE_RE.test(line)) {
+    flags.push("FLUID_VS_DRUG_UNCLEAR");
+  }
+  if (
+    flags.includes("DRUG_UNKNOWN") &&
+    PHARM_DOSE_RE.test(line) &&
+    !flags.includes("LINE_AMBIGUOUS")
+  ) {
+    flags.push("LINE_AMBIGUOUS");
   }
 
   return {
@@ -94,6 +109,43 @@ export function applyLoadingDoseHeuristic(drugs: ScoredDrug[]): ScoredDrug[] {
   return out;
 }
 
+/**
+ * Deduplicate drug lines within a patient block:
+ *  1. Exact raw-line duplicates (copy-paste) → flag DUPLICATE_LINE on first, drop rest.
+ *  2. Semantic duplicates by normalized drug name (multi-day flowsheets repeat the same drug
+ *     on every day page) → silently drop subsequent occurrences, keeping highest-confidence first.
+ */
+function flagDuplicateRawLinesInBlock(drugs: ScoredDrug[]): ScoredDrug[] {
+  const seenRaw = new Map<string, number>(); // rawLine → out-index
+  const seenName = new Set<string>();        // normalized drug name
+  const out: ScoredDrug[] = [];
+
+  for (const d of drugs) {
+    const rawKey = d.rawLine.trim().toLowerCase();
+    const nameKey = (d.resolvedName ?? d.rawName).trim().toLowerCase().replace(/\s+/g, " ");
+
+    if (seenRaw.has(rawKey)) {
+      // Exact duplicate raw line — flag once, then silently drop
+      const idx = seenRaw.get(rawKey)!;
+      const kept = out[idx]!;
+      if (!kept.flags.includes("DUPLICATE_LINE")) {
+        out[idx] = { ...kept, flags: [...kept.flags, "DUPLICATE_LINE"] };
+      }
+      continue;
+    }
+
+    if (nameKey.length >= 2 && seenName.has(nameKey)) {
+      // Same drug name already present (multi-day repeat) — silently drop
+      continue;
+    }
+
+    seenRaw.set(rawKey, out.length);
+    if (nameKey.length >= 2) seenName.add(nameKey);
+    out.push({ ...d });
+  }
+  return out;
+}
+
 export function parsePatientBlocks(
   blocks: RawPatientBlock[],
   fuse: FormularyFuse,
@@ -120,7 +172,8 @@ export function parsePatientBlocks(
       drugs.push(scoreExtractedDrug(ext));
     }
 
-    const flagged = applyLoadingDoseHeuristic(drugs);
+    const deduped = flagDuplicateRawLinesInBlock(drugs);
+    const flagged = applyLoadingDoseHeuristic(deduped);
 
     const patientFlags: FlagReason[] = [];
 

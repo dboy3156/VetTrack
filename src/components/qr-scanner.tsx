@@ -720,8 +720,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
       {/* Inline quick-action sheet — shown after successful QR resolve */}
       {phase === "result" && scannedEquipment && (
         <div className="flex-1 bg-black/95 flex flex-col justify-end" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
-          <div className="bg-white rounded-t-3xl px-5 pt-5 pb-6 mx-0 w-full" data-testid="scan-inline-sheet">
-            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+          <div className="bg-card rounded-t-3xl px-5 pt-5 pb-6 mx-0 w-full" data-testid="scan-inline-sheet">
+            <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
 
             {/* Equipment info */}
             <div className="flex items-start gap-3 mb-4">
@@ -743,14 +743,14 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
             {/* Checkout info */}
             {isCheckedOut && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
-                <p className="font-medium text-blue-800">
+              <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5 mb-4 text-sm">
+                <p className="font-medium text-foreground">
                   {checkedOutByMe
                     ? "Checked out by you"
                     : `In use by ${scannedEquipment.checkedOutByEmail || "another user"}`}
                 </p>
                 {scannedEquipment.checkedOutLocation && (
-                  <p className="text-blue-700 text-xs mt-0.5">
+                  <p className="text-primary text-xs mt-0.5">
                     Location: {scannedEquipment.checkedOutLocation}
                   </p>
                 )}

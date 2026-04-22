@@ -1,11 +1,13 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { Router, type Request } from "express";
+import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import nodemailer from "nodemailer";
+import pdfParse from "pdf-parse";
 
-import { db, clinics, pharmacyForecastParses, pharmacyOrders } from "../db.js";
+import { db, clinics, pharmacyForecastParses, pharmacyOrders, pharmacyForecastExclusions } from "../db.js";
 import { requireAuth, requireEffectiveRole, requireAdmin } from "../middleware/auth.js";
 import { ensureUserClinicMembership } from "../middleware/ensure-user-clinic-membership.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
@@ -44,20 +46,47 @@ function resolveRequestId(res: { getHeader: (n: string) => unknown; setHeader?: 
   return requestId;
 }
 
-function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+function apiError(params: {
+  code: string;
+  reason: string;
+  message: string;
+  requestId: string;
+  errors?: unknown[];
+}) {
   return {
     code: params.code,
     error: params.code,
     reason: params.reason,
     message: params.message,
     requestId: params.requestId,
+    ...(params.errors != null ? { errors: params.errors } : {}),
   };
 }
 
+/**
+ * Thursday (Israel) → 72 h weekend pharmacy window; else 24 h.
+ * Uses Asia/Jerusalem so server UTC does not shift the weekday at night.
+ */
 function defaultWindowHoursFromCalendar(): 24 | 72 {
-  const dow = new Date().getDay();
-  return dow === 4 ? 72 : 24;
+  const formatter = new Intl.DateTimeFormat("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    weekday: "long",
+  });
+  const hebrewDay = formatter.format(new Date());
+  return hebrewDay.includes("חמישי") ? 72 : 24;
 }
+
+const parseRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const xf = req.headers["x-forwarded-for"];
+    const fromHeader = typeof xf === "string" ? xf.split(",")[0]?.trim() : "";
+    return fromHeader || req.ip || "unknown";
+  },
+});
 
 function multipartOrJsonBody(req: Request): Record<string, unknown> {
   const b = req.body;
@@ -67,6 +96,7 @@ function multipartOrJsonBody(req: Request): Record<string, unknown> {
 
 router.post(
   "/parse",
+  parseRateLimit,
   requireAuth,
   ensureUserClinicMembership,
   requireEffectiveRole("technician"),
@@ -96,11 +126,9 @@ router.post(
       const file = "file" in req && req.file ? req.file : undefined;
       if (file?.buffer?.length) {
         try {
-          const { PDFParse } = await import("pdf-parse");
-          const parser = new PDFParse({ data: new Uint8Array(file.buffer as Buffer) });
-          const textResult = await parser.getText();
-          rawText = textResult.text ?? "";
-          await parser.destroy();
+          const buf = file.buffer as Buffer;
+          const out = await pdfParse(buf);
+          rawText = typeof out.text === "string" ? out.text : "";
         } catch {
           return res.status(400).json(apiError({
             code: "PDF_PARSE_FAILED",
@@ -122,6 +150,31 @@ router.post(
         }));
       }
 
+      const contentHash = createHash("sha256").update(rawText, "utf8").digest("hex");
+      console.info(
+        `[forecast/parse] ${new Date().toISOString()} contentHash=${contentHash} requestId=${requestId} clinicId=${clinicId}`,
+      );
+
+      const [idem] = await db
+        .select()
+        .from(pharmacyForecastParses)
+        .where(
+          and(
+            eq(pharmacyForecastParses.clinicId, clinicId),
+            eq(pharmacyForecastParses.createdBy, authUser.id),
+            eq(pharmacyForecastParses.contentHash, contentHash),
+            gt(pharmacyForecastParses.expiresAt, new Date()),
+          ),
+        )
+        .limit(1);
+
+      if (idem?.result != null) {
+        const cached = forecastResultSchema.safeParse(idem.result);
+        if (cached.success) {
+          return res.json({ parseId: idem.id, ...cached.data });
+        }
+      }
+
       const windowHours = parsed.data.windowHours ?? defaultWindowHoursFromCalendar();
       const weekendMode =
         parsed.data.weekendMode ?? (windowHours === 72 && defaultWindowHoursFromCalendar() === 72);
@@ -141,6 +194,7 @@ router.post(
         createdBy: authUser.id,
         expiresAt,
         result: result as unknown as Record<string, unknown>,
+        contentHash,
       });
 
       return res.json({ parseId, ...result });
@@ -207,13 +261,19 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
 
     const mergedResult = applyManualQuantities(storedParsed.data, parsed.data.manualQuantities);
 
-    const gate = validateMergedForecastForApproval(mergedResult);
+    const gate = validateMergedForecastForApproval(mergedResult, {
+      pharmacistDoseAckKeys: new Set(parsed.data.pharmacistDoseAcks ?? []),
+      patientFlagAckKeys: new Set(parsed.data.patientFlagAcks ?? []),
+      weightOverrideRecordNumbers: new Set(Object.keys(parsed.data.patientWeightOverrides ?? {})),
+      confirmedDrugKeys: new Set(parsed.data.confirmedDrugKeys ?? []),
+    });
     if (!gate.ok) {
       return res.status(400).json(apiError({
         code: "VALIDATION_FAILED",
         reason: gate.code,
         message: gate.message,
         requestId,
+        errors: gate.errors,
       }));
     }
 
@@ -237,10 +297,16 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
 
     const orderId = `ord-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomUUID().slice(0, 8)}`;
 
+    if (mergedResult.patients.some((p) => p.flags.includes("PATIENT_UNKNOWN"))) {
+      console.warn(`[forecast/approve] PATIENT_UNKNOWN present in approved order orderId=${orderId}`);
+    }
+
     const { subject, html, text } = buildPharmacyOrderEmail({
       result: mergedResult,
       technicianName: authUser.name || authUser.email,
       auditOrOrderHint: orderId,
+      auditTrace: parsed.data.auditTrace,
+      patientWeightOverrides: parsed.data.patientWeightOverrides,
     });
 
     let deliveryMethod: "smtp" | "mailto" = hasSmtp ? "smtp" : "mailto";
@@ -410,6 +476,102 @@ router.get("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, re
       code: "INTERNAL_ERROR",
       reason: "READ_FAILED",
       message: "Could not read clinic email",
+      requestId,
+    }));
+  }
+});
+
+/** Admin/API only: clinic substrings excluded in `runForecastPipeline` when computing pharmacy order output (not exposed in the SPA). */
+router.get("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  try {
+    const rows = await db
+      .select()
+      .from(pharmacyForecastExclusions)
+      .where(eq(pharmacyForecastExclusions.clinicId, clinicId));
+    return res.json({ exclusions: rows });
+  } catch (err) {
+    console.error("[forecast/exclusions get]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "READ_FAILED",
+      message: "Could not load exclusions",
+      requestId,
+    }));
+  }
+});
+
+router.post("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const schema = z.object({
+    matchSubstring: z.string().min(1).max(200),
+    note: z.string().max(500).nullish(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(apiError({
+      code: "VALIDATION_FAILED",
+      reason: "INVALID_BODY",
+      message: "matchSubstring required (1–200 chars)",
+      requestId,
+    }));
+  }
+  const matchSubstring = parsed.data.matchSubstring.trim();
+  try {
+    const [row] = await db
+      .insert(pharmacyForecastExclusions)
+      .values({
+        clinicId,
+        matchSubstring,
+        note: parsed.data.note?.trim() || null,
+      })
+      .returning();
+    return res.json({ exclusion: row });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("unique") || msg.includes("duplicate")) {
+      return res.status(409).json(apiError({
+        code: "CONFLICT",
+        reason: "DUPLICATE_EXCLUSION",
+        message: "This match substring already exists for the clinic",
+        requestId,
+      }));
+    }
+    console.error("[forecast/exclusions post]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "INSERT_FAILED",
+      message: "Could not add exclusion",
+      requestId,
+    }));
+  }
+});
+
+router.delete("/clinic/pharmacy-forecast-exclusions/:id", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const id = z.string().uuid().safeParse(req.params.id);
+  if (!id.success) {
+    return res.status(400).json(apiError({
+      code: "VALIDATION_FAILED",
+      reason: "INVALID_ID",
+      message: "Invalid exclusion id",
+      requestId,
+    }));
+  }
+  try {
+    await db
+      .delete(pharmacyForecastExclusions)
+      .where(and(eq(pharmacyForecastExclusions.id, id.data), eq(pharmacyForecastExclusions.clinicId, clinicId)));
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[forecast/exclusions delete]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "DELETE_FAILED",
+      message: "Could not delete exclusion",
       requestId,
     }));
   }

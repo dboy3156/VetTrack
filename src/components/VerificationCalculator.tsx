@@ -196,9 +196,9 @@ export function VerificationCalculator({
       </div>
 
       {/* Prescribed dose (read-only from task) */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-        <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Prescribed dose</div>
-        <div className="text-xl font-bold text-blue-900">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+        <div className="text-xs font-semibold text-primary uppercase tracking-wide">Prescribed dose</div>
+        <div className="text-xl font-bold text-foreground">
           {prescribedMg != null ? `${prescribedMg.toFixed(2)} mg` : "Unknown"}
         </div>
       </div>
@@ -218,7 +218,7 @@ export function VerificationCalculator({
             className={
               concentrationOverridden
                 ? "h-12 text-lg font-semibold border-2 border-red-500 ring-2 ring-red-300 bg-red-50 dark:bg-red-950/20"
-                : "h-12 text-lg font-semibold border-2 border-slate-300 focus-visible:ring-2 focus-visible:ring-primary"
+                : "h-12 text-lg font-semibold border-2 border-input focus-visible:ring-2 focus-visible:ring-primary"
             }
           />
           {concentrationOverridden ? (
@@ -238,7 +238,7 @@ export function VerificationCalculator({
             onChange={(e) => setWeightRaw(e.target.value)}
             inputMode="decimal"
             placeholder="e.g. 4.5"
-            className="h-12 text-lg font-semibold border-2 border-slate-300 focus-visible:ring-2 focus-visible:ring-primary"
+            className="h-12 text-lg font-semibold border-2 border-input focus-visible:ring-2 focus-visible:ring-primary"
           />
         </div>
       </div>
@@ -269,7 +269,7 @@ export function VerificationCalculator({
       ) : null}
 
       {/* Volume display */}
-      <div className={`rounded-2xl border-4 p-4 text-center ${isBlocked ? "border-gray-300 bg-gray-100 text-gray-500" : "border-yellow-400 bg-yellow-300 text-black shadow-[0_0_0_4px_rgba(250,204,21,0.45)] animate-pulse"}`}>
+      <div className={`rounded-2xl border-4 p-4 text-center ${isBlocked ? "border-border bg-muted text-muted-foreground" : "border-amber-400 bg-amber-200 text-amber-950 shadow-[0_0_0_4px_rgba(250,204,21,0.45)] animate-pulse dark:bg-amber-300 dark:text-amber-950"}`}>
         <div className="text-xs font-bold uppercase tracking-wide">Total Volume</div>
         <div className="text-5xl md:text-6xl font-extrabold leading-none">
           {!isBlocked && volumeMl != null ? volumeMl.toFixed(2) : "—"}
@@ -298,7 +298,7 @@ export function VerificationCalculator({
           <Button
             onClick={() => onStart(task.id)}
             disabled={startDisabled || isStarting}
-            className="min-h-12 h-12 w-full px-6 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="min-h-12 h-12 w-full px-6 text-base font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Play className="h-4 w-4 mr-2" />
             START

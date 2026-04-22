@@ -6,6 +6,7 @@ import type {
   ParsedPatientBlock,
   ScoredDrug,
 } from "./types.js";
+import { hasPdfIdentity, type PdfPatientDemographics } from "./flowsheetDemographics.js";
 
 export interface FormularyDrugRow {
   id: string;
@@ -20,23 +21,12 @@ export interface FormularyDrugRow {
   criBufferPct: number | null;
 }
 
-export interface AnimalRow {
-  id: string;
-  recordNumber: string | null;
-  name: string;
-  species: string | null;
-  breed: string | null;
-  sex: string | null;
-  color: string | null;
-  weightKg: number | null;
-  ownerFullName: string | null;
-  ownerNationalId: string | null;
-  ownerPhone: string | null;
-}
-
 function ceilPositive(n: number): number {
   return Math.max(1, Math.ceil(n));
 }
+
+/** Forecast windows are multiples of one calendar day; frequency is always expressed per 24h. */
+export const FORECAST_HOURS_PER_DAY = 24;
 
 /** Absolute prescribed dose in mg (or tablet count tracked separately). */
 function absoluteDoseMg(drug: ScoredDrug, weightKg: number): number | null {
@@ -93,23 +83,31 @@ function describePack(row: FormularyDrugRow): string {
   const kind =
     row.unitType === "tablet"
       ? "טבליות"
-      : row.unitType === "vial"
-        ? "בקבוקון"
-        : row.unitType === "bag"
-          ? "שקית"
-          : "יחידה";
+      : row.unitType === "capsule"
+        ? "קפסולות"
+        : row.unitType === "vial"
+          ? "בקבוקון"
+          : row.unitType === "bag"
+            ? "שקית"
+            : "יחידה";
   return `${kind} · ${vol}`;
 }
 
+/**
+ * Vial/liquid quantity from scheduled (non-PRN) drugs:
+ *   totalMg = mgPerAdministration × administrationsPer24h × (forecastWindowHours / 24)
+ * Tablets: totalTabs = tabsPerAdmin × administrationsPer24h × (forecastWindowHours / 24)
+ */
 function physicalUnitsForRegular(
   drug: ScoredDrug,
   mgPerAdmin: number | null,
-  freqPerDay: number | null,
+  administrationsPer24h: number | null,
   windowHours: number,
   formulary: FormularyDrugRow | undefined,
 ): { qty: number | null; unitLabel: string; concentrationLabel: string } {
   const conc = formulary?.concentrationMgMl ?? 10;
   const unitVolMl = formulary?.unitVolumeMl != null ? Number(formulary.unitVolumeMl) : 1;
+  const windowDays = windowHours / FORECAST_HOURS_PER_DAY;
 
   const du = drug.doseUnit?.toLowerCase() ?? "";
   const isTablet =
@@ -117,20 +115,24 @@ function physicalUnitsForRegular(
     formulary?.doseUnit === "tablet" &&
     (du.includes("tablet") || du.includes("tab"));
 
-  if (isTablet && drug.doseValue != null && freqPerDay != null) {
-    const doses = freqPerDay * (windowHours / 24);
-    const qty = ceilPositive(drug.doseValue * doses);
+  if (isTablet && drug.doseValue != null && administrationsPer24h != null) {
+    const administrationsInWindow = administrationsPer24h * windowDays;
+    const qty = ceilPositive(drug.doseValue * administrationsInWindow);
     return { qty, unitLabel: "טבליות", concentrationLabel: `${conc} טבלה` };
   }
 
-  if (mgPerAdmin == null || freqPerDay == null) return { qty: null, unitLabel: "יח׳", concentrationLabel: `${conc} mg/mL` };
+  if (mgPerAdmin == null || administrationsPer24h == null) {
+    return { qty: null, unitLabel: "יח׳", concentrationLabel: `${conc} mg/mL` };
+  }
 
-  const mgTotal = mgPerAdmin * freqPerDay * (windowHours / 24);
+  const administrationsInWindow = administrationsPer24h * windowDays;
+  const mgTotal = mgPerAdmin * administrationsInWindow;
   const mgPerUnit = conc * unitVolMl;
   const qty = mgPerUnit > 0 ? ceilPositive(mgTotal / mgPerUnit) : null;
 
   let unitLabel = "אמפולות";
   if (formulary?.unitType === "tablet") unitLabel = "טבליות";
+  else if (formulary?.unitType === "capsule") unitLabel = "קפסולות";
   else if (formulary?.unitType === "bag") unitLabel = "שקיות";
   else if (formulary?.unitType === "vial") unitLabel = "בקבוקונים";
 
@@ -154,29 +156,70 @@ function criUnits(
   return ceilPositive(mlTotal / unitVolMl);
 }
 
+function administrationsInOrderWindow(
+  administrationsPer24h: number | null,
+  windowHours: number,
+): number | null {
+  if (administrationsPer24h == null) return null;
+  return administrationsPer24h * (windowHours / FORECAST_HOURS_PER_DAY);
+}
+
 export function enrichAndForecast(params: {
   parsedBlocks: ParsedPatientBlock[];
   windowHours: 24 | 72;
   weekendMode: boolean;
   formularyByNormalizedName: Map<string, FormularyDrugRow>;
-  animalsByRecord: Map<string, AnimalRow>;
+  /** Patient display + weight from PDF extract; pharmacy does not use vt_animals. */
+  pdfPatient: PdfPatientDemographics | null;
+  /** Substrings (matched case-insensitively) against raw line, extracted name, and formulary-resolved name — drug omitted if any hit. */
+  exclusionSubstrings: string[];
 }): ForecastResult {
   const patients: ForecastPatientEntry[] = [];
 
   const normalizeKey = (s: string) => s.trim().toLowerCase();
+  const pdf = params.pdfPatient;
+
+  function normalizeForSubstringMatch(s: string): string {
+    return s.normalize("NFKC").trim().toLowerCase();
+  }
+
+  const exclusions = params.exclusionSubstrings
+    .map((s) => normalizeForSubstringMatch(s))
+    .filter((s) => s.length > 0);
+
+  /** Match against full line, extracted drug token, and resolved formulary name (CRI often has no resolved name). */
+  function isExcludedDrug(drug: ScoredDrug): boolean {
+    if (exclusions.length === 0) return false;
+    const haystacks = [drug.rawLine, drug.rawName, drug.resolvedName ?? ""]
+      .map((s) => normalizeForSubstringMatch(s))
+      .filter((s) => s.length > 0);
+    for (const ex of exclusions) {
+      for (const h of haystacks) {
+        if (h.includes(ex)) return true;
+      }
+    }
+    return false;
+  }
 
   for (const block of params.parsedBlocks) {
-    const rec = block.recordNumber?.trim();
-    const animal = rec ? (params.animalsByRecord.get(rec) ?? null) : null;
+    const recFromParse = block.recordNumber?.trim() ?? "";
+    const displayRecord = pdf?.recordNumber?.trim() || recFromParse;
 
     const animalFlags = [...block.flags];
-    if (rec && !animal) animalFlags.push("PATIENT_UNKNOWN");
+    const identified = hasPdfIdentity(pdf, recFromParse);
+    if (!identified) animalFlags.push("PATIENT_UNKNOWN");
 
-    const weightKg = animal?.weightKg != null && animal.weightKg > 0 ? animal.weightKg : 12;
+    const hadExplicitWeight = pdf?.weightKg != null && pdf.weightKg > 0;
+    /** Default 12 kg only for mg math when PDF weight missing; always flagged. */
+    const weightKg = hadExplicitWeight && pdf?.weightKg != null ? pdf.weightKg : 12;
+    if (!hadExplicitWeight) animalFlags.push("WEIGHT_UNKNOWN");
+    if (pdf?.weightUncertain) animalFlags.push("WEIGHT_UNCERTAIN");
 
     const forecastDrugs: ForecastDrugEntry[] = [];
 
     for (const drug of block.drugs) {
+      if (isExcludedDrug(drug)) continue;
+
       let flags = [...drug.flags];
 
       const formulary =
@@ -187,10 +230,19 @@ export function enrichAndForecast(params: {
       const prescribedPerKg = prescribedMgPerKg(drug);
       flags = checkDoseBounds(drug, prescribedPerKg, formulary, flags);
 
+      const inferredFreq =
+        drug.freqPerDay ??
+        ((drug.type === "regular" || drug.type === "ld") && formulary != null ? 1 : null);
+      if (drug.freqPerDay == null && inferredFreq != null) {
+        flags = flags.filter((f) => f !== "FREQ_MISSING");
+      }
+
       let quantityUnits: number | null = null;
       let unitLabel = "יח׳";
       let packDescription = "";
       let concentrationStr = formulary ? `${formulary.concentrationMgMl} mg/mL` : "?";
+      let administrationsPer24h: number | null = null;
+      let administrationsInWindow: number | null = null;
 
       if (drug.type === "cri") {
         quantityUnits = criUnits(drug, params.windowHours, formulary);
@@ -200,7 +252,9 @@ export function enrichAndForecast(params: {
             ? "שקיות"
             : formulary?.unitType === "vial"
               ? "בקבוקונים"
-              : "יח׳";
+              : formulary?.unitType === "capsule"
+                ? "קפסולות"
+                : "יח׳";
         packDescription = formulary ? describePack(formulary) : "";
       } else if (drug.type === "prn") {
         quantityUnits = null;
@@ -208,8 +262,10 @@ export function enrichAndForecast(params: {
         packDescription = formulary ? describePack(formulary) : "";
       } else {
         const mgAbs = absoluteDoseMg(drug, weightKg);
-        const freq = drug.freqPerDay;
-        const phys = physicalUnitsForRegular(drug, mgAbs, freq, params.windowHours, formulary);
+        const freqForCalc = drug.freqPerDay ?? inferredFreq;
+        administrationsPer24h = freqForCalc;
+        administrationsInWindow = administrationsInOrderWindow(freqForCalc, params.windowHours);
+        const phys = physicalUnitsForRegular(drug, mgAbs, freqForCalc, params.windowHours, formulary);
         quantityUnits = phys.qty;
         unitLabel = phys.unitLabel;
         concentrationStr = phys.concentrationLabel.split("·")[0]?.trim() ?? concentrationStr;
@@ -225,20 +281,43 @@ export function enrichAndForecast(params: {
         quantityUnits,
         unitLabel,
         flags,
+        administrationsPer24h,
+        administrationsInWindow,
       });
     }
 
+    if (forecastDrugs.length === 0) {
+      animalFlags.push("ALL_DRUGS_EXCLUDED");
+      patients.push({
+        recordNumber: displayRecord,
+        name: pdf?.name ?? "",
+        species: pdf?.species ?? "",
+        breed: pdf?.breed ?? "",
+        sex: pdf?.sex ?? "",
+        age: pdf?.age ?? "",
+        color: pdf?.color ?? "",
+        weightKg,
+        ownerName: pdf?.ownerName ?? "",
+        ownerId: "",
+        ownerPhone: pdf?.ownerPhone ?? "",
+        drugs: [],
+        flags: animalFlags,
+      });
+      continue;
+    }
+
     patients.push({
-      recordNumber: rec ?? "",
-      name: animal?.name ?? "",
-      species: animal?.species ?? "",
-      breed: animal?.breed ?? "",
-      sex: animal?.sex ?? "",
-      color: animal?.color ?? "",
+      recordNumber: displayRecord,
+      name: pdf?.name ?? "",
+      species: pdf?.species ?? "",
+      breed: pdf?.breed ?? "",
+      sex: pdf?.sex ?? "",
+      age: pdf?.age ?? "",
+      color: pdf?.color ?? "",
       weightKg,
-      ownerName: animal?.ownerFullName ?? "",
-      ownerId: animal?.ownerNationalId ?? "",
-      ownerPhone: animal?.ownerPhone ?? "",
+      ownerName: pdf?.ownerName ?? "",
+      ownerId: "",
+      ownerPhone: pdf?.ownerPhone ?? "",
       drugs: forecastDrugs,
       flags: animalFlags,
     });

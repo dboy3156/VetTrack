@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
-import { resolve as pathResolve } from "path";
+import { resolve as pathResolve, dirname } from "path";
+import { fileURLToPath } from "url";
 import type { Locale, TranslationDictionary } from "./types.js";
 import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from "./types.js";
 
@@ -28,7 +29,7 @@ export function loadLocale(locale: Locale): TranslationDictionary {
     return loadLocale(DEFAULT_LOCALE);
   }
 
-  const filePath = pathResolve(__dirname, `../../locales/${locale}.json`);
+  const filePath = pathResolve(dirname(fileURLToPath(import.meta.url)), `../../locales/${locale}.json`);
   const raw = readFileSync(filePath, "utf-8");
   const dict: TranslationDictionary = JSON.parse(raw);
   cache.set(locale, dict);

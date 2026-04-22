@@ -1,11 +1,10 @@
-import type { ForecastDrugEntry, ForecastPatientEntry, ForecastResult } from "./types.js";
+import type { ForecastDrugEntry, ForecastPatientEntry, ForecastResult, FlagReason } from "./types.js";
+import { normalizeQuantityKey } from "../../../src/shared/normalizeQuantityKey.js";
 
-/** Stable key matching spec / UI: `${recordNumber}__${normalizedDrugName}`. */
-export function normalizeQuantityKey(recordNumber: string, drugName: string): string {
-  const rn = String(recordNumber).trim();
-  const dn = drugName.trim().toLowerCase().replace(/\s+/g, " ");
-  return `${rn}__${dn}`;
-}
+export { normalizeQuantityKey };
+
+/** Only these flags are cleared when technician enters a whole-unit quantity (not dose bounds). */
+const QUANTITY_RESOLVABLE_FLAGS: FlagReason[] = ["PRN_MANUAL"];
 
 function countTotalFlags(patients: ForecastPatientEntry[]): number {
   let n = 0;
@@ -38,8 +37,10 @@ export function applyManualQuantities(
       const n = Number(manual);
       if (!Number.isFinite(n) || n < 0) return { ...d };
       const qty = Math.floor(n);
-      /** Clearing warnings requires a positive quantity — 0 keeps flags for server validation */
-      const flags = n >= 1 ? ([] as typeof d.flags) : d.flags;
+      const flags =
+        qty >= 1
+          ? d.flags.filter((f) => !QUANTITY_RESOLVABLE_FLAGS.includes(f))
+          : d.flags;
       return {
         ...d,
         quantityUnits: qty,

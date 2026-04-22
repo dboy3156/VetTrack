@@ -5,7 +5,22 @@
     "allowImportingTsExtensions": false,
     "moduleResolution": "node16",
     "module": "Node16",
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["./*"],
+      "@/*": ["./src/*"],
+      "@assets/*": ["./attached_assets/*"]
+    }
   },
-  "include": ["server/**/*.ts", "lib/forecast/**/*.ts", "src/types/index.ts"]
+  "include": [
+    "server/**/*.ts",
+    "src/types/index.ts",
+    "src/shared/**/*.ts",
+    "src/lib/constants/**/*.ts",
+    "src/lib/forecast/**/*.ts"
+  ],
+  "exclude": [
+    "src/lib/forecast/approveGate.ts"
+  ]
 }

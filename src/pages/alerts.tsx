@@ -22,6 +22,7 @@ import {
   X,
   MapPin,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import type { Alert, AlertType, AlertAcknowledgment } from "@/types";
 import { toast } from "sonner";
@@ -70,10 +71,10 @@ const ALERT_CONFIG: Record<
   },
   inactive: {
     icon: Activity,
-    dotColor: "bg-slate-300",
+    dotColor: "bg-muted-foreground/45",
     label: t.alerts.types.inactive.label,
     badgeLabel: t.alerts.types.inactive.badgeLabel,
-    badgeClass: "bg-slate-50 text-slate-600 border-slate-200",
+    badgeClass: "bg-muted text-muted-foreground border-border",
     iconBg: "bg-muted",
   },
 };
@@ -186,7 +187,17 @@ export default function AlertsPage() {
         )}
 
         {isLoading ? (
-          <div className="flex flex-col gap-3">
+          <div
+            className="flex flex-col gap-3"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span className="sr-only">{t.common.loading}</span>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              {t.common.loading}
+            </p>
             {[...Array(5)].map((_, i) => (
               <SkeletonAlertCard key={i} />
             ))}

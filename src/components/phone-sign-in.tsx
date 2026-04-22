@@ -82,9 +82,9 @@ export function PhoneSignIn() {
 
   if (step === "phone") {
     return (
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm w-full">
-        <h2 className="text-base font-semibold text-gray-900 mb-1">Sign in with phone</h2>
-        <p className="text-xs text-gray-500 mb-4">
+      <div className="bg-card border border-border rounded-2xl p-6 shadow-sm w-full">
+        <h2 className="text-base font-semibold text-foreground mb-1">Sign in with phone</h2>
+        <p className="text-xs text-muted-foreground mb-4">
           Enter your phone number in international format (e.g.{" "}
           <span className="font-mono">+972501234567</span>) or Israeli local format (e.g.{" "}
           <span className="font-mono">0501234567</span>).
@@ -98,19 +98,22 @@ export function PhoneSignIn() {
               placeholder="+972501234567 or 0501234567"
               autoComplete="tel"
               required
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full border border-input rounded-xl px-4 py-3 text-sm bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:border-transparent"
             />
             {isILLocal && e164Preview && (
-              <p className="text-xs text-blue-600 mt-1">
+              <p className="text-xs text-primary mt-1">
                 Will be sent as <span className="font-mono">{e164Preview}</span>
               </p>
             )}
           </div>
           {errorMsg && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p
+              className="text-xs text-destructive bg-destructive/10 border border-destructive/25 rounded-lg px-3 py-2"
+              role="alert"
+            >
               {errorMsg}
               {errorMsg.toLowerCase().includes("not supported") && (
-                <span className="block mt-1 text-gray-600">
+                <span className="block mt-1 text-muted-foreground">
                   Israel (+972) SMS must be enabled in the Clerk Dashboard (Configure → User &amp; Authentication → Phone numbers → SMS sending → Allowed countries).
                 </span>
               )}
@@ -119,7 +122,7 @@ export function PhoneSignIn() {
           <button
             type="submit"
             disabled={loading || !phone.trim()}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
+            className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
           >
             {loading ? "Sending code…" : "Send verification code"}
           </button>
@@ -129,9 +132,9 @@ export function PhoneSignIn() {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm w-full">
-      <h2 className="text-base font-semibold text-gray-900 mb-1">Enter verification code</h2>
-      <p className="text-xs text-gray-500 mb-4">
+    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm w-full">
+      <h2 className="text-base font-semibold text-foreground mb-1">Enter verification code</h2>
+      <p className="text-xs text-muted-foreground mb-4">
         A code was sent to <span className="font-mono font-medium">{normalizePhoneE164(phone)}</span>
       </p>
       <form onSubmit={handleCodeSubmit} className="flex flex-col gap-3">
@@ -144,24 +147,27 @@ export function PhoneSignIn() {
           maxLength={6}
           autoComplete="one-time-code"
           required
-          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full border border-input rounded-xl px-4 py-3 text-sm text-center tracking-widest bg-background text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:border-transparent"
         />
         {errorMsg && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p
+            className="text-xs text-destructive bg-destructive/10 border border-destructive/25 rounded-lg px-3 py-2"
+            role="alert"
+          >
             {errorMsg}
           </p>
         )}
         <button
           type="submit"
           disabled={loading || code.length < 4}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
+          className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-semibold px-4 py-3 rounded-xl transition-colors text-sm"
         >
           {loading ? "Verifying…" : "Verify"}
         </button>
         <button
           type="button"
           onClick={() => { setStep("phone"); setCode(""); setErrorMsg(null); }}
-          className="text-xs text-gray-500 hover:text-blue-600 transition-colors underline"
+          className="text-xs text-muted-foreground hover:text-primary transition-colors underline"
         >
           Change phone number
         </button>

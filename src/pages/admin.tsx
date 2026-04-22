@@ -55,7 +55,12 @@ import {
   RotateCcw,
   Wrench,
   CalendarDays,
+  Settings,
+  Mail,
+  FlaskConical,
+  X,
 } from "lucide-react";
+import type { DrugFormularyEntry, CreateDrugFormularyRequest, PharmacyForecastExclusion } from "@/types";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -74,7 +79,7 @@ export default function AdminPage() {
   const { isAdmin, userId } = useAuth();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<
-    "folders" | "users" | "pending" | "support" | "audit-logs" | "deleted"
+    "folders" | "users" | "pending" | "support" | "audit-logs" | "deleted" | "settings" | "formulary"
   >("folders");
 
   const { data: supportUnresolved } = useQuery({
@@ -175,7 +180,7 @@ export default function AdminPage() {
         </Card>
 
         {/* Tab bar */}
-        <div className="flex gap-2 border-b pb-0 overflow-x-auto">
+        <div className="flex gap-2 border-b border-border pb-0 overflow-x-auto">
           <button
             onClick={() => setActiveTab("folders")}
             data-testid="admin-tab-folders"
@@ -274,6 +279,32 @@ export default function AdminPage() {
             <Trash2 className="w-4 h-4" />
             Deleted
           </button>
+          <button
+            onClick={() => setActiveTab("formulary")}
+            data-testid="admin-tab-formulary"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+              activeTab === "formulary"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <FlaskConical className="w-4 h-4" />
+            Formulary
+          </button>
+          <button
+            onClick={() => setActiveTab("settings")}
+            data-testid="admin-tab-settings"
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+              activeTab === "settings"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </button>
         </div>
 
         {activeTab === "folders" && <FoldersSection />}
@@ -282,6 +313,8 @@ export default function AdminPage() {
         {activeTab === "support" && <SupportSection />}
         {activeTab === "audit-logs" && <AuditLogsSection />}
         {activeTab === "deleted" && <DeletedItemsSection />}
+        {activeTab === "formulary" && <FormularySection />}
+        {activeTab === "settings" && <ClinicSettingsSection />}
       </div>
     </Layout>
   );
@@ -547,7 +580,7 @@ function PendingUsersSection() {
               <div
                 key={user.id}
                 data-testid={`pending-user-row-${user.id}`}
-                className="flex items-center justify-between p-3 bg-background rounded-xl border border-border/60 gap-3"
+                className="flex items-center justify-between p-3 bg-background rounded-xl border border-border gap-3 hover:bg-muted/50 transition-colors"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">
@@ -625,11 +658,11 @@ function PendingUsersSection() {
 type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "student";
 
 const ROLE_BADGE_STYLES: Record<UserRole, string> = {
-  admin: "bg-purple-100 text-purple-800 border-purple-200",
-  vet: "bg-blue-100 text-blue-800 border-blue-200",
-  technician: "bg-amber-100 text-amber-800 border-amber-200",
-  senior_technician: "bg-teal-100 text-teal-800 border-teal-200",
-  student: "bg-slate-100 text-slate-700 border-slate-200",
+  admin: "bg-primary/10 text-primary border border-primary/30",
+  vet: "bg-secondary text-secondary-foreground border border-border",
+  technician: "bg-accent text-accent-foreground border border-border",
+  senior_technician: "bg-status-ok/10 text-status-ok border border-status-ok/25",
+  student: "bg-muted text-muted-foreground border border-border",
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -643,7 +676,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 function RoleBadge({ role }: { role: string }) {
   const r = role as UserRole;
   const style =
-    ROLE_BADGE_STYLES[r] ?? "bg-slate-100 text-slate-700 border-slate-200";
+    ROLE_BADGE_STYLES[r] ?? "bg-muted text-muted-foreground border border-border";
   const label = ROLE_LABELS[r] ?? role;
   return (
     <span
@@ -849,7 +882,7 @@ function UsersSection() {
               <div
                 key={user.id}
                 data-testid={`user-row-${user.id}`}
-                className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border gap-3"
+                className="flex items-start justify-between p-3 bg-card rounded-xl border border-border gap-3 hover:bg-muted/50 transition-colors"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -858,7 +891,7 @@ function UsersSection() {
                     </p>
                     <RoleBadge role={user.role} />
                     {user.secondaryRole && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border bg-slate-100 text-slate-600 border-slate-300">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border border-border bg-muted text-muted-foreground">
                         +{user.secondaryRole}
                       </span>
                     )}
@@ -1239,7 +1272,7 @@ function DeletedItemsSection() {
                 <div
                   key={item.id}
                   data-testid={`deleted-equipment-row-${item.id}`}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3"
+                  className="flex items-center justify-between p-3 bg-card rounded-xl border border-border gap-3 hover:bg-muted/50 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{item.name}</p>
@@ -1297,7 +1330,7 @@ function DeletedItemsSection() {
                 <div
                   key={user.id}
                   data-testid={`deleted-user-row-${user.id}`}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border gap-3"
+                  className="flex items-center justify-between p-3 bg-card rounded-xl border border-border gap-3 hover:bg-muted/50 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">
@@ -1335,15 +1368,15 @@ function DeletedItemsSection() {
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
-  low: "bg-blue-50 text-blue-700 border-blue-200",
-  medium: "bg-amber-50 text-amber-700 border-amber-200",
-  high: "bg-red-50 text-red-700 border-red-200",
+  low: "bg-primary/5 text-primary border border-primary/25",
+  medium: "bg-muted/80 text-foreground border border-amber-500/30",
+  high: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  open: "bg-red-50 text-red-700 border-red-200",
-  in_progress: "bg-amber-50 text-amber-700 border-amber-200",
-  resolved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  open: "bg-destructive/10 text-destructive border border-destructive/20",
+  in_progress: "bg-muted/80 text-foreground border border-amber-500/30",
+  resolved: "bg-status-ok/10 text-status-ok border border-status-ok/25",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -1429,7 +1462,7 @@ function SupportSection() {
                 key={ticket.id}
                 onClick={() => openDetail(ticket)}
                 data-testid={`ticket-row-${ticket.id}`}
-                className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border hover:bg-muted/80 transition-colors text-left w-full gap-3"
+                className="flex items-start justify-between p-3 bg-muted/50 rounded-xl border border-border hover:bg-muted/50 transition-colors text-left w-full gap-3"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{ticket.title}</p>
@@ -1577,7 +1610,7 @@ function SupportSection() {
                 </div>
               )}
 
-              <div className="border-t pt-4 flex flex-col gap-3">
+              <div className="border-t border-border pt-4 flex flex-col gap-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Admin Actions
                 </p>
@@ -1654,4 +1687,577 @@ function SupportSection() {
 
 function AuditLogsSection() {
   return <SharedAuditLogsPanel compact />;
+}
+
+const DOSE_UNITS = ["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"] as const;
+const UNIT_TYPES = ["vial", "ampule", "tablet", "capsule", "bag"] as const;
+const ROUTES = ["PO", "IV", "IM", "SC", "IN", "TOP"] as const;
+/** Radix Select rejects empty string item values; map this to null in form state. */
+const FORMULARY_SELECT_NONE = "__none__" as const;
+
+interface FormularyFormState {
+  name: string;
+  genericName: string;
+  concentrationMgMl: string;
+  standardDose: string;
+  minDose: string;
+  maxDose: string;
+  doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
+  defaultRoute: string | null;
+  unitType: "vial" | "ampule" | "tablet" | "capsule" | "bag" | null;
+  unitVolumeMl: string;
+  category: string | null;
+  dosageNotes: string | null;
+}
+
+const emptyForm = (): FormularyFormState => ({
+  name: "",
+  genericName: "",
+  concentrationMgMl: "",
+  standardDose: "",
+  minDose: "",
+  maxDose: "",
+  doseUnit: "mg_per_kg",
+  defaultRoute: null,
+  unitType: null,
+  unitVolumeMl: "",
+  category: null,
+  dosageNotes: null,
+});
+
+function FormularySection() {
+  const queryClient = useQueryClient();
+  const [editEntry, setEditEntry] = useState<DrugFormularyEntry | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(emptyForm());
+  const [search, setSearch] = useState("");
+
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ["/api/formulary"],
+    queryFn: api.formulary.list,
+  });
+
+  const { data: exclusionData, isLoading: excLoading } = useQuery({
+    queryKey: ["/api/forecast/clinic/pharmacy-forecast-exclusions"],
+    queryFn: api.forecast.listExclusions,
+  });
+
+  const exclusions = exclusionData?.exclusions ?? [];
+
+  const [newExclusion, setNewExclusion] = useState("");
+  const [newExclusionNote, setNewExclusionNote] = useState("");
+
+  const upsertMut = useMutation({
+    mutationFn: (data: CreateDrugFormularyRequest) =>
+      editEntry ? api.formulary.update(editEntry.id, data) : api.formulary.upsert(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/formulary"] });
+      setEditEntry(null);
+      setShowCreate(false);
+      setForm(emptyForm());
+      toast.success(editEntry ? "Entry updated" : "Entry added");
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to save"),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.formulary.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/formulary"] });
+      toast.success("Entry deleted");
+    },
+    onError: () => toast.error("Failed to delete"),
+  });
+
+  const addExclusionMut = useMutation({
+    mutationFn: () => {
+      const note = newExclusionNote.trim();
+      return api.forecast.addExclusion({
+        matchSubstring: newExclusion.trim(),
+        ...(note ? { note } : {}),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forecast/clinic/pharmacy-forecast-exclusions"] });
+      setNewExclusion("");
+      setNewExclusionNote("");
+      toast.success("Exclusion added");
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to add exclusion"),
+  });
+
+  const removeExclusionMut = useMutation({
+    mutationFn: (id: string) => api.forecast.removeExclusion(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forecast/clinic/pharmacy-forecast-exclusions"] });
+      toast.success("Exclusion removed");
+    },
+    onError: () => toast.error("Failed to remove exclusion"),
+  });
+
+  function openCreate() {
+    setEditEntry(null);
+    setForm(emptyForm());
+    setShowCreate(true);
+  }
+
+  function openEdit(entry: DrugFormularyEntry) {
+    setEditEntry(entry);
+    setForm({
+      name: entry.name,
+      genericName: entry.genericName,
+      concentrationMgMl: String(entry.concentrationMgMl),
+      standardDose: String(entry.standardDose),
+      minDose: entry.minDose != null ? String(entry.minDose) : "",
+      maxDose: entry.maxDose != null ? String(entry.maxDose) : "",
+      doseUnit: entry.doseUnit,
+      defaultRoute: entry.defaultRoute ?? null,
+      unitType: entry.unitType ?? null,
+      unitVolumeMl: entry.unitVolumeMl != null ? String(entry.unitVolumeMl) : "",
+      category: entry.category ?? null,
+      dosageNotes: entry.dosageNotes ?? null,
+    });
+    setShowCreate(true);
+  }
+
+  function handleSubmit() {
+    const conc = parseFloat(form.concentrationMgMl);
+    const std = parseFloat(form.standardDose);
+    if (!form.name.trim() || !form.genericName.trim() || !Number.isFinite(conc) || !Number.isFinite(std)) {
+      toast.error("Name, generic name, concentration, and standard dose are required");
+      return;
+    }
+    const min = form.minDose ? parseFloat(form.minDose) : null;
+    const max = form.maxDose ? parseFloat(form.maxDose) : null;
+    const vol = form.unitVolumeMl ? parseFloat(form.unitVolumeMl) : null;
+    upsertMut.mutate({
+      name: form.name.trim(),
+      genericName: form.genericName.trim(),
+      concentrationMgMl: conc,
+      standardDose: std,
+      minDose: min && Number.isFinite(min) ? min : null,
+      maxDose: max && Number.isFinite(max) ? max : null,
+      doseUnit: form.doseUnit,
+      defaultRoute: form.defaultRoute || null,
+      unitType: form.unitType || null,
+      unitVolumeMl: vol && Number.isFinite(vol) ? vol : null,
+      category: form.category || null,
+      dosageNotes: form.dosageNotes || null,
+    });
+  }
+
+  const filtered = useMemo(
+    () =>
+      entries.filter(
+        (e) =>
+          !search ||
+          e.name.toLowerCase().includes(search.toLowerCase()) ||
+          e.genericName.toLowerCase().includes(search.toLowerCase()),
+      ),
+    [entries, search],
+  );
+
+  const f = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Drug Formulary */}
+      <Card className="bg-card border-border/60 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-muted-foreground" />
+            Drug Formulary
+          </CardTitle>
+          <Button size="sm" onClick={openCreate} data-testid="btn-add-formulary">
+            <Plus className="w-4 h-4 mr-1" />
+            Add Drug
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Input
+            placeholder="Search drugs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-xs h-8 text-sm"
+          />
+          {isLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No entries found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="text-left py-1.5 pr-3 font-medium">Name</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Generic</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Conc (mg/ml)</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Std Dose</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Unit</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Route</th>
+                    <th className="text-left py-1.5 pr-3 font-medium">Form</th>
+                    <th className="sticky right-0 bg-card py-1.5 pl-2 pr-0 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((entry) => (
+                    <tr key={entry.id} className="border-b border-border/50 hover:bg-muted/30">
+                      <td className="py-1.5 pr-3 font-medium">{entry.name}</td>
+                      <td className="py-1.5 pr-3 text-muted-foreground">{entry.genericName}</td>
+                      <td className="py-1.5 pr-3">{entry.concentrationMgMl}</td>
+                      <td className="py-1.5 pr-3">
+                        {entry.standardDose} {entry.doseUnit.replace(/_/g, " ")}
+                      </td>
+                      <td className="py-1.5 pr-3">{entry.unitVolumeMl != null ? `${entry.unitVolumeMl} ml` : "—"}</td>
+                      <td className="py-1.5 pr-3">{entry.defaultRoute ?? "—"}</td>
+                      <td className="py-1.5 pr-3">{entry.unitType ?? "—"}</td>
+                      <td className="py-1.5 pl-2 pr-2 sticky right-0 bg-card border-l border-border/40">
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => openEdit(entry)}
+                            title="Edit"
+                            aria-label={`Edit ${entry.name}`}
+                            data-testid={`btn-edit-formulary-${entry.id}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={deleteMut.isPending}
+                                title="Delete"
+                                aria-label={`Delete ${entry.name}`}
+                                data-testid={`btn-delete-formulary-${entry.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete "{entry.name}"?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will remove the drug from your clinic's formulary. You can always re-add it later.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => deleteMut.mutate(entry.id)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pharmacy Forecast Exclusions */}
+      <Card className="bg-card border-border/60 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <X className="w-4 h-4 text-muted-foreground" />
+            Forecast Exclusions
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">
+            Medication lines containing any of these substrings (case-insensitive) are automatically dropped from pharmacy forecasts.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="e.g. fluids"
+              value={newExclusion}
+              onChange={(e) => setNewExclusion(e.target.value)}
+              className="h-8 text-sm max-w-[180px]"
+              data-testid="exclusion-substring-input"
+            />
+            <Input
+              placeholder="Note (optional)"
+              value={newExclusionNote}
+              onChange={(e) => setNewExclusionNote(e.target.value)}
+              className="h-8 text-sm max-w-[200px]"
+            />
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={() => addExclusionMut.mutate()}
+              disabled={!newExclusion.trim() || addExclusionMut.isPending}
+              data-testid="btn-add-exclusion"
+            >
+              {addExclusionMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+            </Button>
+          </div>
+          {excLoading ? (
+            <Skeleton className="h-12 w-full" />
+          ) : exclusions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No exclusions set.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {exclusions.map((ex: PharmacyForecastExclusion) => (
+                <div key={ex.id} className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-xs">
+                  <div className="flex flex-col">
+                    <span className="font-mono font-medium">{ex.matchSubstring}</span>
+                    {ex.note && <span className="text-muted-foreground">{ex.note}</span>}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                    onClick={() => removeExclusionMut.mutate(ex.id)}
+                    disabled={removeExclusionMut.isPending}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Drug Form Dialog */}
+      <Dialog open={showCreate} onOpenChange={(o) => { if (!o) { setShowCreate(false); setEditEntry(null); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editEntry ? "Edit Drug" : "Add Drug"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="col-span-2 flex flex-col gap-1">
+              <Label className="text-xs">Brand Name *</Label>
+              <Input value={form.name} onChange={f("name")} placeholder="e.g. Propofol 1%" className="h-8 text-sm" />
+            </div>
+            <div className="col-span-2 flex flex-col gap-1">
+              <Label className="text-xs">Generic Name *</Label>
+              <Input value={form.genericName} onChange={f("genericName")} placeholder="e.g. Propofol" className="h-8 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Concentration (mg/ml) *</Label>
+              <Input type="number" value={form.concentrationMgMl} onChange={f("concentrationMgMl")} className="h-8 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Standard Dose *</Label>
+              <Input type="number" value={form.standardDose} onChange={f("standardDose")} className="h-8 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Min Dose</Label>
+              <Input type="number" value={form.minDose} onChange={f("minDose")} className="h-8 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Max Dose</Label>
+              <Input type="number" value={form.maxDose} onChange={f("maxDose")} className="h-8 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Dose Unit</Label>
+              <Select
+                value={form.doseUnit}
+                onValueChange={(v) => setForm((p) => ({ ...p, doseUnit: v as typeof form.doseUnit }))}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DOSE_UNITS.map((u) => (
+                    <SelectItem key={u} value={u}>{u.replace(/_/g, " ")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Route (PO/IV/IM…)</Label>
+              <Select
+                value={form.defaultRoute ?? FORMULARY_SELECT_NONE}
+                onValueChange={(v) =>
+                  setForm((p) => ({
+                    ...p,
+                    defaultRoute: v === FORMULARY_SELECT_NONE ? null : v,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select route" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FORMULARY_SELECT_NONE}>— None —</SelectItem>
+                  {ROUTES.map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Form (vial/ampule…)</Label>
+              <Select
+                value={form.unitType ?? FORMULARY_SELECT_NONE}
+                onValueChange={(v) =>
+                  setForm((p) => ({
+                    ...p,
+                    unitType: v === FORMULARY_SELECT_NONE ? null : (v as NonNullable<FormularyFormState["unitType"]>),
+                  }))
+                }
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select form" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FORMULARY_SELECT_NONE}>— None —</SelectItem>
+                  {UNIT_TYPES.map((u) => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Volume per unit (ml)</Label>
+              <Input type="number" value={form.unitVolumeMl} onChange={f("unitVolumeMl")} placeholder="e.g. 20" className="h-8 text-sm" />
+            </div>
+            <div className="col-span-2 flex flex-col gap-1">
+              <Label className="text-xs">Category</Label>
+              <Input value={form.category ?? ""} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value || null }))} className="h-8 text-sm" />
+            </div>
+            <div className="col-span-2 flex flex-col gap-1">
+              <Label className="text-xs">Dosage Notes</Label>
+              <Textarea
+                value={form.dosageNotes ?? ""}
+                onChange={(e) => setForm((p) => ({ ...p, dosageNotes: e.target.value || null }))}
+                rows={2}
+                className="text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setShowCreate(false); setEditEntry(null); }}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={upsertMut.isPending} data-testid="btn-save-formulary">
+              {upsertMut.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              {editEntry ? "Update" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ClinicSettingsSection() {
+  const queryClient = useQueryClient();
+  const [emailInput, setEmailInput] = useState("");
+  const [editingEmail, setEditingEmail] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/forecast/clinic/pharmacy-email"],
+    queryFn: api.forecast.getPharmacyEmail,
+  });
+
+  const currentEmail = data?.pharmacyEmail ?? null;
+
+  const saveMut = useMutation({
+    mutationFn: (email: string | null) => api.forecast.setPharmacyEmail(email),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["/api/forecast/clinic/pharmacy-email"], result);
+      setEditingEmail(false);
+      toast.success("Pharmacy email saved");
+    },
+    onError: () => toast.error("Failed to save pharmacy email"),
+  });
+
+  function handleEdit() {
+    setEmailInput(currentEmail ?? "");
+    setEditingEmail(true);
+  }
+
+  function handleSave() {
+    const trimmed = emailInput.trim();
+    saveMut.mutate(trimmed || null);
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="bg-card border-border/60 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Mail className="w-4 h-4 text-muted-foreground" />
+            Pharmacy Email
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">
+            Pharmacy orders will be addressed to this email. Required to approve
+            forecasts.
+          </p>
+          {isLoading ? (
+            <Skeleton className="h-10 w-full max-w-sm" />
+          ) : editingEmail ? (
+            <div className="flex items-center gap-2 max-w-sm">
+              <Input
+                type="email"
+                placeholder="pharmacy@example.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSave()}
+                data-testid="pharmacy-email-input"
+                autoFocus
+              />
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saveMut.isPending}
+                data-testid="btn-save-pharmacy-email"
+              >
+                {saveMut.isPending && (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                )}
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditingEmail(false)}
+                disabled={saveMut.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span
+                className={
+                  currentEmail
+                    ? "text-sm font-medium"
+                    : "text-sm text-muted-foreground italic"
+                }
+                data-testid="pharmacy-email-display"
+              >
+                {currentEmail ?? "Not set"}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEdit}
+                data-testid="btn-edit-pharmacy-email"
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1" />
+                {currentEmail ? "Edit" : "Set email"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
