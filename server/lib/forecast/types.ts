@@ -11,7 +11,11 @@ export type FlagReason =
   | "PATIENT_UNKNOWN"
   | "LOW_CONFIDENCE"
   | "LINE_AMBIGUOUS"
-  | "FLUID_VS_DRUG_UNCLEAR";
+  | "FLUID_VS_DRUG_UNCLEAR"
+  | "WEIGHT_UNKNOWN"
+  | "WEIGHT_UNCERTAIN"
+  | "DUPLICATE_LINE"
+  | "ALL_DRUGS_EXCLUDED";
 
 /** Layer 1 output */
 export interface RawPatientBlock {
@@ -72,6 +76,8 @@ export interface ForecastPatientEntry {
   species: string;
   breed: string;
   sex: string;
+  /** Animal age from flowsheet (e.g. "4 years") when present. */
+  age: string;
   color: string;
   weightKg: number;
   ownerName: string;
@@ -94,10 +100,37 @@ export interface ApprovePayload {
   parseId: string;
   /** `${recordNumber}__${normalizedDrugName}` → resolved quantity */
   manualQuantities: Record<string, number>;
+  /** Keys for lines where pharmacist acknowledged DOSE_HIGH / DOSE_LOW. */
+  pharmacistDoseAcks?: string[];
+  /** normalizeQuantityKey(recordNumber, drugName) → trace for email display */
+  auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
+  /** recordNumber → corrected weight kg */
+  patientWeightOverrides?: Record<string, number>;
 }
 
 export interface ApproveResult {
   orderId: string;
   deliveryMethod: "smtp" | "mailto";
   mailtoUrl?: string;
+}
+
+export interface DrugAuditEntry {
+  forecastedQty: number | null;
+  onHandQty: number;
+  orderQty: number;
+  confirmed: boolean;
+}
+
+export interface PatientAuditState {
+  recordNumber: string;
+  warningAcknowledgements: Record<string, boolean>;
+  weightOverride: number | null;
+  patientNameOverride: string | null;
+  /** keyed by drug.drugName */
+  drugs: Record<string, DrugAuditEntry>;
+}
+
+export interface AuditState {
+  forecastRunId: string;
+  patients: Record<string, PatientAuditState>;
 }

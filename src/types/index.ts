@@ -854,7 +854,11 @@ export type ForecastFlagReason =
   | "PATIENT_UNKNOWN"
   | "LOW_CONFIDENCE"
   | "LINE_AMBIGUOUS"
-  | "FLUID_VS_DRUG_UNCLEAR";
+  | "FLUID_VS_DRUG_UNCLEAR"
+  | "WEIGHT_UNKNOWN"
+  | "WEIGHT_UNCERTAIN"
+  | "DUPLICATE_LINE"
+  | "ALL_DRUGS_EXCLUDED";
 
 export interface ForecastDrugEntry {
   drugName: string;
@@ -877,6 +881,7 @@ export interface ForecastPatientEntry {
   species: string;
   breed: string;
   sex: string;
+  age: string;
   color: string;
   weightKg: number;
   ownerName: string;
@@ -903,4 +908,33 @@ export interface ForecastApproveResponse {
   mailtoUrl?: string;
   /** True when the mailto body was truncated to keep the URL under client limits. */
   mailtoBodyTruncated?: boolean;
+}
+
+export interface DrugAuditEntry {
+  forecastedQty: number | null;
+  onHandQty: number;
+  orderQty: number;
+  confirmed: boolean;
+}
+
+export interface PatientAuditState {
+  recordNumber: string;
+  warningAcknowledgements: Record<string, boolean>;
+  weightOverride: number | null;
+  patientNameOverride: string | null;
+  /** keyed by drug.drugName */
+  drugs: Record<string, DrugAuditEntry>;
+}
+
+export interface AuditState {
+  forecastRunId: string;
+  patients: Record<string, PatientAuditState>;
+}
+
+export interface ForecastApprovePayload {
+  parseId: string;
+  manualQuantities: Record<string, number>;
+  pharmacistDoseAcks: string[];
+  auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
+  patientWeightOverrides?: Record<string, number>;
 }
