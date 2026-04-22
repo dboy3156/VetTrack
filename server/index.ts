@@ -3,7 +3,10 @@ process.on("unhandledRejection", (r) =>
   console.error("💥 UNHANDLED PROMISE:", r),
 );
 
-import "dotenv/config";
+// MUST be first — populates process.env from .env.local + .env before any
+// other module is evaluated (e.g. ./lib/envValidation, ./db which read
+// DATABASE_URL / SMTP_* at import time).
+import "./lib/env-bootstrap.js";
 
 import { validateEnv } from "./lib/envValidation.js";
 validateEnv();
@@ -16,6 +19,7 @@ import xss from "xss";
 import { clerkMiddleware } from "@clerk/express";
 import { readFileSync } from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { runMigrations } from "./migrate.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
@@ -28,7 +32,7 @@ import { releaseStaleMedicationTasks } from "./services/medication-tasks.service
 import healthRoutes from "./routes/health.js";
 import { resolveAuthModeFromEnv, describeAuthMode } from "./lib/auth-mode.js";
 
-const { version: appVersion } = JSON.parse(readFileSync(path.join(__dirname, "../package.json"), "utf-8")) as { version?: string };
+const { version: appVersion } = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf-8")) as { version?: string };
 const isProduction = process.env.NODE_ENV === "production";
 
 const app = express();
@@ -202,18 +206,18 @@ if (process.env.NODE_ENV === "production") {
   // Vite content-hashed assets: safe to cache indefinitely (new content = new URL).
   app.use(
     "/assets",
-    express.static(path.join(__dirname, "../dist/public/assets"), {
+    express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/assets"), {
       maxAge: "1y",
       immutable: true,
     })
   );
   // Everything else (icons, sw.js, manifest): short cache.
-  app.use(express.static(path.join(__dirname, "../dist/public"), { maxAge: 0 }));
+  app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public"), { maxAge: 0 }));
   // SPA shell: never cache — browsers must always get the latest index.html
   // so they pick up new content-hashed asset filenames after a deployment.
   app.get("*", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    res.sendFile(path.join(__dirname, "../dist/public/index.html"));
+    res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/index.html"));
   });
 }
 

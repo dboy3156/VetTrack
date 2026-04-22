@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-import { getPostgresqlConnectionString } from "./lib/postgresql";
+import { getPostgresqlConnectionString } from "./lib/postgresql.js";
 import {
   pgTable,
   pgEnum,
@@ -19,9 +19,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// Managed Postgres providers (Neon, Supabase, Heroku, Railway public proxy, …)
+// require TLS and signal it via `sslmode=require` in the URL. Enable SSL when
+// either the URL asks for it or we're in production.
+const DB_URL = getPostgresqlConnectionString();
+const URL_REQUIRES_SSL = /[?&]sslmode=(require|verify-ca|verify-full)\b/i.test(DB_URL);
+
 export const pool = new Pool({
-  connectionString: getPostgresqlConnectionString(),
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  connectionString: DB_URL,
+  ssl:
+    process.env.NODE_ENV === "production" || URL_REQUIRES_SSL
+      ? { rejectUnauthorized: false }
+      : false,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -129,7 +138,7 @@ export const rooms = pgTable("vt_rooms", {
 export const occupancySourceEnum = pgEnum("vt_occupancy_source", ["manual"]);
 export const billingChargeKindEnum = pgEnum("vt_billing_charge_kind", ["per_scan_hour", "per_unit"]);
 export const billingLedgerItemTypeEnum = pgEnum("vt_billing_ledger_item_type", ["EQUIPMENT", "CONSUMABLE"]);
-export const billingLedgerStatusEnum = pgEnum("vt_billing_ledger_status", ["pending", "synced"]);
+export const billingLedgerStatusEnum = pgEnum("vt_billing_ledger_status", ["pending", "synced", "voided"]);
 export const usageSessionStatusEnum = pgEnum("vt_usage_session_status", ["open", "closed"]);
 export const inventoryLogTypeEnum = pgEnum("vt_inventory_log_type", ["restock", "blind_audit", "adjustment"]);
 
@@ -204,10 +213,17 @@ export const pharmacyForecastParses = pgTable(
     createdBy: text("created_by").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     result: jsonb("result").notNull(),
+    /** SHA-256 hex of uploaded PDF or pasted text — idempotent re-parse within TTL. */
+    contentHash: text("content_hash"),
   },
   (table) => ({
     clinicIdx: index("vt_pharmacy_forecast_parses_clinic_idx").on(table.clinicId),
     expiresIdx: index("vt_pharmacy_forecast_parses_expires_idx").on(table.expiresAt),
+    idemIdx: index("vt_pharmacy_forecast_parses_idem_idx").on(
+      table.clinicId,
+      table.createdBy,
+      table.contentHash,
+    ),
   }),
 );
 
