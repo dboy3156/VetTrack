@@ -1,6 +1,7 @@
 import { pool } from "./db.js";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 const MIGRATION_ADVISORY_LOCK_ID = 123456;
 
 async function ensureMigrationsTable(): Promise<void> {
@@ -29,7 +30,7 @@ export async function runMigrations(): Promise<void> {
     await ensureMigrationsTable();
     const applied = await getAppliedMigrations();
 
-    const migrationsDir = path.join(__dirname, "../migrations");
+    const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../migrations");
     if (!fs.existsSync(migrationsDir)) {
       console.log("No migrations directory found, skipping.");
       return;
