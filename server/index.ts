@@ -211,7 +211,20 @@ if (process.env.NODE_ENV === "production") {
       immutable: true,
     })
   );
-  // Everything else (icons, sw.js, manifest): short cache.
+  // Service worker: MUST never be cached by browsers or CDNs. If an edge
+  // (Cloudflare / Fastly) or browser HTTP cache pins an old /sw.js, clients
+  // get stuck re-installing the stale worker on every load. The dedicated
+  // route below wins over the static middleware and the SPA catch-all, and
+  // handles both `/sw.js` and `/sw.js?v=<version>` cache-busted URLs.
+  app.get("/sw.js", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    res.setHeader("Content-Type", "application/javascript; charset=UTF-8");
+    res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/sw.js"));
+  });
+  // Everything else (icons, manifest): short cache.
   app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public"), { maxAge: 0 }));
   // SPA shell: never cache — browsers must always get the latest index.html
   // so they pick up new content-hashed asset filenames after a deployment.
