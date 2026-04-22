@@ -1180,9 +1180,13 @@ export const api = {
     approve: (body: {
       parseId: string;
       manualQuantities: Record<string, number>;
+      pharmacistDoseAcks?: string[];
+      auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
+      patientWeightOverrides?: Record<string, number>;
     }) =>
       request<ForecastApproveResponse>("/api/forecast/approve", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
     getPharmacyEmail: () =>
