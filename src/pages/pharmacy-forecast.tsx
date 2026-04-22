@@ -82,7 +82,6 @@ const PATIENT_WARNING_FLAGS = [
   "WEIGHT_UNCERTAIN",
   "ALL_DRUGS_EXCLUDED",
 ] as const;
-type PatientWarningFlag = (typeof PATIENT_WARNING_FLAGS)[number];
 
 function initAuditState(parseId: string, result: ForecastResult): AuditState {
   const patients: Record<string, PatientAuditState> = {};
@@ -764,12 +763,8 @@ export default function PharmacyForecastPage() {
                                     }
                                   }
                                   setManualQty(newQty);
-                                  // If every patient is complete, open email tab
-                                  const allDone = forecastResult!.patients.every((pp) => {
-                                    const a = auditState!.patients[pp.recordNumber];
-                                    return a != null && isPatientAuditComplete(a, pp);
-                                  });
-                                  if (allDone) setActiveTab("email");
+                                  // If every patient is now complete, open email tab
+                                  if (auditComplete) setActiveTab("email");
                                 }}
                               >
                                 {t.pharmacyForecast.auditGenerateEmail}
