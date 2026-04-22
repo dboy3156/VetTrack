@@ -1181,6 +1181,8 @@ export const api = {
       parseId: string;
       manualQuantities: Record<string, number>;
       pharmacistDoseAcks?: string[];
+      patientFlagAcks?: string[];
+      confirmedDrugKeys?: string[];
       auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
       patientWeightOverrides?: Record<string, number>;
     }) =>
@@ -1196,5 +1198,14 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ pharmacyEmail }),
       }),
+    listExclusions: () =>
+      request<{ exclusions: import("@/types").PharmacyForecastExclusion[] }>("/api/forecast/clinic/pharmacy-forecast-exclusions"),
+    addExclusion: (data: { matchSubstring: string; note?: string | null }) =>
+      request<{ exclusion: import("@/types").PharmacyForecastExclusion }>("/api/forecast/clinic/pharmacy-forecast-exclusions", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    removeExclusion: (id: string) =>
+      request<void>(`/api/forecast/clinic/pharmacy-forecast-exclusions/${id}`, { method: "DELETE" }),
   },
 };

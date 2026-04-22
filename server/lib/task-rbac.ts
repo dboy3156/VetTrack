@@ -73,7 +73,6 @@ export function canPerformMedicationTaskAction(
   if (role === "vet") {
     return (
       action === "med.read" ||
-      action === "med.task.create" ||
       action === "med.task.cancel" ||
       action === "med.dose.edit" ||
       action === "med.start" ||

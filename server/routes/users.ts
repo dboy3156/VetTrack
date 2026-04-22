@@ -143,6 +143,7 @@ router.get("/me", requireAuth, async (req, res) => {
       resolvedAt: resolved.resolvedAt.toISOString(),
     });
   } catch (err) {
+    console.error("[users:me] resolveCurrentRole failed", err);
     res.status(500).json(
       apiError({
         code: "INTERNAL_ERROR",

@@ -10,7 +10,7 @@
  * - Today cache + BullMQ share the same Redis deployment/connection strategy.
  * - At higher scale, split queue and cache workloads to reduce contention.
  */
-import Redis, { type RedisOptions } from "ioredis";
+import { Redis, type RedisOptions } from "ioredis";
 import { isCircuitOpen, recordFailure, recordSuccess } from "./circuit-breaker.js";
 
 let shared: Redis | null = null;

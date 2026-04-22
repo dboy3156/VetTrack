@@ -345,6 +345,8 @@ export interface DrugFormularyEntry {
   maxDose?: number | null;
   doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
   defaultRoute?: string | null;
+  unitType?: "vial" | "ampule" | "tablet" | "capsule" | "bag" | null;
+  unitVolumeMl?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -362,6 +364,16 @@ export interface CreateDrugFormularyRequest {
   maxDose?: number | null;
   doseUnit: "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet";
   defaultRoute?: string | null;
+  unitType?: "vial" | "ampule" | "tablet" | "capsule" | "bag" | null;
+  unitVolumeMl?: number | null;
+}
+
+export interface PharmacyForecastExclusion {
+  id: string;
+  clinicId: string;
+  matchSubstring: string;
+  note?: string | null;
+  createdAt: string;
 }
 
 /** GET /api/tasks/dashboard — single payload for Daily Recall UI. */

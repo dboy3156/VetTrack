@@ -1236,6 +1236,7 @@
     "approveGateNoDrugLines": "No medications to order — check parse input or exclusion rules",
     "approveCannotShort": "Cannot approve yet",
     "emailPreviewSummary": "ICU · {patientCount} patients · {hours}h",
+    "emailPreviewLayoutNote": "Structured preview of final order quantities. The message opened in your mail app includes full pharmacy formatting.",
     "mailtoTruncatedWarning": "The mail link was shortened for length; the full order remains saved in VetTrack.",
     "approveBlocked": "Resolve {n} quantity fields before approving",
     "chipDrugs": "Drugs: {count}",

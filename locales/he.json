@@ -1237,6 +1237,7 @@
     "approveGateNoDrugLines": "אין תרופות להזמנה — בדקו את הקלט או כללי הסינון",
     "approveCannotShort": "לא ניתן לאשר עדיין",
     "emailPreviewSummary": "ICU · {patientCount} מטופלים · {hours} ש׳",
+    "emailPreviewLayoutNote": "תצוגה מסודרת של כמויות סופיות. במייל שנפתח תופיע הודעה מלאה בפורמט למרקחה.",
     "mailtoTruncatedWarning": "קישור המייל קוצר בגלל אורך; ההזמנה המלאה נשמרת ב-VetTrack.",
     "approveBlocked": "פתור {n} שדות כמות לפני האישור",
     "chipDrugs": "תרופות: {count}",

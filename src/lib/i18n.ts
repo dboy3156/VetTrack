@@ -278,6 +278,11 @@ const translations = {
     greeting: (name: string) => tr(d.homePage.greeting, { name }),
   },
 
+  landingPage: {
+    ...d.landingPage,
+    howStepLabel: (stepNum: string) => tr(d.landingPage.howStepLabel, { stepNum }),
+  },
+
   helpPage: d.helpPage,
 
   roomRadarPage: {

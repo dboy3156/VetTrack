@@ -21,6 +21,8 @@ const createOrUpsertFormularySchema = z.object({
   maxDose: z.number().finite().positive().optional().nullable(),
   doseUnit: z.enum(["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"]),
   defaultRoute: z.string().trim().max(100).optional().nullable(),
+  unitType: z.enum(["vial", "ampule", "tablet", "capsule", "bag"]).optional().nullable(),
+  unitVolumeMl: z.number().finite().positive().optional().nullable(),
 });
 
 function resolveRequestId(
@@ -61,6 +63,8 @@ function toResponseRow(row: typeof drugFormulary.$inferSelect) {
     maxDose: row.maxDose != null ? Number(row.maxDose) : null,
     doseUnit: row.doseUnit as "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet",
     defaultRoute: row.defaultRoute ?? null,
+    unitType: row.unitType ?? null,
+    unitVolumeMl: row.unitVolumeMl != null ? Number(row.unitVolumeMl) : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -155,6 +159,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
             maxDose: payload.maxDose != null ? String(payload.maxDose) : null,
             doseUnit: payload.doseUnit,
             defaultRoute: payload.defaultRoute ?? null,
+            unitType: payload.unitType ?? null,
+            unitVolumeMl: payload.unitVolumeMl != null ? String(payload.unitVolumeMl) : null,
             deletedAt: null,
             updatedAt: now,
           })
@@ -189,6 +195,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
         maxDose: payload.maxDose != null ? String(payload.maxDose) : null,
         doseUnit: payload.doseUnit,
         defaultRoute: payload.defaultRoute ?? null,
+        unitType: payload.unitType ?? null,
+        unitVolumeMl: payload.unitVolumeMl != null ? String(payload.unitVolumeMl) : null,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -243,6 +251,8 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
     maxDose: z.number().finite().positive().optional().nullable(),
     doseUnit: z.enum(["mg_per_kg", "mcg_per_kg", "mEq_per_kg", "tablet"]).optional(),
     defaultRoute: z.string().trim().max(100).optional().nullable(),
+    unitType: z.enum(["vial", "ampule", "tablet", "capsule", "bag"]).optional().nullable(),
+    unitVolumeMl: z.number().finite().positive().optional().nullable(),
   });
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -273,6 +283,8 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
     if ("maxDose" in patch) updateFields.maxDose = patch.maxDose != null ? String(patch.maxDose) : null;
     if (patch.doseUnit !== undefined) updateFields.doseUnit = patch.doseUnit;
     if ("defaultRoute" in patch) updateFields.defaultRoute = patch.defaultRoute ?? null;
+    if ("unitType" in patch) updateFields.unitType = patch.unitType ?? null;
+    if ("unitVolumeMl" in patch) updateFields.unitVolumeMl = patch.unitVolumeMl != null ? String(patch.unitVolumeMl) : null;
 
     let updated: typeof drugFormulary.$inferSelect | undefined;
     try {

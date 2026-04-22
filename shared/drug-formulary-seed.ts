@@ -29,27 +29,27 @@ export const SEEDED_FORMULARY: SeededDrugFormularyEntry[] = [
   // ── Sedation / Anesthesia Induction ─────────────────────────────────────────
   { name: "Propofol", genericName: "Propofol",         concentrationMgMl: 10,    standardDose: 4,      minDose: 2,      maxDose: 6,      doseUnit: "mg_per_kg",  defaultRoute: "IV",          unitType: "vial" },
   { name: "Ketamine", genericName: "Ketamine",         concentrationMgMl: 100,   standardDose: 3.5,    minDose: 2,      maxDose: 5,      doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
-  { name: "Diazepam", genericName: "Diazepam",         concentrationMgMl: 5,     standardDose: 0.35,   minDose: 0.25,   maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV" },
-  { name: "Midazolam", genericName: "Midazolam",        concentrationMgMl: 5,     standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
+  { name: "Diazepam", genericName: "Diazepam",         concentrationMgMl: 5,     standardDose: 0.35,   minDose: 0.25,   maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV",          unitType: "vial" },
+  { name: "Midazolam", genericName: "Midazolam",        concentrationMgMl: 5,     standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
 
   // ── Opioid Analgesia ─────────────────────────────────────────────────────────
-  { name: "Methadone", genericName: "Methadone",        concentrationMgMl: 10,    standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC" },
-  { name: "Buprenorphine", genericName: "Buprenorphine",    concentrationMgMl: 0.3,   standardDose: 0.02,   minDose: 0.01,   maxDose: 0.03,   doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
+  { name: "Methadone", genericName: "Methadone",        concentrationMgMl: 10,    standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC",    unitType: "vial" },
+  { name: "Buprenorphine", genericName: "Buprenorphine",    concentrationMgMl: 0.3,   standardDose: 0.02,   minDose: 0.01,   maxDose: 0.03,   doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
   { name: "Butorphanol", genericName: "Butorphanol",      concentrationMgMl: 10,    standardDose: 0.25,   minDose: 0.1,    maxDose: 0.4,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC",    unitType: "vial" },
-  { name: "Morphine", genericName: "Morphine",         concentrationMgMl: 10,    standardDose: 0.2,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC" },
+  { name: "Morphine", genericName: "Morphine",         concentrationMgMl: 10,    standardDose: 0.2,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC",    unitType: "vial" },
 
   // ── Sedation / Pre-medication ────────────────────────────────────────────────
   { name: "Dexmedetomidine", genericName: "Dexmedetomidine", brandNames: ["Dexdomitor"], concentrationMgMl: 0.5,   standardDose: 0.005,  minDose: 0.001,  maxDose: 0.01,   doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
   { name: "Acepromazine", genericName: "Acepromazine",     concentrationMgMl: 10,    standardDose: 0.05,   minDose: 0.01,   maxDose: 0.1,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC",    unitType: "vial" },
 
   // ── Local Anesthesia ─────────────────────────────────────────────────────────
-  { name: "Bupivacaine", genericName: "Bupivacaine",      concentrationMgMl: 5,     standardDose: 1.5,    minDose: 1.0,    maxDose: 2.0,    doseUnit: "mg_per_kg",  defaultRoute: "Local/Infiltration" },
-  { name: "Lidocaine", genericName: "Lidocaine",        concentrationMgMl: 20,    standardDose: 2,      minDose: 2,      maxDose: 8,      doseUnit: "mg_per_kg",  defaultRoute: "IV/Local" },
+  { name: "Bupivacaine", genericName: "Bupivacaine",      concentrationMgMl: 5,     standardDose: 1.5,    minDose: 1.0,    maxDose: 2.0,    doseUnit: "mg_per_kg",  defaultRoute: "Local/Infiltration", unitType: "vial" },
+  { name: "Lidocaine", genericName: "Lidocaine",        concentrationMgMl: 20,    standardDose: 2,      minDose: 2,      maxDose: 8,      doseUnit: "mg_per_kg",  defaultRoute: "IV/Local",    unitType: "vial" },
 
   // ── NSAIDs / Anti-inflammatory ───────────────────────────────────────────────
-  { name: "Meloxicam", genericName: "Meloxicam",        concentrationMgMl: 5,     standardDose: 0.2,    minDose: 0.1,    maxDose: 0.2,    doseUnit: "mg_per_kg",  defaultRoute: "SC/PO" },
-  { name: "Carprofen", genericName: "Carprofen",        concentrationMgMl: 50,    standardDose: 3.3,    minDose: 2.2,    maxDose: 4.4,    doseUnit: "mg_per_kg",  defaultRoute: "PO/SC" },
-  { name: "Dexamethasone", genericName: "Dexamethasone",    concentrationMgMl: 2,     standardDose: 0.1,    minDose: 0.1,    maxDose: 0.2,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
+  { name: "Meloxicam", genericName: "Meloxicam",        concentrationMgMl: 5,     standardDose: 0.2,    minDose: 0.1,    maxDose: 0.2,    doseUnit: "mg_per_kg",  defaultRoute: "SC/PO",       unitType: "vial" },
+  { name: "Carprofen", genericName: "Carprofen",        concentrationMgMl: 50,    standardDose: 3.3,    minDose: 2.2,    maxDose: 4.4,    doseUnit: "mg_per_kg",  defaultRoute: "PO/SC",       unitType: "tablet" },
+  { name: "Dexamethasone", genericName: "Dexamethasone",    concentrationMgMl: 2,     standardDose: 0.1,    minDose: 0.1,    maxDose: 0.2,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
 
   // ── Steroids ─────────────────────────────────────────────────────────────────
   { name: "Prednisolone", genericName: "Prednisolone",     concentrationMgMl: 5,     standardDose: 1,      minDose: 0.5,    maxDose: 2.2,    doseUnit: "mg_per_kg",  defaultRoute: "PO",          unitType: "tablet" },
@@ -60,12 +60,12 @@ export const SEEDED_FORMULARY: SeededDrugFormularyEntry[] = [
   { name: "Trazodone", genericName: "Trazodone",        concentrationMgMl: 50,    standardDose: 0.14,   minDose: 0.06,   maxDose: 0.2,    doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
 
   // ── Autonomic / Emergency ────────────────────────────────────────────────────
-  { name: "Atropine", genericName: "Atropine",         concentrationMgMl: 0.6,   standardDose: 0.03,   minDose: 0.02,   maxDose: 0.04,   doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC" },
-  { name: "Epinephrine", genericName: "Epinephrine",      concentrationMgMl: 1,     standardDose: 0.01,   minDose: 0.01,   maxDose: 0.1,    doseUnit: "mg_per_kg",  defaultRoute: "IV" },
-  { name: "Apomorphine", genericName: "Apomorphine",      concentrationMgMl: 10,    standardDose: 0.03,   minDose: 0.03,   maxDose: 0.03,   doseUnit: "mg_per_kg",  defaultRoute: "IV" },
+  { name: "Atropine", genericName: "Atropine",         concentrationMgMl: 0.6,   standardDose: 0.03,   minDose: 0.02,   maxDose: 0.04,   doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC" },  // true ampule — default correct
+  { name: "Epinephrine", genericName: "Epinephrine",      concentrationMgMl: 1,     standardDose: 0.01,   minDose: 0.01,   maxDose: 0.1,    doseUnit: "mg_per_kg",  defaultRoute: "IV" },            // true ampule — default correct
+  { name: "Apomorphine", genericName: "Apomorphine",      concentrationMgMl: 10,    standardDose: 0.03,   minDose: 0.03,   maxDose: 0.03,   doseUnit: "mg_per_kg",  defaultRoute: "IV",          unitType: "vial" },
 
   // ── Diuretics / Cardiac ──────────────────────────────────────────────────────
-  { name: "Furosemide", genericName: "Furosemide",       concentrationMgMl: 10,    standardDose: 2,      minDose: 1,      maxDose: 4,      doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
+  { name: "Furosemide", genericName: "Furosemide",       concentrationMgMl: 10,    standardDose: 2,      minDose: 1,      maxDose: 4,      doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },         // ampule — default correct
   { name: "Amlodipine", genericName: "Amlodipine",       concentrationMgMl: 5,     standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
   { name: "Pimobendan", genericName: "Pimobendan",       concentrationMgMl: 2.5,   standardDose: 0.1,    minDose: 0.1,    maxDose: 0.12,   doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
   { name: "Digoxin", genericName: "Digoxin",          concentrationMgMl: 0.25,  standardDose: 0.004,  minDose: 0.0025, maxDose: 0.005,  doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
@@ -77,49 +77,49 @@ export const SEEDED_FORMULARY: SeededDrugFormularyEntry[] = [
   { name: "Norepinephrine", genericName: "Norepinephrine",   concentrationMgMl: 1,     standardDose: 0.5,    minDose: 0.1,    maxDose: 2,      doseUnit: "mcg_per_kg", defaultRoute: "IV (CRI)",    unitType: "bag" },
 
   // ── Hemostasis ───────────────────────────────────────────────────────────────
-  { name: "Tranexamic Acid", genericName: "Tranexamic Acid",  concentrationMgMl: 100,   standardDose: 12.5,   minDose: 10,     maxDose: 15,     doseUnit: "mg_per_kg",  defaultRoute: "IV" },
+  { name: "Tranexamic Acid", genericName: "Tranexamic Acid",  concentrationMgMl: 100,   standardDose: 12.5,   minDose: 10,     maxDose: 15,     doseUnit: "mg_per_kg",  defaultRoute: "IV",          unitType: "vial" },
 
   // ── Antibiotics ──────────────────────────────────────────────────────────────
-  { name: "Cefazolin", genericName: "Cefazolin",        concentrationMgMl: 100,   standardDose: 22,     minDose: 20,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
-  { name: "Ampicillin", genericName: "Ampicillin",       concentrationMgMl: 100,   standardDose: 22,     minDose: 20,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
-  { name: "Enrofloxacin", genericName: "Enrofloxacin",     concentrationMgMl: 22.7,  standardDose: 5,      minDose: 5,      maxDose: 20,     doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
-  { name: "Amoxicillin", genericName: "Amoxicillin",      concentrationMgMl: 50,    standardDose: 15,     minDose: 10,     maxDose: 22,     doseUnit: "mg_per_kg",  defaultRoute: "PO" },
-  { name: "Clindamycin", genericName: "Clindamycin",      concentrationMgMl: 25,    standardDose: 8,      minDose: 5,      maxDose: 11,     doseUnit: "mg_per_kg",  defaultRoute: "PO/IV" },
-  { name: "Metronidazole", genericName: "Metronidazole",    concentrationMgMl: 5,     standardDose: 10,     minDose: 7.5,    maxDose: 15,     doseUnit: "mg_per_kg",  defaultRoute: "PO/IV" },
-  { name: "Doxycycline", genericName: "Doxycycline",      concentrationMgMl: 10,    standardDose: 7.5,    minDose: 5,      maxDose: 10,     doseUnit: "mg_per_kg",  defaultRoute: "PO/IV" },
-  { name: "Cephalexin", genericName: "Cephalexin",       concentrationMgMl: 25,    standardDose: 25,     minDose: 22,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "PO" },
-  { name: "Meropenem", genericName: "Meropenem",        concentrationMgMl: 50,    standardDose: 8,      minDose: 8,      maxDose: 24,     doseUnit: "mg_per_kg",  defaultRoute: "IV/SC" },
-  { name: "Gentamicin", genericName: "Gentamicin",       concentrationMgMl: 50,    standardDose: 6,      minDose: 6,      maxDose: 9,      doseUnit: "mg_per_kg",  defaultRoute: "IV/SC" },
+  { name: "Cefazolin", genericName: "Cefazolin",        concentrationMgMl: 100,   standardDose: 22,     minDose: 20,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
+  { name: "Ampicillin", genericName: "Ampicillin",       concentrationMgMl: 100,   standardDose: 22,     minDose: 20,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
+  { name: "Enrofloxacin", genericName: "Enrofloxacin",     concentrationMgMl: 22.7,  standardDose: 5,      minDose: 5,      maxDose: 20,     doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
+  { name: "Amoxicillin", genericName: "Amoxicillin",      concentrationMgMl: 50,    standardDose: 15,     minDose: 10,     maxDose: 22,     doseUnit: "mg_per_kg",  defaultRoute: "PO",          unitType: "tablet" },
+  { name: "Clindamycin", genericName: "Clindamycin",      concentrationMgMl: 25,    standardDose: 8,      minDose: 5,      maxDose: 11,     doseUnit: "mg_per_kg",  defaultRoute: "PO/IV",       unitType: "capsule" },
+  { name: "Metronidazole", genericName: "Metronidazole",    concentrationMgMl: 5,     standardDose: 10,     minDose: 7.5,    maxDose: 15,     doseUnit: "mg_per_kg",  defaultRoute: "PO/IV",       unitType: "tablet" },
+  { name: "Doxycycline", genericName: "Doxycycline",      concentrationMgMl: 10,    standardDose: 7.5,    minDose: 5,      maxDose: 10,     doseUnit: "mg_per_kg",  defaultRoute: "PO/IV",       unitType: "tablet" },
+  { name: "Cephalexin", genericName: "Cephalexin",       concentrationMgMl: 25,    standardDose: 25,     minDose: 22,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "PO",          unitType: "tablet" },
+  { name: "Meropenem", genericName: "Meropenem",        concentrationMgMl: 50,    standardDose: 8,      minDose: 8,      maxDose: 24,     doseUnit: "mg_per_kg",  defaultRoute: "IV/SC",       unitType: "vial" },
+  { name: "Gentamicin", genericName: "Gentamicin",       concentrationMgMl: 50,    standardDose: 6,      minDose: 6,      maxDose: 9,      doseUnit: "mg_per_kg",  defaultRoute: "IV/SC",       unitType: "vial" },
   { name: "Augmentin 5% 50mg/ml", genericName: "Augmentin 5% 50mg/ml", concentrationMgMl: 50, standardDose: 15,    minDose: 10,     maxDose: 50,     doseUnit: "mg_per_kg",  defaultRoute: "IV/SC",       unitType: "vial" },
   { name: "Ceftriaxone", genericName: "Ceftriaxone",     concentrationMgMl: 100,   standardDose: 25,     minDose: 20,     maxDose: 30,     doseUnit: "mg_per_kg",  defaultRoute: "IV/SC",       unitType: "vial" },
   { name: "Cisapride tab 2.5", genericName: "Cisapride tab 2.5", concentrationMgMl: 2.5, standardDose: 1,      minDose: 0.5,    maxDose: 2,      doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
   { name: "Cisapride syrup 1mg/ml", genericName: "Cisapride syrup 1mg/ml", concentrationMgMl: 1, standardDose: 0.25, minDose: 0.1, maxDose: 0.5, doseUnit: "mg_per_kg", defaultRoute: "PO" },
-  { name: "Diphenhydramine", genericName: "Diphenhydramine",  concentrationMgMl: 10,    standardDose: 2,      minDose: 1,      maxDose: 4,      doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
+  { name: "Diphenhydramine", genericName: "Diphenhydramine",  concentrationMgMl: 10,    standardDose: 2,      minDose: 1,      maxDose: 4,      doseUnit: "mg_per_kg",  defaultRoute: "IV/IM",       unitType: "vial" },
 
   // ── Anti-emetics / GI ────────────────────────────────────────────────────────
   { name: "Maropitant", genericName: "Maropitant", brandNames: ["Cerenia"], concentrationMgMl: 10,    standardDose: 1,      minDose: 1,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "SC/IV",       unitType: "vial" },
-  { name: "Maropitant (PO)", genericName: "Maropitant (oral)",  concentrationMgMl: 10,    standardDose: 2,      minDose: 2,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "PO" },
-  { name: "Ondansetron", genericName: "Ondansetron",      concentrationMgMl: 2,     standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
-  { name: "Metoclopramide", genericName: "Metoclopramide",   concentrationMgMl: 5,     standardDose: 0.35,   minDose: 0.2,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
+  { name: "Maropitant (PO)", genericName: "Maropitant (oral)",  concentrationMgMl: 10,    standardDose: 2,      minDose: 2,      maxDose: 2,      doseUnit: "mg_per_kg",  defaultRoute: "PO",          unitType: "tablet" },
+  { name: "Ondansetron", genericName: "Ondansetron",      concentrationMgMl: 2,     standardDose: 0.3,    minDose: 0.1,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
+  { name: "Metoclopramide", genericName: "Metoclopramide",   concentrationMgMl: 5,     standardDose: 0.35,   minDose: 0.2,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
   { name: "Pantoprazole", genericName: "Pantoprazole",     concentrationMgMl: 4,     standardDose: 1,      minDose: 1,      maxDose: 1,      doseUnit: "mg_per_kg",  defaultRoute: "IV",          unitType: "vial" },
   { name: "Omeprazole", genericName: "Omeprazole",       concentrationMgMl: 20,    standardDose: 0.0375, minDose: 0.025,  maxDose: 0.05,   doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
-  { name: "Famotidine", genericName: "Famotidine",       concentrationMgMl: 10,    standardDose: 0.5,    minDose: 0.5,    maxDose: 1,      doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
+  { name: "Famotidine", genericName: "Famotidine",       concentrationMgMl: 10,    standardDose: 0.5,    minDose: 0.5,    maxDose: 1,      doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
   { name: "Sucralfate", genericName: "Sucralfate",       concentrationMgMl: 1000,  standardDose: 0.05,   minDose: 0.025,  maxDose: 0.1,    doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
-  { name: "Lactulose", genericName: "Lactulose",        concentrationMgMl: 667,   standardDose: 333.5,  minDose: 333.5,  maxDose: 333.5,  doseUnit: "mg_per_kg",  defaultRoute: "PO" },
-  { name: "Optalgin", genericName: "Optalgin",         concentrationMgMl: 500,   standardDose: 25,     minDose: 10,     maxDose: 50,     doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },
-  { name: "Pramin", genericName: "Pramin",           concentrationMgMl: 5,     standardDose: 0.5,    minDose: 0.2,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
+  { name: "Lactulose", genericName: "Lactulose",        concentrationMgMl: 667,   standardDose: 333.5,  minDose: 333.5,  maxDose: 333.5,  doseUnit: "mg_per_kg",  defaultRoute: "PO" },           // liquid syrup — no vial/tablet
+  { name: "Optalgin", genericName: "Optalgin",         concentrationMgMl: 500,   standardDose: 25,     minDose: 10,     maxDose: 50,     doseUnit: "mg_per_kg",  defaultRoute: "IV/IM" },         // true ampule — default correct
+  { name: "Pramin", genericName: "Pramin",           concentrationMgMl: 5,     standardDose: 0.5,    minDose: 0.2,    maxDose: 0.5,    doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
   { name: "Mirtazapine", genericName: "Mirtazapine", brandNames: ["Remeron"], concentrationMgMl: 3.75, standardDose: 1, minDose: 0.5, maxDose: 1, doseUnit: "tablet", defaultRoute: "PO", unitType: "tablet" },
 
   // ── Neurological ─────────────────────────────────────────────────────────────
-  { name: "Phenobarbital", genericName: "Phenobarbital",    concentrationMgMl: 65,    standardDose: 2,      minDose: 2,      maxDose: 5,      doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
-  { name: "Levetiracetam", genericName: "Levetiracetam",    concentrationMgMl: 100,   standardDose: 20,     minDose: 20,     maxDose: 60,     doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
+  { name: "Phenobarbital", genericName: "Phenobarbital",    concentrationMgMl: 65,    standardDose: 2,      minDose: 2,      maxDose: 5,      doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
+  { name: "Levetiracetam", genericName: "Levetiracetam",    concentrationMgMl: 100,   standardDose: 20,     minDose: 20,     maxDose: 60,     doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
   { name: "Mannitol", genericName: "Mannitol",         concentrationMgMl: 200,   standardDose: 500,    minDose: 250,    maxDose: 1000,   doseUnit: "mg_per_kg",  defaultRoute: "IV (Slow)",   unitType: "bag" },
-  { name: "Aminophylline", genericName: "Aminophylline",    concentrationMgMl: 25,    standardDose: 5,      minDose: 5,      maxDose: 10,     doseUnit: "mg_per_kg",  defaultRoute: "IV/PO" },
+  { name: "Aminophylline", genericName: "Aminophylline",    concentrationMgMl: 25,    standardDose: 5,      minDose: 5,      maxDose: 10,     doseUnit: "mg_per_kg",  defaultRoute: "IV/PO",       unitType: "vial" },
 
   // ── Endocrine ────────────────────────────────────────────────────────────────
   { name: "Insulin Regular", genericName: "Insulin Regular",  concentrationMgMl: 100,   standardDose: 0.1,    minDose: 0.1,    maxDose: 0.2,    doseUnit: "mg_per_kg",  defaultRoute: "IV/IM/SC",    unitType: "vial" },
   { name: "Levothyroxine", genericName: "Levothyroxine",    concentrationMgMl: 0.1,   standardDose: 0.2,    minDose: 0.2,    maxDose: 0.2,    doseUnit: "tablet",     defaultRoute: "PO",          unitType: "tablet" },
 
   // ── Fluids / Electrolytes ────────────────────────────────────────────────────
-  { name: "Hypertonic Saline 7.2%", genericName: "Hypertonic Saline 7.2%", concentrationMgMl: 72, standardDose: 288, minDose: 216, maxDose: 360,    doseUnit: "mg_per_kg",  defaultRoute: "IV (Slow)" },
+  { name: "Hypertonic Saline 7.2%", genericName: "Hypertonic Saline 7.2%", concentrationMgMl: 72, standardDose: 288, minDose: 216, maxDose: 360,    doseUnit: "mg_per_kg",  defaultRoute: "IV (Slow)",   unitType: "bag" },
 ];
