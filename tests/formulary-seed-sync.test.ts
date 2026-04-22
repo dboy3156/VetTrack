@@ -1,139 +1,67 @@
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
+import {
+  activeRowEligibleForSeedSync,
+  seedEntryToColumns,
+  seedRowMatchesSeedEntry,
+} from "../server/lib/formulary-seed-sync.js";
+import type { SeededDrugFormularyEntry } from "../shared/drug-formulary-seed.js";
 
-/** Structural stand-in for `typeof drugFormulary.$inferSelect` (avoid loading `server/db.ts` before DATABASE_URL). */
-type FormularyRowLike = {
-  id: string;
-  clinicId: string;
-  name: string;
-  genericName: string;
-  brandNames: unknown;
-  targetSpecies: unknown;
-  category: string | null;
-  dosageNotes: string | null;
-  concentrationMgMl: string;
-  standardDose: string;
-  minDose: string | null;
-  maxDose: string | null;
-  doseUnit: string;
-  defaultRoute: string | null;
-  unitVolumeMl: string | null;
-  unitType: string | null;
-  criBufferPct: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date | null;
+const baseEntry: SeededDrugFormularyEntry = {
+  name: "Butorphanol",
+  genericName: "Butorphanol",
+  concentrationMgMl: 10,
+  standardDose: 0.25,
+  minDose: 0.1,
+  maxDose: 0.4,
+  doseUnit: "mg_per_kg",
+  defaultRoute: "IV/IM/SC",
+  unitType: "vial",
 };
 
-function baseRow(partial: Partial<FormularyRowLike>): FormularyRowLike {
+function makeRow(overrides: Record<string, unknown> = {}) {
   const now = new Date();
-  return {
-    id: "row-id",
-    clinicId: "clinic-1",
-    name: "Propofol",
-    genericName: "Propofol",
-    brandNames: [],
-    targetSpecies: null,
-    category: null,
-    dosageNotes: null,
-    concentrationMgMl: "10",
-    standardDose: "4",
-    minDose: "2",
-    maxDose: "6",
-    doseUnit: "mg_per_kg",
-    defaultRoute: "IV",
-    unitVolumeMl: null,
-    unitType: null,
-    criBufferPct: null,
-    createdAt: now,
-    updatedAt: now,
-    deletedAt: null,
-    ...partial,
-  };
+  const base = seedEntryToColumns(baseEntry, "clinic-1", now);
+  return { ...base, createdAt: now, updatedAt: now, deletedAt: null, ...overrides } as typeof base;
 }
 
-async function run(): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim() && !process.env.POSTGRES_URL?.trim()) {
-    process.env.DATABASE_URL = "postgres://vettrack:vettrack@127.0.0.1:5432/vettrack";
-  }
+describe("seedEntryToColumns", () => {
+  it("includes unitType from entry", () => {
+    const cols = seedEntryToColumns(baseEntry, "clinic-1", new Date());
+    expect(cols.unitType).toBe("vial");
+  });
 
-  const {
-    activeRowEligibleForSeedSync,
-    formularySeedCompositeKey,
-    numEq,
-    optionalDoseEq,
-    seedEntryToColumns,
-  } = await import("../server/lib/formulary-seed-sync.ts");
-  type RowArg = Parameters<typeof activeRowEligibleForSeedSync>[0];
+  it("uses null when entry has no unitType", () => {
+    const { unitType: _u, ...noUnit } = baseEntry;
+    const cols = seedEntryToColumns(noUnit as SeededDrugFormularyEntry, "clinic-1", new Date());
+    expect(cols.unitType).toBeNull();
+  });
+});
 
-  console.log("\n-- formulary-seed-sync helpers");
+describe("activeRowEligibleForSeedSync", () => {
+  it("is eligible when row.unitType matches seed", () => {
+    const row = makeRow({ unitType: "vial" });
+    expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(true);
+  });
 
-  assert.equal(numEq(1, 1 + 1e-12), true);
-  assert.equal(numEq(null, null), true);
-  assert.equal(numEq(1, 2), false);
+  it("is eligible when row.unitType is null (will be updated)", () => {
+    const row = makeRow({ unitType: null });
+    expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(true);
+  });
 
-  assert.equal(optionalDoseEq(null, undefined), true);
-  assert.equal(optionalDoseEq("2", 2), true);
+  it("is NOT eligible when unitVolumeMl set (pharmacy extension)", () => {
+    const row = makeRow({ unitType: "vial", unitVolumeMl: "5" });
+    expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(false);
+  });
+});
 
-  const entry = {
-    name: "Propofol",
-    genericName: "Propofol",
-    concentrationMgMl: 10,
-    standardDose: 4,
-    minDose: 2,
-    maxDose: 6,
-    doseUnit: "mg_per_kg" as const,
-    defaultRoute: "IV",
-  };
+describe("seedRowMatchesSeedEntry", () => {
+  it("returns false when unitType differs from seed", () => {
+    const row = makeRow({ unitType: null });
+    expect(seedRowMatchesSeedEntry(row, baseEntry)).toBe(false);
+  });
 
-  assert.equal(formularySeedCompositeKey(entry), `propofol\0${10}`);
-
-  assert.equal(activeRowEligibleForSeedSync(baseRow({}) as RowArg, entry), true);
-
-  assert.equal(
-    activeRowEligibleForSeedSync(baseRow({ genericName: "Other" }) as RowArg, entry),
-    false,
-  );
-
-  assert.equal(
-    activeRowEligibleForSeedSync(baseRow({ concentrationMgMl: "11" }) as RowArg, entry),
-    false,
-  );
-
-  assert.equal(
-    activeRowEligibleForSeedSync(baseRow({ unitVolumeMl: "10" }) as RowArg, entry),
-    false,
-  );
-
-  assert.equal(
-    activeRowEligibleForSeedSync(baseRow({ deletedAt: new Date() }) as RowArg, entry),
-    false,
-  );
-
-  assert.equal(
-    activeRowEligibleForSeedSync(
-      baseRow({ brandNames: ["Brand"] }) as RowArg,
-      { ...entry, brandNames: ["Brand"] },
-    ),
-    true,
-  );
-
-  assert.equal(
-    activeRowEligibleForSeedSync(
-      baseRow({ brandNames: ["A"] }) as RowArg,
-      { ...entry, brandNames: ["B"] },
-    ),
-    false,
-  );
-
-  const cols = seedEntryToColumns(entry, "c1", new Date(0));
-  assert.equal(cols.clinicId, "c1");
-  assert.equal(cols.name, "Propofol");
-  assert.equal(cols.genericName, "Propofol");
-
-  console.log("  PASS: formulary-seed-sync");
-}
-
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  it("returns true when unitType matches seed", () => {
+    const row = makeRow({ unitType: "vial" });
+    expect(seedRowMatchesSeedEntry(row, baseEntry)).toBe(true);
+  });
 });

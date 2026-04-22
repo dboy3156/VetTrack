@@ -79,7 +79,7 @@ export function activeRowEligibleForSeedSync(
 ): boolean {
   if (row.deletedAt != null) return false;
 
-  if (row.unitVolumeMl != null || row.unitType != null || row.criBufferPct != null) return false;
+  if (row.unitVolumeMl != null || row.criBufferPct != null) return false;
 
   if (row.genericName.trim().toLowerCase() !== entry.genericName.trim().toLowerCase()) return false;
 
@@ -112,6 +112,7 @@ export function seedRowMatchesSeedEntry(
 ): boolean {
   if (!activeRowEligibleForSeedSync(row, entry)) return false;
   if (row.name.trim() !== entry.name.trim()) return false;
+  if (!nullableStringsEqual(row.unitType, entry.unitType ?? null)) return false;
   return true;
 }
 
@@ -147,6 +148,7 @@ export function seedEntryToColumns(entry: SeededDrugFormularyEntry, clinicId: st
     maxDose: entry.maxDose != null ? String(entry.maxDose) : null,
     doseUnit: entry.doseUnit,
     defaultRoute: entry.defaultRoute ?? null,
+    unitType: entry.unitType ?? null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null as Date | null,
@@ -229,6 +231,7 @@ export async function syncFormularyFromSeed(clinicId: string): Promise<SyncFormu
           maxDose: entry.maxDose != null ? String(entry.maxDose) : null,
           doseUnit: entry.doseUnit,
           defaultRoute: entry.defaultRoute ?? null,
+          unitType: entry.unitType ?? null,
           updatedAt: now,
         })
         .where(and(eq(drugFormulary.id, existing.id), eq(drugFormulary.clinicId, clinicId)));

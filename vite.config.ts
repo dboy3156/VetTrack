@@ -47,4 +47,7 @@ export default defineConfig({
     outDir: "dist/public",
     sourcemap: "hidden",
   },
+  test: {
+    setupFiles: ["./tests/vitest-setup.ts"],
+  },
 });
