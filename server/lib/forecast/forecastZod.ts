@@ -92,6 +92,10 @@ export const approvePayloadSchema = z.object({
   parseId: z.string().uuid(),
   /** Keys are `normalizeQuantityKey(record, drug)` for lines with DOSE_HIGH / DOSE_LOW. */
   pharmacistDoseAcks: z.array(z.string().max(400)).optional(),
+  /** Keys `${recordNumber}|${flag}` — patient-level warnings explicitly acknowledged in the audit tab. */
+  patientFlagAcks: z.array(z.string().max(400)).max(2000).optional(),
+  /** `normalizeQuantityKey` for drug lines the pharmacist marked Confirmed in the audit tab. */
+  confirmedDrugKeys: z.array(z.string().max(400)).max(MAX_MANUAL_KEYS).optional(),
   manualQuantities: z
     .record(z.string().max(300), z.number().finite().nonnegative())
     .superRefine((rec, ctx) => {

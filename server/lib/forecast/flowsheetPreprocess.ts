@@ -1,7 +1,5 @@
+import { PHARM_DOSE_RE } from "../../../src/lib/constants/regex.js";
 import { cleanMedicationLine, isBloodProductLine } from "./medicationLineCleanup.js";
-
-const PHARM_DOSE_RE =
-  /\d+(?:\.\d+)?\s*(?:mg\/kg|mcg\/kg|mg\s*\/\s*kg|mcg\s*\/\s*kg|mg|mcg|mEq|%|tab|tabs|tablet)\b/i;
 
 const FLUID_START_RE =
   /^\s*(?:LRS|Plasma|FFP|DW|NS|0\.9%\s*NaCl|dextrose|5%D|5DW|10%D|Sterofundin|Normosol|saline)\b/i;

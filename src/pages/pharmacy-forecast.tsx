@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Redirect } from "wouter";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { ForecastDrugEntry, ForecastResult, ForecastPatientEntry } from "@/types";
 import type { AuditState, PatientAuditState, DrugAuditEntry } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Syringe, Loader2, FileUp, ClipboardPaste, ArrowLeft } from "lucide-react";
+import { Syringe, Loader2, FileUp, ClipboardPaste, ArrowLeft, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function canAccessPharmacyForecast(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
@@ -50,30 +50,123 @@ function badgeVariantForDrug(d: ForecastDrugEntry): "sterilized" | "ok" | "secon
   return "default";
 }
 
-function buildEmailPreviewBody(
-  result: ForecastResult,
-  technicianLabel: string,
-  summaryLine: string,
-): string {
-  const lines: string[] = [];
-  lines.push(summaryLine);
-  lines.push(`${technicianLabel}`);
-  lines.push("");
-  for (const p of [...result.patients].sort((a, b) =>
-    a.recordNumber.localeCompare(b.recordNumber, undefined, { numeric: true }),
-  )) {
-    lines.push("---");
-    lines.push(
-      `${p.name} · ${p.recordNumber} · ${p.species}${p.age ? ` · age ${p.age}` : ""}${p.color ? ` · ${p.color}` : ""} · ${p.weightKg} kg`,
-    );
-    lines.push(`${p.ownerName} · ${p.ownerPhone}`);
-    for (const d of p.drugs) {
-      const qty = d.quantityUnits == null ? "—" : String(d.quantityUnits);
-      lines.push(`• ${d.drugName} (${d.type}) · ${qty} ${d.unitLabel}`);
-    }
-    lines.push("");
-  }
-  return lines.join("\n");
+function PharmacyEmailPreviewPanel({
+  result,
+  technicianLabel,
+  summaryLine,
+  auditState,
+}: {
+  result: ForecastResult;
+  technicianLabel: string;
+  summaryLine: string;
+  auditState: AuditState | null;
+}) {
+  const sorted = useMemo(
+    () =>
+      [...result.patients].sort((a, b) =>
+        a.recordNumber.localeCompare(b.recordNumber, undefined, { numeric: true }),
+      ),
+    [result.patients],
+  );
+
+  return (
+    <div
+      className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden"
+      dir="rtl"
+    >
+      <div className="bg-muted/50 border-b border-border/70 px-4 py-3 space-y-1.5">
+        <div className="flex items-start gap-2">
+          <Mail className="h-4 w-4 text-primary shrink-0 mt-0.5" aria-hidden />
+          <div className="min-w-0 space-y-1 flex-1">
+            <p className="text-sm font-semibold text-foreground leading-tight">{summaryLine}</p>
+            <p className="text-xs text-muted-foreground">{technicianLabel}</p>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              {t.pharmacyForecast.emailPreviewLayoutNote}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="max-h-[min(420px,70vh)] overflow-y-auto p-3 space-y-4">
+        {sorted.map((p) => {
+          const pAudit = auditState?.patients[p.recordNumber];
+          const weightKg = pAudit?.weightOverride ?? p.weightKg;
+          const headerParts = [
+            p.name || t.common.unknown,
+            p.recordNumber,
+            p.species,
+            p.age ? `${p.age}` : null,
+            p.color || null,
+            `${weightKg} kg`,
+          ].filter(Boolean);
+
+          return (
+            <Card key={`${p.recordNumber}-${p.name}`} className="border-border/70 shadow-none bg-muted/20">
+              <CardHeader className="pb-2 space-y-1">
+                <CardTitle className="text-base font-semibold leading-snug">
+                  {headerParts.join(" · ")}
+                </CardTitle>
+                {(p.ownerName || p.ownerPhone) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[p.ownerName, p.ownerPhone].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-2 pt-0">
+                {p.drugs.map((d) => {
+                  const key = normalizeQuantityKey(p.recordNumber, d.drugName);
+                  const variant = badgeVariantForDrug(d);
+                  const qty = d.quantityUnits == null ? "—" : String(d.quantityUnits);
+                  const entry = pAudit?.drugs[d.drugName];
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        "flex flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-sm bg-background/80",
+                        d.flags.length > 0 ? "border-amber-200/80 bg-amber-50/40" : "border-border/60",
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-medium text-foreground leading-snug">{d.drugName}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant={variant} className="text-[10px] uppercase">
+                            {d.type}
+                          </Badge>
+                          <span className="tabular-nums font-semibold text-primary">
+                            {qty}
+                            <span className="text-muted-foreground font-normal ms-1 text-xs">{d.unitLabel}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {d.concentration}
+                        {d.route ? ` · ${d.route}` : ""}
+                      </p>
+                      {entry != null ? (
+                        <p className="text-[11px] text-muted-foreground border-t border-border/50 pt-1.5 mt-0.5">
+                          {t.pharmacyForecast.auditForecasted}: {entry.forecastedQty ?? "—"} ·{" "}
+                          {t.pharmacyForecast.auditOnHand}: {entry.onHandQty} · {t.pharmacyForecast.auditOrder}:{" "}
+                          <span className="font-medium text-foreground tabular-nums">{entry.orderQty}</span>
+                        </p>
+                      ) : null}
+                      {d.administrationsPer24h != null && d.administrationsInWindow != null ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          {t.pharmacyForecast.quantityFrequencyBasis(
+                            d.administrationsPer24h,
+                            d.administrationsInWindow,
+                            result.windowHours,
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 const PATIENT_WARNING_FLAGS = [
@@ -162,6 +255,19 @@ export default function PharmacyForecastPage() {
     retry: false,
   });
 
+  const emailQueryClient = useQueryClient();
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const saveEmailMutation = useMutation({
+    mutationFn: (email: string | null) => api.forecast.setPharmacyEmail(email),
+    onSuccess: (result) => {
+      emailQueryClient.setQueryData(["/api/forecast/clinic/pharmacy-email"], result);
+      setEditingEmail(false);
+      toast.success("Pharmacy email saved");
+    },
+    onError: () => toast.error("Failed to save pharmacy email"),
+  });
+
   const mergedPreview = useMemo(() => {
     if (!forecastResult) return null;
     return applyManualQuantities(forecastResult, manualQty);
@@ -189,13 +295,36 @@ export default function PharmacyForecastPage() {
 
   const approvalGate = useMemo(() => {
     if (!mergedPreview) return { ok: true as const };
-    const keys = new Set(
+    const doseAckKeys = new Set(
       Object.entries(pharmacistDoseAcks)
         .filter(([, v]) => v)
         .map(([k]) => k),
     );
-    return validateMergedForecastForApproval(mergedPreview, { pharmacistDoseAckKeys: keys });
-  }, [mergedPreview, pharmacistDoseAcks]);
+    const patientFlagAckKeys = new Set<string>();
+    const weightOverrideRecordNumbers = new Set<string>();
+    const confirmedDrugKeys = new Set<string>();
+    if (auditState) {
+      for (const pAudit of Object.values(auditState.patients)) {
+        if (pAudit.weightOverride != null && pAudit.weightOverride > 0) {
+          weightOverrideRecordNumbers.add(pAudit.recordNumber);
+        }
+        for (const [flag, acked] of Object.entries(pAudit.warningAcknowledgements)) {
+          if (acked) patientFlagAckKeys.add(`${pAudit.recordNumber}|${flag}`);
+        }
+        for (const [drugName, entry] of Object.entries(pAudit.drugs)) {
+          if (entry.confirmed) {
+            confirmedDrugKeys.add(normalizeQuantityKey(pAudit.recordNumber, drugName));
+          }
+        }
+      }
+    }
+    return validateMergedForecastForApproval(mergedPreview, {
+      pharmacistDoseAckKeys: doseAckKeys,
+      patientFlagAckKeys,
+      weightOverrideRecordNumbers,
+      confirmedDrugKeys,
+    });
+  }, [mergedPreview, pharmacistDoseAcks, auditState]);
 
   const auditComplete = useMemo(() => {
     if (!auditState || !forecastResult) return false;
@@ -242,14 +371,20 @@ export default function PharmacyForecastPage() {
       if (!forecastParseId) throw new Error("no parse session");
       const trace: Record<string, { forecastedQty: number | null; onHandQty: number }> = {};
       const weightOverrides: Record<string, number> = {};
+      const patientFlagAcks: string[] = [];
+      const confirmedDrugKeys: string[] = [];
       if (auditState) {
         for (const pAudit of Object.values(auditState.patients)) {
           if (pAudit.weightOverride != null && pAudit.weightOverride > 0) {
             weightOverrides[pAudit.recordNumber] = pAudit.weightOverride;
           }
+          for (const [flag, acked] of Object.entries(pAudit.warningAcknowledgements)) {
+            if (acked) patientFlagAcks.push(`${pAudit.recordNumber}|${flag}`);
+          }
           for (const [drugName, entry] of Object.entries(pAudit.drugs)) {
             const key = normalizeQuantityKey(pAudit.recordNumber, drugName);
             trace[key] = { forecastedQty: entry.forecastedQty, onHandQty: entry.onHandQty };
+            if (entry.confirmed) confirmedDrugKeys.push(key);
           }
         }
       }
@@ -259,6 +394,8 @@ export default function PharmacyForecastPage() {
         pharmacistDoseAcks: Object.entries(pharmacistDoseAcks)
           .filter(([, v]) => v)
           .map(([k]) => k),
+        patientFlagAcks: patientFlagAcks.length > 0 ? patientFlagAcks : undefined,
+        confirmedDrugKeys: confirmedDrugKeys.length > 0 ? confirmedDrugKeys : undefined,
         auditTrace: Object.keys(trace).length > 0 ? trace : undefined,
         patientWeightOverrides: Object.keys(weightOverrides).length > 0 ? weightOverrides : undefined,
       });
@@ -285,15 +422,6 @@ export default function PharmacyForecastPage() {
   });
 
   const technicianLabel = name || email || "";
-
-  const previewText = useMemo(() => {
-    if (!mergedPreview) return "";
-    const summary = t.pharmacyForecast.emailPreviewSummary(
-      mergedPreview.patients.length,
-      mergedPreview.windowHours,
-    );
-    return buildEmailPreviewBody(mergedPreview, technicianLabel, summary);
-  }, [mergedPreview, technicianLabel, t]);
 
   const handleQtyChange = useCallback((key: string, raw: string) => {
     const n = parseInt(raw, 10);
@@ -331,8 +459,52 @@ export default function PharmacyForecastPage() {
         </div>
 
         {pharmacyMissing ? (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
-            {t.pharmacyForecast.pharmacyEmailMissing}
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 space-y-2">
+            <p className="text-sm text-foreground">{t.pharmacyForecast.pharmacyEmailMissing}</p>
+            {resolvedRole === "admin" && (
+              editingEmail ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="email"
+                    placeholder="pharmacy@example.com"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const v = emailInput.trim();
+                        saveEmailMutation.mutate(v || null);
+                      }
+                    }}
+                    className="h-8 text-sm max-w-xs"
+                    autoFocus
+                    data-testid="pharmacy-email-input"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => saveEmailMutation.mutate(emailInput.trim() || null)}
+                    disabled={saveEmailMutation.isPending}
+                    data-testid="btn-save-pharmacy-email"
+                  >
+                    {saveEmailMutation.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                    Save
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingEmail(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => { setEmailInput(""); setEditingEmail(true); }}
+                  data-testid="btn-set-pharmacy-email"
+                >
+                  Set pharmacy email
+                </Button>
+              )
+            )}
           </div>
         ) : null}
 
@@ -779,12 +951,17 @@ export default function PharmacyForecastPage() {
 
               {/* ── Email tab ── */}
               <TabsContent value="email" className="mt-3">
-                <pre
-                  className="whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-xs font-mono max-h-[420px] overflow-auto"
-                  dir="rtl"
-                >
-                  {previewText}
-                </pre>
+                {mergedPreview ? (
+                  <PharmacyEmailPreviewPanel
+                    result={mergedPreview}
+                    auditState={auditState}
+                    technicianLabel={technicianLabel}
+                    summaryLine={t.pharmacyForecast.emailPreviewSummary(
+                      mergedPreview.patients.length,
+                      mergedPreview.windowHours,
+                    )}
+                  />
+                ) : null}
               </TabsContent>
             </Tabs>
 

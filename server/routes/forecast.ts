@@ -263,6 +263,9 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
 
     const gate = validateMergedForecastForApproval(mergedResult, {
       pharmacistDoseAckKeys: new Set(parsed.data.pharmacistDoseAcks ?? []),
+      patientFlagAckKeys: new Set(parsed.data.patientFlagAcks ?? []),
+      weightOverrideRecordNumbers: new Set(Object.keys(parsed.data.patientWeightOverrides ?? {})),
+      confirmedDrugKeys: new Set(parsed.data.confirmedDrugKeys ?? []),
     });
     if (!gate.ok) {
       return res.status(400).json(apiError({
@@ -504,7 +507,7 @@ router.post("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClini
   const clinicId = req.clinicId!;
   const schema = z.object({
     matchSubstring: z.string().min(1).max(200),
-    note: z.string().max(500).optional(),
+    note: z.string().max(500).nullish(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {

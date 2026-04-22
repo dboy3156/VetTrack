@@ -1,3 +1,4 @@
+/** Re-export shared gate so `approveGuard.ts` can use `./approve-gate.js` (Node ESM). */
 export {
   validateMergedForecastForApproval,
   type ApprovalError,
@@ -5,4 +6,4 @@ export {
   PHARMACIST_ONLY_FLAGS,
   WEIGHT_RESOLVABLE_FLAGS,
   patientFlagAckKey,
-} from "./approve-gate.js";
+} from "../../../src/lib/forecast/approveGate.js";
