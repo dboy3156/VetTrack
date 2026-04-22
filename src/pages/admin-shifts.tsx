@@ -184,7 +184,7 @@ export default function AdminShiftsPage() {
                 </div>
               </div>
 
-              <div className="overflow-auto rounded-xl border">
+              <div className="overflow-auto rounded-xl border border-border">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/60">
                     <tr>
@@ -198,7 +198,7 @@ export default function AdminShiftsPage() {
                   </thead>
                   <tbody>
                     {sortedPreviewRows.map((row) => (
-                      <tr key={`preview-${row.rowNumber}`} className="border-t">
+                      <tr key={`preview-${row.rowNumber}`} className="border-t border-border hover:bg-muted/50 transition-colors">
                         <td className="p-2">{row.rowNumber}</td>
                         <td className="p-2">{row.date}</td>
                         <td className="p-2">{row.startTime}</td>
@@ -218,12 +218,12 @@ export default function AdminShiftsPage() {
               </div>
 
               {preview.issues.length > 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                  <div className="flex items-center gap-1 text-xs font-semibold text-amber-700">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-foreground">
+                  <div className="flex items-center gap-1 text-xs font-semibold text-foreground">
                     <AlertTriangle className="w-4 h-4" />
                     {t.adminShiftsPage.issuesTitle}
                   </div>
-                  <ul className="mt-2 space-y-1 text-xs text-amber-800">
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                     {preview.issues.slice(0, 50).map((issue) => (
                       <li key={`issue-${issue.rowNumber}-${issue.reason}`}>
                         {t.adminShiftsPage.rowLabel(issue.rowNumber)}: {issue.reason}
@@ -245,14 +245,15 @@ export default function AdminShiftsPage() {
           </CardHeader>
           <CardContent>
             {importsQuery.isLoading ? (
-              <div className="space-y-2">
+              <div className="space-y-2" role="status" aria-live="polite" aria-busy="true">
+                <span className="sr-only">{t.common.loading}</span>
                 {[1, 2, 3].map((idx) => (
                   <Skeleton key={idx} className="h-10 rounded-lg" />
                 ))}
               </div>
             ) : importsQuery.isError ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                <p className="text-xs text-amber-800">Failed to load import history.</p>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-foreground">
+                <p className="text-xs text-muted-foreground">Failed to load import history.</p>
                 <Button
                   size="sm"
                   variant="outline"
@@ -268,7 +269,7 @@ export default function AdminShiftsPage() {
             ) : (
               <div className="space-y-2">
                 {importsQuery.data.map((entry) => (
-                  <div key={entry.id} className="rounded-lg border p-2 text-xs">
+                  <div key={entry.id} className="rounded-lg border border-border p-2 text-xs hover:bg-muted/50 transition-colors">
                     <div className="font-medium">{entry.filename}</div>
                     <div className="text-muted-foreground">
                       {new Date(entry.importedAt).toLocaleString()} · {entry.rowCount} {t.adminShiftsPage.rowCount}

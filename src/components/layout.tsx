@@ -42,6 +42,7 @@ import {
   Pill,
   ShoppingCart,
   Syringe,
+  Lock,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -59,6 +60,7 @@ import { playFeedbackTone, playMuteTone } from "@/lib/sounds";
 import { ReportIssueDialog } from "@/components/report-issue-dialog";
 import { SyncQueueSheet } from "@/components/sync-queue-sheet";
 import { UpdateBanner } from "@/components/update-banner";
+import { haptics } from "@/lib/haptics";
 
 interface NavItem {
   href: string;
@@ -73,11 +75,18 @@ interface LayoutProps {
   children: React.ReactNode;
   title?: string;
   onScan?: () => void;
-  /** When true, blocks leaving the flow via header/sidebar/outside taps (hands-free restock). */
+  /** When `onScan` is used, pass open state so the bottom nav scan control matches the page scanner. */
+  scannerOpen?: boolean;
+  /** When `onScan` is used, call to close the scanner from the bottom nav (e.g. setState false). */
+  onCloseScan?: () => void;
+  /**
+   * When true, a capture-phase click handler blocks navigation outside the flow; allowlisted
+   * controls must sit under a DOM ancestor with `data-restock-allow` (see effect below).
+   */
   navigationLocked?: boolean;
 }
 
-export function Layout({ children, title: _title, onScan, navigationLocked }: LayoutProps) {
+export function Layout({ children, title: _title, onScan, scannerOpen: scannerOpenFromParent, onCloseScan, navigationLocked }: LayoutProps) {
   const lh = t.layoutHebrew;
   const QUICK_SETTINGS_PANEL_WIDTH = 288;
   const QUICK_SETTINGS_MARGIN = 8;
@@ -89,8 +98,15 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
   const [quickSettingsViewportTop, setQuickSettingsViewportTop] = useState(0);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [internalScannerOpen, setInternalScannerOpen] = useState(false);
+  const [menuMounted, setMenuMounted] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [qsMounted, setQsMounted] = useState(false);
+  const [qsVisible, setQsVisible] = useState(false);
+  const [alertBadgeAnimating, setAlertBadgeAnimating] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
+  const navLockToastDebounceRef = useRef(false);
+  const prevAlertCountRef = useRef(0);
   const { isAdmin, role, userId, effectiveRole } = useAuth();
   const resolvedNavRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canAccessPharmacyForecastNav =
@@ -108,6 +124,8 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
 
   useEffect(() => {
     if (!navigationLocked) return;
+    // Restock UIs: put `data-restock-allow` on a wrapper around controls that must stay clickable
+    // when the shell blocks other navigation (parent passes `navigationLocked`).
     const blockExternalNav = (e: MouseEvent) => {
       for (const n of e.composedPath()) {
         if (n instanceof Element && n.closest("[data-restock-allow]")) return;
@@ -115,11 +133,22 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      navigator.vibrate?.(150);
+      haptics.locked();
+      if (!navLockToastDebounceRef.current) {
+        navLockToastDebounceRef.current = true;
+        toast.info(lh.restockNavLockedToast, {
+          icon: <Lock className="w-4 h-4" aria-hidden />,
+          duration: 2000,
+          id: "nav-locked",
+        });
+        setTimeout(() => {
+          navLockToastDebounceRef.current = false;
+        }, 2500);
+      }
     };
     document.addEventListener("click", blockExternalNav, true);
     return () => document.removeEventListener("click", blockExternalNav, true);
-  }, [navigationLocked]);
+  }, [navigationLocked, lh.restockNavLockedToast]);
 
   useEffect(() => {
     if (!quickSettingsOpen) return;
@@ -153,11 +182,49 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
     };
   }, [quickSettingsOpen]);
 
+  useEffect(() => {
+    if (menuOpen) {
+      setMenuMounted(true);
+      const raf = requestAnimationFrame(() => setMenuVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setMenuVisible(false);
+    const t = setTimeout(() => setMenuMounted(false), 220);
+    return () => clearTimeout(t);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (quickSettingsOpen) {
+      setQsMounted(true);
+      const raf = requestAnimationFrame(() => setQsVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setQsVisible(false);
+    const t = setTimeout(() => setQsMounted(false), 180);
+    return () => clearTimeout(t);
+  }, [quickSettingsOpen]);
+
+  const scannerUIOpen = onScan ? Boolean(scannerOpenFromParent) : internalScannerOpen;
+
   const openScanner = () => {
     if (onScan) {
       onScan();
     } else {
-      setScannerOpen(true);
+      setInternalScannerOpen(true);
+    }
+  };
+
+  const closeScanner = () => {
+    if (onScan) onCloseScan?.();
+    else setInternalScannerOpen(false);
+  };
+
+  const handleScanButtonClick = () => {
+    haptics.tap();
+    if (scannerUIOpen) {
+      closeScanner();
+    } else {
+      openScanner();
     }
   };
 
@@ -173,7 +240,7 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
         try {
           const parsed = JSON.parse(rawActive) as { containerId?: string };
           if (parsed.containerId && parsed.containerId !== containerId) {
-            navigator.vibrate?.(150);
+            haptics.warning();
             toast.warning("Finish restock before scanning another container.");
             return;
           }
@@ -204,14 +271,14 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
           return;
         }
         await api.restock.scan(parsed.sessionId, { nfcTagId, delta: 1 });
-        navigator.vibrate?.(50);
+        haptics.scanSuccess();
         if (parsed.containerId) {
           qc.invalidateQueries({ queryKey: ["/api/restock/container-items", parsed.containerId] });
         }
         navigate("/inventory");
         return;
       } catch {
-        navigator.vibrate?.(150);
+        haptics.error();
         toast.error("Inventory scan failed");
         return;
       }
@@ -267,6 +334,16 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
 
   const alertCount = equipment ? computeAlerts(equipment).length : 0;
   const myCount = myEquipment?.length ?? 0;
+
+  useEffect(() => {
+    if (alertCount > prevAlertCountRef.current) {
+      setAlertBadgeAnimating(true);
+      const timer = setTimeout(() => setAlertBadgeAnimating(false), 420);
+      prevAlertCountRef.current = alertCount;
+      return () => clearTimeout(timer);
+    }
+    prevAlertCountRef.current = alertCount;
+  }, [alertCount]);
 
   const canAccessCodeBlue = isAdmin || role === "vet";
 
@@ -326,6 +403,28 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
+  const operationMenuItems = useMemo(
+    () =>
+      ["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
+        .map((href) => visibleItems.find((i) => i.href === href))
+        .filter((x): x is NavItem => x != null),
+    [visibleItems]
+  );
+  const managementMenuItems = useMemo(
+    () =>
+      ["/analytics", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"]
+        .map((href) => visibleItems.find((i) => i.href === href))
+        .filter((x): x is NavItem => x != null),
+    [visibleItems]
+  );
+  const systemMenuItems = useMemo(
+    () =>
+      ["/help", "/settings", "/landing"]
+        .map((href) => visibleItems.find((i) => i.href === href))
+        .filter((x): x is NavItem => x != null),
+    [visibleItems]
+  );
+
   const bottomNavActive = useMemo(
     () => ({
       home: location === "/" || location === "",
@@ -334,6 +433,14 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
     }),
     [location],
   );
+
+  const activeTabIndex = useMemo(() => {
+    if (menuOpen) return 4;
+    if (bottomNavActive.rooms) return 3;
+    if (bottomNavActive.equipment) return 1;
+    if (bottomNavActive.home) return 0;
+    return -1;
+  }, [bottomNavActive, menuOpen]);
 
   const hasPending = pendingCount > 0;
   const hasFailed = failedCount > 0;
@@ -366,14 +473,47 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <header className="sticky top-safe z-40 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header
+        className={cn(
+          "sticky top-safe z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+          navigationLocked ? "border-amber-400/60" : "border-border/60",
+          "transition-colors duration-300"
+        )}
+      >
+        {navigationLocked && (
+          <div
+            className="h-[3px] bg-gradient-to-r from-transparent via-amber-400 to-transparent w-full"
+            style={{ animation: "scanningBar 1.8s ease-in-out infinite" }}
+            role="status"
+            aria-label={lh.navLockActiveAria}
+          />
+        )}
         <UpdateBanner />
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <QrCode className="w-4 h-4 text-primary" />
+          <Link
+            href="/"
+            className="flex items-center gap-2 group select-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div
+              className={cn(
+                "w-8 h-8 rounded-2xl flex items-center justify-center",
+                "bg-primary/10",
+                "group-hover:bg-primary/20 group-hover:scale-110 group-hover:shadow-sm group-hover:shadow-primary/20",
+                "group-active:scale-95",
+                "transition-all duration-200 ease-out"
+              )}
+            >
+              <QrCode
+                className="w-4 h-4 text-primary transition-transform duration-300 ease-out group-hover:rotate-[15deg]"
+                aria-hidden
+              />
             </div>
-            <span className="text-lg font-bold text-foreground tracking-tight">VetTrack</span>
+            <span
+              className="text-lg font-bold tracking-tight transition-colors duration-200
+                text-foreground group-hover:text-primary"
+            >
+              VetTrack
+            </span>
           </Link>
 
           <div className="flex items-center gap-1.5">
@@ -393,10 +533,16 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
 
             {isOnline && justSynced && !isSyncing && pendingCount === 0 && (
               <div
-                className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800 rounded-full px-2.5 py-1"
+                className="flex items-center gap-1 text-xs text-emerald-600 rounded-full px-2.5 py-1
+                  border border-emerald-200/80 dark:border-emerald-800"
+                style={{ animation: "syncSuccessBoom 2.2s ease-out forwards" }}
                 data-testid="sync-synced-indicator"
               >
-                <CheckCircle className="w-3 h-3" />
+                <CheckCircle
+                  className="w-3 h-3"
+                  style={{ animation: "checkPop 300ms cubic-bezier(0.34,1.56,0.64,1) forwards" }}
+                  aria-hidden
+                />
                 <span>{lh.synced}</span>
               </div>
             )}
@@ -461,8 +607,27 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
                   aria-label={lh.alertAria(alertCount)}
                   data-testid="alert-bell"
                 >
-                  <AlertTriangle className="w-4 h-4" aria-hidden="true" />
-                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-400 text-white text-[9px] rounded-full flex items-center justify-center font-bold" aria-hidden="true">
+                  <AlertTriangle
+                    className={cn(
+                      "w-4 h-4 transition-colors duration-200",
+                      alertCount > 5 ? "text-red-500" : "text-amber-500"
+                    )}
+                    aria-hidden
+                  />
+                  <span
+                    className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-400 pointer-events-none"
+                    style={{ animation: "alertPing 2s ease-out infinite" }}
+                    aria-hidden
+                  />
+                  <span
+                    key={alertCount}
+                    className={cn(
+                      "absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 text-white text-[9px]",
+                      "rounded-full flex items-center justify-center font-bold z-10",
+                      alertBadgeAnimating && "[animation:badgePop_420ms_cubic-bezier(0.68,-0.55,0.265,1.55)_forwards]"
+                    )}
+                    aria-hidden
+                  >
                     {alertCount > 9 ? "9+" : alertCount}
                   </span>
                 </Button>
@@ -485,11 +650,16 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
                 <Settings className="w-4 h-4" />
               </Button>
 
-              {quickSettingsOpen && (
+              {qsMounted && (
                 <div
                   className={cn(
-                    "w-72 bg-card border border-border rounded-2xl shadow-lg z-50 p-3 space-y-2",
-                    quickSettingsUseViewportRight ? "fixed right-2" : "absolute right-0 top-full mt-2"
+                    "w-72 bg-card border border-border rounded-2xl z-50 p-3 space-y-2",
+                    "origin-top-right will-change-transform",
+                    "shadow-[0_4px_6px_-1px_rgba(0,0,0,0.07),0_16px_48px_-8px_rgba(0,0,0,0.15)]",
+                    quickSettingsUseViewportRight ? "fixed right-2" : "absolute right-0 top-full mt-2",
+                    qsVisible
+                      ? "[animation:menuReveal_160ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
+                      : "opacity-0 pointer-events-none scale-95"
                   )}
                   style={quickSettingsUseViewportRight ? { top: quickSettingsViewportTop } : undefined}
                   data-testid="quick-settings-panel"
@@ -498,7 +668,22 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
                     {lh.quickSettings}
                   </p>
                   <SettingsToggle
-                    icon={settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                    icon={
+                      <span className="relative w-5 h-5 block">
+                        <Moon
+                          className={cn(
+                            "w-5 h-5 absolute inset-0 transition-all duration-200",
+                            settings.darkMode ? "opacity-100 rotate-0" : "opacity-0 rotate-90"
+                          )}
+                        />
+                        <Sun
+                          className={cn(
+                            "w-5 h-5 absolute inset-0 transition-all duration-200",
+                            settings.darkMode ? "opacity-0 -rotate-90" : "opacity-100 rotate-0"
+                          )}
+                        />
+                      </span>
+                    }
                     label={t.layout.settings.darkMode}
                     checked={settings.darkMode}
                     onCheckedChange={(v) => update({ darkMode: v })}
@@ -516,7 +701,22 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
                     data-testid="quick-density"
                   />
                   <SettingsToggle
-                    icon={settings.soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                    icon={
+                      <span className="relative w-5 h-5 block">
+                        <Volume2
+                          className={cn(
+                            "w-5 h-5 absolute inset-0 transition-all duration-200",
+                            settings.soundEnabled ? "opacity-100 rotate-0" : "opacity-0 rotate-90"
+                          )}
+                        />
+                        <VolumeX
+                          className={cn(
+                            "w-5 h-5 absolute inset-0 transition-all duration-200",
+                            settings.soundEnabled ? "opacity-0 -rotate-90" : "opacity-100 rotate-0"
+                          )}
+                        />
+                      </span>
+                    }
                     label={t.layout.settings.masterSound}
                     checked={settings.soundEnabled}
                     onCheckedChange={handleSoundToggle}
@@ -546,34 +746,58 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
           </div>
         </div>
 
-        {menuOpen && (
-          <div className="border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto">
+        {menuMounted && (
+          <div
+            className={cn(
+              "border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto",
+              "origin-top will-change-transform",
+              menuVisible
+                ? "[animation:menuReveal_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
+                : "opacity-0 pointer-events-none"
+            )}
+          >
             <nav className="flex flex-col gap-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
-              {["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"].map((href) => {
-                const item = visibleItems.find((i) => i.href === href);
-                if (!item) return null;
+              {operationMenuItems.map((item, index) => {
+                const isActive = location === item.href;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
                     data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                    className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                    style={{ animationDelay: menuVisible ? `${index * 16}ms` : "0ms" }}
                   >
                     <div
                       className={cn(
-                        "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
-                        location === item.href
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted"
+                        "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
+                        "relative overflow-hidden",
+                        isActive
+                          ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
+                          : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                      {isActive && (
+                        <span
+                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                          style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
+                          aria-hidden
+                        />
+                      )}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span
+                          className={cn(
+                            "transition-all duration-150 flex-shrink-0",
+                            isActive ? "opacity-100 scale-110" : "opacity-60 scale-100"
+                          )}
+                        >
+                          {item.icon}
+                        </span>
                         <span className="text-sm font-medium">{item.label}</span>
                       </div>
                       {item.badgeCount ? (
-                        <Badge variant="issue" className="h-5 min-w-5 px-1.5">
+                        <Badge variant="issue" className="h-5 min-w-5 px-1.5 flex-shrink-0">
                           {item.badgeCount}
                         </Badge>
                       ) : null}
@@ -583,26 +807,43 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
               })}
 
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">Management</p>
-              {["/analytics", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"].map((href) => {
-                const item = visibleItems.find((i) => i.href === href);
-                if (!item) return null;
+              {managementMenuItems.map((item, index) => {
+                const isActive = location === item.href;
+                const stagger = operationMenuItems.length + index;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
                     data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                    className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                    style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
                   >
                     <div
                       className={cn(
-                        "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
-                        location === item.href
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted"
+                        "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
+                        "relative overflow-hidden",
+                        isActive
+                          ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
+                          : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                      {isActive && (
+                        <span
+                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                          style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
+                          aria-hidden
+                        />
+                      )}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            "transition-all duration-150 flex-shrink-0",
+                            isActive ? "opacity-100 scale-110" : "opacity-60 scale-100"
+                          )}
+                        >
+                          {item.icon}
+                        </span>
                         <span className="text-sm font-medium">{item.label}</span>
                       </div>
                     </div>
@@ -611,27 +852,44 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
               })}
 
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">System</p>
-              {["/help", "/settings", "/landing"].map((href) => {
-                const item = visibleItems.find((i) => i.href === href);
-                if (!item) return null;
-                if (href === "/settings") {
+              {systemMenuItems.map((item, index) => {
+                const isActive = location === item.href;
+                const stagger = operationMenuItems.length + managementMenuItems.length + index;
+                if (item.href === "/settings") {
                   return (
                     <button
                       key={item.href}
+                      type="button"
                       onClick={openSettingsPage}
                       data-testid={`nav-${item.href.replace("/", "") || "home"}`}
-                      className="w-full text-left"
+                      className="w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                      style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
                     >
                       <div
                         className={cn(
-                          "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
-                          location === item.href
-                            ? "bg-primary/10 text-primary font-semibold"
-                            : "text-foreground hover:bg-muted"
+                          "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
+                          "relative overflow-hidden",
+                          isActive
+                            ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
+                            : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                        {isActive && (
+                          <span
+                            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                            style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
+                            aria-hidden
+                          />
+                        )}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span
+                            className={cn(
+                              "transition-all duration-150 flex-shrink-0",
+                              isActive ? "opacity-100 scale-110" : "opacity-60 scale-100"
+                            )}
+                          >
+                            {item.icon}
+                          </span>
                           <span className="text-sm font-medium">{item.label}</span>
                         </div>
                       </div>
@@ -644,17 +902,34 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
                     data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                    className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                    style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
                   >
                     <div
                       className={cn(
-                        "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors min-h-[44px]",
-                        location === item.href
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted"
+                        "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
+                        "relative overflow-hidden",
+                        isActive
+                          ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
+                          : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className={cn("opacity-60", location === item.href && "opacity-100")}>{item.icon}</span>
+                      {isActive && (
+                        <span
+                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                          style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
+                          aria-hidden
+                        />
+                      )}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            "transition-all duration-150 flex-shrink-0",
+                            isActive ? "opacity-100 scale-110" : "opacity-60 scale-100"
+                          )}
+                        >
+                          {item.icon}
+                        </span>
                         <span className="text-sm font-medium">{item.label}</span>
                       </div>
                     </div>
@@ -662,14 +937,29 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
                 );
               })}
               <button
+                type="button"
                 onClick={() => {
                   setMenuOpen(false);
                   setReportIssueOpen(true);
                 }}
                 data-testid="nav-report-issue"
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-foreground hover:bg-muted w-full text-left min-h-[44px]"
+                className={cn(
+                  "w-full text-left min-h-[44px] relative overflow-hidden",
+                  "opacity-0 [animation:navItemFade_160ms_ease-out_forwards] rounded-xl",
+                  "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3",
+                  "flex items-center gap-3 transition-all duration-150 py-2.5"
+                )}
+                style={{
+                  animationDelay: menuVisible
+                    ? `${(operationMenuItems.length + managementMenuItems.length + systemMenuItems.length) * 16}ms`
+                    : "0ms",
+                }}
               >
-                <Bug className="w-5 h-5 opacity-60" />
+                <span
+                  className="transition-all duration-150 flex-shrink-0 opacity-60 scale-100"
+                >
+                  <Bug className="w-5 h-5" />
+                </span>
                 <span className="text-sm font-medium">{lh.reportIssue}</span>
               </button>
             </nav>
@@ -696,12 +986,25 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
         }}
         aria-label={lh.bottomMenu}
       >
-        <div className="grid grid-cols-5 max-w-2xl mx-auto items-end min-h-[68px] px-0.5 pt-1">
-          <Link href="/" className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px]" data-testid="bottom-nav-home">
+        <div className="relative grid grid-cols-5 max-w-2xl mx-auto items-end min-h-[68px] px-0.5 pt-1">
+          {activeTabIndex >= 0 && (
+            <div
+              aria-hidden
+              className="vt-bottom-nav-tab-pill absolute top-1 h-[3px] w-6 rounded-full bg-primary pointer-events-none"
+              style={{
+                left: `calc(${activeTabIndex} * 20% + 10% - 12px)`,
+              }}
+            />
+          )}
+          <Link
+            href="/"
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+            data-testid="bottom-nav-home"
+          >
             <Home
               className={cn(
-                "w-6 h-6 transition-colors",
-                bottomNavActive.home ? "text-primary" : "text-muted-foreground"
+                "w-6 h-6 transition-all duration-200",
+                bottomNavActive.home ? "text-primary scale-110" : "text-muted-foreground scale-100"
               )}
               aria-hidden
             />
@@ -715,11 +1018,15 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
             </span>
           </Link>
 
-          <Link href="/equipment" className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px]" data-testid="bottom-nav-equipment">
+          <Link
+            href="/equipment"
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+            data-testid="bottom-nav-equipment"
+          >
             <Search
               className={cn(
-                "w-6 h-6 transition-colors",
-                bottomNavActive.equipment ? "text-primary" : "text-muted-foreground"
+                "w-6 h-6 transition-all duration-200",
+                bottomNavActive.equipment ? "text-primary scale-110" : "text-muted-foreground scale-100"
               )}
               aria-hidden
             />
@@ -733,32 +1040,70 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
             </span>
           </Link>
 
+          {/* ── Central scan button ── */}
           <div className="flex flex-col items-center justify-end pb-1 relative">
+            {!scannerUIOpen && !navigationLocked && (
+              <span
+                className="absolute top-[-24px] w-[3.75rem] h-[3.75rem] rounded-2xl bg-primary/20 pointer-events-none"
+                style={{ animation: "scanAmbient 2.8s ease-in-out infinite" }}
+                aria-hidden
+              />
+            )}
+
             <button
               type="button"
-              onClick={() => {
-                openScanner();
-                navigator.vibrate?.(15);
-              }}
+              onClick={handleScanButtonClick}
               className={cn(
                 "-mt-6 mb-0.5 flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-2xl",
-                "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
                 "ring-4 ring-background dark:ring-background",
-                "hover:bg-primary/90 active:scale-[0.97] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                "active:scale-[0.93] motion-reduce:active:scale-100 transition-all duration-200 ease-out",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "cursor-pointer",
+                scannerUIOpen
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600"
+                  : navigationLocked
+                    ? "bg-amber-500 text-white shadow-lg shadow-amber-500/35 hover:bg-amber-600"
+                    : "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:bg-primary/90"
               )}
-              aria-label={lh.bottomScan}
+              aria-label={scannerUIOpen ? lh.closeScannerAria : lh.bottomScan}
               data-testid="bottom-nav-scan"
             >
-              <QrCode className="w-8 h-8" aria-hidden />
+              {scannerUIOpen ? (
+                <X className="w-8 h-8 transition-transform duration-150" aria-hidden />
+              ) : (
+                <QrCode
+                  className={cn(
+                    "w-8 h-8 transition-transform duration-150",
+                    navigationLocked && "[animation:scanAmbient_1.4s_ease-in-out_infinite]"
+                  )}
+                  aria-hidden
+                />
+              )}
             </button>
-            <span className="text-[10px] font-bold text-foreground leading-tight text-center">{lh.bottomScan}</span>
+
+            <span
+              className={cn(
+                "text-[10px] font-bold leading-tight text-center transition-colors duration-200",
+                scannerUIOpen
+                  ? "text-emerald-600"
+                  : navigationLocked
+                    ? "text-amber-600"
+                    : "text-foreground"
+              )}
+            >
+              {scannerUIOpen ? lh.bottomScanClose : lh.bottomScan}
+            </span>
           </div>
 
-          <Link href="/rooms" className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px]" data-testid="bottom-nav-rooms">
+          <Link
+            href="/rooms"
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+            data-testid="bottom-nav-rooms"
+          >
             <Map
               className={cn(
-                "w-6 h-6 transition-colors",
-                bottomNavActive.rooms ? "text-primary" : "text-muted-foreground"
+                "w-6 h-6 transition-all duration-200",
+                bottomNavActive.rooms ? "text-primary scale-110" : "text-muted-foreground scale-100"
               )}
               aria-hidden
             />
@@ -775,15 +1120,33 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full"
+            className={cn(
+              "flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full",
+              "active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100",
+              "rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "cursor-pointer",
+              navigationLocked && "opacity-40"
+            )}
             aria-expanded={menuOpen}
             aria-label={menuOpen ? t.common.closeNavigationMenu : lh.bottomMenu}
             data-testid="bottom-nav-menu"
           >
             {menuOpen ? (
-              <X className="w-6 h-6 text-primary" aria-hidden />
+              <X
+                className={cn(
+                  "w-6 h-6 transition-all duration-200",
+                  "text-primary scale-110"
+                )}
+                aria-hidden
+              />
             ) : (
-              <Menu className="w-6 h-6 text-muted-foreground" aria-hidden />
+              <Menu
+                className={cn(
+                  "w-6 h-6 transition-all duration-200",
+                  "text-muted-foreground scale-100"
+                )}
+                aria-hidden
+              />
             )}
             <span className={cn("text-[10px] font-semibold", menuOpen ? "text-primary" : "text-muted-foreground")}>
               {lh.bottomMenu}
@@ -792,8 +1155,8 @@ export function Layout({ children, title: _title, onScan, navigationLocked }: La
         </div>
       </nav>
 
-      {scannerOpen && (
-        <QrScanner onClose={() => setScannerOpen(false)} />
+      {!onScan && scannerUIOpen && (
+        <QrScanner onClose={() => setInternalScannerOpen(false)} />
       )}
 
       <ReportIssueDialog

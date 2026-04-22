@@ -1010,25 +1010,25 @@ export default function EquipmentDetailPage() {
                   if (!expiryState) return null;
                   if (expiryState === "expired") {
                     return (
-                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
+                      <Badge variant="issue" className="mt-1 text-xs font-medium">
                         <CalendarX className="w-3.5 h-3.5" />
                         פג תוקף
-                      </div>
+                      </Badge>
                     );
                   }
                   if (expiryState === "expiring_soon") {
                     return (
-                      <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">
+                      <Badge variant="maintenance" className="mt-1 text-xs font-medium">
                         <CalendarClock className="w-3.5 h-3.5" />
                         פג בקרוב (עד 7 ימים)
-                      </div>
+                      </Badge>
                     );
                   }
                   return (
-                    <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                    <Badge variant="ok" className="mt-1 text-xs font-medium">
                       <CalendarCheck className="w-3.5 h-3.5" />
                       בתוקף
-                    </div>
+                    </Badge>
                   );
                 })()}
               </CardContent>
@@ -1399,8 +1399,8 @@ export default function EquipmentDetailPage() {
             }
           }}
         >
-          <div className="bg-white rounded-t-3xl px-5 pt-5 pb-8 max-w-2xl mx-auto w-full">
-            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+          <div className="bg-card rounded-t-3xl px-5 pt-5 pb-8 max-w-2xl mx-auto w-full">
+            <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
 
             {!scanActionDone ? (
               <>
@@ -1428,14 +1428,14 @@ export default function EquipmentDetailPage() {
 
                 {/* Checkout info if currently out */}
                 {isCheckedOut && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-4 text-sm">
-                    <p className="font-medium text-blue-800">
+                  <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5 mb-4 text-sm">
+                    <p className="font-medium text-foreground">
                       {checkedOutByMe
                         ? t.equipmentDetail.toast.checkedOutByYou
                         : `In use by ${equipment.checkedOutByEmail || "another user"}`}
                     </p>
                     {equipment.checkedOutLocation && (
-                      <p className="text-blue-700 text-xs mt-0.5">
+                      <p className="text-primary text-xs mt-0.5">
                         Location: {equipment.checkedOutLocation}
                       </p>
                     )}

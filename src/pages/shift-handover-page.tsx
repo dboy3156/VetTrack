@@ -1,3 +1,4 @@
+// Not using `Layout` navigationLocked; if that is added, wrap tappable regions with [data-restock-allow] (see layout.tsx).
 import { t } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
@@ -74,7 +75,7 @@ const SECTION_SHELL = {
   revenue:
     "rounded-xl border border-emerald-200/90 bg-emerald-50/80 dark:bg-emerald-950/25 dark:border-emerald-900/50 mb-2 px-1 shadow-sm",
   activity:
-    "rounded-xl border border-blue-200/90 bg-blue-50/80 dark:bg-blue-950/25 dark:border-blue-900/50 mb-2 px-1 shadow-sm",
+    "rounded-xl border border-primary/20 bg-primary/5 dark:bg-primary/10 dark:border-primary/25 mb-2 px-1 shadow-sm",
   expiring:
     "rounded-xl border border-amber-200/90 bg-amber-50/80 dark:bg-amber-950/25 dark:border-amber-900/50 mb-2 px-1 shadow-sm border-b-0",
 };
@@ -218,7 +219,8 @@ export default function ShiftHandoverPage() {
         </div>
 
         {q.isLoading && (
-          <div className="space-y-3">
+          <div className="space-y-3" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{t.common.loading}</span>
             <Skeleton className="h-24 w-full rounded-xl" />
             <Skeleton className="h-40 w-full rounded-xl" />
           </div>
@@ -275,7 +277,7 @@ export default function ShiftHandoverPage() {
             </AccordionItem>
 
             <AccordionItem value="activity" className={cn("border-0", SECTION_SHELL.activity)}>
-              <AccordionTrigger className="text-base font-semibold px-3 hover:no-underline text-blue-950 dark:text-blue-100">
+              <AccordionTrigger className="text-base font-semibold px-3 hover:no-underline text-foreground">
                 {p.activityTitle}
               </AccordionTrigger>
               <AccordionContent className="px-3 pb-3">

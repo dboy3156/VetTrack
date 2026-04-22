@@ -110,10 +110,10 @@ interface LogEntry {
 
 function statusBadge(s: TestStatus) {
   const cfg: Record<TestStatus, { label: string; className: string; icon: React.ReactNode }> = {
-    pass: { label: "PASS", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300", icon: <CheckCircle2 className="w-3 h-3" /> },
-    fail: { label: "FAIL", className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300", icon: <XCircle className="w-3 h-3" /> },
-    warn: { label: "WARN", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300", icon: <AlertTriangle className="w-3 h-3" /> },
-    skip: { label: "SKIP", className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400", icon: <SkipForward className="w-3 h-3" /> },
+    pass: { label: "PASS", className: "bg-status-ok/10 text-status-ok", icon: <CheckCircle2 className="w-3 h-3" /> },
+    fail: { label: "FAIL", className: "bg-destructive/10 text-destructive", icon: <XCircle className="w-3 h-3" /> },
+    warn: { label: "WARN", className: "bg-amber-500/10 text-amber-800 dark:text-amber-300", icon: <AlertTriangle className="w-3 h-3" /> },
+    skip: { label: "SKIP", className: "bg-muted text-muted-foreground", icon: <SkipForward className="w-3 h-3" /> },
   };
   const c = cfg[s];
   return (
@@ -125,25 +125,25 @@ function statusBadge(s: TestStatus) {
 
 function logLevelColor(level: LogEntry["level"]) {
   return {
-    info: "text-blue-600 dark:text-blue-400",
-    success: "text-green-600 dark:text-green-400",
+    info: "text-primary",
+    success: "text-status-ok",
     warn: "text-amber-600 dark:text-amber-400",
-    error: "text-red-600 dark:text-red-400",
+    error: "text-destructive",
   }[level];
 }
 
 function suiteLabel(s: Suite) {
   return {
-    functional: { label: "Functional", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-    stress: { label: "Stress", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
-    edge: { label: "Edge Case", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+    functional: { label: "Functional", className: "bg-primary/10 text-primary" },
+    stress: { label: "Stress", className: "bg-secondary text-secondary-foreground" },
+    edge: { label: "Edge Case", className: "bg-muted/80 text-foreground" },
   }[s];
 }
 
 function SystemStatusBadge({ status, running }: { status: TestReport | null; running: boolean }) {
   if (running) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold text-sm">
+      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-semibold text-sm">
         <RefreshCw className="w-4 h-4 animate-spin" />
         Testing in progress...
       </div>
@@ -151,7 +151,7 @@ function SystemStatusBadge({ status, running }: { status: TestReport | null; run
   }
   if (!status) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-semibold text-sm">
+      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted text-muted-foreground font-semibold text-sm">
         <Activity className="w-4 h-4" />
         No tests run yet
       </div>
@@ -161,7 +161,7 @@ function SystemStatusBadge({ status, running }: { status: TestReport | null; run
   const warned = status.summary.warned;
   if (failed > 0) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold text-sm">
+      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-destructive/10 text-destructive font-semibold text-sm">
         <XCircle className="w-4 h-4" />
         Issues Detected ({failed} failed)
       </div>
@@ -169,14 +169,14 @@ function SystemStatusBadge({ status, running }: { status: TestReport | null; run
   }
   if (warned > 0) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold text-sm">
+      <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold text-sm">
         <AlertTriangle className="w-4 h-4" />
         Warnings ({warned} warned)
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-semibold text-sm">
+    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-status-ok/10 text-status-ok font-semibold text-sm">
       <ShieldCheck className="w-4 h-4" />
       {t.stabilityPage.allChecksHealthy}
     </div>
@@ -191,10 +191,10 @@ function SuiteSection({ suite, results }: { suite: Suite; results: TestResult[] 
   const warned = results.filter((r) => r.status === "warn").length;
 
   return (
-    <div className="border rounded-xl overflow-hidden dark:border-gray-700">
+    <div className="border border-border rounded-xl overflow-hidden">
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between p-4 bg-muted/40 hover:bg-muted/60 transition-colors"
+        className="w-full flex items-center justify-between p-4 bg-muted/40 hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className={cn("text-xs font-semibold px-2 py-0.5 rounded", sl.className)}>{sl.label}</span>
@@ -590,7 +590,7 @@ export default function StabilityDashboardPage() {
                   <div className="p-4 text-muted-foreground">No log entries{logSearch ? " matching search" : ""}.</div>
                 ) : (
                   logs.map((entry) => (
-                    <div key={entry.id} className="flex gap-2 px-3 py-1.5 hover:bg-muted/30 transition-colors">
+                    <div key={entry.id} className="flex gap-2 px-3 py-1.5 hover:bg-muted/50 transition-colors">
                       <span className="text-muted-foreground shrink-0 tabular-nums">
                         {format(new Date(entry.timestamp), "HH:mm:ss")}
                       </span>
@@ -630,7 +630,7 @@ export default function StabilityDashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <p className="font-semibold text-foreground mb-1 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Functional
+                  <span className="w-2 h-2 rounded-full bg-primary inline-block" />Functional
                 </p>
                 <ul className="space-y-0.5 text-xs list-disc list-inside">
                   <li>Server health &amp; uptime</li>
@@ -643,7 +643,7 @@ export default function StabilityDashboardPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground mb-1 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />Stress
+                  <span className="w-2 h-2 rounded-full bg-secondary-foreground/70 inline-block" />Stress
                 </p>
                 <ul className="space-y-0.5 text-xs list-disc list-inside">
                   <li>5 concurrent list requests</li>
@@ -655,7 +655,7 @@ export default function StabilityDashboardPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground mb-1 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />Edge Cases
+                  <span className="w-2 h-2 rounded-full bg-muted-foreground inline-block" />Edge Cases
                 </p>
                 <ul className="space-y-0.5 text-xs list-disc list-inside">
                   <li>Missing required fields → 400</li>

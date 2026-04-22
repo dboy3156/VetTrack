@@ -36,20 +36,27 @@ if (import.meta.env.DEV) {
 const rootEl = document.getElementById("root");
 
 function AppBootstrap() {
-  const [, forceLocaleRefresh] = useState(0);
+  const [localeVersion, setLocaleVersion] = useState(0);
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
+    if (import.meta.env.DEV) {
+      // In dev, unregister any cached SW so Vite HMR is never intercepted.
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((r) => r.unregister());
+      });
+      return;
+    }
     navigator.serviceWorker.register("/sw.js").catch((err) => {
       console.error("VetTrack: service worker registration failed", err);
     });
   }, []);
   useEffect(() => {
-    const handler = () => forceLocaleRefresh((v) => v + 1);
+    const handler = () => setLocaleVersion((v) => v + 1);
     window.addEventListener("vettrack:locale-changed", handler as EventListener);
     return () => window.removeEventListener("vettrack:locale-changed", handler as EventListener);
   }, []);
 
-  return <App />;
+  return <App key={`locale-${localeVersion}`} />;
 }
 
 if (!rootEl) {

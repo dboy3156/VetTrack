@@ -79,19 +79,19 @@ function actionLabel(actionType: string): string {
 function actionBadgeClass(actionType: string): string {
   if (actionType.includes("deleted") || actionType.includes("issue")) return "bg-destructive/10 text-destructive";
   if (actionType.includes("created") || actionType.includes("provisioned") || actionType.includes("init") || actionType.includes("verified")) {
-    return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+    return "bg-status-ok/10 text-status-ok";
   }
   if (actionType.includes("login") || actionType.includes("checkout") || actionType.includes("scan")) {
-    return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+    return "bg-primary/10 text-primary";
   }
   if (actionType.includes("transfer") || actionType.includes("moved") || actionType.includes("request")) {
-    return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400";
+    return "bg-secondary text-secondary-foreground";
   }
   if (actionType.includes("rounds") || actionType.includes("report") || actionType.includes("review") || actionType.includes("maintenance")) {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+    return "bg-muted/80 text-foreground";
   }
   if (actionType.includes("role") || actionType.includes("status")) {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+    return "bg-muted/80 text-foreground";
   }
   return "bg-muted text-muted-foreground";
 }
@@ -105,9 +105,9 @@ function AuditLogRow({ log }: { log: AuditLog }) {
   const actorRole = typeof meta?.actorRole === "string" ? meta.actorRole.trim() : "";
 
   return (
-    <div className="border-b last:border-b-0" style={{ minHeight: 60 }}>
+    <div className="border-b border-border last:border-b-0" style={{ minHeight: 60 }}>
       <button
-        className="w-full text-start px-4 py-3 hover:bg-muted/30 transition-colors"
+        className="w-full text-start px-4 py-3 hover:bg-muted/50 transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-start gap-3">
@@ -372,7 +372,7 @@ export function SharedAuditLogsPanel({
             ) : (
               <div>
                 {/* Summary bar */}
-                <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
+                <div className="px-4 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
                     {t.adminPage.logEntries(allItems.length, Boolean(data?.hasMore))}
                     {" · "}
@@ -432,7 +432,7 @@ export function SharedAuditLogsPanel({
 
       {/* Server-side page controls — appears only when server has more than 50 entries */}
       {data && (data.hasMore || serverPage > 1) && (
-        <div className="flex items-center justify-between border-t pt-4">
+        <div className="flex items-center justify-between border-t border-border pt-4">
           <Button
             variant="ghost"
             size="sm"

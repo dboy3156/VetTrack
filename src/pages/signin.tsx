@@ -5,6 +5,7 @@ import { Loader2, QrCode } from "lucide-react";
 import { ClerkFailed, ClerkLoaded, ClerkLoading, SignIn } from "@clerk/clerk-react";
 import { useAuth } from "@/hooks/use-auth";
 import { PhoneSignIn } from "@/components/phone-sign-in";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
@@ -28,17 +29,20 @@ export default function SignInPage() {
         <meta name="robots" content="noindex" />
       </Helmet>
 
-      <div className="min-h-[100dvh] bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center px-4">
+      <div className="min-h-[100dvh] bg-gradient-to-b from-primary/5 to-background flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <Link href="/landing" className="inline-flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-                <QrCode className="w-5 h-5 text-white" />
+            <Link
+              href="/landing"
+              className="inline-flex items-center gap-2 mb-6 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                <QrCode className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">VetTrack</span>
+              <span className="text-2xl font-bold text-foreground">VetTrack</span>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>
-            <p className="text-sm text-gray-500">Sign in to access your veterinary equipment dashboard</p>
+            <h1 className="text-2xl font-bold text-foreground mb-2">Welcome back</h1>
+            <p className="text-sm text-muted-foreground">Sign in to access your veterinary equipment dashboard</p>
           </div>
 
           {CLERK_PUBLISHABLE_KEY ? (
@@ -49,7 +53,7 @@ export default function SignInPage() {
                   <button
                     type="button"
                     onClick={() => setUsePhoneFlow(false)}
-                    className="text-xs text-gray-500 hover:text-blue-600 transition-colors underline"
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     ← Back to standard sign-in
                   </button>
@@ -58,11 +62,11 @@ export default function SignInPage() {
                 <>
                   <ClerkLoading>
                     <div className="flex w-full min-h-[12rem] justify-center items-center" aria-busy>
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                   </ClerkLoading>
                   <ClerkFailed>
-                    <p className="text-sm text-center text-red-600 px-2">
+                    <p className="text-sm text-center text-destructive px-2" role="alert">
                       Sign-in could not load. Check your connection, then refresh. If this persists, confirm Clerk is configured for this domain and that the publishable key matches this deployment.
                     </p>
                   </ClerkFailed>
@@ -72,22 +76,16 @@ export default function SignInPage() {
                         routing="hash"
                         signUpUrl="/signup"
                         fallbackRedirectUrl="/"
-                        appearance={{
-                          variables: {
-                            colorPrimary: "#2563EB",
-                            colorBackground: "#ffffff",
-                            borderRadius: "1rem",
-                          },
-                        }}
+                        appearance={clerkAppearance}
                       />
                     </div>
                   </ClerkLoaded>
-                  <p className="text-xs text-gray-400 text-center max-w-xs">
+                  <p className="text-xs text-muted-foreground text-center max-w-xs">
                     Signing in with an Israeli number (+972)?{" "}
                     <button
                       type="button"
                       onClick={() => setUsePhoneFlow(true)}
-                      className="underline hover:text-blue-600 transition-colors"
+                      className="underline hover:text-primary transition-colors"
                     >
                       Use the Israeli phone sign-in
                     </button>{" "}
@@ -97,13 +95,13 @@ export default function SignInPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm text-center">
-              <p className="text-sm text-gray-500 mb-4">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm text-center">
+              <p className="text-sm text-muted-foreground mb-4">
                 Authentication is running in development mode.
               </p>
               <Link
                 href="/"
-                className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors"
+                className="inline-flex items-center justify-center gap-2 w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-3 rounded-xl transition-colors"
               >
                 Continue to Dashboard
               </Link>
@@ -113,7 +111,7 @@ export default function SignInPage() {
           <div className="text-center mt-6">
             <Link
               href="/landing"
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               ← Learn more about VetTrack
             </Link>

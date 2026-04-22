@@ -147,7 +147,7 @@ function RoomCard({ room }: { room: Room }) {
           <div>
             <div className="flex items-end justify-between mb-1.5">
               <div>
-                <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{available}</span>
+                <span className="text-xl font-bold text-primary">{available}</span>
                 <span className="text-xs text-muted-foreground font-medium">/{total} avail.</span>
               </div>
               {issues > 0 && (
@@ -160,7 +160,7 @@ function RoomCard({ room }: { room: Room }) {
             {/* Utilization bar */}
             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                className="h-full bg-primary rounded-full transition-all duration-500"
                 style={{ width: `${utilPct}%` }}
               />
             </div>
@@ -287,7 +287,7 @@ export default function RoomsListPage() {
         {/* Summary pills */}
         {rooms && rooms.length > 0 && (
           <div className="flex gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-full px-3 py-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold bg-primary/5 border border-primary/20 text-primary rounded-full px-3 py-1.5">
               <span className="font-bold text-sm">{totalAvailable}</span>
               <span className="text-[11px]">Available</span>
             </div>
@@ -338,8 +338,23 @@ export default function RoomsListPage() {
 
         {/* Grid — minHeight:240 prevents CLS when skeleton → rooms transition occurs */}
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3" style={{ minHeight: 240 }}>
-            {[...Array(4)].map((_, i) => <RoomCardSkeleton key={i} />)}
+          <div
+            className="flex flex-col gap-3"
+            style={{ minHeight: 240 }}
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span className="sr-only">{t.common.loading}</span>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground -mb-1">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              {t.common.loading}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {[...Array(4)].map((_, i) => (
+                <RoomCardSkeleton key={i} />
+              ))}
+            </div>
           </div>
         ) : isError ? (
           <ErrorCard message="Failed to load rooms" />

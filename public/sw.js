@@ -7,8 +7,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Bump this version whenever you need to invalidate ALL existing caches
-// across ALL user devices. v5 deliberately purges v1-v4.
-const CACHE_VERSION = "v5";
+// across ALL user devices. v6 deliberately purges v1-v5.
+const CACHE_VERSION = "v6";
 const CACHE_NAME = `vettrack-${CACHE_VERSION}`;
 
 // Cached independently so one 404 never poisons the whole install.
@@ -38,46 +38,25 @@ function isMutatingRequest(method) {
   return ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 }
 
-// ─── Install — pre-cache app shell, then activate immediately ────────────────
-// Promise.allSettled means one missing file never poisons the whole install.
-// self.skipWaiting() is called here (not only on message) so a new SW with
-// fixed caching takes over immediately for ALL open tabs — critical for
-// getting offline fixes out to users who never click the update banner.
+// ─── DEV SELF-DESTRUCT MODE ──────────────────────────────────────────────────
+// v6: clears ALL caches and unregisters itself so Vite dev HMR is never
+// intercepted. Re-enable production caching once dev stabilises.
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) =>
-        Promise.allSettled(
-          PRECACHE_URLS.map((url) =>
-            cache.add(url).catch((err) =>
-              console.warn(`[SW] pre-cache skipped: ${url}`, err)
-            )
-          )
-        )
-      )
-      .then(() => self.skipWaiting())   // activate immediately, don't wait
-  );
+  event.waitUntil(self.skipWaiting());
 });
-
-// ─── Activate — delete stale caches, claim all clients ───────────────────────
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== CACHE_NAME)
-            .map((k) => {
-              console.info(`[SW] purging old cache: ${k}`);
-              return caches.delete(k);
-            })
-        )
-      )
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.registration.unregister())
+      .then(() => {
+        // Tell every open tab to reload so they get a fresh Vite response.
+        return self.clients.matchAll({ type: "window" });
+      })
+      .then((clients) => clients.forEach((c) => c.navigate(c.url)))
   );
 });
 
@@ -97,6 +76,17 @@ self.addEventListener("fetch", (event) => {
   // Never intercept cross-origin requests or mutating requests.
   if (url.origin !== self.location.origin) return;
   if (isMutatingRequest(event.request.method)) return;
+
+  // Never cache Vite dev-server internals (HMR, module transforms, etc.).
+  // These URLs only exist in development and must never be served stale.
+  const p = url.pathname;
+  if (
+    p.startsWith("/@") ||          // /@vite/client, /@react-refresh, etc.
+    p.startsWith("/src/") ||        // Vite-transformed source modules
+    p.startsWith("/node_modules/") || // Vite pre-bundled deps
+    url.searchParams.has("v") ||    // Vite cache-busting ?v= param
+    url.searchParams.has("t")       // Vite timestamp ?t= param
+  ) return;
 
   // ── 1. Navigation requests (HTML page loads / SPA route changes) ──────────
   //

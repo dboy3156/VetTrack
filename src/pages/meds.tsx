@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
 import { t } from "@/lib/i18n";
-import { Beaker, Pill, Syringe } from "lucide-react";
+import { Beaker, Loader2, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
 import { MedicationCalculator } from "@/components/MedicationCalculator";
@@ -243,7 +243,12 @@ export default function MedicationHubPage() {
         {canCreateMedicationTask && <MedicationCalculator />}
 
         {tasksQuery.isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-3" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{t.common.loading}</span>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              {t.common.loading}
+            </p>
             <Skeleton className="h-56 w-full rounded-2xl" />
             <Skeleton className="h-56 w-full rounded-2xl" />
           </div>
@@ -270,7 +275,7 @@ export default function MedicationHubPage() {
             const formularyEntry = getByDrugName(drugName);
 
             return (
-              <Card key={task.id} className="rounded-2xl border-2 border-border bg-card shadow-sm dark:border-slate-600 dark:bg-slate-900">
+              <Card key={task.id} className="rounded-2xl border-2 border-border bg-card shadow-sm dark:border-border">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">

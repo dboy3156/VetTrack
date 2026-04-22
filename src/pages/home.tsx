@@ -85,7 +85,11 @@ export default function HomePage() {
   const maintenanceCount = equipment?.filter((e) => e.status === "maintenance").length ?? 0;
 
   return (
-    <Layout onScan={() => setScannerOpen(true)}>
+    <Layout
+      onScan={() => setScannerOpen(true)}
+      scannerOpen={scannerOpen}
+      onCloseScan={() => setScannerOpen(false)}
+    >
       <Helmet>
         <title>Dashboard — VetTrack</title>
         <meta name="description" content="Real-time veterinary equipment dashboard. View status at a glance, scan QR codes, triage active alerts, and track checked-out equipment across your clinic." />

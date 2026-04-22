@@ -8,8 +8,8 @@ const ONBOARDING_KEY = "vettrack_onboarding_v1";
 const STEPS = [
   {
     icon: QrCode,
-    iconBg: "bg-blue-50 dark:bg-blue-950/50",
-    iconColor: "text-blue-600 dark:text-blue-400",
+    iconBg: "bg-primary/10 dark:bg-primary/20",
+    iconColor: "text-primary",
     tag: t.onboarding.step1.tag,
     title: t.onboarding.step1.title,
     description: t.onboarding.step1.description,

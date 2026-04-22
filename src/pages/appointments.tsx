@@ -44,14 +44,14 @@ const ALLOWED_BOOKING_TASK_TYPES = [
 ] as const;
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
-  pending: "bg-slate-100 border-slate-300 text-slate-900",
-  assigned: "bg-indigo-100 border-indigo-300 text-indigo-900",
-  scheduled: "bg-blue-100 border-blue-300 text-blue-900",
-  arrived: "bg-cyan-100 border-cyan-300 text-cyan-900",
-  in_progress: "bg-amber-100 border-amber-300 text-amber-900",
-  completed: "bg-emerald-100 border-emerald-300 text-emerald-900",
-  cancelled: "bg-rose-100 border-rose-300 text-rose-900",
-  no_show: "bg-zinc-200 border-zinc-400 text-zinc-900",
+  pending: "bg-muted border-border text-foreground",
+  assigned: "bg-primary/5 border-primary/25 text-foreground",
+  scheduled: "bg-primary/10 border-primary/35 text-primary",
+  arrived: "bg-primary/5 border-primary/30 border-dashed text-foreground",
+  in_progress: "bg-muted/80 border-amber-500/30 text-foreground",
+  completed: "bg-status-ok/10 border-status-ok/30 text-status-ok",
+  cancelled: "bg-destructive/10 border-destructive/30 text-destructive",
+  no_show: "bg-muted border-dashed border-border text-muted-foreground",
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -63,7 +63,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 const SUGGESTION_SEVERITY_STYLES: Record<"high" | "medium" | "low", string> = {
   high: "border-red-300 bg-red-50 text-red-900",
   medium: "border-amber-300 bg-amber-50 text-amber-900",
-  low: "border-zinc-300 bg-zinc-50 text-zinc-800",
+  low: "border-border bg-muted/90 text-foreground",
 };
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {

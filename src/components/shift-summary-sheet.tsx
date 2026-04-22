@@ -290,7 +290,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               {/* Currently checked out */}
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <PackageOpen className="w-4 h-4 text-blue-500" />
+                  <PackageOpen className="w-4 h-4 text-primary" />
                   <h3 className="text-sm font-semibold">{t.shiftSummaryPage.checkedOutNow}</h3>
                   <Badge variant="secondary" className="ml-auto">
                     {myItems?.length ?? 0}
@@ -301,7 +301,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                     {myItems.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200"
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20"
                       >
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{item.name}</p>
@@ -330,7 +330,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
               {todayCheckouts.length > 0 && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <ArrowUpRight className="w-4 h-4 text-blue-500" />
+                    <ArrowUpRight className="w-4 h-4 text-primary" />
                     <h3 className="text-sm font-semibold">{t.shiftSummaryPage.checkoutsToday}</h3>
                     <Badge variant="secondary" className="ml-auto">
                       {todayCheckouts.length}
@@ -340,7 +340,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
                     {todayCheckouts.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200"
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20"
                       >
                         <p className="font-medium text-sm truncate">{item.equipmentName}</p>
                         <p className="text-xs text-muted-foreground shrink-0">

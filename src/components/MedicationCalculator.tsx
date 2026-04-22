@@ -221,7 +221,7 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                       <input
                         type="number" min="0.001" step="0.001" value={editConc}
                         onChange={(e) => setEditConc(e.target.value)}
-                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                        className="w-full rounded border border-input px-2 py-1 text-xs"
                       />
                     </div>
                     <div>
@@ -229,14 +229,14 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                       <input
                         type="number" min="0.001" step="0.001" value={editDose}
                         onChange={(e) => setEditDose(e.target.value)}
-                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                        className="w-full rounded border border-input px-2 py-1 text-xs"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">Unit</label>
                       <select
                         value={editUnit} onChange={(e) => setEditUnit(e.target.value as "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet")}
-                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                        className="w-full rounded border border-input px-2 py-1 text-xs"
                       >
                         <option value="mg_per_kg">mg/kg</option>
                         <option value="mcg_per_kg">mcg/kg</option>
@@ -251,28 +251,28 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                       <input type="number" min="0.001" step="0.001" value={editMinDose}
                         onChange={(e) => setEditMinDose(e.target.value)}
                         placeholder="optional"
-                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        className="w-full rounded border border-input px-2 py-1 text-xs" />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">Max dose</label>
                       <input type="number" min="0.001" step="0.001" value={editMaxDose}
                         onChange={(e) => setEditMaxDose(e.target.value)}
                         placeholder="optional"
-                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        className="w-full rounded border border-input px-2 py-1 text-xs" />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">Route</label>
                       <input type="text" value={editRoute}
                         onChange={(e) => setEditRoute(e.target.value)}
                         placeholder="e.g. IV/IM"
-                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                        className="w-full rounded border border-input px-2 py-1 text-xs" />
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       type="button" disabled={busy}
                       onClick={() => submitEdit(entry.id)}
-                      className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                      className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50"
                     >
                       Save
                     </button>
@@ -324,32 +324,32 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
       )}
 
       {addOpen ? (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
-          <div className="text-xs font-semibold text-blue-800">New Drug</div>
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+          <div className="text-xs font-semibold text-foreground">New Drug</div>
           <input
             type="text" placeholder="Drug name" value={addName}
             onChange={(e) => setAddName(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs"
+            className="w-full rounded border border-input px-2 py-1.5 text-xs"
           />
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-muted-foreground">Conc (mg/mL)</label>
               <input type="number" min="0.001" step="0.001" value={addConc}
                 onChange={(e) => setAddConc(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                className="w-full rounded border border-input px-2 py-1 text-xs"
               />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Std dose</label>
               <input type="number" min="0.001" step="0.001" value={addDose}
                 onChange={(e) => setAddDose(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                className="w-full rounded border border-input px-2 py-1 text-xs"
               />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Unit</label>
               <select value={addUnit} onChange={(e) => setAddUnit(e.target.value as "mg_per_kg" | "mcg_per_kg" | "mEq_per_kg" | "tablet")}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                className="w-full rounded border border-input px-2 py-1 text-xs"
               >
                 <option value="mg_per_kg">mg/kg</option>
                 <option value="mcg_per_kg">mcg/kg</option>
@@ -363,25 +363,25 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
               <label className="text-[10px] text-muted-foreground">Min dose</label>
               <input type="number" min="0.001" step="0.001" value={addMinDose}
                 onChange={(e) => setAddMinDose(e.target.value)} placeholder="optional"
-                className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                className="w-full rounded border border-input px-2 py-1 text-xs" />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Max dose</label>
               <input type="number" min="0.001" step="0.001" value={addMaxDose}
                 onChange={(e) => setAddMaxDose(e.target.value)} placeholder="optional"
-                className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                className="w-full rounded border border-input px-2 py-1 text-xs" />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Route</label>
               <input type="text" value={addRoute}
                 onChange={(e) => setAddRoute(e.target.value)} placeholder="e.g. IV/IM"
-                className="w-full rounded border border-gray-300 px-2 py-1 text-xs" />
+                className="w-full rounded border border-input px-2 py-1 text-xs" />
             </div>
           </div>
           <div className="flex gap-2">
             <button
               type="button" disabled={busy} onClick={submitAdd}
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+              className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50"
             >
               Add
             </button>
@@ -396,7 +396,7 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
       ) : (
         <button
           type="button" onClick={() => setAddOpen(true)}
-          className="w-full rounded-lg border border-dashed border-blue-300 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50"
+          className="w-full rounded-lg border border-dashed border-primary/40 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5"
         >
           + Add drug
         </button>
@@ -619,7 +619,7 @@ export function MedicationCalculator({
   }, [giveMedicationMutation, rbac.permittedVetId]);
 
   if (formularyLoading) {
-    return <div className="flex items-center justify-center p-8 text-gray-500">Loading formulary...</div>;
+    return <div className="flex items-center justify-center p-8 text-muted-foreground">Loading formulary...</div>;
   }
 
   if (rbac.canExecute === "blocked") {
@@ -666,14 +666,14 @@ export function MedicationCalculator({
     <div className="mx-auto max-w-xl space-y-5 p-5">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Medication Calculator</h2>
-          <p className="mt-0.5 text-sm text-gray-500">Select a drug, enter the desired dose, then assign to a technician.</p>
+          <h2 className="text-xl font-bold text-foreground">Medication Calculator</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">Select a drug, enter the desired dose, then assign to a technician.</p>
         </div>
         {userCanManageFormulary ? (
           <button
             type="button"
             onClick={() => setShowFormularyManager((v) => !v)}
-            className="flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            className="flex items-center gap-1 rounded-lg border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50"
           >
             Manage drugs
             {showFormularyManager ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -687,7 +687,7 @@ export function MedicationCalculator({
 
       {/* Technician */}
       <section aria-label="Performing technician" className="space-y-2">
-        <label htmlFor="med-performing-technician" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="med-performing-technician" className="mb-1 block text-sm font-medium text-foreground">
           Performing Technician <span className="text-red-600">*</span>
         </label>
         <select
@@ -695,7 +695,7 @@ export function MedicationCalculator({
           value={selectedTechnicianId}
           onChange={(e) => setSelectedTechnicianId(e.target.value)}
           disabled={isTechnicianLoading || noTechniciansAvailable}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
         >
           <option value="">
             {isTechnicianLoading ? "Loading technicians..." : "Select technician..."}
@@ -721,13 +721,13 @@ export function MedicationCalculator({
 
       {/* Drug selection */}
       <section aria-label="Drug selection">
-        <label htmlFor="drug-select" className="mb-1 block text-sm font-medium text-gray-700">Drug</label>
+        <label htmlFor="drug-select" className="mb-1 block text-sm font-medium text-foreground">Drug</label>
         <select
           id="drug-select"
           value={selectedDrugName}
           onChange={(e) => setSelectedDrugName(e.target.value)}
           disabled={isSubmitting}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
         >
           <option value="">- Select a drug -</option>
           {formularyList.map((entry) => (
@@ -739,7 +739,7 @@ export function MedicationCalculator({
         {selectedDrugName ? (() => {
           const sel = formularyList.find((e) => e.name === selectedDrugName);
           return sel?.defaultRoute ? (
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Route: <span className="font-semibold">{sel.defaultRoute}</span>
               <span className="mx-1">•</span>
               Concentration: <span className="font-semibold">{concentrationDisplay(sel.name, sel.concentrationMgMl, sel.doseUnit)}</span>
@@ -753,8 +753,8 @@ export function MedicationCalculator({
           {/* Dosage range reference */}
           {doseRangeText ? (
             <section aria-label="Dosage range">
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Standard Dosage Range</p>
-              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Standard Dosage Range</p>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-foreground">
                 {doseRangeText}
               </div>
             </section>
@@ -766,7 +766,7 @@ export function MedicationCalculator({
 
           {/* Patient weight (required) */}
           <section aria-label="Patient weight">
-            <label htmlFor="weight-input" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="weight-input" className="mb-1 block text-sm font-medium text-foreground">
               Patient Weight (kg) <span className="text-red-600">*</span>
             </label>
             <input
@@ -777,8 +777,8 @@ export function MedicationCalculator({
               placeholder="e.g. 12.5"
               required
               disabled={isSubmitting}
-              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
-                weightKgRaw && !weightIsValid ? "border-red-400 bg-red-50" : "border-gray-300"
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 ${
+                weightKgRaw && !weightIsValid ? "border-red-400 bg-red-50" : "border-input"
               }`}
             />
             {!weightIsValid && weightKgRaw === "" ? (
@@ -788,7 +788,7 @@ export function MedicationCalculator({
 
           {/* Desired dose in mg */}
           <section aria-label="Desired dose">
-            <label htmlFor="desired-mg-input" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="desired-mg-input" className="mb-1 block text-sm font-medium text-foreground">
               Desired Dose (mg) <span className="text-red-600">*</span>
             </label>
             <input
@@ -798,7 +798,7 @@ export function MedicationCalculator({
               onChange={(e) => setDesiredMgRaw(e.target.value)}
               placeholder="e.g. 25"
               disabled={isSubmitting}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             />
           </section>
 
@@ -811,11 +811,11 @@ export function MedicationCalculator({
             aria-live="polite"
             aria-label="Calculated volume"
             className={`rounded-2xl border-2 p-6 text-center transition-colors ${
-              canExecute ? "border-blue-400 bg-blue-50" : "border-gray-200 bg-gray-50 opacity-60"
+              canExecute ? "border-primary/40 bg-primary/5" : "border-border bg-muted opacity-60"
             }`}
           >
-            <p className="mb-1 text-sm font-medium uppercase tracking-wide text-gray-500">GIVE</p>
-            <p className={`text-5xl font-black tracking-tight ${canExecute ? "text-blue-700" : "text-gray-400"}`}>
+            <p className="mb-1 text-sm font-medium uppercase tracking-wide text-muted-foreground">GIVE</p>
+            <p className={`text-5xl font-black tracking-tight ${canExecute ? "text-primary" : "text-muted-foreground"}`}>
               {calc.isBlocked || !Number.isFinite(calc.volumeMl)
                 ? "—"
                 : resolved?.doseUnit === "tablet"
@@ -823,7 +823,7 @@ export function MedicationCalculator({
                   : `${calc.volumeMl.toFixed(2)} mL`}
             </p>
             {!calc.isBlocked && Number.isFinite(calc.totalMg) && calc.totalMg > 0 ? (
-              <p className="mt-1 text-sm text-gray-500">= {calc.totalMg.toFixed(2)} mg total</p>
+              <p className="mt-1 text-sm text-muted-foreground">= {calc.totalMg.toFixed(2)} mg total</p>
             ) : null}
           </section>
 
@@ -844,7 +844,7 @@ export function MedicationCalculator({
             {onCancel ? (
               <button
                 type="button" onClick={onCancel}
-                className="shrink-0 rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="shrink-0 rounded-xl border border-input px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
               >
                 Back
               </button>
@@ -854,12 +854,12 @@ export function MedicationCalculator({
               onClick={handleGiveMedication}
               disabled={!canExecute || isSubmitting}
               aria-disabled={!canExecute || isSubmitting}
-              className={`rounded-2xl py-4 text-lg font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-400 ${
+              className={`rounded-2xl py-4 text-lg font-bold tracking-wide transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-ring ${
                 onCancel ? "min-w-0 flex-1" : "w-full"
               } ${
                 canExecute && !isSubmitting
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95"
-                  : "cursor-not-allowed bg-gray-200 text-gray-400 shadow-none"
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-95"
+                  : "cursor-not-allowed bg-muted text-muted-foreground shadow-none"
               }`}
             >
               {isSubmitting
@@ -873,7 +873,7 @@ export function MedicationCalculator({
           </div>
 
           {performerId ? (
-            <p className="text-center text-xs text-gray-400">
+            <p className="text-center text-xs text-muted-foreground">
               Task will be assigned to the selected technician and requires vet approval before administration.
             </p>
           ) : null}
