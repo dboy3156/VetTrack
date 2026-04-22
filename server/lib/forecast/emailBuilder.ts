@@ -1,9 +1,5 @@
 import type { ForecastResult } from "./types.js";
-
-/** Must match src/shared/normalizeQuantityKey.ts exactly. */
-function nk(recordNumber: string, drugName: string): string {
-  return `${String(recordNumber).trim()}__${drugName.trim().toLowerCase().replace(/\s+/g, " ")}`;
-}
+import { normalizeQuantityKey as nk } from "../../../src/shared/normalizeQuantityKey.js";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
