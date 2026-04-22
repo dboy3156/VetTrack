@@ -7,8 +7,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Bump this version whenever you need to invalidate ALL existing caches
-// across ALL user devices. v6 deliberately purges v1-v5.
-const CACHE_VERSION = "v6";
+// across ALL user devices. v7 replaces the v6 "self-destruct" build that
+// caused a reload loop in production (activate unregistered the SW and
+// forced every tab to navigate, which re-registered the SW again).
+const CACHE_VERSION = "v7";
 const CACHE_NAME = `vettrack-${CACHE_VERSION}`;
 
 // Cached independently so one 404 never poisons the whole install.
@@ -38,9 +40,13 @@ function isMutatingRequest(method) {
   return ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 }
 
-// ─── DEV SELF-DESTRUCT MODE ──────────────────────────────────────────────────
-// v6: clears ALL caches and unregisters itself so Vite dev HMR is never
-// intercepted. Re-enable production caching once dev stabilises.
+// ─── Lifecycle ───────────────────────────────────────────────────────────────
+// Install   → skipWaiting so the newest SW takes over as soon as possible.
+// Activate  → delete only STALE cache versions (keep the current one), then
+//             claim clients. We never call registration.unregister() here:
+//             doing so while the page still registers /sw.js on load causes
+//             an infinite install → unregister → re-register loop that
+//             presents to the user as a flickering / reloading app.
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -48,15 +54,15 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-      .then(() => self.registration.unregister())
-      .then(() => {
-        // Tell every open tab to reload so they get a fresh Vite response.
-        return self.clients.matchAll({ type: "window" });
-      })
-      .then((clients) => clients.forEach((c) => c.navigate(c.url)))
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith("vettrack-") && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      );
+      await self.clients.claim();
+    })()
   );
 });
 
