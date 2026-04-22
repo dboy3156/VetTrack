@@ -920,6 +920,11 @@ export interface ForecastApproveResponse {
   mailtoUrl?: string;
   /** True when the mailto body was truncated to keep the URL under client limits. */
   mailtoBodyTruncated?: boolean;
+  /**
+   * Short, sanitized summary of the SMTP failure when the server attempted SMTP and
+   * fell back to mailto. Safe to show in UI (contains no credentials).
+   */
+  smtpFallbackReason?: string;
 }
 
 export interface DrugAuditEntry {

@@ -401,7 +401,14 @@ export default function PharmacyForecastPage() {
       });
     },
     onSuccess: (res) => {
-      toast.success(t.pharmacyForecast.approveOk);
+      if (res.deliveryMethod === "smtp") {
+        toast.success(t.pharmacyForecast.approveOkSmtp);
+      } else {
+        toast.success(t.pharmacyForecast.approveOkMailto);
+      }
+      if (res.smtpFallbackReason) {
+        toast.warning(t.pharmacyForecast.smtpFallbackWarning(res.smtpFallbackReason));
+      }
       if (res.mailtoBodyTruncated) {
         toast.message(t.pharmacyForecast.mailtoTruncatedWarning);
       }
