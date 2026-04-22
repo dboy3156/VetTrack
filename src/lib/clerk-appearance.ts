@@ -1,10 +1,12 @@
-import type { Appearance } from "@clerk/types";
-
 /**
  * Shared Clerk `<SignIn />` / `<SignUp />` theme: matches `src/index.css` primary/foreground
  * and adds visible focus rings for accessibility (Phase 4 app-wide UI/UX).
+ *
+ * Type annotation is intentionally omitted — `@clerk/types` is deprecated upstream
+ * (replaced by `@clerk/shared/types` in Clerk Core 3+), and `@clerk/clerk-react`
+ * accepts this shape structurally at the `<SignIn appearance={...} />` call site.
  */
-export const clerkAppearance: Appearance = {
+export const clerkAppearance = {
   variables: {
     colorPrimary: "hsl(221 83% 53%)",
     colorText: "hsl(220 15% 20%)",
