@@ -20,7 +20,11 @@ import {
 } from "../lib/forecast/forecastZod.js";
 import { applyManualQuantities } from "../lib/forecast/mergeApproval.js";
 import { buildForecastMailtoUrl } from "../lib/forecast/mailtoSafe.js";
-import { runForecastPipeline } from "../lib/forecast/pipeline.js";
+import {
+  fingerprintForecastExclusions,
+  loadForecastExclusionSubstrings,
+  runForecastPipeline,
+} from "../lib/forecast/pipeline.js";
 
 /** Parse row was already consumed or concurrent approve won the race. */
 class ForecastParseSessionGoneError extends Error {
@@ -44,6 +48,30 @@ function resolveRequestId(res: { getHeader: (n: string) => unknown; setHeader?: 
   const requestId = incomingStr || fromRes || randomUUID();
   if (typeof res.setHeader === "function") res.setHeader("x-request-id", requestId);
   return requestId;
+}
+
+function parseTimeoutEnv(raw: string | undefined, fallbackMs: number): number {
+  if (!raw || !raw.trim()) return fallbackMs;
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallbackMs;
+  return parsed;
+}
+
+/**
+ * Produce a short, safe description of an SMTP failure for the client UI.
+ * Never includes credentials; only the library error code / summary line.
+ */
+function sanitizeSmtpError(err: unknown): string {
+  if (!err || typeof err !== "object") return "SMTP error";
+  const anyErr = err as { code?: unknown; command?: unknown; message?: unknown };
+  const code = typeof anyErr.code === "string" ? anyErr.code : "";
+  const command = typeof anyErr.command === "string" ? anyErr.command : "";
+  const raw = typeof anyErr.message === "string" ? anyErr.message : "";
+  // Keep to the first line, trim, and cap so we don't leak long server traces.
+  const firstLine = raw.split("\n")[0]?.trim() ?? "";
+  const summary = firstLine.length > 160 ? `${firstLine.slice(0, 157)}…` : firstLine;
+  const parts = [code, command, summary].filter((s) => s && s.length > 0);
+  return parts.length > 0 ? parts.join(" · ") : "SMTP error";
 }
 
 function apiError(params: {
@@ -150,7 +178,24 @@ router.post(
         }));
       }
 
-      const contentHash = createHash("sha256").update(rawText, "utf8").digest("hex");
+      /**
+       * Fold clinic exclusions + window into the idempotency hash so that adding/removing
+       * an exclusion (or switching 24h/72h) invalidates cached parses for the same PDF.
+       * Otherwise a re-upload of the same flowsheet returns a stale forecast that still
+       * contains just-excluded drugs.
+       */
+      const exclusionSubstrings = await loadForecastExclusionSubstrings(clinicId);
+      const windowHours = parsed.data.windowHours ?? defaultWindowHoursFromCalendar();
+      const weekendMode =
+        parsed.data.weekendMode ?? (windowHours === 72 && defaultWindowHoursFromCalendar() === 72);
+
+      const contentHash = createHash("sha256")
+        .update(rawText, "utf8")
+        .update("\u0000window:", "utf8")
+        .update(`${windowHours}:${weekendMode ? 1 : 0}`, "utf8")
+        .update("\u0000exclusions:", "utf8")
+        .update(fingerprintForecastExclusions(exclusionSubstrings), "utf8")
+        .digest("hex");
       console.info(
         `[forecast/parse] ${new Date().toISOString()} contentHash=${contentHash} requestId=${requestId} clinicId=${clinicId}`,
       );
@@ -175,15 +220,12 @@ router.post(
         }
       }
 
-      const windowHours = parsed.data.windowHours ?? defaultWindowHoursFromCalendar();
-      const weekendMode =
-        parsed.data.weekendMode ?? (windowHours === 72 && defaultWindowHoursFromCalendar() === 72);
-
       const result = await runForecastPipeline({
         rawText,
         clinicId,
         windowHours,
         weekendMode,
+        exclusionSubstrings,
       });
 
       const parseId = randomUUID();
@@ -310,6 +352,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
     });
 
     let deliveryMethod: "smtp" | "mailto" = hasSmtp ? "smtp" : "mailto";
+    let smtpFallbackReason: string | undefined;
 
     await db.transaction(async (tx) => {
       const removed = await tx
@@ -351,6 +394,12 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
           port: parseInt(process.env.SMTP_PORT ?? "587", 10),
           secure: process.env.SMTP_SECURE === "true",
           auth: { user: smtpUser, pass: smtpPass },
+          // Explicit timeouts keep the request from hanging when a network path
+          // blocks port 587 (common on residential ISPs / corporate networks).
+          // Defaults are intentionally short; override via env if needed.
+          connectionTimeout: parseTimeoutEnv(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10_000),
+          greetingTimeout: parseTimeoutEnv(process.env.SMTP_GREETING_TIMEOUT_MS, 10_000),
+          socketTimeout: parseTimeoutEnv(process.env.SMTP_SOCKET_TIMEOUT_MS, 15_000),
         });
         await transporter.sendMail({
           from: process.env.SMTP_FROM ?? smtpUser,
@@ -361,7 +410,11 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
         });
         deliveryMethod = "smtp";
       } catch (e) {
-        console.error("[forecast/approve] SMTP failed, falling back to mailto", e);
+        smtpFallbackReason = sanitizeSmtpError(e);
+        console.error(
+          `[forecast/approve] SMTP failed, falling back to mailto orderId=${orderId} reason=${smtpFallbackReason}`,
+          e,
+        );
         deliveryMethod = "mailto";
         await db
           .update(pharmacyOrders)
@@ -405,6 +458,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
       deliveryMethod,
       mailtoUrl: deliveryMethod === "mailto" ? mailtoUrl : undefined,
       mailtoBodyTruncated: deliveryMethod === "mailto" ? mailtoBodyTruncated : undefined,
+      smtpFallbackReason: deliveryMethod === "mailto" && smtpFallbackReason ? smtpFallbackReason : undefined,
     });
   } catch (err) {
     if (err instanceof ForecastParseSessionGoneError) {
@@ -528,6 +582,10 @@ router.post("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClini
         note: parsed.data.note?.trim() || null,
       })
       .returning();
+    /** Invalidate cached parses so re-uploads immediately apply the new exclusion. */
+    await db
+      .delete(pharmacyForecastParses)
+      .where(eq(pharmacyForecastParses.clinicId, clinicId));
     return res.json({ exclusion: row });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -565,6 +623,10 @@ router.delete("/clinic/pharmacy-forecast-exclusions/:id", requireAuth, ensureUse
     await db
       .delete(pharmacyForecastExclusions)
       .where(and(eq(pharmacyForecastExclusions.id, id.data), eq(pharmacyForecastExclusions.clinicId, clinicId)));
+    /** Invalidate cached parses so re-uploads immediately reflect the removed exclusion. */
+    await db
+      .delete(pharmacyForecastParses)
+      .where(eq(pharmacyForecastParses.clinicId, clinicId));
     return res.json({ ok: true });
   } catch (err) {
     console.error("[forecast/exclusions delete]", err);

@@ -24,12 +24,31 @@ function mapFormularyRow(row: typeof drugFormulary.$inferSelect): FormularyDrugR
   };
 }
 
+/** Used only when assembling the pharmacy forecast / order form — not for other app surfaces. */
+export async function loadForecastExclusionSubstrings(clinicId: string): Promise<string[]> {
+  const exclusionRows = await db
+    .select({ matchSubstring: pharmacyForecastExclusions.matchSubstring })
+    .from(pharmacyForecastExclusions)
+    .where(eq(pharmacyForecastExclusions.clinicId, clinicId));
+  return exclusionRows.map((r) => r.matchSubstring.trim()).filter(Boolean);
+}
+
+/** Stable signature across insert/delete order so it can be folded into an idempotency key. */
+export function fingerprintForecastExclusions(substrings: string[]): string {
+  const normalized = Array.from(
+    new Set(substrings.map((s) => s.normalize("NFKC").trim().toLowerCase()).filter(Boolean)),
+  ).sort();
+  return normalized.join("\u0001");
+}
+
 /** Run parse → fuzzy match → forecast. Patient identity comes from PDF text, not vt_animals. */
 export async function runForecastPipeline(params: {
   rawText: string;
   clinicId: string;
   windowHours: 24 | 72;
   weekendMode: boolean;
+  /** Caller may pre-fetch exclusions (e.g. to fold into an idempotency hash) to avoid a duplicate DB query. */
+  exclusionSubstrings?: string[];
 }): Promise<ForecastResult> {
   await syncFormularyFromSeed(params.clinicId);
 
@@ -48,12 +67,8 @@ export async function runForecastPipeline(params: {
 
   const pdfPatient = extractPdfPatientDemographics(params.rawText);
 
-  /** Used only when assembling the pharmacy forecast / order form — not for other app surfaces. */
-  const exclusionRows = await db
-    .select({ matchSubstring: pharmacyForecastExclusions.matchSubstring })
-    .from(pharmacyForecastExclusions)
-    .where(eq(pharmacyForecastExclusions.clinicId, params.clinicId));
-  const exclusionSubstrings = exclusionRows.map((r) => r.matchSubstring.trim()).filter(Boolean);
+  const exclusionSubstrings =
+    params.exclusionSubstrings ?? (await loadForecastExclusionSubstrings(params.clinicId));
 
   const cleaned = preprocessFlowsheetText(params.rawText);
   const blocks = detectStructure(cleaned);
