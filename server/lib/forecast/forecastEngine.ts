@@ -83,11 +83,13 @@ function describePack(row: FormularyDrugRow): string {
   const kind =
     row.unitType === "tablet"
       ? "טבליות"
-      : row.unitType === "vial"
-        ? "בקבוקון"
-        : row.unitType === "bag"
-          ? "שקית"
-          : "יחידה";
+      : row.unitType === "capsule"
+        ? "קפסולות"
+        : row.unitType === "vial"
+          ? "בקבוקון"
+          : row.unitType === "bag"
+            ? "שקית"
+            : "יחידה";
   return `${kind} · ${vol}`;
 }
 
@@ -130,6 +132,7 @@ function physicalUnitsForRegular(
 
   let unitLabel = "אמפולות";
   if (formulary?.unitType === "tablet") unitLabel = "טבליות";
+  else if (formulary?.unitType === "capsule") unitLabel = "קפסולות";
   else if (formulary?.unitType === "bag") unitLabel = "שקיות";
   else if (formulary?.unitType === "vial") unitLabel = "בקבוקונים";
 
@@ -203,11 +206,14 @@ export function enrichAndForecast(params: {
     const displayRecord = pdf?.recordNumber?.trim() || recFromParse;
 
     const animalFlags = [...block.flags];
-    const identified = hasPdfIdentity(pdf) || Boolean(recFromParse);
+    const identified = hasPdfIdentity(pdf, recFromParse);
     if (!identified) animalFlags.push("PATIENT_UNKNOWN");
 
-    const weightKg =
-      pdf?.weightKg != null && pdf.weightKg > 0 ? pdf.weightKg : 12;
+    const hadExplicitWeight = pdf?.weightKg != null && pdf.weightKg > 0;
+    /** Default 12 kg only for mg math when PDF weight missing; always flagged. */
+    const weightKg = hadExplicitWeight && pdf?.weightKg != null ? pdf.weightKg : 12;
+    if (!hadExplicitWeight) animalFlags.push("WEIGHT_UNKNOWN");
+    if (pdf?.weightUncertain) animalFlags.push("WEIGHT_UNCERTAIN");
 
     const forecastDrugs: ForecastDrugEntry[] = [];
 
@@ -246,7 +252,9 @@ export function enrichAndForecast(params: {
             ? "שקיות"
             : formulary?.unitType === "vial"
               ? "בקבוקונים"
-              : "יח׳";
+              : formulary?.unitType === "capsule"
+                ? "קפסולות"
+                : "יח׳";
         packDescription = formulary ? describePack(formulary) : "";
       } else if (drug.type === "prn") {
         quantityUnits = null;
@@ -278,7 +286,25 @@ export function enrichAndForecast(params: {
       });
     }
 
-    if (forecastDrugs.length === 0) continue;
+    if (forecastDrugs.length === 0) {
+      animalFlags.push("ALL_DRUGS_EXCLUDED");
+      patients.push({
+        recordNumber: displayRecord,
+        name: pdf?.name ?? "",
+        species: pdf?.species ?? "",
+        breed: pdf?.breed ?? "",
+        sex: pdf?.sex ?? "",
+        age: pdf?.age ?? "",
+        color: pdf?.color ?? "",
+        weightKg,
+        ownerName: pdf?.ownerName ?? "",
+        ownerId: "",
+        ownerPhone: pdf?.ownerPhone ?? "",
+        drugs: [],
+        flags: animalFlags,
+      });
+      continue;
+    }
 
     patients.push({
       recordNumber: displayRecord,
@@ -286,6 +312,7 @@ export function enrichAndForecast(params: {
       species: pdf?.species ?? "",
       breed: pdf?.breed ?? "",
       sex: pdf?.sex ?? "",
+      age: pdf?.age ?? "",
       color: pdf?.color ?? "",
       weightKg,
       ownerName: pdf?.ownerName ?? "",
