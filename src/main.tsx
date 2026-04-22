@@ -46,9 +46,17 @@ function AppBootstrap() {
       });
       return;
     }
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.error("VetTrack: service worker registration failed", err);
-    });
+    // Cache-busting version param + updateViaCache:'none' so browsers NEVER
+    // serve a stale /sw.js from HTTP cache. We were previously stuck in a
+    // reload loop because clients had the broken v6 script cached at /sw.js
+    // for max-age=14400 and kept re-installing it instead of picking up v7.
+    // Bump SW_VERSION whenever sw.js changes in a breaking way.
+    const SW_VERSION = "20260422b";
+    navigator.serviceWorker
+      .register(`/sw.js?v=${SW_VERSION}`, { updateViaCache: "none" })
+      .catch((err) => {
+        console.error("VetTrack: service worker registration failed", err);
+      });
   }, []);
   useEffect(() => {
     const handler = () => setLocaleVersion((v) => v + 1);
