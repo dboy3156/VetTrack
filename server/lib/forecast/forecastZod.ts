@@ -65,6 +65,7 @@ export const forecastPatientEntrySchema = z.object({
 export const forecastResultSchema = z.object({
   windowHours: z.union([z.literal(24), z.literal(72)]),
   weekendMode: z.boolean(),
+  pdfSourceFormat: z.enum(["smartflow", "generic"]).optional(),
   patients: z.array(forecastPatientEntrySchema).max(MAX_PATIENTS),
   totalFlags: z.number().int().min(0).max(50000),
   parsedAt: z.string().max(80),
@@ -82,6 +83,13 @@ export const forecastResultSchema = z.object({
 /** Accepts JSON bodies and multipart field strings from `multipart/form-data`. */
 export const forecastParseRequestSchema = z.object({
   text: z.string().optional(),
+  pdfSourceFormat: z
+    .preprocess((val) => {
+      if (typeof val !== "string") return undefined;
+      const normalized = val.trim().toLowerCase();
+      return normalized;
+    }, z.enum(["smartflow", "generic"]))
+    .optional(),
   windowHours: z.preprocess((val) => {
     if (val === undefined || val === "") return undefined;
     const n = typeof val === "string" ? Number(val) : typeof val === "number" ? val : NaN;

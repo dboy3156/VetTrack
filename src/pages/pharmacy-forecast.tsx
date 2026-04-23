@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -327,18 +328,7 @@ function isPatientAuditComplete(
 
 export default function PharmacyForecastPage() {
   // ORIGINAL
-  // export default function PharmacyForecastPage() {
-  //   const { role, effectiveRole, isLoaded, name, email } = useAuth();
-  //   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
-  //   const canUse = canAccessPharmacyForecast(role, effectiveRole);
-  //   const [step, setStep] = useState<"input" | "review">("input");
-  //   const [inputMode, setInputMode] = useState<"paste" | "pdf">("paste");
-  //   const [pasteText, setPasteText] = useState("");
-  //   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  //   const fileRef = useRef<HTMLInputElement>(null);
-  //   // ... original implementation body remains; item 1 changes only:
-  //   // multi-file input + parse failure rendering + parseMultipart array payload.
-  // }
+  // export default function PharmacyForecastPage() { /* pre-item2 baseline preserved in git history */ }
   const { role, effectiveRole, isLoaded, name, email } = useAuth();
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canUse = canAccessPharmacyForecast(role, effectiveRole);
@@ -382,15 +372,24 @@ export default function PharmacyForecastPage() {
   const emailQueryClient = useQueryClient();
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState("");
+  const pdfSourceFormat: "smartflow" | "generic" =
+    pharmacyEmailQuery.data?.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow";
+  const [selectedPdfSourceFormat, setSelectedPdfSourceFormat] = useState<"smartflow" | "generic">("smartflow");
   const saveEmailMutation = useMutation({
-    mutationFn: (email: string | null) => api.forecast.setPharmacyEmail(email),
+    mutationFn: (payload: { pharmacyEmail: string | null; forecastPdfSourceFormat?: "smartflow" | "generic" }) =>
+      api.forecast.setPharmacyEmail(payload),
     onSuccess: (result) => {
       emailQueryClient.setQueryData(["/api/forecast/clinic/pharmacy-email"], result);
       setEditingEmail(false);
-      toast.success("Pharmacy email saved");
+      setSelectedPdfSourceFormat(result.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow");
+      toast.success("הגדרות תחזית נשמרו");
     },
-    onError: () => toast.error("Failed to save pharmacy email"),
+    onError: () => toast.error("שמירת ההגדרות נכשלה"),
   });
+
+  useEffect(() => {
+    setSelectedPdfSourceFormat(pdfSourceFormat);
+  }, [pdfSourceFormat]);
 
   const clearReviewState = useCallback((resetInput = false) => {
     setStep("input");
@@ -430,6 +429,10 @@ export default function PharmacyForecastPage() {
       toast.message(t.pharmacyForecast.sessionRestored);
     }
   }, [isLoaded, canUse]);
+
+  useEffect(() => {
+    setSelectedPdfSourceFormat(pdfSourceFormat);
+  }, [pdfSourceFormat]);
 
   useEffect(() => {
     if (!isLoaded || !canUse) return;
@@ -750,6 +753,14 @@ export default function PharmacyForecastPage() {
             {t.pharmacyForecast.title}
           </h1>
           <p className="text-sm text-muted-foreground">{t.pharmacyForecast.subtitle}</p>
+          <p className="text-xs text-muted-foreground">
+            {t.pharmacyForecast.pdfSourceFormatCurrent}{" "}
+            <span className="font-medium text-foreground">
+              {pdfSourceFormat === "generic"
+                ? t.pharmacyForecast.pdfSourceFormatGeneric
+                : t.pharmacyForecast.pdfSourceFormatSmartflow}
+            </span>
+          </p>
         </div>
 
         {restoredDraft ? (
@@ -763,7 +774,7 @@ export default function PharmacyForecastPage() {
             <p className="text-sm text-foreground">{t.pharmacyForecast.pharmacyEmailMissing}</p>
             {resolvedRole === "admin" && (
               editingEmail ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 max-w-md">
                   <Input
                     type="email"
                     placeholder="pharmacy@example.com"
@@ -772,7 +783,10 @@ export default function PharmacyForecastPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         const v = emailInput.trim();
-                        saveEmailMutation.mutate(v || null);
+                        saveEmailMutation.mutate({
+                          pharmacyEmail: v || null,
+                          forecastPdfSourceFormat: selectedPdfSourceFormat,
+                        });
                       }
                     }}
                     className="h-8 text-[16px] max-w-xs"
@@ -780,30 +794,68 @@ export default function PharmacyForecastPage() {
                     autoFocus
                     data-testid="pharmacy-email-input"
                   />
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      {t.pharmacyForecast.pdfSourceFormatLabel}
+                    </Label>
+                    <Select
+                      value={selectedPdfSourceFormat}
+                      onValueChange={(value: "smartflow" | "generic") => setSelectedPdfSourceFormat(value)}
+                    >
+                      <SelectTrigger className="h-8 text-xs" data-testid="forecast-pdf-source-format-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="smartflow">{t.pharmacyForecast.pdfSourceFormatSmartflow}</SelectItem>
+                        <SelectItem value="generic">{t.pharmacyForecast.pdfSourceFormatGeneric}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     className="h-8 text-xs"
-                    onClick={() => saveEmailMutation.mutate(emailInput.trim() || null)}
+                    onClick={() =>
+                      saveEmailMutation.mutate({
+                        pharmacyEmail: emailInput.trim() || null,
+                        forecastPdfSourceFormat: selectedPdfSourceFormat,
+                      })
+                    }
                     disabled={saveEmailMutation.isPending}
                     data-testid="btn-save-pharmacy-email"
                   >
                     {saveEmailMutation.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                    Save
+                    שמור
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingEmail(false)}>
-                    Cancel
+                    ביטול
                   </Button>
+                  </div>
                 </div>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => { setEmailInput(""); setEditingEmail(true); }}
-                  data-testid="btn-set-pharmacy-email"
-                >
-                  Set pharmacy email
-                </Button>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {t.pharmacyForecast.pdfSourceFormatCurrent}{" "}
+                    <span className="font-medium text-foreground">
+                      {pdfSourceFormat === "generic"
+                        ? t.pharmacyForecast.pdfSourceFormatGeneric
+                        : t.pharmacyForecast.pdfSourceFormatSmartflow}
+                    </span>
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      setEmailInput(pharmacyEmailQuery.data?.pharmacyEmail ?? "");
+                      setSelectedPdfSourceFormat(pdfSourceFormat);
+                      setEditingEmail(true);
+                    }}
+                    data-testid="btn-set-pharmacy-email"
+                  >
+                    {t.pharmacyForecast.pharmacySettingsCta}
+                  </Button>
+                </div>
               )
             )}
           </div>

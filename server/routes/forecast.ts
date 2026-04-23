@@ -293,6 +293,7 @@ function buildForecastParseContentHash(params: {
   parseFailures: ForecastParseFailure[];
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat: "smartflow" | "generic";
   exclusionSubstrings: string[];
 }): string {
   return createHash("sha256")
@@ -315,6 +316,8 @@ function buildForecastParseContentHash(params: {
     )
     .update("\u0000window:", "utf8")
     .update(`${params.windowHours}:${params.weekendMode ? 1 : 0}`, "utf8")
+    .update("\u0000source-format:", "utf8")
+    .update(params.pdfSourceFormat, "utf8")
     .update("\u0000exclusions:", "utf8")
     .update(fingerprintForecastExclusions(params.exclusionSubstrings), "utf8")
     .digest("hex");
@@ -364,6 +367,13 @@ router.post(
       const windowHours = parsed.data.windowHours ?? defaultWindowHoursFromCalendar();
       const weekendMode =
         parsed.data.weekendMode ?? (windowHours === 72 && defaultWindowHoursFromCalendar() === 72);
+      const [clinicSettings] = await db
+        .select({ forecastPdfSourceFormat: clinics.forecastPdfSourceFormat })
+        .from(clinics)
+        .where(eq(clinics.id, clinicId))
+        .limit(1);
+      const pdfSourceFormat: "smartflow" | "generic" =
+        clinicSettings?.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow";
 
       const parseFailures: ForecastParseFailure[] = [];
       const parseInputs: Array<{ sourceLabel: string; rawText: string }> = [];
@@ -409,6 +419,7 @@ router.post(
         parseFailures,
         windowHours,
         weekendMode,
+        pdfSourceFormat,
         exclusionSubstrings,
       });
       console.info(
@@ -443,6 +454,7 @@ router.post(
             clinicId,
             windowHours,
             weekendMode,
+            pdfSourceFormat,
             exclusionSubstrings,
           });
           partialResults.push(result);
@@ -840,7 +852,10 @@ router.post("/parse/:id/keepalive", requireAuth, ensureUserClinicMembership, req
 router.patch("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const clinicId = req.clinicId!;
-  const schema = z.object({ pharmacyEmail: z.string().email().nullable().optional() });
+  const schema = z.object({
+    pharmacyEmail: z.string().email().nullable().optional(),
+    forecastPdfSourceFormat: z.enum(["smartflow", "generic"]).optional(),
+  });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json(apiError({
@@ -851,19 +866,25 @@ router.patch("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, 
     }));
   }
   const email = parsed.data.pharmacyEmail?.trim() ?? null;
+  const forecastPdfSourceFormat = parsed.data.forecastPdfSourceFormat;
   try {
     await db
       .insert(clinics)
       .values({
         id: clinicId,
         pharmacyEmail: email,
+        forecastPdfSourceFormat: forecastPdfSourceFormat ?? "smartflow",
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: clinics.id,
-        set: { pharmacyEmail: email, updatedAt: new Date() },
+        set: {
+          pharmacyEmail: email,
+          ...(forecastPdfSourceFormat ? { forecastPdfSourceFormat } : {}),
+          updatedAt: new Date(),
+        },
       });
-    return res.json({ pharmacyEmail: email });
+    return res.json({ pharmacyEmail: email, forecastPdfSourceFormat: forecastPdfSourceFormat ?? "smartflow" });
   } catch (err) {
     console.error("[forecast/clinic-email]", err);
     return res.status(500).json(apiError({
@@ -880,7 +901,10 @@ router.get("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, re
   const clinicId = req.clinicId!;
   try {
     const [row] = await db.select().from(clinics).where(eq(clinics.id, clinicId)).limit(1);
-    return res.json({ pharmacyEmail: row?.pharmacyEmail ?? null });
+    return res.json({
+      pharmacyEmail: row?.pharmacyEmail ?? null,
+      forecastPdfSourceFormat: row?.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow",
+    });
   } catch (err) {
     console.error("[forecast/clinic-email get]", err);
     return res.status(500).json(apiError({

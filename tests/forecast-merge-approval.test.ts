@@ -186,6 +186,35 @@ describe("Forecast merge + approve validation", () => {
     expect(dhOk.ok).toBe(true);
   });
 
+  it("gate blocks on LOW_CONFIDENCE in generic mode until confirmed", () => {
+    const base: ForecastResult = {
+      windowHours: 24,
+      weekendMode: false,
+      pdfSourceFormat: "generic",
+      parsedAt: new Date().toISOString(),
+      totalFlags: 1,
+      patients: [
+        basePatient({
+          drugs: [
+            {
+              ...basePatient().drugs[0]!,
+              type: "regular",
+              quantityUnits: 2,
+              flags: ["LOW_CONFIDENCE"],
+            },
+          ],
+        }),
+      ],
+    };
+    const blocked = validateMergedForecastForApproval(base);
+    expect(blocked.ok).toBe(false);
+    const lineKey = normalizeQuantityKey("1001", "Morphine");
+    const allowed = validateMergedForecastForApproval(base, {
+      confirmedDrugKeys: new Set([lineKey]),
+    });
+    expect(allowed.ok).toBe(true);
+  });
+
   it("forecastParseRequestSchema coerces multipart string fields", () => {
     const multipartLike = forecastParseRequestSchema.safeParse({
       windowHours: "72",
@@ -203,5 +232,14 @@ describe("Forecast merge + approve validation", () => {
       text: "hello",
     });
     expect(jsonLike.success).toBe(true);
+  });
+
+  it("forecastParseRequestSchema parses explicit pdf source format", () => {
+    const parsed = forecastParseRequestSchema.safeParse({
+      text: "hello",
+      pdfSourceFormat: "generic",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success ? parsed.data.pdfSourceFormat : null).toBe("generic");
   });
 });

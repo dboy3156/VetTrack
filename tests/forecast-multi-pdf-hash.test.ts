@@ -22,6 +22,7 @@ function buildHash(params: {
   parseFailures: Array<{ fileName: string; message: string }>;
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat: "smartflow" | "generic";
   exclusionSubstrings: string[];
 }): string {
   return createHash("sha256")
@@ -44,6 +45,8 @@ function buildHash(params: {
     )
     .update("\u0000window:", "utf8")
     .update(`${params.windowHours}:${params.weekendMode ? 1 : 0}`, "utf8")
+    .update("\u0000source:", "utf8")
+    .update(params.pdfSourceFormat, "utf8")
     .update("\u0000exclusions:", "utf8")
     .update(fingerprintForecastExclusions(params.exclusionSubstrings), "utf8")
     .digest("hex");
@@ -55,6 +58,7 @@ describe("forecast parse hash normalization", () => {
       parseFailures: [{ fileName: "bad.pdf", message: "פענוח PDF נכשל" }],
       windowHours: 24 as const,
       weekendMode: false,
+      pdfSourceFormat: "smartflow" as const,
       exclusionSubstrings: ["lidocaine", "ketamine"],
     };
     const hashA = buildHash({
@@ -72,5 +76,18 @@ describe("forecast parse hash normalization", () => {
       ],
     });
     expect(hashA).toBe(hashB);
+  });
+
+  it("changes hash when source format changes", () => {
+    const base = {
+      parseInputs: [{ sourceLabel: "ward-a.pdf", rawText: "patient-a" }],
+      parseFailures: [] as Array<{ fileName: string; message: string }>,
+      windowHours: 24 as const,
+      weekendMode: false,
+      exclusionSubstrings: [],
+    };
+    const smartflow = buildHash({ ...base, pdfSourceFormat: "smartflow" });
+    const generic = buildHash({ ...base, pdfSourceFormat: "generic" });
+    expect(smartflow).not.toBe(generic);
   });
 });

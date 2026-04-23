@@ -6,6 +6,7 @@ const result: ForecastResult = {
   parsedAt: new Date().toISOString(),
   windowHours: 24,
   weekendMode: false,
+  pdfSourceFormat: "smartflow",
   totalFlags: 0,
   patients: [{
     recordNumber: "361848", name: "שון", species: "Canine", breed: "Mixed",

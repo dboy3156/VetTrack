@@ -95,6 +95,7 @@ export interface ForecastParseFailure {
 export interface ForecastResult {
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat?: "smartflow" | "generic";
   patients: ForecastPatientEntry[];
   totalFlags: number;
   parsedAt: string;

@@ -906,6 +906,7 @@ export interface ForecastPatientEntry {
 export interface ForecastResult {
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat?: "smartflow" | "generic";
   patients: ForecastPatientEntry[];
   totalFlags: number;
   parsedAt: string;

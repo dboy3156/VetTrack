@@ -2159,6 +2159,7 @@ function ClinicSettingsSection() {
   const queryClient = useQueryClient();
   const [emailInput, setEmailInput] = useState("");
   const [editingEmail, setEditingEmail] = useState(false);
+  const [sourceFormatInput, setSourceFormatInput] = useState<"smartflow" | "generic">("smartflow");
 
   const { data, isLoading } = useQuery({
     queryKey: ["/api/forecast/clinic/pharmacy-email"],
@@ -2166,25 +2167,32 @@ function ClinicSettingsSection() {
   });
 
   const currentEmail = data?.pharmacyEmail ?? null;
+  const currentSourceFormat: "smartflow" | "generic" =
+    data?.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow";
 
   const saveMut = useMutation({
-    mutationFn: (email: string | null) => api.forecast.setPharmacyEmail(email),
+    mutationFn: (payload: { pharmacyEmail: string | null; forecastPdfSourceFormat?: "smartflow" | "generic" }) =>
+      api.forecast.setPharmacyEmail(payload),
     onSuccess: (result) => {
       queryClient.setQueryData(["/api/forecast/clinic/pharmacy-email"], result);
       setEditingEmail(false);
-      toast.success("Pharmacy email saved");
+      toast.success("הגדרות תחזית נשמרו");
     },
-    onError: () => toast.error("Failed to save pharmacy email"),
+    onError: () => toast.error("שמירת ההגדרות נכשלה"),
   });
 
   function handleEdit() {
     setEmailInput(currentEmail ?? "");
+    setSourceFormatInput(currentSourceFormat);
     setEditingEmail(true);
   }
 
   function handleSave() {
     const trimmed = emailInput.trim();
-    saveMut.mutate(trimmed || null);
+    saveMut.mutate({
+      pharmacyEmail: trimmed || null,
+      forecastPdfSourceFormat: sourceFormatInput,
+    });
   }
 
   return (
@@ -2193,18 +2201,17 @@ function ClinicSettingsSection() {
         <CardHeader>
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Mail className="w-4 h-4 text-muted-foreground" />
-            Pharmacy Email
+            מייל בית מרקחת ופורמט PDF
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
-            Pharmacy orders will be addressed to this email. Required to approve
-            forecasts.
+            הזמנות בית מרקחת יישלחו למייל זה. בחרו כאן גם את פורמט מקור ה-PDF לניתוח תחזיות.
           </p>
           {isLoading ? (
             <Skeleton className="h-10 w-full max-w-sm" />
           ) : editingEmail ? (
-            <div className="flex items-center gap-2 max-w-sm">
+            <div className="flex flex-col gap-3 max-w-md">
               <Input
                 type="email"
                 placeholder="pharmacy@example.com"
@@ -2214,38 +2221,63 @@ function ClinicSettingsSection() {
                 data-testid="pharmacy-email-input"
                 autoFocus
               />
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={saveMut.isPending}
-                data-testid="btn-save-pharmacy-email"
-              >
-                {saveMut.isPending && (
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                )}
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setEditingEmail(false)}
-                disabled={saveMut.isPending}
-              >
-                Cancel
-              </Button>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">פורמט מקור PDF</Label>
+                <Select
+                  value={sourceFormatInput}
+                  onValueChange={(value: "smartflow" | "generic") => setSourceFormatInput(value)}
+                >
+                  <SelectTrigger className="h-9" data-testid="forecast-pdf-source-format-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="smartflow">SmartFlow Flowsheet</SelectItem>
+                    <SelectItem value="generic">Generic / Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={saveMut.isPending}
+                  data-testid="btn-save-pharmacy-email"
+                >
+                  {saveMut.isPending && (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  )}
+                  שמור
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEditingEmail(false)}
+                  disabled={saveMut.isPending}
+                >
+                  ביטול
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <span
-                className={
-                  currentEmail
-                    ? "text-sm font-medium"
-                    : "text-sm text-muted-foreground italic"
-                }
-                data-testid="pharmacy-email-display"
-              >
-                {currentEmail ?? "Not set"}
-              </span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <span
+                  className={
+                    currentEmail
+                      ? "text-sm font-medium"
+                      : "text-sm text-muted-foreground italic"
+                  }
+                  data-testid="pharmacy-email-display"
+                >
+                  {currentEmail ?? "לא הוגדר"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                פורמט מקור PDF:{" "}
+                <span className="font-medium text-foreground">
+                  {currentSourceFormat === "generic" ? "Generic / Other" : "SmartFlow Flowsheet"}
+                </span>
+              </p>
               <Button
                 size="sm"
                 variant="outline"
@@ -2253,7 +2285,7 @@ function ClinicSettingsSection() {
                 data-testid="btn-edit-pharmacy-email"
               >
                 <Pencil className="w-3.5 h-3.5 mr-1" />
-                {currentEmail ? "Edit" : "Set email"}
+                {currentEmail ? "עריכה" : "הגדרת מייל"}
               </Button>
             </div>
           )}
