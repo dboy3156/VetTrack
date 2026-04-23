@@ -39,7 +39,7 @@ describe("Code Blue page structure tests", () => {
 
   it("Dismiss button exists and navigates back", () => {
     expect(
-      codeBluePage.includes("onClick={() => navigate(\"/\")}") &&
+      codeBluePage.includes("onClick={() => navigate(\"/home\")}") &&
         codeBluePage.includes("<X className=\"w-4 h-4 mr-1\" />"),
     ).toBe(true);
   });
