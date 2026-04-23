@@ -18,8 +18,14 @@ export function buildForecastMailtoUrl(params: {
   let body = params.body;
   let truncated = false;
 
+  /**
+   * `URLSearchParams` serializes spaces as `+` (form encoding), but several
+   * mobile mail clients keep `+` literal in subject/body drafts. Encode with
+   * `encodeURIComponent` so spaces become `%20` and render correctly.
+   */
+  const encodeMailtoPart = (value: string): string => encodeURIComponent(value);
   const assemble = (): string =>
-    `mailto:${params.pharmacyEmail}?${new URLSearchParams({ subject: params.subject, body }).toString()}`;
+    `mailto:${params.pharmacyEmail}?subject=${encodeMailtoPart(params.subject)}&body=${encodeMailtoPart(body)}`;
 
   let url = assemble();
   while (url.length > MAILTO_SAFE_MAX_CHARS && body.length > 120) {
