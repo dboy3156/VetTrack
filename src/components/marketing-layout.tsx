@@ -18,7 +18,7 @@ export function MarketingLayout({ children, showAppCta, showAuthCta }: Marketing
   const lp = t.landingPage;
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground font-sans antialiased overflow-x-hidden">
+    <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-background text-foreground font-sans antialiased">
       <div
         className="pointer-events-none fixed inset-x-0 top-0 h-[min(70vh,720px)] -z-10"
         style={{

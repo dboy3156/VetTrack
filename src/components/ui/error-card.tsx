@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
+import { safeReloadPage } from "@/lib/safe-browser";
 
 const MAX_RETRIES = 3;
 const MIN_SPINNER_MS = 1000;
@@ -62,7 +63,9 @@ export function ErrorCard({
             size="sm"
             variant="outline"
             className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              safeReloadPage();
+            }}
           >
             {t.errorCard.refreshPage}
           </Button>

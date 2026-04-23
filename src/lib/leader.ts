@@ -1,14 +1,20 @@
+import {
+  safeStorageGetItem,
+  safeStorageRemoveItem,
+  safeStorageSetItem,
+} from "@/lib/safe-browser";
+
 const KEY = "vt_leader";
 const TTL = 8000; // 8 seconds
 
 function tabId(): string {
-  let id = sessionStorage.getItem("vt_tab_id");
+  let id = safeStorageGetItem("vt_tab_id", "session");
   if (!id) {
     id =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem("vt_tab_id", id);
+    safeStorageSetItem("vt_tab_id", id, "session");
   }
   return id;
 }
@@ -37,29 +43,29 @@ function parseLease(raw: string | null): Lease | null {
 export function isLeader(): boolean {
   const now = Date.now();
   const me = tabId();
-  const lease = parseLease(localStorage.getItem(KEY));
+  const lease = parseLease(safeStorageGetItem(KEY));
 
   if (!lease) {
-    localStorage.setItem(KEY, JSON.stringify({ id: me, t: now }));
+    safeStorageSetItem(KEY, JSON.stringify({ id: me, t: now }));
     return true;
   }
 
   // Legacy value was a plain timestamp — unknown owner; wait for expiry before competing
   if (!lease.id) {
     if (now - lease.t > TTL) {
-      localStorage.setItem(KEY, JSON.stringify({ id: me, t: now }));
+      safeStorageSetItem(KEY, JSON.stringify({ id: me, t: now }));
       return true;
     }
     return false;
   }
 
   if (now - lease.t > TTL) {
-    localStorage.setItem(KEY, JSON.stringify({ id: me, t: now }));
+    safeStorageSetItem(KEY, JSON.stringify({ id: me, t: now }));
     return true;
   }
 
   if (lease.id === me) {
-    localStorage.setItem(KEY, JSON.stringify({ id: me, t: now }));
+    safeStorageSetItem(KEY, JSON.stringify({ id: me, t: now }));
     return true;
   }
 
@@ -80,9 +86,9 @@ export function startLeaderHeartbeat() {
 
   window.addEventListener("beforeunload", () => {
     try {
-      const lease = parseLease(localStorage.getItem(KEY));
+      const lease = parseLease(safeStorageGetItem(KEY));
       if (lease?.id && lease.id === tabId()) {
-        localStorage.removeItem(KEY);
+        safeStorageRemoveItem(KEY);
       }
     } catch {
       /* ignore */

@@ -78,6 +78,7 @@ import {
 } from "./auth-store";
 import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
+import { isOnline } from "./safe-browser";
 
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -139,7 +140,7 @@ function isNetworkError(err: unknown): boolean {
   if (err instanceof TimeoutError) return true;
   if (err instanceof OfflineResponseError) return true;
   if (err instanceof DOMException && err.name === "AbortError") return false;
-  if (!navigator.onLine) return true;
+  if (!isOnline()) return true;
   if (err instanceof TypeError) return true;
   if (err instanceof Error && err.message.includes("Failed to fetch")) return true;
   return false;

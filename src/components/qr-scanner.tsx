@@ -26,6 +26,8 @@ import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { STATUS_LABELS } from "@/types";
 import type { Equipment } from "@/types";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
+import { haptics } from "@/lib/haptics";
+import { isOnline } from "@/lib/safe-browser";
 
 interface QrScannerProps {
   onClose: () => void;
@@ -167,7 +169,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     async (equipmentId: string): Promise<Equipment | null> => {
       const cached = getEquipmentFromCache(equipmentId);
       if (cached) return cached;
-      if (!navigator.onLine) return null;
+      if (!isOnline()) return null;
       try {
         const equipment = await api.equipment.get(equipmentId);
         queryClient.setQueryData([`/api/equipment/${equipmentId}`], equipment);
@@ -205,7 +207,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       }
 
       await stopScannerRef.current();
-      navigator.vibrate?.(50); // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      haptics.scanSuccess();
       setScannedEquipment(eq);
       setPhase("result");
     },
@@ -385,7 +387,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       setPhase("not_found");
       return;
     }
-    navigator.vibrate?.(50);
+    haptics.scanSuccess();
     setScannedEquipment(eq);
     setPhase("result");
   };
@@ -406,7 +408,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setIsActing(true);
     try {
       await api.equipment.checkout(scannedEquipment.id);
-      navigator.vibrate?.(50);
+      haptics.tap();
       toast.success(`${scannedEquipment.name} checked out`);
       onClose();
     } catch (err: unknown) {
@@ -432,7 +434,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
         isPluggedIn: payload.isPluggedIn,
         plugInDeadlineMinutes: payload.plugInDeadlineMinutes,
       });
-      navigator.vibrate?.(50);
+      haptics.tap();
       toast.success(`${scannedEquipment.name} returned`);
       setReturnDialogOpen(false);
       onClose();
@@ -450,7 +452,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
     try {
       await api.equipment.scan(scannedEquipment.id, { status: "ok" });
       void api.equipment.seen(scannedEquipment.id, { roomId: scannedEquipment.roomId }).catch(() => {});
-      navigator.vibrate?.(50);
+      haptics.tap();
       toast.success(`${scannedEquipment.name} marked as OK`);
       onClose();
     } catch (err: unknown) {

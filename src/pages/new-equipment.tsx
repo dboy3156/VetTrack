@@ -11,6 +11,7 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { haptics } from "@/lib/haptics";
 import {
   Select,
   SelectContent,
@@ -158,7 +159,7 @@ export default function NewEquipmentPage() {
     mutationFn: ({ data, signal }: { data: Parameters<(typeof api.equipment)["create"]>[0]; signal: AbortSignal }) =>
       api.equipment.create(data, signal),
     onSuccess: (data) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       clearSubmitTimeout();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(t.newEquipment.toast.addSuccess);
@@ -177,7 +178,7 @@ export default function NewEquipmentPage() {
     mutationFn: (data: FormValues) =>
       api.equipment.update(editId!, buildUpdatePayload(data)),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       clearSubmitTimeout();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: [`/api/equipment/${editId}`] });

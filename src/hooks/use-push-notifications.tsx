@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { authFetch } from "@/lib/auth-fetch";
+import {
+  getServiceWorkerReadySafe,
+  getServiceWorkerRegistrationSafe,
+  isServiceWorkerSupported,
+  registerServiceWorkerSafe,
+  safeStorageGetItem,
+  safeStorageRemoveItem,
+  safeStorageSetItem,
+} from "@/lib/safe-browser";
 
 interface PushState {
   supported: boolean;
@@ -10,7 +19,7 @@ interface PushState {
 }
 
 function getPushSupportBlocker(): string | null {
-  const ua = navigator.userAgent.toLowerCase();
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
   if (ua.includes("cursor")) {
     return "Push notifications are not supported in Cursor's built-in browser. Open VetTrack in Chrome or Edge.";
   }
@@ -55,12 +64,15 @@ function waitForActivation(
 }
 
 async function waitForServiceWorkerReady(timeoutMs = 8000): Promise<ServiceWorkerRegistration> {
-  if (!("serviceWorker" in navigator)) {
+  if (!isServiceWorkerSupported()) {
     throw new Error("Service worker is not supported");
   }
 
-  const existing = await navigator.serviceWorker.getRegistration();
-  const registration = existing ?? (await navigator.serviceWorker.register("/sw.js"));
+  const existing = await getServiceWorkerRegistrationSafe();
+  const registration = existing ?? (await registerServiceWorkerSafe("/sw.js"));
+  if (!registration) {
+    throw new Error("Service worker registration unavailable");
+  }
 
   if (registration.active) {
     return registration;
@@ -103,7 +115,7 @@ export function usePushNotifications() {
 
   useEffect(() => {
     const supported =
-      "serviceWorker" in navigator &&
+      isServiceWorkerSupported() &&
       "PushManager" in window &&
       "Notification" in window;
 
@@ -118,18 +130,28 @@ export function usePushNotifications() {
       permission: Notification.permission,
     }));
 
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.pushManager.getSubscription().then((sub) => {
-        const storedEndpoint = localStorage.getItem("push_subscription_endpoint");
-
-        if (storedEndpoint && (!sub || sub.endpoint !== storedEndpoint)) {
-          localStorage.removeItem("push_subscription_endpoint");
+    getServiceWorkerReadySafe()
+      .then((registration) => {
+        if (!registration) {
           setState((s) => ({ ...s, subscribed: false }));
-        } else {
-          setState((s) => ({ ...s, subscribed: !!sub }));
+          return;
         }
+        registration.pushManager.getSubscription().then((sub) => {
+          const storedEndpoint = safeStorageGetItem("push_subscription_endpoint");
+
+          if (storedEndpoint && (!sub || sub.endpoint !== storedEndpoint)) {
+            safeStorageRemoveItem("push_subscription_endpoint");
+            setState((s) => ({ ...s, subscribed: false }));
+          } else {
+            setState((s) => ({ ...s, subscribed: !!sub }));
+          }
+        }).catch(() => {
+          setState((s) => ({ ...s, subscribed: false }));
+        });
+      })
+      .catch(() => {
+        setState((s) => ({ ...s, subscribed: false }));
       });
-    });
   }, []);
 
   const subscribe = useCallback(async (
@@ -151,7 +173,7 @@ export function usePushNotifications() {
         return false;
       }
 
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      if (!isServiceWorkerSupported() || !("PushManager" in window)) {
         throw new Error("Push not supported");
       }
 
@@ -192,7 +214,7 @@ export function usePushNotifications() {
 
       if (!res.ok) throw new Error("Failed to save subscription");
 
-      localStorage.setItem("push_subscription_endpoint", subJson.endpoint || "");
+      safeStorageSetItem("push_subscription_endpoint", subJson.endpoint || "");
       setState((s) => ({ ...s, subscribed: true, loading: false }));
       return true;
     } catch (err) {
@@ -206,7 +228,16 @@ export function usePushNotifications() {
     setState((s) => ({ ...s, loading: true, error: null }));
 
     try {
-      const registration = await navigator.serviceWorker.ready;
+      if (!isServiceWorkerSupported()) {
+        setState((s) => ({ ...s, loading: false, subscribed: false }));
+        return false;
+      }
+
+      const registration = await getServiceWorkerReadySafe();
+      if (!registration) {
+        setState((s) => ({ ...s, loading: false, subscribed: false }));
+        return false;
+      }
       const subscription = await registration.pushManager.getSubscription();
 
       if (subscription) {
@@ -218,7 +249,7 @@ export function usePushNotifications() {
         await subscription.unsubscribe();
       }
 
-      localStorage.removeItem("push_subscription_endpoint");
+      safeStorageRemoveItem("push_subscription_endpoint");
       setState((s) => ({ ...s, subscribed: false, loading: false }));
       return true;
     } catch (err) {
@@ -239,7 +270,9 @@ export function usePushNotifications() {
     }
   ): Promise<boolean> => {
     try {
-      const registration = await navigator.serviceWorker.ready;
+      if (!isServiceWorkerSupported()) return false;
+      const registration = await getServiceWorkerReadySafe();
+      if (!registration) return false;
       const subscription = await registration.pushManager.getSubscription();
       if (!subscription) return false;
 

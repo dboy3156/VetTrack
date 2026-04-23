@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { t } from "@/lib/i18n";
 import { authFetch } from "@/lib/auth-fetch";
+import { safeStorageGetItem, safeStorageSetItem } from "@/lib/safe-browser";
 
 const STORAGE_KEY = "vettrack-last-seen-version";
 
@@ -28,7 +29,7 @@ export function UpdateBanner() {
       .then((r) => r.json())
       .then((data: { version: string }) => {
         const serverVersion = data.version;
-        const lastSeen = localStorage.getItem(STORAGE_KEY);
+        const lastSeen = safeStorageGetItem(STORAGE_KEY);
         if (!lastSeen || compareVersions(serverVersion, lastSeen) > 0) {
           setBannerVersion(serverVersion);
         }
@@ -38,7 +39,7 @@ export function UpdateBanner() {
 
   const dismiss = () => {
     if (bannerVersion) {
-      localStorage.setItem(STORAGE_KEY, bannerVersion);
+      safeStorageSetItem(STORAGE_KEY, bannerVersion);
     }
     setBannerVersion(null);
   };

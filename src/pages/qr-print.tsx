@@ -114,7 +114,11 @@ export default function QrPrintPage() {
                 });
               }
             });
-            setTimeout(() => window.print(), 1000);
+            setTimeout(() => {
+              try {
+                window.print();
+              } catch {}
+            }, 1000);
           </script>
         </body>
       </html>

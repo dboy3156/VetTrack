@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import type { AlertAcknowledgment } from "@/types";
+import { safeClipboardWriteText } from "@/lib/safe-browser";
 
 interface ShiftSummarySheetProps {
   open: boolean;
@@ -177,10 +178,10 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
 
   async function handleCopy() {
     const text = buildSummaryText();
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await safeClipboardWriteText(text);
+    if (ok) {
       toast.success(t.shiftSummary.toast.copySuccess);
-    } catch {
+    } else {
       toast.error(t.shiftSummary.toast.copyError);
     }
   }

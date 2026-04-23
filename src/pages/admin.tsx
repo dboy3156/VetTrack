@@ -74,6 +74,7 @@ import type {
 } from "@/types";
 import { SharedAuditLogsPanel } from "./audit-log";
 import { t } from "@/lib/i18n";
+import { haptics } from "@/lib/haptics";
 
 export default function AdminPage() {
   const { isAdmin, userId } = useAuth();
@@ -547,7 +548,7 @@ function PendingUsersSection() {
       status: "active" | "blocked";
     }) => api.users.updateStatus(id, status),
     onSuccess: (_, { status }) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast.success(status === "active" ? t.adminPage.userApproved : t.adminPage.userRejected);
@@ -753,7 +754,7 @@ function UsersSection() {
     mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
       api.users.updateRole(id, role),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setPendingRoleChange(null);
       toast.success(t.adminPage.roleUpdated);
@@ -765,7 +766,7 @@ function UsersSection() {
     mutationFn: ({ id, secondaryRole }: { id: string; secondaryRole: string | null }) =>
       api.users.updateSecondaryRole(id, secondaryRole),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setPendingSecondaryRole(undefined);
       setPendingSecondaryRoleUserId(null);
@@ -783,7 +784,7 @@ function UsersSection() {
       status: "pending" | "active" | "blocked";
     }) => api.users.updateStatus(id, status),
     onSuccess: (_, { status }) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
       toast.success(
@@ -800,7 +801,7 @@ function UsersSection() {
   const deleteUserMut = useMutation({
     mutationFn: (id: string) => api.users.delete(id),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
@@ -812,7 +813,7 @@ function UsersSection() {
   const restoreUserMut = useMutation({
     mutationFn: (id: string) => api.users.restore(id),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
@@ -1226,7 +1227,7 @@ function DeletedItemsSection() {
   const restoreEquipMut = useMutation({
     mutationFn: (id: string) => api.equipment.restore(id),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(t.adminPage.equipmentRestored);
@@ -1237,7 +1238,7 @@ function DeletedItemsSection() {
   const restoreUserMut = useMutation({
     mutationFn: (id: string) => api.users.restore(id),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast.success(t.adminPage.userRestored);
