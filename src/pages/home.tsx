@@ -24,6 +24,7 @@ import {
   Activity,
   User,
   Droplets,
+  Film,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
