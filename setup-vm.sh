@@ -11,8 +11,12 @@ if ! command -v pg_lsclusters >/dev/null 2>&1; then
   exit 1
 fi
 
-if pg_lsclusters | awk '$1=="16" && $2=="main" { found=1 } END { exit(found ? 0 : 1) }'; then
-  sudo pg_ctlcluster 16 main start
+if pg_lsclusters | awk '$1=="16" && $2=="main" { found=1; status=$4 } END { exit(found ? 0 : 1) }'; then
+  if pg_lsclusters | awk '$1=="16" && $2=="main" && $4=="online" { found=1 } END { exit(found ? 0 : 1) }'; then
+    echo "PostgreSQL cluster 16/main already online"
+  else
+    sudo pg_ctlcluster 16 main start
+  fi
 else
   sudo pg_createcluster 16 main --start
 fi
