@@ -522,6 +522,58 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
   }
 });
 
+/** Extend parse session TTL while user reviews forecast before approval. */
+router.post("/parse/:id/keepalive", requireAuth, ensureUserClinicMembership, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const authUser = req.authUser!;
+  const parsedId = z.string().uuid().safeParse(req.params.id);
+  if (!parsedId.success) {
+    return res.status(400).json(apiError({
+      code: "VALIDATION_FAILED",
+      reason: "INVALID_PARSE_ID",
+      message: "Invalid parse session id",
+      requestId,
+    }));
+  }
+
+  try {
+    const now = new Date();
+    const extendedExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const updated = await db
+      .update(pharmacyForecastParses)
+      .set({ expiresAt: extendedExpiresAt })
+      .where(
+        and(
+          eq(pharmacyForecastParses.id, parsedId.data),
+          eq(pharmacyForecastParses.clinicId, clinicId),
+          eq(pharmacyForecastParses.createdBy, authUser.id),
+          gt(pharmacyForecastParses.expiresAt, now),
+        ),
+      )
+      .returning({ id: pharmacyForecastParses.id, expiresAt: pharmacyForecastParses.expiresAt });
+
+    if (updated.length === 0) {
+      return res.status(400).json(apiError({
+        code: "PARSE_SESSION_INVALID",
+        reason: "PARSE_SESSION_INVALID",
+        message: "Parse session is missing, expired, or invalid. Run Parse again before approving.",
+        requestId,
+      }));
+    }
+
+    return res.json({ parseId: updated[0]!.id, expiresAt: updated[0]!.expiresAt?.toISOString() ?? null });
+  } catch (err) {
+    console.error("[forecast/keepalive]", err);
+    return res.status(500).json(apiError({
+      code: "INTERNAL_ERROR",
+      reason: "KEEPALIVE_FAILED",
+      message: "Could not keep parse session alive",
+      requestId,
+    }));
+  }
+});
+
 /** Admin: set pharmacy recipient email for ICU orders */
 router.patch("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, requireAdmin, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);

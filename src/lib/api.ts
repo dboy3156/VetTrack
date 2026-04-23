@@ -55,6 +55,7 @@ import type {
   PurchaseOrder,
   ForecastParseResponse,
   ForecastApproveResponse,
+  ForecastKeepaliveResponse,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -1191,6 +1192,10 @@ export const api = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+      }),
+    parseKeepalive: (parseId: string) =>
+      request<ForecastKeepaliveResponse>(`/api/forecast/parse/${encodeURIComponent(parseId)}/keepalive`, {
+        method: "POST",
       }),
     getPharmacyEmail: () =>
       request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email"),
