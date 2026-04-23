@@ -5,8 +5,18 @@ function envFlagEnabled(value: string | undefined): boolean {
 }
 
 export interface ForecastDeliveryPolicy {
+  /**
+   * SMTP must be configured and available. If false, mailto-only mode is allowed.
+   */
   requireSmtp: boolean;
-  allowMailtoFallback: boolean;
+  /**
+   * Mailto may be used as primary delivery when SMTP is not configured.
+   */
+  allowMailtoWithoutSmtp: boolean;
+  /**
+   * Mailto may be used as fallback when an SMTP send attempt fails.
+   */
+  allowMailtoOnSmtpFailure: boolean;
 }
 
 /**
@@ -18,8 +28,13 @@ export function resolveForecastDeliveryPolicy(
 ): ForecastDeliveryPolicy {
   const forceRequireSmtp = envFlagEnabled(env.FORECAST_SMTP_REQUIRED);
   const forceAllowFallback = envFlagEnabled(env.FORECAST_ALLOW_MAILTO_FALLBACK);
+  const forceDisallowSmtpFailureFallback = envFlagEnabled(env.FORECAST_DISABLE_MAILTO_ON_SMTP_FAILURE);
   const isProduction = String(env.NODE_ENV ?? "").trim().toLowerCase() === "production";
 
   const requireSmtp = forceRequireSmtp || (isProduction && !forceAllowFallback);
-  return { requireSmtp, allowMailtoFallback: !requireSmtp };
+  return {
+    requireSmtp,
+    allowMailtoWithoutSmtp: !requireSmtp,
+    allowMailtoOnSmtpFailure: !forceDisallowSmtpFailureFallback,
+  };
 }
