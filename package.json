@@ -22,8 +22,7 @@
     "test:vitest": "vitest run",
     "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list",
     "db:migrate": "drizzle-kit migrate",
-    "migrate": "tsx scripts/run-migrations.ts",
-    "video:hero": "tsx scripts/generate-hero-video.ts"
+    "migrate": "tsx scripts/run-migrations.ts"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.0.0",

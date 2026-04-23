@@ -139,6 +139,20 @@ export default function HomePage() {
           Scan QR Code
         </Button>
 
+        <Link href="/app-tour">
+          <Card className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4 flex items-center justify-between gap-3 min-h-[64px]">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">סיור באפליקציה</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  הדרכה קצרה + הורדת סרטון לנייד
+                </p>
+              </div>
+              <Film className="w-5 h-5 text-primary shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+
         {/* 3. Status overview — 4 stat tiles */}
         <div className="grid grid-cols-4 gap-2">
           <Link href="/equipment">
