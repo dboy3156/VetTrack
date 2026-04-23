@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { billingLedger, db } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
@@ -68,6 +68,70 @@ router.get("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
         code: "INTERNAL_ERROR",
         reason: "BILLING_LIST_FAILED",
         message: "Failed to list billing entries",
+        requestId,
+      }),
+    );
+  }
+});
+
+// GET /api/billing/summary — aggregate summary for the billing dashboard
+router.get("/summary", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const { from, to } = req.query as Record<string, string>;
+
+    const dateConditions = [eq(billingLedger.clinicId, clinicId)];
+    if (from) dateConditions.push(gte(billingLedger.createdAt, new Date(from)));
+    if (to) dateConditions.push(lte(billingLedger.createdAt, new Date(to)));
+
+    const rows = await db
+      .select()
+      .from(billingLedger)
+      .where(and(...dateConditions));
+
+    const nonVoided = rows.filter((r) => r.status !== "voided");
+    const pending = rows.filter((r) => r.status === "pending");
+    const synced = rows.filter((r) => r.status === "synced");
+    const voided = rows.filter((r) => r.status === "voided");
+
+    const totalCents = nonVoided.reduce((s, r) => s + r.totalAmountCents, 0);
+    const pendingCents = pending.reduce((s, r) => s + r.totalAmountCents, 0);
+    const syncedCents = synced.reduce((s, r) => s + r.totalAmountCents, 0);
+    const voidedCents = voided.reduce((s, r) => s + r.totalAmountCents, 0);
+
+    const byType = {
+      EQUIPMENT: nonVoided.filter((r) => r.itemType === "EQUIPMENT").reduce((s, r) => s + r.totalAmountCents, 0),
+      CONSUMABLE: nonVoided.filter((r) => r.itemType === "CONSUMABLE").reduce((s, r) => s + r.totalAmountCents, 0),
+    };
+
+    // Build last-30-days by-day breakdown
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const dayMap = new Map<string, number>();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(thirtyDaysAgo.getTime() + i * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().slice(0, 10);
+      dayMap.set(key, 0);
+    }
+    for (const r of nonVoided) {
+      const key = new Date(r.createdAt).toISOString().slice(0, 10);
+      if (dayMap.has(key)) {
+        dayMap.set(key, (dayMap.get(key) ?? 0) + r.totalAmountCents);
+      }
+    }
+    const byDay = Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, totalCents]) => ({ date, totalCents }));
+
+    res.json({ totalCents, pendingCents, syncedCents, voidedCents, byType, byDay });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "BILLING_SUMMARY_FAILED",
+        message: "Failed to compute billing summary",
         requestId,
       }),
     );
