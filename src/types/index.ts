@@ -906,9 +906,14 @@ export interface ForecastPatientEntry {
 export interface ForecastResult {
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat?: "smartflow" | "generic";
   patients: ForecastPatientEntry[];
   totalFlags: number;
   parsedAt: string;
+  parseFailures?: Array<{
+    fileName: string;
+    message: string;
+  }>;
 }
 
 /** Response shape from POST /api/forecast/parse */

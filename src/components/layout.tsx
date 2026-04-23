@@ -43,6 +43,7 @@ import {
   ShoppingCart,
   Syringe,
   Lock,
+  Film,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -401,6 +402,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     { href: "/admin", label: lh.admin, icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/admin/shifts", label: lh.adminShifts, icon: <CalendarDays className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/stability", label: lh.stability, icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/app-tour", label: lh.appTour, icon: <Film className="w-5 h-5" />, menuOnly: true },
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
     { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
@@ -424,7 +426,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const systemMenuItems = useMemo(
     () =>
-      ["/help", "/settings", "/landing"]
+      ["/app-tour", "/help", "/settings", "/landing"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]

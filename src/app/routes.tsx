@@ -30,6 +30,7 @@ const AppointmentsPage = lazy(() => import("@/pages/appointments"));
 const MedicationHubPage = lazy(() => import("@/pages/meds"));
 const PharmacyForecastPage = lazy(() => import("@/pages/pharmacy-forecast"));
 const CodeBluePage = lazy(() => import("@/pages/code-blue"));
+const AppTourPage = lazy(() => import("@/pages/app-tour"));
 const WhatsNewPage = lazy(() => import("@/pages/whats-new"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 const BillingLedgerPage = lazy(() => import("@/pages/billing-ledger"));
@@ -66,6 +67,7 @@ export function AppRoutes() {
         <Route path="/meds"><AuthGuard><MedicationHubPage /></AuthGuard></Route>
         <Route path="/pharmacy-forecast"><AuthGuard><PharmacyForecastPage /></AuthGuard></Route>
         <Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>
+        <Route path="/app-tour"><AuthGuard><AppTourPage /></AuthGuard></Route>
         <Route path="/stability"><AuthGuard><StabilityDashboardPage /></AuthGuard></Route>
         <Route path="/settings"><AuthGuard><SettingsPage /></AuthGuard></Route>
         <Route path="/help"><AuthGuard><HelpPage /></AuthGuard></Route>

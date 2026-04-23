@@ -6,6 +6,7 @@ const result: ForecastResult = {
   parsedAt: new Date().toISOString(),
   windowHours: 24,
   weekendMode: false,
+  pdfSourceFormat: "smartflow",
   totalFlags: 0,
   patients: [{
     recordNumber: "361848", name: "שון", species: "Canine", breed: "Mixed",
@@ -57,5 +58,17 @@ describe("buildPharmacyOrderEmail", () => {
     const { text } = buildPharmacyOrderEmail({ result, technicianName: "שרה" });
     expect(text).toContain("Famotidine");
     expect(text).toContain("3");
+  });
+
+  it("includes parse failure section in html and text", () => {
+    const withFailures: ForecastResult = {
+      ...result,
+      parseFailures: [{ fileName: "ward-a.pdf", message: "פענוח PDF נכשל" }],
+    };
+    const { html, text } = buildPharmacyOrderEmail({ result: withFailures, technicianName: "שרה" });
+    expect(html).toContain("קבצים שלא פוענחו");
+    expect(html).toContain("ward-a.pdf");
+    expect(text).toContain("קבצים שלא פוענחו");
+    expect(text).toContain("ward-a.pdf");
   });
 });

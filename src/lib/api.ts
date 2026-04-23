@@ -1169,9 +1169,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    parseMultipart: (file: File, params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
+    parseMultipart: (files: File[], params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
       const fd = new FormData();
-      fd.append("file", file);
+      for (const file of files) {
+        fd.append("file", file);
+      }
       if (params?.windowHours != null) fd.append("windowHours", String(params.windowHours));
       if (params?.weekendMode != null) fd.append("weekendMode", String(params.weekendMode));
       return request<ForecastParseResponse>("/api/forecast/parse", {
@@ -1198,12 +1200,17 @@ export const api = {
         method: "POST",
       }),
     getPharmacyEmail: () =>
-      request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email"),
-    setPharmacyEmail: (pharmacyEmail: string | null) =>
-      request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email", {
-        method: "PATCH",
-        body: JSON.stringify({ pharmacyEmail }),
-      }),
+      request<{ pharmacyEmail: string | null; forecastPdfSourceFormat: "smartflow" | "generic" }>(
+        "/api/forecast/clinic/pharmacy-email",
+      ),
+    setPharmacyEmail: (body: { pharmacyEmail: string | null; forecastPdfSourceFormat?: "smartflow" | "generic" }) =>
+      request<{ pharmacyEmail: string | null; forecastPdfSourceFormat: "smartflow" | "generic" }>(
+        "/api/forecast/clinic/pharmacy-email",
+        {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        },
+      ),
     listExclusions: () =>
       request<{ exclusions: import("@/types").PharmacyForecastExclusion[] }>("/api/forecast/clinic/pharmacy-forecast-exclusions"),
     addExclusion: (data: { matchSubstring: string; note?: string | null }) =>
