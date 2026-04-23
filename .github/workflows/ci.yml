@@ -90,7 +90,7 @@ jobs:
 
     steps:
       - name: 🔎 Resolve deploy pre-flight availability
-        id: preflight-guard
+        id: preflight_guard
         run: |
           missing=0
           for var in DATABASE_URL REDIS_URL SESSION_SECRET CLERK_SECRET_KEY VITE_CLERK_PUBLISHABLE_KEY ALLOWED_ORIGIN; do
@@ -106,32 +106,32 @@ jobs:
           fi
 
       - name: ℹ️ Skip pre-flight (secrets unavailable)
-        if: steps.preflight-guard.outputs.enabled != 'true'
+        if: steps.preflight_guard.outputs.enabled != 'true'
         run: echo "Skipping deploy pre-flight because required deploy secrets are unavailable in this context."
 
       - name: ⬇️ Checkout
-        if: steps.preflight-guard.outputs.enabled == 'true'
+        if: steps.preflight_guard.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: 📦 pnpm
-        if: steps.preflight-guard.outputs.enabled == 'true'
+        if: steps.preflight_guard.outputs.enabled == 'true'
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       - name: 🟢 Node.js
-        if: steps.preflight-guard.outputs.enabled == 'true'
+        if: steps.preflight_guard.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
 
       - name: 📥 Install dependencies
-        if: steps.preflight-guard.outputs.enabled == 'true'
+        if: steps.preflight_guard.outputs.enabled == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: ✅ Pre-flight env check
-        if: steps.preflight-guard.outputs.enabled == 'true'
+        if: steps.preflight_guard.outputs.enabled == 'true'
         run: bash deploy.sh --check --no-color
 
   deploy:
@@ -154,7 +154,7 @@ jobs:
     steps:
       - name: ℹ️ Skip Railway deploy on PR/non-main
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: echo "Skipping Railway deploy: only runs on push to main."
+        run: 'echo "Skipping Railway deploy: only runs on push to main."'
 
       - name: ⬇️ Checkout
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
