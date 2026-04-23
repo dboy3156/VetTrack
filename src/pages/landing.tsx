@@ -1,5 +1,7 @@
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
+import { SignInButton } from "@clerk/clerk-react";
 import {
   QrCode,
   WifiOff,
@@ -15,13 +17,16 @@ import {
   Sparkles,
   Building2,
   Package,
-  Radio,
   Star,
+  Play,
+  Download,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { MarketingLayout } from "@/components/marketing-layout";
+
+const CLERK_ENABLED = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 function SectionTitle({
   kicker,
@@ -58,6 +63,30 @@ export default function LandingPage() {
   const showAppCta = (isLoaded || isOfflineSession) && isSignedIn;
   const lp = t.landingPage;
 
+  const videoRef = useRef<HTMLDivElement>(null);
+  const [videoActive, setVideoActive] = useState(false);
+
+  const scrollToVideo = useCallback(() => {
+    videoRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = useCallback(async () => {
+    if (!deferredPrompt) return;
+    await deferredPrompt.prompt();
+    setDeferredPrompt(null);
+  }, [deferredPrompt]);
+
   const quickLinks = [
     { id: "scan" as const, label: lp.quickLinkScan },
     { id: "map" as const, label: lp.quickLinkMap },
@@ -71,12 +100,6 @@ export default function LandingPage() {
     { value: lp.stat1Value, label: lp.stat1Label },
     { value: lp.stat2Value, label: lp.stat2Label },
     { value: lp.stat3Value, label: lp.stat3Label },
-  ];
-
-  const previewRows = [
-    { name: lp.previewRow1Name, status: lp.previewRow1Status, issue: false },
-    { name: lp.previewRow2Name, status: lp.previewRow2Status, issue: false },
-    { name: lp.previewRow3Name, status: lp.previewRow3Status, issue: true },
   ];
 
   const howSteps: {
@@ -93,42 +116,38 @@ export default function LandingPage() {
   return (
     <>
       <Helmet>
-        <title>{lp.seoTitle}</title>
-        <meta name="description" content={lp.seoDescription} />
-        <meta name="keywords" content={lp.seoKeywords} />
-        <link rel="canonical" href="https://vettrack.replit.app/landing" />
-        <meta property="og:title" content={lp.ogTitle} />
-        <meta property="og:description" content={lp.ogDescription} />
-        <meta property="og:image" content="https://vettrack.replit.app/og-image.png" />
-        <meta property="og:url" content="https://vettrack.replit.app/landing" />
+        <title>VetTrack | ICU Medical Equipment Tracking</title>
+        <meta name="description" content="VetTrack helps veterinary ICU teams find, track, and manage critical medical equipment in real time. Reduce search time by up to 70%." />
+        <link rel="canonical" href="https://vettrack.uk/landing" />
+        <meta property="og:title" content="VetTrack | ICU Medical Equipment Tracking" />
+        <meta property="og:description" content="Real-time veterinary ICU equipment tracking. QR/NFC scanning, offline-first PWA, shift handovers, and smart alerts." />
+        <meta property="og:image" content="/og-image.png" />
+        <meta property="og:url" content="https://vettrack.uk/landing" />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={lp.twitterTitle} />
-        <meta name="twitter:description" content={lp.twitterDescription} />
-        <meta name="twitter:image" content="https://vettrack.replit.app/og-image.png" />
+        <meta name="twitter:title" content="VetTrack | ICU Medical Equipment Tracking" />
+        <meta name="twitter:description" content="Real-time veterinary ICU equipment tracking. QR/NFC scanning, offline-first PWA, shift handovers, and smart alerts." />
+        <meta name="twitter:image" content="/og-image.png" />
       </Helmet>
 
       <MarketingLayout showAppCta={showAppCta} showAuthCta={showAuthCta}>
         <main>
           <section className="relative pt-10 pb-16 md:pt-16 md:pb-24 px-4 sm:px-6" aria-labelledby="hero-heading">
             <div className="max-w-6xl mx-auto">
-              <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-16 items-center">
+              <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
+                {/* LEFT COLUMN */}
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card/60 px-3 py-1.5 text-xs font-semibold text-foreground/90 shadow-sm mb-6">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden />
-                    <span>{lp.heroBadge}</span>
-                  </div>
                   <h1
                     id="hero-heading"
                     className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-balance leading-[1.1] mb-6"
                   >
-                    {lp.heroTitleBefore}{" "}
-                    <span className="text-primary">{lp.heroTitleHighlight}</span>
+                    Find Critical Equipment in Seconds{" "}
+                    <span className="text-primary">— Not Minutes</span>
                   </h1>
                   <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed max-w-xl mb-8">
-                    {lp.heroBody}
+                    VetTrack is ready for real ICU use. Log in and start tracking equipment immediately.
                   </p>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                     {showAppCta && (
                       <Link
                         href="/"
@@ -140,95 +159,134 @@ export default function LandingPage() {
                         )}
                       >
                         <LayoutDashboard className="w-5 h-5" />
-                        {lp.heroCtaDashboard}
+                        Continue to Dashboard
                       </Link>
                     )}
                     {showAuthCta && (
-                      <Link
-                        href="/signin"
-                        className={cn(
-                          "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
-                          "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
-                          "hover:bg-primary/90 active:scale-[0.99] motion-reduce:active:scale-100 transition-all duration-200",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        )}
-                      >
-                        <Scan className="w-5 h-5" />
-                        {lp.heroCtaGetStarted}
-                      </Link>
-                    )}
-                    <span className="text-sm text-muted-foreground sm:pl-2 text-center sm:text-left">
-                      {lp.heroNoCard}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      {lp.heroTrust1}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      {lp.heroTrust2}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      {lp.heroTrust3}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <div
-                    className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent blur-2xl"
-                    aria-hidden
-                  />
-                  <div
-                    className={cn(
-                      "relative rounded-3xl border border-border/80 bg-card/80 backdrop-blur-sm shadow-2xl",
-                      "p-5 sm:p-6 space-y-4"
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Smartphone className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs text-muted-foreground font-medium">
-                            {lp.previewFloorSnapshot}
-                          </p>
-                          <p className="text-sm font-semibold truncate">{lp.previewLiveBoard}</p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                        {lp.previewLive}
-                      </span>
-                    </div>
-                    <div className="space-y-2.5">
-                      {previewRows.map((row) => (
-                        <div
-                          key={row.name}
-                          className="flex items-center justify-between gap-2 rounded-2xl border border-border/60 bg-background/50 px-3 py-2.5"
-                        >
-                          <span className="text-sm font-medium truncate">{row.name}</span>
-                          <span
+                      CLERK_ENABLED ? (
+                        <SignInButton mode="modal">
+                          <button
                             className={cn(
-                              "text-[10px] font-bold uppercase px-2 py-0.5 rounded-md shrink-0",
-                              row.issue
-                                ? "bg-destructive/10 text-destructive"
-                                : "bg-muted text-muted-foreground"
+                              "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
+                              "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
+                              "hover:bg-primary/90 active:scale-[0.99] motion-reduce:active:scale-100 transition-all duration-200",
+                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                             )}
                           >
-                            {row.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-                      <Radio className="w-3.5 h-3.5 text-primary" aria-hidden />
-                      <span>{lp.previewSyncNote}</span>
-                    </div>
+                            <Scan className="w-5 h-5" />
+                            Enter VetTrack System
+                          </button>
+                        </SignInButton>
+                      ) : (
+                        <Link
+                          href="/signin"
+                          className={cn(
+                            "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
+                            "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
+                            "hover:bg-primary/90 active:scale-[0.99] motion-reduce:active:scale-100 transition-all duration-200",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          )}
+                        >
+                          <Scan className="w-5 h-5" />
+                          Enter VetTrack System
+                        </Link>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      onClick={scrollToVideo}
+                      className={cn(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
+                        "border border-border bg-background text-foreground",
+                        "hover:bg-muted active:scale-[0.99] motion-reduce:active:scale-100 transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                      )}
+                    >
+                      <Play className="w-5 h-5" />
+                      Watch 2-Minute Walkthrough
+                    </button>
                   </div>
+
+                  <div className="space-y-1.5 text-sm text-muted-foreground mb-4">
+                    <p className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      Secure login &bull; Real-time data &bull; No installation required
+                    </p>
+                    <p className="inline-flex items-center gap-1.5">
+                      <Smartphone className="w-4 h-4 text-primary shrink-0" />
+                      Add VetTrack to your home screen for faster access
+                    </p>
+                    <p className="inline-flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-primary shrink-0" />
+                      Designed for use during active ICU shifts
+                    </p>
+                  </div>
+
+                  {deferredPrompt && (
+                    <button
+                      type="button"
+                      onClick={handleInstallClick}
+                      className={cn(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl font-semibold px-5 py-2.5 text-sm",
+                        "border border-primary/30 bg-primary/5 text-primary",
+                        "hover:bg-primary/10 active:scale-[0.99] transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                      )}
+                    >
+                      <Download className="w-4 h-4" />
+                      Add VetTrack to Home Screen
+                    </button>
+                  )}
+                </div>
+
+                {/* RIGHT COLUMN */}
+                <div ref={videoRef}>
+                  <h2 className="text-xl font-bold text-foreground mb-4">
+                    First time? Watch this before you start
+                  </h2>
+                  <div className="relative rounded-2xl overflow-hidden border border-border/80 bg-card shadow-xl">
+                    {videoActive ? (
+                      <video
+                        controls
+                        preload="metadata"
+                        playsInline
+                        poster="/video-poster.jpg"
+                        className="w-full aspect-video"
+                      >
+                        <source src="/app-tour.mp4" type="video/mp4" />
+                        <a href="/app-tour.mp4" className="text-primary underline">
+                          Download the walkthrough
+                        </a>
+                      </video>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setVideoActive(true)}
+                        className="relative w-full aspect-video bg-muted/50 group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="Play walkthrough video"
+                      >
+                        <img
+                          src="/video-poster.jpg"
+                          alt="VetTrack app walkthrough preview"
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        <div
+                          className={cn(
+                            "absolute inset-0 flex items-center justify-center",
+                            "bg-black/30 group-hover:bg-black/40 transition-colors duration-200"
+                          )}
+                        >
+                          <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
+                            <Play className="w-7 h-7 ml-1" />
+                          </div>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-3">
+                    Used by ICU teams to reduce equipment search time by up to 70%
+                  </p>
                 </div>
               </div>
             </div>
