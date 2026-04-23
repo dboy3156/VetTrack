@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import { Router, type Request } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import multer from "multer";
 import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
@@ -132,7 +132,7 @@ const parseRateLimit = rateLimit({
   keyGenerator: (req) => {
     const xf = req.headers["x-forwarded-for"];
     const fromHeader = typeof xf === "string" ? xf.split(",")[0]?.trim() : "";
-    return fromHeader || req.ip || "unknown";
+    return fromHeader || ipKeyGenerator(req.ip);
   },
 });
 
