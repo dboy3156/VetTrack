@@ -927,6 +927,11 @@ export interface ForecastApproveResponse {
   smtpFallbackReason?: string;
 }
 
+export interface ForecastKeepaliveResponse {
+  parseId: string;
+  expiresAt: string;
+}
+
 export interface DrugAuditEntry {
   forecastedQty: number | null;
   onHandQty: number;
