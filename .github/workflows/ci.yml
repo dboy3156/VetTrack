@@ -77,10 +77,6 @@ jobs:
     name: 🚀 Deploy pre-flight
     runs-on: ubuntu-latest
     needs: test
-    # Secrets are unavailable to workflows from forks; skip rather than fail closed.
-    if: >-
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name == github.repository
 
     env:
       NODE_ENV: production
@@ -93,32 +89,51 @@ jobs:
       PORT: 3001
 
     steps:
+      - name: ℹ️ Skip pre-flight for fork PR
+        if: >-
+          github.event_name != 'push' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "Skipping deploy pre-flight for fork PR (no secrets available)."
+
       - name: ⬇️ Checkout
+        if: >-
+          github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/checkout@v4
 
       - name: 📦 pnpm
+        if: >-
+          github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       - name: 🟢 Node.js
+        if: >-
+          github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
 
       - name: 📥 Install dependencies
+        if: >-
+          github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository
         run: pnpm install --frozen-lockfile
 
       - name: ✅ Pre-flight env check
+        if: >-
+          github.event_name == 'push' ||
+          github.event.pull_request.head.repo.full_name == github.repository
         run: bash deploy.sh --check --no-color
 
   deploy:
     name: 🚢 Deploy to Railway
     runs-on: ubuntu-latest
     needs: [test, deploy-check]
-    # Only deploy on push to main — not on PRs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     env:
       NODE_ENV: production
@@ -133,10 +148,16 @@ jobs:
       PORT: 3001
 
     steps:
+      - name: ℹ️ Skip Railway deploy on PR/non-main
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        run: echo "Skipping Railway deploy: only runs on push to main."
+
       - name: ⬇️ Checkout
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/checkout@v4
 
       - name: 🚀 Deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: bash deploy.sh --no-color
 
   gate:
@@ -152,28 +173,12 @@ jobs:
             echo "❌ Tests failed — blocking merge"
             exit 1
           fi
-          case "${{ needs.deploy-check.result }}" in
-            success)
-              echo "✅ Deploy pre-flight passed"
-              ;;
-            skipped)
-              echo "ℹ️ Deploy pre-flight skipped (fork PR or filtered run)"
-              ;;
-            *)
-              echo "❌ Deploy pre-flight did not succeed — blocking merge"
-              exit 1
-              ;;
-          esac
-          case "${{ needs.deploy.result }}" in
-            success)
-              echo "✅ Deployed to Railway"
-              ;;
-            skipped)
-              echo "ℹ️ Deploy skipped (PR or non-main branch)"
-              ;;
-            *)
-              echo "❌ Railway deploy failed"
-              exit 1
-              ;;
-          esac
+          if [[ "${{ needs.deploy-check.result }}" != "success" ]]; then
+            echo "❌ Deploy pre-flight did not succeed — blocking merge"
+            exit 1
+          fi
+          if [[ "${{ needs.deploy.result }}" != "success" ]]; then
+            echo "❌ Railway deploy job did not succeed"
+            exit 1
+          fi
           echo "✅ All required checks passed"
