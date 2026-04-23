@@ -42,7 +42,7 @@ export function isServiceWorkerSupported(): boolean {
 export async function getServiceWorkerRegistrationSafe(): Promise<ServiceWorkerRegistration | null> {
   if (!isServiceWorkerSupported()) return null;
   try {
-    return await navigator.serviceWorker.getRegistration();
+    return (await navigator.serviceWorker.getRegistration()) ?? null;
   } catch {
     return null;
   }
@@ -60,7 +60,7 @@ export async function getServiceWorkerReadySafe(): Promise<ServiceWorkerRegistra
 export async function getServiceWorkerRegistrationsSafe(): Promise<ServiceWorkerRegistration[]> {
   if (!isServiceWorkerSupported()) return [];
   try {
-    return await navigator.serviceWorker.getRegistrations();
+    return Array.from(await navigator.serviceWorker.getRegistrations());
   } catch {
     return [];
   }

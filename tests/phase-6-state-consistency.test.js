@@ -32,7 +32,7 @@ describe("Wave 6 state consistency checks (static)", () => {
         settings.includes("<Skeleton") &&
         settings.includes("if (!isSignedIn)") &&
         settings.includes("<ErrorCard") &&
-        settings.includes("onRetry={() => window.location.reload()}"),
+        settings.includes("onRetry={() => safeReloadPage()}"),
     ).toBe(true);
   });
 
