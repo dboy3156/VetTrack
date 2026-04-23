@@ -26,6 +26,8 @@ import {
 import { useLocation } from "wouter";
 import { getCurrentUserId } from "@/lib/auth-store";
 import { useAuth } from "@/hooks/use-auth";
+import { haptics } from "@/lib/haptics";
+import { safeStorageRemoveItem, safeStorageSetItem } from "@/lib/safe-browser";
 
 /** Main page column is under `data-restock-allow` so it stays tappable if `Layout navigationLocked` is enabled. */
 
@@ -95,15 +97,15 @@ export default function InventoryPage() {
   // Persist active session across page reloads
   useEffect(() => {
     if (sessionState.activeSessionId && sessionState.activeContainerId) {
-      localStorage.setItem(
+      safeStorageSetItem(
         "vt_active_restock_session",
         JSON.stringify({
           sessionId: sessionState.activeSessionId,
           containerId: sessionState.activeContainerId,
-        }),
+        })
       );
     } else {
-      localStorage.removeItem("vt_active_restock_session");
+      safeStorageRemoveItem("vt_active_restock_session");
     }
   }, [sessionState.activeSessionId, sessionState.activeContainerId]);
 
@@ -166,7 +168,7 @@ export default function InventoryPage() {
     onSuccess: (session) => {
       dispatch({ type: "start-success", payload: { sessionId: session.id, containerId: session.containerId } });
       qc.invalidateQueries({ queryKey: ["/api/restock/container-items", session.containerId] });
-      navigator.vibrate?.([30, 20, 30]);
+      haptics.scanSuccess();
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : "Failed to start restock session";
@@ -204,7 +206,7 @@ export default function InventoryPage() {
         },
       });
       if (selectedId) qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
-      navigator.vibrate?.([100, 50, 100]);
+      haptics.error();
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : "Failed to finish restock session";
@@ -217,7 +219,7 @@ export default function InventoryPage() {
     mutationFn: () => api.containers.bootstrapDefaults(),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["/api/containers"] });
-      if (res.inserted > 0) { navigator.vibrate?.(40); toast.success(p.quickAddSuccess); }
+      if (res.inserted > 0) { haptics.itemAdded(); toast.success(p.quickAddSuccess); }
       else toast(p.quickAddNothing);
     },
     onError: () => toast.error(p.loadError),
@@ -245,7 +247,7 @@ export default function InventoryPage() {
   const scanLine = useCallback(
     async (itemId: string | null, label: string, delta: number) => {
       if (!itemId) {
-        navigator.vibrate?.(150);
+        haptics.error();
         showScanOverlay(label, null);
         return;
       }
@@ -257,13 +259,13 @@ export default function InventoryPage() {
         const name = result?.item?.label ?? label;
         setFlashRowId({ id: itemId, type: "success" });
         setTimeout(() => setFlashRowId(null), 600);
-        navigator.vibrate?.(50);
+        haptics.tap();
         showScanOverlay(name, delta);
         setScanGeneration((g) => g + 1);
       } catch {
         setFlashRowId({ id: itemId, type: "error" });
         setTimeout(() => setFlashRowId(null), 600);
-        navigator.vibrate?.(150);
+        haptics.error();
         showScanOverlay(label, null);
       }
     },
@@ -290,7 +292,7 @@ export default function InventoryPage() {
 
   const trySelectContainer = (id: string) => {
     if (isRestocking && id !== selectedId) {
-      navigator.vibrate?.(150);
+      haptics.error();
       toast.warning("Finish restock before switching containers.");
       return;
     }
@@ -315,12 +317,12 @@ export default function InventoryPage() {
     const container = containersQ.data?.find((c) => c.nfcTagId === tagId);
     if (container) {
       if (isRestocking && container.id !== selectedId) {
-        navigator.vibrate?.(150);
+        haptics.error();
         toast.warning("Finish restock before switching containers.");
         return;
       }
       setSelectedId(container.id);
-      navigator.vibrate?.([30, 20, 30]);
+      haptics.scanSuccess();
       if (!(sessionIdRef.current && activeContainerIdRef.current === container.id)) {
         dispatch({ type: "start-request" });
         startSessionMut.mutateAsync(container.id).catch(() => {});
@@ -335,12 +337,12 @@ export default function InventoryPage() {
       .mutateAsync({ sessionId, nfcTagId: tagId, delta: 1 })
       .then((result) => {
         showScanOverlay(result.item.label, 1);
-        navigator.vibrate?.(50);
+        haptics.tap();
         setScanGeneration((g) => g + 1);
       })
       .catch(() => {
         showScanOverlay("Unknown item", null);
-        navigator.vibrate?.(150);
+        haptics.error();
       });
   }, [containersQ.data, isRestocking, selectedId, startSessionMut, scanMut, showScanOverlay]);
 

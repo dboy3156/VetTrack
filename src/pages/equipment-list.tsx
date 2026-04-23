@@ -78,6 +78,7 @@ import {
 } from "@/hooks/use-paginated-equipment";
 import { exportEquipmentToExcel } from "@/lib/export-excel";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
+import { haptics } from "@/lib/haptics";
 
 const VIRTUALIZATION_THRESHOLD = 100;
 const SERVER_PAGE_SIZE = 100;
@@ -863,7 +864,7 @@ function EquipmentItem({
   const checkoutMut = useMutation({
     mutationFn: () => api.equipment.checkout(eq.id),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Checked out — ${eq.name}`);
     },
@@ -874,7 +875,7 @@ function EquipmentItem({
     mutationFn: (payload: { isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
       api.equipment.return(eq.id, payload),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       toast.success(`Returned — ${eq.name} is now available`);

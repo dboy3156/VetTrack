@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import { isServiceWorkerSupported, safeReloadPage } from "@/lib/safe-browser";
 
 export function SwUpdateBanner() {
   const workerRef = useRef<ServiceWorker | null>(null);
@@ -23,11 +24,23 @@ export function SwUpdateBanner() {
             const worker = workerRef.current;
             if (worker) {
               worker.postMessage("SKIP_WAITING");
-              navigator.serviceWorker.addEventListener("controllerchange", () => {
-                window.location.reload();
-              }, { once: true });
+              if (isServiceWorkerSupported()) {
+                try {
+                  navigator.serviceWorker.addEventListener(
+                    "controllerchange",
+                    () => {
+                      safeReloadPage({ minIntervalMs: 3000 });
+                    },
+                    { once: true },
+                  );
+                } catch {
+                  safeReloadPage({ minIntervalMs: 3000 });
+                }
+              } else {
+                safeReloadPage({ minIntervalMs: 3000 });
+              }
             } else {
-              window.location.reload();
+              safeReloadPage({ minIntervalMs: 3000 });
             }
           },
         },

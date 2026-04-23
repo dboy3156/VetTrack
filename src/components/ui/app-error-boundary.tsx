@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import { t } from "@/lib/i18n";
+import { safeReloadPage } from "@/lib/safe-browser";
 
 interface Props {
   children: ReactNode;
@@ -32,7 +33,7 @@ function RecoveryActions({ onRetry }: { onRetry: () => void }) {
         <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
         {t.errorCard.retry}
       </Button>
-      <Button size="sm" onClick={() => window.location.reload()}>
+      <Button size="sm" onClick={() => safeReloadPage()}>
         {t.errorCard.refreshPage}
       </Button>
     </div>

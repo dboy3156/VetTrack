@@ -27,6 +27,7 @@ import {
 import type { Alert, AlertType, AlertAcknowledgment } from "@/types";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { haptics } from "@/lib/haptics";
 
 function formatRelativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();
@@ -104,7 +105,7 @@ export default function AlertsPage() {
     mutationFn: ({ equipmentId, alertType }: { equipmentId: string; alertType: string }) =>
       api.alertAcks.acknowledge(equipmentId, alertType),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/alert-acks"] });
       toast.success(t.alerts.toast.acknowledged);
     },

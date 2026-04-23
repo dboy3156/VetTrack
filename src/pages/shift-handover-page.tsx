@@ -6,6 +6,8 @@ import { useSearch } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { haptics } from "@/lib/haptics";
+import { safeClipboardWriteText } from "@/lib/safe-browser";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -141,11 +143,11 @@ export default function ShiftHandoverPage() {
 
   const copySummary = async () => {
     if (!q.data) return;
-    try {
-      await navigator.clipboard.writeText(buildHebrewSummary(q.data));
-      navigator.vibrate?.([35, 25, 50]);
+    const copied = await safeClipboardWriteText(buildHebrewSummary(q.data));
+    if (copied) {
+      haptics.scanSuccess();
       toast.success(t.shiftHandoverPage.copied);
-    } catch {
+    } else {
       toast.error(t.shiftHandoverPage.loadError);
     }
   };

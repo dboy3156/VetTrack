@@ -15,6 +15,11 @@ import { queryClient } from "@/lib/queryClient";
 import { Toaster } from "sonner";
 import { HelmetProvider } from "react-helmet-async";
 import { AppErrorBoundary } from "@/components/ui/app-error-boundary";
+import {
+  getServiceWorkerRegistrationsSafe,
+  isServiceWorkerSupported,
+  registerServiceWorkerSafe,
+} from "@/lib/safe-browser";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const CLERK_ENABLED = Boolean(PUBLISHABLE_KEY);
@@ -38,11 +43,13 @@ const rootEl = document.getElementById("root");
 function AppBootstrap() {
   const [localeVersion, setLocaleVersion] = useState(0);
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (!isServiceWorkerSupported()) return;
     if (import.meta.env.DEV) {
       // In dev, unregister any cached SW so Vite HMR is never intercepted.
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        regs.forEach((r) => r.unregister());
+      getServiceWorkerRegistrationsSafe().then((regs) => {
+        regs.forEach((r) => {
+          r.unregister().catch(() => {});
+        });
       });
       return;
     }
@@ -52,11 +59,13 @@ function AppBootstrap() {
     // for max-age=14400 and kept re-installing it instead of picking up v7.
     // Bump SW_VERSION whenever sw.js changes in a breaking way.
     const SW_VERSION = "20260422b";
-    navigator.serviceWorker
-      .register(`/sw.js?v=${SW_VERSION}`, { updateViaCache: "none" })
-      .catch((err) => {
-        console.error("VetTrack: service worker registration failed", err);
-      });
+    registerServiceWorkerSafe(`/sw.js?v=${SW_VERSION}`, { updateViaCache: "none" })
+      .then((registration) => {
+        if (!registration) {
+          console.warn("VetTrack: service worker registration unavailable.");
+        }
+      })
+      .catch(() => {});
   }, []);
   useEffect(() => {
     const handler = () => setLocaleVersion((v) => v + 1);

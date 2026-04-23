@@ -61,6 +61,11 @@ import { ReportIssueDialog } from "@/components/report-issue-dialog";
 import { SyncQueueSheet } from "@/components/sync-queue-sheet";
 import { UpdateBanner } from "@/components/update-banner";
 import { haptics } from "@/lib/haptics";
+import {
+  isOnline as getOnlineStatus,
+  safeStorageGetItem,
+  safeStorageSetItem,
+} from "@/lib/safe-browser";
 
 interface NavItem {
   href: string;
@@ -97,7 +102,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const [quickSettingsUseViewportRight, setQuickSettingsUseViewportRight] = useState(false);
   const [quickSettingsViewportTop, setQuickSettingsViewportTop] = useState(0);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(getOnlineStatus());
   const [internalScannerOpen, setInternalScannerOpen] = useState(false);
   const [menuMounted, setMenuMounted] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -235,7 +240,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         toast.error("Invalid container NFC tag");
         return;
       }
-      const rawActive = localStorage.getItem("vt_active_restock_session");
+      const rawActive = safeStorageGetItem("vt_active_restock_session");
       if (rawActive) {
         try {
           const parsed = JSON.parse(rawActive) as { containerId?: string };
@@ -248,7 +253,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           /* ignore */
         }
       }
-      sessionStorage.setItem("vt_auto_restock_container", containerId);
+      safeStorageSetItem("vt_auto_restock_container", containerId, "session");
       navigate(`/inventory?container=${encodeURIComponent(containerId)}`);
       return;
     }
@@ -259,7 +264,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         toast.error("Invalid inventory item NFC tag");
         return;
       }
-      const raw = localStorage.getItem("vt_active_restock_session");
+      const raw = safeStorageGetItem("vt_active_restock_session");
       if (!raw) {
         toast.error("Start a restock session before scanning item tags");
         return;

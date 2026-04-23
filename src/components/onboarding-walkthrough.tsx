@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { QrCode, LogIn, AlertTriangle, ChevronRight, X } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { safeStorageGetItem, safeStorageSetItem } from "@/lib/safe-browser";
 
 const ONBOARDING_KEY = "vettrack_onboarding_v1";
 
@@ -40,13 +41,13 @@ export function OnboardingWalkthrough() {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    if (!localStorage.getItem(ONBOARDING_KEY)) {
+    if (!safeStorageGetItem(ONBOARDING_KEY)) {
       setVisible(true);
     }
   }, []);
 
   function dismiss() {
-    localStorage.setItem(ONBOARDING_KEY, "1");
+    safeStorageSetItem(ONBOARDING_KEY, "1");
     setVisible(false);
   }
 
