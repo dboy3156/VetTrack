@@ -149,19 +149,33 @@ jobs:
       ALLOWED_ORIGIN: ${{ secrets.ALLOWED_ORIGIN }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }}
+      RAILWAY_USE_CLI_DEPLOY: ${{ secrets.RAILWAY_USE_CLI_DEPLOY }}
       PORT: 3001
 
     steps:
+      - name: 🔎 Resolve Railway deploy mode
+        id: railway_mode
+        run: |
+          if [[ "${RAILWAY_USE_CLI_DEPLOY}" == "true" ]]; then
+            echo "use_cli=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "use_cli=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: ℹ️ Skip Railway deploy on PR/non-main
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
         run: 'echo "Skipping Railway deploy: only runs on push to main."'
 
+      - name: ℹ️ Skip Railway CLI deploy (GitHub app handles deploy)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.railway_mode.outputs.use_cli != 'true'
+        run: 'echo "Skipping Railway CLI deploy: set RAILWAY_USE_CLI_DEPLOY=true to enable manual deploy trigger."'
+
       - name: ⬇️ Checkout
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.railway_mode.outputs.use_cli == 'true'
         uses: actions/checkout@v4
 
       - name: 🚀 Deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.railway_mode.outputs.use_cli == 'true'
         run: bash deploy.sh --no-color
 
   gate:
