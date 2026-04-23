@@ -89,45 +89,49 @@ jobs:
       PORT: 3001
 
     steps:
-      - name: ℹ️ Skip pre-flight for fork PR
-        if: >-
-          github.event_name != 'push' &&
-          github.event.pull_request.head.repo.full_name != github.repository
-        run: echo "Skipping deploy pre-flight for fork PR (no secrets available)."
+      - name: 🔎 Resolve deploy pre-flight availability
+        id: preflight-guard
+        run: |
+          missing=0
+          for var in DATABASE_URL REDIS_URL SESSION_SECRET CLERK_SECRET_KEY VITE_CLERK_PUBLISHABLE_KEY ALLOWED_ORIGIN; do
+            if [ -z "${!var}" ]; then
+              echo "Missing $var for deploy pre-flight."
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: ℹ️ Skip pre-flight (secrets unavailable)
+        if: steps.preflight-guard.outputs.enabled != 'true'
+        run: echo "Skipping deploy pre-flight because required deploy secrets are unavailable in this context."
 
       - name: ⬇️ Checkout
-        if: >-
-          github.event_name == 'push' ||
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.preflight-guard.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: 📦 pnpm
-        if: >-
-          github.event_name == 'push' ||
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.preflight-guard.outputs.enabled == 'true'
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       - name: 🟢 Node.js
-        if: >-
-          github.event_name == 'push' ||
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.preflight-guard.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
           cache: "pnpm"
 
       - name: 📥 Install dependencies
-        if: >-
-          github.event_name == 'push' ||
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.preflight-guard.outputs.enabled == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: ✅ Pre-flight env check
-        if: >-
-          github.event_name == 'push' ||
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.preflight-guard.outputs.enabled == 'true'
         run: bash deploy.sh --check --no-color
 
   deploy:
