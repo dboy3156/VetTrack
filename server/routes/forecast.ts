@@ -342,7 +342,9 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
 
     const hasSmtp = Boolean(smtpHost && smtpUser && smtpPass);
     const deliveryPolicy = resolveForecastDeliveryPolicy(process.env);
-    const canUseMailtoFallback = deliveryPolicy.allowMailtoFallback;
+    const canUseMailtoFallback = hasSmtp
+      ? deliveryPolicy.allowMailtoOnSmtpFailure
+      : deliveryPolicy.allowMailtoWithoutSmtp;
 
     if (!pharmacyEmail) {
       return res.status(400).json(apiError({
