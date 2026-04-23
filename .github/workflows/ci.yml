@@ -77,6 +77,7 @@ jobs:
     name: 🚀 Deploy pre-flight
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.RAILWAY_USE_CLI_DEPLOY == 'true'
 
     env:
       NODE_ENV: production
@@ -138,6 +139,7 @@ jobs:
     name: 🚢 Deploy to Railway
     runs-on: ubuntu-latest
     needs: [test, deploy-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.RAILWAY_USE_CLI_DEPLOY == 'true'
 
     env:
       NODE_ENV: production
@@ -162,20 +164,12 @@ jobs:
             echo "use_cli=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: ℹ️ Skip Railway deploy on PR/non-main
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: 'echo "Skipping Railway deploy: only runs on push to main."'
-
-      - name: ℹ️ Skip Railway CLI deploy (GitHub app handles deploy)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.railway_mode.outputs.use_cli != 'true'
-        run: 'echo "Skipping Railway CLI deploy: set RAILWAY_USE_CLI_DEPLOY=true to enable manual deploy trigger."'
-
       - name: ⬇️ Checkout
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.railway_mode.outputs.use_cli == 'true'
+        if: steps.railway_mode.outputs.use_cli == 'true'
         uses: actions/checkout@v4
 
       - name: 🚀 Deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.railway_mode.outputs.use_cli == 'true'
+        if: steps.railway_mode.outputs.use_cli == 'true'
         run: bash deploy.sh --no-color
 
   gate:
@@ -192,11 +186,19 @@ jobs:
             exit 1
           fi
           if [[ "${{ needs.deploy-check.result }}" != "success" ]]; then
-            echo "❌ Deploy pre-flight did not succeed — blocking merge"
-            exit 1
+            if [[ "${{ needs.deploy-check.result }}" == "skipped" ]]; then
+              echo "ℹ️ Deploy pre-flight skipped (RAILWAY_USE_CLI_DEPLOY disabled)"
+            else
+              echo "❌ Deploy pre-flight did not succeed — blocking merge"
+              exit 1
+            fi
           fi
           if [[ "${{ needs.deploy.result }}" != "success" ]]; then
-            echo "❌ Railway deploy job did not succeed"
-            exit 1
+            if [[ "${{ needs.deploy.result }}" == "skipped" ]]; then
+              echo "ℹ️ Railway deploy skipped (RAILWAY_USE_CLI_DEPLOY disabled)"
+            else
+              echo "❌ Railway deploy job did not succeed"
+              exit 1
+            fi
           fi
           echo "✅ All required checks passed"
