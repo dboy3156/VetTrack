@@ -77,6 +77,30 @@ export function activeRowEligibleForSeedSync(
   row: typeof drugFormulary.$inferSelect,
   entry: SeededDrugFormularyEntry,
 ): boolean {
+  // ORIGINAL
+  // export function activeRowEligibleForSeedSync(
+  //   row: typeof drugFormulary.$inferSelect,
+  //   entry: SeededDrugFormularyEntry,
+  // ): boolean {
+  //   if (row.deletedAt != null) return false;
+  //   if (row.unitVolumeMl != null || row.criBufferPct != null) return false;
+  //   if (row.genericName.trim().toLowerCase() !== entry.genericName.trim().toLowerCase()) return false;
+  //   const conc = Number(row.concentrationMgMl);
+  //   const std = Number(row.standardDose);
+  //   if (!numEq(conc, entry.concentrationMgMl)) return false;
+  //   if (!numEq(std, entry.standardDose)) return false;
+  //   if (!optionalDoseEq(row.minDose, entry.minDose)) return false;
+  //   if (!optionalDoseEq(row.maxDose, entry.maxDose)) return false;
+  //   if (String(row.doseUnit) !== entry.doseUnit) return false;
+  //   const rRoute = row.defaultRoute ?? null;
+  //   const eRoute = entry.defaultRoute ?? null;
+  //   if (rRoute !== eRoute) return false;
+  //   if (!jsonStringArraysCanonicallyEqual(row.brandNames, entry.brandNames)) return false;
+  //   if (!targetSpeciesEqual(row.targetSpecies, entry.targetSpecies)) return false;
+  //   if (!nullableStringsEqual(row.category, entry.category ?? null)) return false;
+  //   if (!nullableStringsEqual(row.dosageNotes, entry.dosageNotes ?? null)) return false;
+  //   return true;
+  // }
   if (row.deletedAt != null) return false;
 
   if (row.unitVolumeMl != null || row.criBufferPct != null) return false;
@@ -101,6 +125,8 @@ export function activeRowEligibleForSeedSync(
   if (!targetSpeciesEqual(row.targetSpecies, entry.targetSpecies)) return false;
   if (!nullableStringsEqual(row.category, entry.category ?? null)) return false;
   if (!nullableStringsEqual(row.dosageNotes, entry.dosageNotes ?? null)) return false;
+  // Respect user-edited packaging (vial/ampule/etc.) so seed sync does not undo admin changes.
+  if (!nullableStringsEqual(row.unitType, entry.unitType ?? null)) return false;
 
   return true;
 }
