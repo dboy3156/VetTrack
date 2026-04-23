@@ -8,7 +8,9 @@
     storageKeyPrefix: 'unified_tour_completed_',
     persistSeenInLocalStorage: true,
     seenStorageKey: null,
-    userId: null
+    userId: null,
+    showReplayButton: true,
+    replayButtonText: 'Watch tour'
   };
 
   var STYLE_ID = 'unified-tour-styles';
@@ -87,12 +89,29 @@
     this.backBtn = null;
     this.nextBtn = null;
     this.skipBtn = null;
+    this.replayBtn = null;
 
     this.currentHoleRect = null;
     this.holeRafId = 0;
 
     this.boundHandleResize = rafThrottle(this.handleResize.bind(this));
     this.boundHandleKeydown = this.handleKeydown.bind(this);
+    this.boundHandleReplay = this.start.bind(this, true);
+
+    if (this.options.showReplayButton) {
+      if (document.body) {
+        this._syncReplayButtonVisibility();
+      } else {
+        var self = this;
+        document.addEventListener(
+          'DOMContentLoaded',
+          function () {
+            self._syncReplayButtonVisibility();
+          },
+          { once: true }
+        );
+      }
+    }
   }
 
   UnifiedTour.prototype._createMarkup = function () {
@@ -176,6 +195,69 @@
     this.activeTarget = null;
   };
 
+  UnifiedTour.prototype._ensureReplayButton = function () {
+    if (!this.options.showReplayButton || !document.body) {
+      return;
+    }
+
+    if (this.replayBtn && document.body.contains(this.replayBtn)) {
+      this.replayBtn.textContent = String(this.options.replayButtonText || 'Watch tour');
+      return;
+    }
+
+    ensureStyles();
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ut-replay-btn';
+    btn.textContent = String(this.options.replayButtonText || 'Watch tour');
+    btn.style.position = 'fixed';
+    btn.style.right = '16px';
+    btn.style.bottom = '16px';
+    btn.style.zIndex = '2147483644';
+    btn.style.appearance = 'none';
+    btn.style.border = '0';
+    btn.style.borderRadius = '999px';
+    btn.style.padding = '10px 14px';
+    btn.style.background = '#111827';
+    btn.style.color = '#ffffff';
+    btn.style.fontSize = '13px';
+    btn.style.fontWeight = '600';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 10px 28px rgba(0, 0, 0, 0.28)';
+    btn.style.display = 'none';
+    btn.addEventListener('click', this.boundHandleReplay);
+    document.body.appendChild(btn);
+    this.replayBtn = btn;
+  };
+
+  UnifiedTour.prototype._removeReplayButton = function () {
+    if (!this.replayBtn) {
+      return;
+    }
+
+    this.replayBtn.removeEventListener('click', this.boundHandleReplay);
+    if (this.replayBtn.parentNode) {
+      this.replayBtn.parentNode.removeChild(this.replayBtn);
+    }
+    this.replayBtn = null;
+  };
+
+  UnifiedTour.prototype._syncReplayButtonVisibility = function () {
+    if (!this.options.showReplayButton) {
+      this._removeReplayButton();
+      return;
+    }
+
+    this._ensureReplayButton();
+    if (!this.replayBtn) {
+      return;
+    }
+
+    var shouldShow = !this.isRunning && this.options.persistSeenInLocalStorage && this._readSeenFlag();
+    this.replayBtn.style.display = shouldShow ? 'inline-flex' : 'none';
+  };
+
   UnifiedTour.prototype._markCompleted = function () {
     if (!this.options.persistSeenInLocalStorage) {
       return;
@@ -186,6 +268,8 @@
     } catch (err) {
       // Ignore storage write failures.
     }
+
+    this._syncReplayButtonVisibility();
   };
 
   UnifiedTour.prototype._readSeenFlag = function () {
@@ -222,6 +306,8 @@
     } catch (err) {
       // Ignore storage failures.
     }
+
+    this._syncReplayButtonVisibility();
   };
 
   UnifiedTour.prototype.hasSeen = function () {
@@ -236,6 +322,7 @@
     var shouldForce = Boolean(forceStart || this.options.forceStart);
 
     if (!shouldForce && this.isCompleted()) {
+      this._syncReplayButtonVisibility();
       return false;
     }
 
@@ -258,6 +345,7 @@
     this._createMarkup();
     this.isRunning = true;
     this.currentStepIndex = -1;
+    this._syncReplayButtonVisibility();
 
     window.addEventListener('resize', this.boundHandleResize);
     window.addEventListener('scroll', this.boundHandleResize, true);
@@ -284,6 +372,7 @@
 
     this._destroyMarkup();
     this.currentStepIndex = -1;
+    this._syncReplayButtonVisibility();
   };
 
   UnifiedTour.prototype.skip = function () {
@@ -623,6 +712,7 @@
 
   UnifiedTour.prototype.destroy = function () {
     this.stop(false);
+    this._removeReplayButton();
 
     var style = document.getElementById(STYLE_ID);
     if (style && style.parentNode) {
