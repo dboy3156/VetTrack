@@ -25,6 +25,7 @@ import {
   loadForecastExclusionSubstrings,
   runForecastPipeline,
 } from "../lib/forecast/pipeline.js";
+import { resolveForecastDeliveryPolicy } from "../lib/forecast/deliveryPolicy.js";
 
 /** Parse row was already consumed or concurrent approve won the race. */
 class ForecastParseSessionGoneError extends Error {
@@ -340,6 +341,8 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
     const smtpPass = process.env.SMTP_PASS?.trim();
 
     const hasSmtp = Boolean(smtpHost && smtpUser && smtpPass);
+    const deliveryPolicy = resolveForecastDeliveryPolicy(process.env);
+    const canUseMailtoFallback = deliveryPolicy.allowMailtoFallback;
 
     if (!pharmacyEmail) {
       return res.status(400).json(apiError({
@@ -363,6 +366,15 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
       auditTrace: parsed.data.auditTrace,
       patientWeightOverrides: parsed.data.patientWeightOverrides,
     });
+
+    if (!hasSmtp && !canUseMailtoFallback) {
+      return res.status(503).json(apiError({
+        code: "SMTP_REQUIRED",
+        reason: "SMTP_REQUIRED",
+        message: "SMTP is required to send pharmacy orders in this environment.",
+        requestId,
+      }));
+    }
 
     let deliveryMethod: "smtp" | "mailto" = hasSmtp ? "smtp" : "mailto";
     let smtpFallbackReason: string | undefined;
@@ -430,6 +442,18 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
         deliveryMethod = "smtp";
       } catch (e) {
         smtpFallbackReason = sanitizeSmtpError(e);
+        if (!canUseMailtoFallback) {
+          console.error(
+            `[forecast/approve] SMTP failed and mailto fallback blocked orderId=${orderId} reason=${smtpFallbackReason}`,
+            e,
+          );
+          return res.status(503).json(apiError({
+            code: "SMTP_REQUIRED",
+            reason: "SMTP_REQUIRED",
+            message: "SMTP delivery failed. Mailto fallback is disabled in this environment.",
+            requestId,
+          }));
+        }
         console.error(
           `[forecast/approve] SMTP failed, falling back to mailto orderId=${orderId} reason=${smtpFallbackReason}`,
           e,
