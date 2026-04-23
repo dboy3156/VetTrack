@@ -405,7 +405,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     { href: "/app-tour", label: lh.appTour, icon: <Film className="w-5 h-5" />, menuOnly: true },
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
-    { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
+    { href: "/", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, canAccessPharmacyForecastNav, myCount, lh, t]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
@@ -426,7 +426,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const systemMenuItems = useMemo(
     () =>
-      ["/app-tour", "/help", "/settings", "/landing"]
+      ["/app-tour", "/help", "/settings", "/"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
@@ -434,7 +434,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
   const bottomNavActive = useMemo(
     () => ({
-      home: location === "/" || location === "",
+      home: location === "/home" || location === "/" || location === "",
       equipment: location.startsWith("/equipment"),
       rooms: location.startsWith("/rooms"),
     }),
@@ -498,7 +498,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         <UpdateBanner />
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link
-            href="/"
+            href="/home"
             className="flex items-center gap-2 group select-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div
@@ -1004,7 +1004,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             />
           )}
           <Link
-            href="/"
+            href="/home"
             className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
             data-testid="bottom-nav-home"
           >
