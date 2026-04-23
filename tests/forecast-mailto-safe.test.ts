@@ -23,4 +23,17 @@ describe("Forecast mailto URL safety", () => {
     });
     expect(small.truncated).toBe(false);
   });
+
+  it("encodes spaces as %20 (not +)", () => {
+    const encoded = buildForecastMailtoUrl({
+      pharmacyEmail: "rx@example.com",
+      subject: "ICU order test",
+      body: "line one and two",
+      locale: "en",
+    });
+    expect(encoded.url.includes("ICU%20order%20test")).toBe(true);
+    expect(encoded.url.includes("line%20one%20and%20two")).toBe(true);
+    expect(encoded.url.includes("ICU+order+test")).toBe(false);
+    expect(encoded.url.includes("line+one+and+two")).toBe(false);
+  });
 });
