@@ -5,7 +5,10 @@
     tourName: 'default_tour',
     steps: [],
     forceStart: false,
-    storageKeyPrefix: 'unified_tour_completed_'
+    storageKeyPrefix: 'unified_tour_completed_',
+    persistSeenInLocalStorage: true,
+    seenStorageKey: null,
+    userId: null
   };
 
   var STYLE_ID = 'unified-tour-styles';
@@ -60,7 +63,11 @@
       throw new Error('UnifiedTour requires a non-empty "steps" array.');
     }
 
-    this.storageKey = this.options.storageKeyPrefix + this.options.tourName;
+    this.storageKey =
+      this.options.seenStorageKey ||
+      this.options.storageKeyPrefix +
+        this.options.tourName +
+        (this.options.userId ? '_' + this.options.userId : '');
     this.maskId = 'ut-mask-' + Math.random().toString(36).slice(2);
 
     this.currentStepIndex = -1;
@@ -170,6 +177,10 @@
   };
 
   UnifiedTour.prototype._markCompleted = function () {
+    if (!this.options.persistSeenInLocalStorage) {
+      return;
+    }
+
     try {
       localStorage.setItem(this.storageKey, '1');
     } catch (err) {
@@ -177,8 +188,8 @@
     }
   };
 
-  UnifiedTour.prototype.isCompleted = function () {
-    if (this.options.forceStart) {
+  UnifiedTour.prototype._readSeenFlag = function () {
+    if (!this.options.persistSeenInLocalStorage) {
       return false;
     }
 
@@ -189,12 +200,36 @@
     }
   };
 
+  UnifiedTour.prototype.isCompleted = function () {
+    if (!this.options.persistSeenInLocalStorage) {
+      return false;
+    }
+
+    if (this.options.forceStart) {
+      return false;
+    }
+
+    return this._readSeenFlag();
+  };
+
   UnifiedTour.prototype.reset = function () {
+    if (!this.options.persistSeenInLocalStorage) {
+      return;
+    }
+
     try {
       localStorage.removeItem(this.storageKey);
     } catch (err) {
       // Ignore storage failures.
     }
+  };
+
+  UnifiedTour.prototype.hasSeen = function () {
+    return this._readSeenFlag();
+  };
+
+  UnifiedTour.prototype.markAsSeen = function () {
+    this._markCompleted();
   };
 
   UnifiedTour.prototype.start = function (forceStart) {
