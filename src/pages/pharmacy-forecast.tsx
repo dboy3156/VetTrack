@@ -171,6 +171,28 @@ function PharmacyEmailPreviewPanel({
         </div>
       </div>
       <div className="max-h-[min(420px,70vh)] overflow-y-auto p-3 space-y-4">
+        {result.parseFailures && result.parseFailures.length > 0 ? (
+          <Card className="border-amber-300/80 bg-amber-50/60 shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-amber-900">
+                {t.pharmacyForecast.parseFailuresTitle}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {result.parseFailures.map((failure) => (
+                  <div
+                    key={`${failure.fileName}-${failure.message}`}
+                    className="rounded-lg border border-amber-200 bg-white/70 px-3 py-2"
+                  >
+                    <p className="text-sm font-medium text-amber-900">{failure.fileName}</p>
+                    <p className="text-xs text-amber-800 mt-0.5">{failure.message}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         {sorted.map((p) => {
           const pAudit = auditState?.patients[p.recordNumber];
           const weightKg = pAudit?.weightOverride ?? p.weightKg;
@@ -304,6 +326,19 @@ function isPatientAuditComplete(
 }
 
 export default function PharmacyForecastPage() {
+  // ORIGINAL
+  // export default function PharmacyForecastPage() {
+  //   const { role, effectiveRole, isLoaded, name, email } = useAuth();
+  //   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  //   const canUse = canAccessPharmacyForecast(role, effectiveRole);
+  //   const [step, setStep] = useState<"input" | "review">("input");
+  //   const [inputMode, setInputMode] = useState<"paste" | "pdf">("paste");
+  //   const [pasteText, setPasteText] = useState("");
+  //   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  //   const fileRef = useRef<HTMLInputElement>(null);
+  //   // ... original implementation body remains; item 1 changes only:
+  //   // multi-file input + parse failure rendering + parseMultipart array payload.
+  // }
   const { role, effectiveRole, isLoaded, name, email } = useAuth();
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canUse = canAccessPharmacyForecast(role, effectiveRole);
@@ -311,7 +346,7 @@ export default function PharmacyForecastPage() {
   const [step, setStep] = useState<"input" | "review">("input");
   const [inputMode, setInputMode] = useState<"paste" | "pdf">("paste");
   const [pasteText, setPasteText] = useState("");
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [windowHours, setWindowHours] = useState<24 | 72>(() => defaultWindowHours());
@@ -369,7 +404,7 @@ export default function PharmacyForecastPage() {
     setRestoredDraft(false);
     if (resetInput) {
       setPasteText("");
-      setPdfFile(null);
+      setPdfFiles([]);
     }
     clearForecastDraftSnapshot();
   }, []);
@@ -517,8 +552,8 @@ export default function PharmacyForecastPage() {
     mutationFn: async () => {
       const params = { windowHours, weekendMode: windowHours === 72 };
       if (inputMode === "pdf") {
-        if (!pdfFile) throw new Error(t.pharmacyForecast.errors.noFile);
-        return api.forecast.parseMultipart(pdfFile, params);
+        if (pdfFiles.length === 0) throw new Error(t.pharmacyForecast.errors.noFile);
+        return api.forecast.parseMultipart(pdfFiles, params);
       }
       const text = pasteText.trim();
       if (!text) throw new Error(t.pharmacyForecast.errors.noText);
@@ -843,14 +878,23 @@ export default function PharmacyForecastPage() {
                 <input
                   ref={fileRef}
                   type="file"
+                  multiple
                   accept="application/pdf"
                   className="hidden"
-                  onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => setPdfFiles(Array.from(e.target.files ?? []))}
                 />
                 <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()}>
                   {t.pharmacyForecast.choosePdf}
                 </Button>
-                {pdfFile ? <p className="text-xs text-muted-foreground">{pdfFile.name}</p> : null}
+                {pdfFiles.length > 0 ? (
+                  <div className="space-y-1">
+                    {pdfFiles.map((file) => (
+                      <p key={`${file.name}-${file.size}`} className="text-xs text-muted-foreground">
+                        {file.name}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             )}
 

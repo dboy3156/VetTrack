@@ -1169,9 +1169,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    parseMultipart: (file: File, params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
+    parseMultipart: (files: File[], params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
       const fd = new FormData();
-      fd.append("file", file);
+      for (const file of files) {
+        fd.append("file", file);
+      }
       if (params?.windowHours != null) fd.append("windowHours", String(params.windowHours));
       if (params?.weekendMode != null) fd.append("weekendMode", String(params.weekendMode));
       return request<ForecastParseResponse>("/api/forecast/parse", {

@@ -1246,6 +1246,7 @@
     "approveCannotShort": "לא ניתן לאשר עדיין",
     "emailPreviewSummary": "ICU · {patientCount} מטופלים · {hours} ש׳",
     "emailPreviewLayoutNote": "תצוגה מסודרת של כמויות סופיות. במייל שנפתח תופיע הודעה מלאה בפורמט למרקחה.",
+    "parseFailuresTitle": "קבצים שלא פוענחו — נדרשת בדיקה ידנית",
     "mailtoTruncatedWarning": "קישור המייל קוצר בגלל אורך; ההזמנה המלאה נשמרת ב-VetTrack.",
     "smtpFallbackWarning": "שליחה דרך SMTP נכשלה — נפתחת טיוטת מייל באפליקציית המייל ({reason}).",
     "approveBlocked": "פתור {n} שדות כמות לפני האישור",

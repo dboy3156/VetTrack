@@ -58,4 +58,16 @@ describe("buildPharmacyOrderEmail", () => {
     expect(text).toContain("Famotidine");
     expect(text).toContain("3");
   });
+
+  it("includes parse failure section in html and text", () => {
+    const withFailures: ForecastResult = {
+      ...result,
+      parseFailures: [{ fileName: "ward-a.pdf", message: "פענוח PDF נכשל" }],
+    };
+    const { html, text } = buildPharmacyOrderEmail({ result: withFailures, technicianName: "שרה" });
+    expect(html).toContain("קבצים שלא פוענחו");
+    expect(html).toContain("ward-a.pdf");
+    expect(text).toContain("קבצים שלא פוענחו");
+    expect(text).toContain("ward-a.pdf");
+  });
 });

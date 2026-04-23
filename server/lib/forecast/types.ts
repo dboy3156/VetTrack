@@ -87,12 +87,18 @@ export interface ForecastPatientEntry {
   flags: FlagReason[];
 }
 
+export interface ForecastParseFailure {
+  fileName: string;
+  message: string;
+}
+
 export interface ForecastResult {
   windowHours: 24 | 72;
   weekendMode: boolean;
   patients: ForecastPatientEntry[];
   totalFlags: number;
   parsedAt: string;
+  parseFailures?: ForecastParseFailure[];
 }
 
 /** API payloads */

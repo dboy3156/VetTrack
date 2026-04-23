@@ -26,6 +26,12 @@ import {
   runForecastPipeline,
 } from "../lib/forecast/pipeline.js";
 import { resolveForecastDeliveryPolicy } from "../lib/forecast/deliveryPolicy.js";
+import type {
+  ForecastDrugEntry,
+  ForecastParseFailure,
+  ForecastPatientEntry,
+  ForecastResult,
+} from "../lib/forecast/types.js";
 
 /** Parse row was already consumed or concurrent approve won the race. */
 class ForecastParseSessionGoneError extends Error {
@@ -39,7 +45,7 @@ const router = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024, files: 20 },
 });
 
 function resolveRequestId(res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void }, incoming: unknown): string {
@@ -136,15 +142,199 @@ function multipartOrJsonBody(req: Request): Record<string, unknown> {
   return {};
 }
 
+// ORIGINAL
+// function collectUploadedPdfFiles(req: Request): Express.Multer.File[] {
+//   const collected: Express.Multer.File[] = [];
+//   const reqAny = req as Request & {
+//     file?: Express.Multer.File;
+//     files?: Express.Multer.File[] | Record<string, Express.Multer.File[]>;
+//   };
+//   if (reqAny.file) collected.push(reqAny.file);
+//   if (Array.isArray(reqAny.files)) {
+//     collected.push(...reqAny.files);
+//   } else if (reqAny.files && typeof reqAny.files === "object") {
+//     for (const value of Object.values(reqAny.files)) {
+//       if (Array.isArray(value)) collected.push(...value);
+//     }
+//   }
+//   const deduped = new Map<string, Express.Multer.File>();
+//   for (const file of collected) {
+//     if (!file?.buffer?.length) continue;
+//     const key = `${file.originalname}:${file.size}:${file.mimetype}`;
+//     if (!deduped.has(key)) deduped.set(key, file);
+//   }
+//   return [...deduped.values()];
+// }
+function collectUploadedPdfFiles(req: Request): Express.Multer.File[] {
+  const collected: Express.Multer.File[] = [];
+  const reqAny = req as Request & {
+    file?: Express.Multer.File;
+    files?: Express.Multer.File[] | Record<string, Express.Multer.File[]>;
+  };
+  if (reqAny.file) collected.push(reqAny.file);
+  if (Array.isArray(reqAny.files)) {
+    collected.push(...reqAny.files);
+  } else if (reqAny.files && typeof reqAny.files === "object") {
+    for (const value of Object.values(reqAny.files)) {
+      if (Array.isArray(value)) collected.push(...value);
+    }
+  }
+  return collected.filter((file) => !!file?.buffer?.length);
+}
+
+function mergeDrugEntries(base: ForecastDrugEntry, incoming: ForecastDrugEntry): ForecastDrugEntry {
+  const quantityUnits =
+    base.quantityUnits == null && incoming.quantityUnits == null
+      ? null
+      : (base.quantityUnits ?? 0) + (incoming.quantityUnits ?? 0);
+  const administrationsPer24h = base.administrationsPer24h ?? incoming.administrationsPer24h;
+  const administrationsInWindow =
+    base.administrationsInWindow == null && incoming.administrationsInWindow == null
+      ? null
+      : (base.administrationsInWindow ?? 0) + (incoming.administrationsInWindow ?? 0);
+  return {
+    ...base,
+    concentration: base.concentration || incoming.concentration,
+    packDescription: base.packDescription || incoming.packDescription,
+    route: base.route || incoming.route,
+    quantityUnits,
+    administrationsPer24h,
+    administrationsInWindow,
+    flags: Array.from(new Set([...base.flags, ...incoming.flags])),
+  };
+}
+
+function mergePatientEntries(base: ForecastPatientEntry, incoming: ForecastPatientEntry): ForecastPatientEntry {
+  const mergedDrugMap = new Map<string, ForecastDrugEntry>();
+  for (const drug of [...base.drugs, ...incoming.drugs]) {
+    const key = [
+      drug.drugName.trim().toLowerCase(),
+      drug.type,
+      drug.route.trim().toLowerCase(),
+      drug.concentration.trim().toLowerCase(),
+      drug.unitLabel.trim().toLowerCase(),
+    ].join("|");
+    const existing = mergedDrugMap.get(key);
+    if (!existing) {
+      mergedDrugMap.set(key, { ...drug });
+      continue;
+    }
+    mergedDrugMap.set(key, mergeDrugEntries(existing, drug));
+  }
+  return {
+    ...base,
+    name: base.name || incoming.name,
+    species: base.species || incoming.species,
+    breed: base.breed || incoming.breed,
+    sex: base.sex || incoming.sex,
+    age: base.age || incoming.age,
+    color: base.color || incoming.color,
+    weightKg: base.weightKg > 0 ? base.weightKg : incoming.weightKg,
+    ownerName: base.ownerName || incoming.ownerName,
+    ownerId: base.ownerId || incoming.ownerId,
+    ownerPhone: base.ownerPhone || incoming.ownerPhone,
+    flags: Array.from(new Set([...base.flags, ...incoming.flags])),
+    drugs: [...mergedDrugMap.values()],
+  };
+}
+
+function mergeForecastResults(params: {
+  results: ForecastResult[];
+  windowHours: 24 | 72;
+  weekendMode: boolean;
+  parseFailures: ForecastParseFailure[];
+}): ForecastResult {
+  const mergedPatients = new Map<string, ForecastPatientEntry>();
+  for (const result of params.results) {
+    for (const patient of result.patients) {
+      const patientKey = `${patient.recordNumber.trim().toLowerCase()}|${patient.name.trim().toLowerCase()}`;
+      const existing = mergedPatients.get(patientKey);
+      if (!existing) {
+        mergedPatients.set(patientKey, { ...patient, drugs: patient.drugs.map((d) => ({ ...d })) });
+        continue;
+      }
+      mergedPatients.set(patientKey, mergePatientEntries(existing, patient));
+    }
+  }
+  const patients = [...mergedPatients.values()].sort((a, b) =>
+    a.recordNumber.localeCompare(b.recordNumber, undefined, { numeric: true }),
+  );
+  const totalFlags = patients.reduce(
+    (sum, p) => sum + p.flags.length + p.drugs.reduce((s, d) => s + d.flags.length, 0),
+    0,
+  );
+  return {
+    windowHours: params.windowHours,
+    weekendMode: params.weekendMode,
+    patients,
+    totalFlags,
+    parsedAt: new Date().toISOString(),
+    parseFailures: params.parseFailures.length > 0 ? params.parseFailures : undefined,
+  };
+}
+
+function sortedJsonStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => sortedJsonStringify(entry)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    return `{${entries
+      .map(([key, entry]) => `${JSON.stringify(key)}:${sortedJsonStringify(entry)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function buildForecastParseContentHash(params: {
+  parseInputs: Array<{ sourceLabel: string; rawText: string }>;
+  parseFailures: ForecastParseFailure[];
+  windowHours: 24 | 72;
+  weekendMode: boolean;
+  exclusionSubstrings: string[];
+}): string {
+  return createHash("sha256")
+    .update(
+      sortedJsonStringify({
+        inputs: params.parseInputs
+          .map((entry) => ({
+            sourceLabel: entry.sourceLabel,
+            rawText: entry.rawText,
+          }))
+          .sort((a, b) => a.sourceLabel.localeCompare(b.sourceLabel)),
+        failures: params.parseFailures
+          .map((failure) => ({
+            fileName: failure.fileName,
+            message: failure.message,
+          }))
+          .sort((a, b) => `${a.fileName}:${a.message}`.localeCompare(`${b.fileName}:${b.message}`)),
+      }),
+      "utf8",
+    )
+    .update("\u0000window:", "utf8")
+    .update(`${params.windowHours}:${params.weekendMode ? 1 : 0}`, "utf8")
+    .update("\u0000exclusions:", "utf8")
+    .update(fingerprintForecastExclusions(params.exclusionSubstrings), "utf8")
+    .digest("hex");
+}
+
 router.post(
   "/parse",
   parseRateLimit,
   requireAuth,
   ensureUserClinicMembership,
   requireEffectiveRole("technician"),
+  // ORIGINAL
+  // (req, res, next) => {
+  //   const ct = String(req.headers["content-type"] ?? "");
+  //   if (ct.includes("multipart/form-data")) return upload.single("file")(req, res, next);
+  //   next();
+  // },
   (req, res, next) => {
     const ct = String(req.headers["content-type"] ?? "");
-    if (ct.includes("multipart/form-data")) return upload.single("file")(req, res, next);
+    if (ct.includes("multipart/form-data")) return upload.any()(req, res, next);
     next();
   },
   async (req, res) => {
@@ -152,7 +342,6 @@ router.post(
     const clinicId = req.clinicId!;
     const authUser = req.authUser!;
     try {
-      let rawText = "";
       const rawBody = multipartOrJsonBody(req);
       const parsed = forecastParseRequestSchema.safeParse(rawBody);
 
@@ -161,33 +350,6 @@ router.post(
           code: "VALIDATION_FAILED",
           reason: "INVALID_PARSE_BODY",
           message: "Invalid JSON or form fields",
-          requestId,
-        }));
-      }
-
-      const file = "file" in req && req.file ? req.file : undefined;
-      if (file?.buffer?.length) {
-        try {
-          const buf = file.buffer as Buffer;
-          const out = await pdfParse(buf);
-          rawText = typeof out.text === "string" ? out.text : "";
-        } catch {
-          return res.status(400).json(apiError({
-            code: "PDF_PARSE_FAILED",
-            reason: "PDF_INVALID",
-            message: "Could not extract text from PDF",
-            requestId,
-          }));
-        }
-      } else if (typeof parsed.data.text === "string" && parsed.data.text.trim().length > 0) {
-        rawText = parsed.data.text;
-      }
-
-      if (!rawText.trim()) {
-        return res.status(400).json(apiError({
-          code: "VALIDATION_FAILED",
-          reason: "EMPTY_INPUT",
-          message: "Provide PDF file or non-empty text",
           requestId,
         }));
       }
@@ -203,13 +365,52 @@ router.post(
       const weekendMode =
         parsed.data.weekendMode ?? (windowHours === 72 && defaultWindowHoursFromCalendar() === 72);
 
-      const contentHash = createHash("sha256")
-        .update(rawText, "utf8")
-        .update("\u0000window:", "utf8")
-        .update(`${windowHours}:${weekendMode ? 1 : 0}`, "utf8")
-        .update("\u0000exclusions:", "utf8")
-        .update(fingerprintForecastExclusions(exclusionSubstrings), "utf8")
-        .digest("hex");
+      const parseFailures: ForecastParseFailure[] = [];
+      const parseInputs: Array<{ sourceLabel: string; rawText: string }> = [];
+      const uploadedFiles = collectUploadedPdfFiles(req);
+      if (uploadedFiles.length > 0) {
+        for (const [index, file] of uploadedFiles.entries()) {
+          const fileName = file.originalname?.trim() || `pdf-${index + 1}.pdf`;
+          try {
+            const out = await pdfParse(file.buffer as Buffer);
+            const rawText = typeof out.text === "string" ? out.text.trim() : "";
+            if (!rawText) {
+              parseFailures.push({
+                fileName,
+                message: "לא ניתן היה לחלץ טקסט מהקובץ",
+              });
+              continue;
+            }
+            parseInputs.push({ sourceLabel: fileName, rawText });
+          } catch (error) {
+            console.error("[forecast/parse] pdf extraction failed", { fileName, error });
+            parseFailures.push({
+              fileName,
+              message: "פענוח PDF נכשל",
+            });
+          }
+        }
+      } else if (typeof parsed.data.text === "string" && parsed.data.text.trim().length > 0) {
+        parseInputs.push({ sourceLabel: "manual-input", rawText: parsed.data.text.trim() });
+      }
+
+      if (parseInputs.length === 0) {
+        return res.status(400).json(apiError({
+          code: "VALIDATION_FAILED",
+          reason: "EMPTY_INPUT",
+          message: "Provide PDF file(s) or non-empty text",
+          requestId,
+          errors: parseFailures.length > 0 ? parseFailures : undefined,
+        }));
+      }
+
+      const contentHash = buildForecastParseContentHash({
+        parseInputs,
+        parseFailures,
+        windowHours,
+        weekendMode,
+        exclusionSubstrings,
+      });
       console.info(
         `[forecast/parse] ${new Date().toISOString()} contentHash=${contentHash} requestId=${requestId} clinicId=${clinicId}`,
       );
@@ -234,12 +435,44 @@ router.post(
         }
       }
 
-      const result = await runForecastPipeline({
-        rawText,
-        clinicId,
+      const partialResults: ForecastResult[] = [];
+      for (const entry of parseInputs) {
+        try {
+          const result = await runForecastPipeline({
+            rawText: entry.rawText,
+            clinicId,
+            windowHours,
+            weekendMode,
+            exclusionSubstrings,
+          });
+          partialResults.push(result);
+        } catch (error) {
+          console.error("[forecast/parse] forecast pipeline failed", {
+            sourceLabel: entry.sourceLabel,
+            error,
+          });
+          parseFailures.push({
+            fileName: entry.sourceLabel,
+            message: "ניתוח תרופות נכשל עבור הקובץ",
+          });
+        }
+      }
+
+      if (partialResults.length === 0) {
+        return res.status(400).json(apiError({
+          code: "PDF_PARSE_FAILED",
+          reason: "ALL_FILES_FAILED",
+          message: "All provided files failed to parse",
+          requestId,
+          errors: parseFailures,
+        }));
+      }
+
+      const result = mergeForecastResults({
+        results: partialResults,
         windowHours,
         weekendMode,
-        exclusionSubstrings,
+        parseFailures,
       });
 
       const parseId = randomUUID();
@@ -281,6 +514,15 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
     }));
   }
 
+  // ORIGINAL
+  // router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiveRole("technician"), async (req, res) => {
+  //   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  //   const clinicId = req.clinicId!;
+  //   const authUser = req.authUser!;
+  //   const parsed = approvePayloadSchema.safeParse(req.body);
+  //   // ... existing approve flow: load parse row, merge quantities, gate checks,
+  //   // SMTP/mailto delivery, audit log, and response.
+  // });
   try {
     const [parseRow] = await db
       .select()
@@ -339,6 +581,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
     const smtpHost = process.env.SMTP_HOST?.trim();
     const smtpUser = process.env.SMTP_USER?.trim();
     const smtpPass = process.env.SMTP_PASS?.trim();
+    const dryRunEnabled = String(process.env.FORECAST_EMAIL_DRY_RUN ?? "").toLowerCase() === "true";
 
     const hasSmtp = Boolean(smtpHost && smtpUser && smtpPass);
     const deliveryPolicy = resolveForecastDeliveryPolicy(process.env);
@@ -369,7 +612,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
       patientWeightOverrides: parsed.data.patientWeightOverrides,
     });
 
-    if (!hasSmtp && !canUseMailtoFallback) {
+    if (!dryRunEnabled && !hasSmtp && !canUseMailtoFallback) {
       return res.status(503).json(apiError({
         code: "SMTP_REQUIRED",
         reason: "SMTP_REQUIRED",
@@ -379,6 +622,9 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
     }
 
     let deliveryMethod: "smtp" | "mailto" = hasSmtp ? "smtp" : "mailto";
+    if (dryRunEnabled) {
+      deliveryMethod = "smtp";
+    }
     let smtpFallbackReason: string | undefined;
 
     await db.transaction(async (tx) => {
@@ -414,7 +660,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
     let mailtoUrl: string | undefined;
     let mailtoBodyTruncated = false;
 
-    if (hasSmtp) {
+    if (!dryRunEnabled && hasSmtp) {
       try {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
@@ -468,7 +714,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
       }
     }
 
-    if (deliveryMethod === "mailto") {
+    if (!dryRunEnabled && deliveryMethod === "mailto") {
       const locale = typeof authUser.locale === "string" ? authUser.locale : undefined;
       const built = buildForecastMailtoUrl({
         pharmacyEmail,
@@ -478,6 +724,17 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
       });
       mailtoUrl = built.url;
       mailtoBodyTruncated = built.truncated;
+    }
+
+    if (dryRunEnabled) {
+      console.info("[forecast/approve] DRY_RUN enabled — email payload prepared without external send", {
+        orderId,
+        deliveryMethod: hasSmtp ? "smtp" : "mailto",
+        to: pharmacyEmail,
+        subject,
+        textPreview: text.slice(0, 500),
+        parseFailures: mergedResult.parseFailures ?? [],
+      });
     }
 
     const meta = resolveAuditActorRole(req);
@@ -503,7 +760,10 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
       deliveryMethod,
       mailtoUrl: deliveryMethod === "mailto" ? mailtoUrl : undefined,
       mailtoBodyTruncated: deliveryMethod === "mailto" ? mailtoBodyTruncated : undefined,
-      smtpFallbackReason: deliveryMethod === "mailto" && smtpFallbackReason ? smtpFallbackReason : undefined,
+      smtpFallbackReason:
+        !dryRunEnabled && deliveryMethod === "mailto" && smtpFallbackReason
+          ? smtpFallbackReason
+          : undefined,
     });
   } catch (err) {
     if (err instanceof ForecastParseSessionGoneError) {

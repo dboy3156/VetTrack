@@ -909,6 +909,10 @@ export interface ForecastResult {
   patients: ForecastPatientEntry[];
   totalFlags: number;
   parsedAt: string;
+  parseFailures?: Array<{
+    fileName: string;
+    message: string;
+  }>;
 }
 
 /** Response shape from POST /api/forecast/parse */

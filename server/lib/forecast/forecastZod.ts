@@ -68,6 +68,15 @@ export const forecastResultSchema = z.object({
   patients: z.array(forecastPatientEntrySchema).max(MAX_PATIENTS),
   totalFlags: z.number().int().min(0).max(50000),
   parsedAt: z.string().max(80),
+  parseFailures: z
+    .array(
+      z.object({
+        fileName: z.string().max(255),
+        message: z.string().max(400),
+      }),
+    )
+    .max(100)
+    .optional(),
 });
 
 /** Accepts JSON bodies and multipart field strings from `multipart/form-data`. */
