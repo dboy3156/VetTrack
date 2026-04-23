@@ -154,7 +154,7 @@ jobs:
     steps:
       - name: ℹ️ Skip Railway deploy on PR/non-main
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: echo "Skipping Railway deploy: only runs on push to main."
+        run: 'echo "Skipping Railway deploy: only runs on push to main."'
 
       - name: ⬇️ Checkout
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
