@@ -18,7 +18,7 @@ export default function NotFoundPage() {
         </div>
         <h1 className="text-2xl font-bold">Page Not Found</h1>
         <p className="text-muted-foreground">The page you're looking for doesn't exist.</p>
-        <Link href="/">
+        <Link href="/home">
           <Button data-testid="btn-go-home">
             <Home className="w-4 h-4 mr-2" />
             Go Home

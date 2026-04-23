@@ -14,7 +14,7 @@ export default function SignUpPage() {
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      navigate("/");
+      navigate("/home");
     }
   }, [isLoaded, isSignedIn, navigate]);
 
@@ -31,7 +31,7 @@ export default function SignUpPage() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <Link
-              href="/landing"
+              href="/"
               className="inline-flex items-center gap-2 mb-6 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
@@ -60,7 +60,7 @@ export default function SignUpPage() {
                   <SignUp
                     routing="hash"
                     signInUrl="/signin"
-                    fallbackRedirectUrl="/"
+                    fallbackRedirectUrl="/home"
                     appearance={clerkAppearance}
                   />
                 </div>
@@ -72,7 +72,7 @@ export default function SignUpPage() {
                 Authentication is running in development mode.
               </p>
               <Link
-                href="/"
+                href="/home"
                 className="inline-flex items-center justify-center gap-2 w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-3 rounded-xl transition-colors"
               >
                 Continue to Dashboard
@@ -82,7 +82,7 @@ export default function SignUpPage() {
 
           <div className="text-center mt-6">
             <Link
-              href="/landing"
+              href="/"
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               ← Learn more about VetTrack

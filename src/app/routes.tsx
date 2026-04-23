@@ -41,12 +41,13 @@ export function AppRoutes() {
   return (
     <PageErrorBoundary fallbackLabel="Page rendering failed">
       <Switch>
+        <Route path="/" component={LandingPage} />
         <Route path="/landing" component={LandingPage} />
         {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
         <Route path="/signin/*?" component={SignInPage} />
         <Route path="/signup/*?" component={SignUpPage} />
 
-        <Route path="/"><AuthGuard><HomePage /></AuthGuard></Route>
+        <Route path="/home"><AuthGuard><HomePage /></AuthGuard></Route>
         <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
         <Route path="/equipment/new"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
         <Route path="/equipment/:id/edit"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>

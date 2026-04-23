@@ -118,11 +118,11 @@ export default function LandingPage() {
       <Helmet>
         <title>VetTrack | ICU Medical Equipment Tracking</title>
         <meta name="description" content="VetTrack helps veterinary ICU teams find, track, and manage critical medical equipment in real time. Reduce search time by up to 70%." />
-        <link rel="canonical" href="https://vettrack.uk/landing" />
+        <link rel="canonical" href="https://vettrack.uk/" />
         <meta property="og:title" content="VetTrack | ICU Medical Equipment Tracking" />
         <meta property="og:description" content="Real-time veterinary ICU equipment tracking. QR/NFC scanning, offline-first PWA, shift handovers, and smart alerts." />
         <meta property="og:image" content="/og-image.png" />
-        <meta property="og:url" content="https://vettrack.uk/landing" />
+        <meta property="og:url" content="https://vettrack.uk/" />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="VetTrack | ICU Medical Equipment Tracking" />
@@ -150,7 +150,7 @@ export default function LandingPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                     {showAppCta && (
                       <Link
-                        href="/"
+                        href="/home"
                         className={cn(
                           "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
                           "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
@@ -517,7 +517,7 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 {showAppCta && (
                   <Link
-                    href="/"
+                    href="/home"
                     className={cn(
                       "w-full sm:w-auto inline-flex items-center justify-center gap-2",
                       "rounded-2xl font-bold px-8 py-3.5 min-h-[52px] bg-background text-foreground",

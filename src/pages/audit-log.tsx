@@ -480,7 +480,7 @@ export default function AuditLogPage() {
           <Shield className="w-12 h-12 text-muted-foreground" />
           <h1 className="text-2xl font-bold">Admin Only</h1>
           <p className="text-sm text-muted-foreground">You need admin access to view this page.</p>
-          <Button variant="ghost" onClick={() => navigate("/")}>Go Home</Button>
+          <Button variant="ghost" onClick={() => navigate("/home")}>Go Home</Button>
         </div>
       </Layout>
     );

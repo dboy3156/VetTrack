@@ -119,7 +119,7 @@ export default function AdminPage() {
           <p className="text-sm text-muted-foreground">
             You need admin access to view this page.
           </p>
-          <Button variant="ghost" onClick={() => navigate("/")}>
+          <Button variant="ghost" onClick={() => navigate("/home")}>
             Go Home
           </Button>
         </div>

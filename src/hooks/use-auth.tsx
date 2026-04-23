@@ -312,7 +312,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     clearHaltQueue();
     setAuthState({ userId: "", email: "", name: "", bearerToken: null });
     queryClient.clear();
-    await clerkSignOut({ redirectUrl: "/landing" });
+    await clerkSignOut({ redirectUrl: "/" });
   }, [queryClient, clerkSignOut]);
 
   const refreshAuth = useCallback(() => {
