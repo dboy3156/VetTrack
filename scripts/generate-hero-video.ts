@@ -196,8 +196,9 @@ function logInfo(message: string): void {
 
 function estimateDurationSec(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
-  // ~170 wpm + slight pause allowance for sentence ends.
-  return Math.max(2.2, words / 2.85 + 0.45);
+  // Target a slower cinematic narration pace (~145 wpm) with sentence pauses.
+  // This keeps timeline headroom for post-production voice-over replacement.
+  return Math.max(2.6, words / 2.4 + 0.75);
 }
 
 async function runCommand(command: string, args: string[], label: string): Promise<void> {
@@ -427,15 +428,39 @@ async function smoothScroll(page: Page, pixels: number, durationMs: number): Pro
   }
 }
 
-async function safeClick(locator: Locator, page: Page): Promise<boolean> {
+async function safeClick(
+  locator: Locator,
+  page: Page,
+  timeoutMs = 1_200,
+): Promise<boolean> {
   try {
-    await locator.first().waitFor({ state: "visible", timeout: 5_000 });
+    await locator.first().waitFor({ state: "visible", timeout: timeoutMs });
     const box = await locator.first().boundingBox();
     if (box) {
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
-      await page.waitForTimeout(100);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 });
+      await page.waitForTimeout(50);
     }
-    await locator.first().click();
+    await locator.first().click({ timeout: timeoutMs });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fillIfPresent(locator: Locator, value: string): Promise<boolean> {
+  try {
+    if ((await locator.count()) === 0) return false;
+    await locator.first().fill(value, { timeout: 900 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function selectIfPresent(locator: Locator, index: number): Promise<boolean> {
+  try {
+    if ((await locator.count()) === 0) return false;
+    await locator.first().selectOption({ index }, { timeout: 900 });
     return true;
   } catch {
     return false;
@@ -497,44 +522,44 @@ async function scene2RoomRadar(ctx: RuntimeContext): Promise<void> {
 
 async function scene2InventoryAndTasks(ctx: RuntimeContext): Promise<void> {
   await gotoPath(ctx.page, ctx.options.baseUrl, "/inventory");
-  await ctx.page.waitForTimeout(900);
+  await ctx.page.waitForTimeout(450);
 
   const plusButton = ctx.page.locator('button[aria-label^="Increment"]').first();
   if ((await plusButton.count()) > 0) {
-    await safeClick(plusButton, ctx.page);
-    await ctx.page.waitForTimeout(350);
-    await safeClick(plusButton, ctx.page);
+    await safeClick(plusButton, ctx.page, 700);
+    await ctx.page.waitForTimeout(180);
+    await safeClick(plusButton, ctx.page, 700);
   }
 
   const finishRestock = ctx.page.getByRole("button", { name: /Finish Restock/i });
   if ((await finishRestock.count()) > 0) {
-    await safeClick(finishRestock, ctx.page);
-    await ctx.page.waitForTimeout(700);
+    await safeClick(finishRestock, ctx.page, 900);
+    await ctx.page.waitForTimeout(300);
   }
 
+  // Fast-paced task creation beat (target 3-5 seconds total).
+  const taskBeatStart = Date.now();
   await gotoPath(ctx.page, ctx.options.baseUrl, "/appointments");
   const createTask = ctx.page.getByRole("button", { name: /Create task|Create Task/i });
   if ((await createTask.count()) > 0) {
-    await safeClick(createTask, ctx.page);
-    await ctx.page.waitForTimeout(400);
+    await safeClick(createTask, ctx.page, 900);
+    await ctx.page.waitForTimeout(180);
 
     const techSelect = ctx.page.getByLabel(/Technician/i);
-    if ((await techSelect.count()) > 0) {
-      await techSelect.selectOption({ index: 1 }).catch(() => undefined);
-    }
+    await selectIfPresent(techSelect, 1);
     const assetField = ctx.page.getByLabel(/Device \/ Asset/i);
-    if ((await assetField.count()) > 0) {
-      await assetField.fill("Emergency fluid pack - ICU");
-    }
+    await fillIfPresent(assetField, "Emergency fluid pack - ICU");
     const notes = ctx.page.getByLabel(/Notes/i);
-    if ((await notes.count()) > 0) {
-      await notes.fill("Rapid logistics dispatch");
-    }
+    await fillIfPresent(notes, "Rapid logistics dispatch");
     const submit = ctx.page.getByRole("button", { name: /Create Task/i });
     if ((await submit.count()) > 0) {
-      await safeClick(submit, ctx.page);
-      await ctx.page.waitForTimeout(600);
+      await safeClick(submit, ctx.page, 900);
+      await ctx.page.waitForTimeout(250);
     }
+  }
+  const taskBeatElapsed = Date.now() - taskBeatStart;
+  if (taskBeatElapsed > 5_000) {
+    logInfo(`Task beat exceeded pacing target (${taskBeatElapsed}ms).`);
   }
 }
 
@@ -542,7 +567,7 @@ async function scene3PharmacyIntegration(ctx: RuntimeContext): Promise<void> {
   await gotoPath(ctx.page, ctx.options.baseUrl, "/pharmacy-forecast");
   const pdfMode = ctx.page.getByRole("button", { name: /PDF/i });
   if ((await pdfMode.count()) > 0) {
-    await safeClick(pdfMode, ctx.page);
+    await safeClick(pdfMode, ctx.page, 900);
   }
 
   const fileInput = ctx.page.locator('input[type="file"][accept*="pdf"]');
@@ -552,45 +577,37 @@ async function scene3PharmacyIntegration(ctx: RuntimeContext): Promise<void> {
 
   const parseButton = ctx.page.getByRole("button", { name: /Parse and continue/i });
   if ((await parseButton.count()) > 0) {
-    await safeClick(parseButton, ctx.page);
+    await safeClick(parseButton, ctx.page, 900);
   }
-  await ctx.page.waitForTimeout(1_600);
+  await ctx.page.waitForTimeout(950);
 }
 
 async function scene3MedicationHub(ctx: RuntimeContext): Promise<void> {
   await gotoPath(ctx.page, ctx.options.baseUrl, "/meds");
-  await ctx.page.waitForTimeout(700);
+  await ctx.page.waitForTimeout(400);
 
   const techSelect = ctx.page.locator("#med-performing-technician");
-  if ((await techSelect.count()) > 0) {
-    await techSelect.selectOption({ index: 1 }).catch(() => undefined);
-  }
+  await selectIfPresent(techSelect, 1);
   const drugSelect = ctx.page.locator("#drug-select");
-  if ((await drugSelect.count()) > 0) {
-    await drugSelect.selectOption({ index: 1 }).catch(() => undefined);
-  }
+  await selectIfPresent(drugSelect, 1);
   const weightInput = ctx.page.locator("#weight-input");
-  if ((await weightInput.count()) > 0) {
-    await weightInput.fill("12.5");
-  }
+  await fillIfPresent(weightInput, "12.5");
   const desiredDose = ctx.page.locator("#desired-mg-input");
-  if ((await desiredDose.count()) > 0) {
-    await desiredDose.fill("25");
-  }
+  await fillIfPresent(desiredDose, "25");
 
   const assignButton = ctx.page.getByRole("button", { name: /Assign Medication/i });
   if ((await assignButton.count()) > 0) {
-    await safeClick(assignButton, ctx.page);
+    await safeClick(assignButton, ctx.page, 900);
   }
-  await ctx.page.waitForTimeout(900);
+  await ctx.page.waitForTimeout(450);
 }
 
 async function scene4EnterCodeBlue(ctx: RuntimeContext): Promise<void> {
   const codeBlueNav = ctx.page.getByRole("link", { name: /Code Blue/i });
-  if (!(await safeClick(codeBlueNav, ctx.page))) {
+  if (!(await safeClick(codeBlueNav, ctx.page, 900))) {
     await gotoPath(ctx.page, ctx.options.baseUrl, "/code-blue");
   }
-  await ctx.page.waitForTimeout(700);
+  await ctx.page.waitForTimeout(450);
 }
 
 async function scene4FocusCriticalEquipment(ctx: RuntimeContext): Promise<void> {
@@ -598,22 +615,22 @@ async function scene4FocusCriticalEquipment(ctx: RuntimeContext): Promise<void> 
   const firstCriticalCard = ctx.page.locator('[data-testid^="critical-equipment-card-"]').first();
   if ((await firstCriticalCard.count()) > 0) {
     await firstCriticalCard.scrollIntoViewIfNeeded();
-    await ctx.page.waitForTimeout(300);
+    await ctx.page.waitForTimeout(220);
     await firstCriticalCard.hover();
   }
-  await smoothScroll(ctx.page, 400, 1_200);
+  await smoothScroll(ctx.page, 340, 900);
 }
 
 async function scene5ShiftHandover(ctx: RuntimeContext): Promise<void> {
   await gotoPath(ctx.page, ctx.options.baseUrl, "/shift-handover");
-  await ctx.page.waitForTimeout(1_200);
-  await smoothScroll(ctx.page, 1_300, 3_000);
-  await smoothScroll(ctx.page, -700, 1_500);
+  await ctx.page.waitForTimeout(700);
+  await smoothScroll(ctx.page, 1_100, 2_100);
+  await smoothScroll(ctx.page, -500, 900);
 }
 
 async function scene5AnalyticsOutro(ctx: RuntimeContext): Promise<void> {
   await gotoPath(ctx.page, ctx.options.baseUrl, "/analytics");
-  await ctx.page.waitForTimeout(1_600);
+  await ctx.page.waitForTimeout(1_100);
 }
 
 const actionHandlers: Record<SceneActionName, (ctx: RuntimeContext) => Promise<void>> = {
