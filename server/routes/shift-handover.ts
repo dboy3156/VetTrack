@@ -447,6 +447,7 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
       const meta = r.metadata as Record<string, unknown> | null;
       return {
         id: r.id,
+        containerId: r.containerId,
         itemLabel: r.itemLabel ?? "—",
         quantity: Math.abs(r.quantityAdded),
         animalName: r.animalName ?? null,

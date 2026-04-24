@@ -415,7 +415,7 @@ export default function ShiftHandoverPage() {
                                 className="h-6 px-2 text-xs"
                                 onClick={() => {
                                   setCompleteEmergencyEventId(ev.id);
-                                  setCompleteEmergencyContainerId(ev.id);
+                                  setCompleteEmergencyContainerId(ev.containerId);
                                 }}
                               >
                                 השלם עכשיו

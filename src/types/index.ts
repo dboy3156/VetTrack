@@ -983,6 +983,7 @@ export interface ForecastApprovePayload {
 
 export interface ConsumablesReportEvent {
   id: string;
+  containerId: string;
   itemLabel: string;
   quantity: number;
   animalName: string | null;

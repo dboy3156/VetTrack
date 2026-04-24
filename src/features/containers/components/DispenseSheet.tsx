@@ -74,17 +74,10 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
     }
   }, [isOpen, emergencyEventId]);
 
-  const containerQ = useQuery({
-    queryKey: ["/api/containers", containerId, "with-items"],
-    queryFn: () => api.containers.getByNfcTag("__direct__").catch(() => null) as Promise<InventoryContainerWithItems | null>,
-    enabled: false,
-  });
-
-  // Fetch container with items directly
+  // Fetch container with items via restock containerItems (provides live quantities)
   const containerItemsQ = useQuery({
     queryKey: ["/api/containers/detail", containerId],
     queryFn: async (): Promise<InventoryContainerWithItems> => {
-      // Use the restockContainerItems endpoint which returns container with items
       const view = await api.restock.containerItems(containerId);
       const itemsWithIds = view.lines.map((l) => ({
         id: l.itemId ?? "",
@@ -98,7 +91,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
         items: itemsWithIds,
       };
     },
-    enabled: isOpen && sheetState !== "emergency-complete",
+    enabled: isOpen,
     staleTime: 30_000,
     retry: false,
   });
@@ -108,7 +101,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   const appointmentsQ = useQuery({
     queryKey: ["/api/appointments", today],
     queryFn: () => api.appointments.list({ day: today }),
-    enabled: isOpen && sheetState === "patient",
+    enabled: isOpen && (sheetState === "confirm" || sheetState === "emergency-complete"),
     staleTime: 60_000,
     retry: false,
   });
