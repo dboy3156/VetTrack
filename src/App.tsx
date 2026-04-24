@@ -4,6 +4,7 @@ import { useAutoSelectOrg } from "@/features/auth/hooks/useAutoSelectOrg";
 import { startLeaderHeartbeat } from "@/lib/leader";
 import { t } from "@/lib/i18n";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
+import { WalkthroughOverlay } from "@/features/containers/components/WalkthroughOverlay";
 
 function AutoSelectOrg() {
   useAutoSelectOrg();
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <>
       <AutoSelectOrg />
+      <WalkthroughOverlay />
       <Suspense fallback={<div className="p-10 text-center">{t.auth.guard.loadingApp}</div>}>
         <PageErrorBoundary fallbackLabel={t.errorCard.defaultMessage}>
           <AppRoutes />

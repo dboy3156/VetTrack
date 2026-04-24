@@ -1,6 +1,8 @@
 /**
  * /dev-verify — Interactive dispense flow walkthrough (non-production only).
  * 14 guided steps that verify the complete consumable dispense feature end-to-end.
+ * The floating top bar and continue button are rendered by WalkthroughOverlay in App.tsx
+ * so they persist across route navigations.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
@@ -9,28 +11,12 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { api, request } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type StepStatus = "pending" | "running" | "pass" | "fail" | "warn" | "manual";
-
-interface StepResult {
-  stepIndex: number;
-  name: string;
-  status: StepStatus;
-  message: string;
-  fixHint?: string;
-}
-
-interface WalkthroughState {
-  active: boolean;
-  currentStep: number;
-  results: StepResult[];
-  waitingForUser: boolean;
-  userPrompt: string;
-  highlightSelector: string | null;
-  tooltipText: string | null;
-}
+import {
+  overlaySetState,
+  overlayWaitForUser,
+  overlayStop,
+} from "@/features/containers/components/WalkthroughOverlay";
+import type { StepResult } from "@/features/containers/components/WalkthroughOverlay";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,6 +44,14 @@ async function fetchLastDispense(): Promise<LastDispenseResponse> {
   return request<LastDispenseResponse>("/api/test/last-dispense");
 }
 
+function setHighlight(selector: string | null) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fn = (window as any).__vtSetHighlight;
+  if (typeof fn === "function") fn(selector);
+}
+
+// ─── Step names ────────────────────────────────────────────────────────────────
+
 const STEP_NAMES = [
   "בדיקת תנאי מוקדמים — עגלות",
   "בדיקת תנאי מוקדמים — מטופלים",
@@ -76,69 +70,6 @@ const STEP_NAMES = [
 ];
 
 const TOTAL_STEPS = 14;
-
-// ─── Highlight ring ────────────────────────────────────────────────────────────
-
-function HighlightRing({ selector }: { selector: string | null }) {
-  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
-
-  useEffect(() => {
-    if (!selector) { setRect(null); return; }
-    const update = () => {
-      const el = document.querySelector(selector);
-      if (!el) { setRect(null); return; }
-      const r = el.getBoundingClientRect();
-      setRect({ top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.width, height: r.height });
-    };
-    update();
-    const timer = setInterval(update, 500);
-    return () => clearInterval(timer);
-  }, [selector]);
-
-  if (!rect) return null;
-  return (
-    <div
-      className="pointer-events-none fixed z-[90] ring-4 ring-blue-500 animate-pulse rounded-xl transition-all"
-      style={{
-        top: rect.top - 6,
-        left: rect.left - 6,
-        width: rect.width + 12,
-        height: rect.height + 12,
-        position: "absolute",
-      }}
-    />
-  );
-}
-
-// ─── Tooltip ──────────────────────────────────────────────────────────────────
-
-function Tooltip({ selector, text }: { selector: string | null; text: string | null }) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    if (!selector || !text) { setPos(null); return; }
-    const update = () => {
-      const el = document.querySelector(selector);
-      if (!el) { setPos(null); return; }
-      const r = el.getBoundingClientRect();
-      setPos({ top: r.bottom + window.scrollY + 12, left: Math.max(8, r.left + window.scrollX) });
-    };
-    update();
-    const timer = setInterval(update, 500);
-    return () => clearInterval(timer);
-  }, [selector, text]);
-
-  if (!pos || !text) return null;
-  return (
-    <div
-      className="pointer-events-none z-[95] absolute max-w-[280px] bg-yellow-400 text-yellow-900 text-sm font-semibold px-3 py-2 rounded-xl shadow-lg"
-      style={{ top: pos.top, left: pos.left }}
-    >
-      {text}
-      <div className="absolute -top-2 right-4 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-yellow-400" />
-    </div>
-  );
-}
 
 // ─── Step result row ──────────────────────────────────────────────────────────
 
@@ -177,58 +108,53 @@ export default function DevVerifyPage() {
   const search = useSearch();
   const isDevMode = import.meta.env.DEV || search.includes("devmode=1");
 
-  const [wt, setWt] = useState<WalkthroughState>({
-    active: false,
-    currentStep: 0,
-    results: [],
-    waitingForUser: false,
-    userPrompt: "",
-    highlightSelector: null,
-    tooltipText: null,
-  });
+  const [walkthroughRunning, setWalkthroughRunning] = useState(false);
+  const [results, setResults] = useState<StepResult[]>([]);
 
-  // Cached state for step verification
   const cachedContainersRef = useRef<Array<{ id: string; name: string }>>([]);
-  const userActionResolveRef = useRef<(() => void) | null>(null);
+  const resultsRef = useRef<StepResult[]>([]);
+
+  // Keep resultsRef in sync
+  useEffect(() => { resultsRef.current = results; }, [results]);
 
   const addResult = useCallback((result: StepResult) => {
-    setWt((prev) => ({ ...prev, results: [...prev.results, result] }));
+    setResults((prev) => [...prev, result]);
   }, []);
 
-  const updateStep = useCallback((stepIndex: number, status: StepStatus, message: string, fixHint?: string) => {
+  const updateStep = useCallback((
+    stepIndex: number,
+    status: StepResult["status"],
+    message: string,
+    fixHint?: string,
+  ) => {
     addResult({ stepIndex, name: STEP_NAMES[stepIndex], status, message, fixHint });
   }, [addResult]);
 
-  const setHighlight = useCallback((selector: string | null, tooltip: string | null) => {
-    setWt((prev) => ({ ...prev, highlightSelector: selector, tooltipText: tooltip }));
-  }, []);
-
-  const waitForUser = useCallback((prompt: string): Promise<void> => {
-    return new Promise<void>((resolve) => {
-      userActionResolveRef.current = resolve;
-      setWt((prev) => ({ ...prev, waitingForUser: true, userPrompt: prompt }));
+  const setStep = useCallback((stepIndex: number) => {
+    overlaySetState({
+      currentStep: stepIndex,
+      stepName: STEP_NAMES[stepIndex],
     });
   }, []);
 
-  const continueWalkthrough = useCallback(() => {
-    const resolve = userActionResolveRef.current;
-    if (resolve) {
-      userActionResolveRef.current = null;
-      setWt((prev) => ({ ...prev, waitingForUser: false, userPrompt: "" }));
-      resolve();
-    }
+  const setProcessing = useCallback((msg: string) => {
+    overlaySetState({ processingMsg: msg });
+  }, []);
+
+  const waitUser = useCallback((prompt: string) => {
+    return overlayWaitForUser(prompt);
   }, []);
 
   // ── Step implementations ──────────────────────────────────────────────────
 
   const runStep1 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 0 }));
+    setStep(0);
     try {
       const containers = await api.containers.list();
       cachedContainersRef.current = containers.map((c) => ({ id: c.id, name: c.name }));
       if (containers.length > 0) {
         updateStep(0, "pass", `✓ נמצאו ${containers.length} עגלות במערכת`);
-        await sleep(1500);
+        await sleep(1200);
         return true;
       } else {
         updateStep(0, "fail", "✗ אין עגלות במערכת", "עבור ל-/inventory וצור עגלה עם לפחות 2 פריטים וכמות > 0");
@@ -238,10 +164,10 @@ export default function DevVerifyPage() {
       updateStep(0, "fail", "✗ שגיאה בטעינת העגלות", "בדוק שהשרת פועל");
       return false;
     }
-  }, [updateStep]);
+  }, [setStep, updateStep]);
 
   const runStep2 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 1 }));
+    setStep(1);
     try {
       const today = new Date().toISOString().slice(0, 10);
       const appointments = await api.appointments.list({ day: today });
@@ -251,320 +177,275 @@ export default function DevVerifyPage() {
       } else {
         updateStep(1, "warn", "⚠ אין מטופלים פעילים — בדיקת שיוך לא תהיה זמינה, ממשיך עם ללא שיוך");
       }
-      await sleep(1500);
+      await sleep(1200);
       return true;
     } catch {
       updateStep(1, "warn", "⚠ לא ניתן לטעון מטופלים — ממשיך");
-      await sleep(1500);
+      await sleep(800);
       return true;
     }
-  }, [updateStep]);
+  }, [setStep, updateStep]);
 
   const runStep3 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 2 }));
+    setStep(2);
     navigate("/inventory?devmode=1");
-    await sleep(1000);
-    setHighlight('[data-testid="dev-dispense-trigger"]', "לחץ על הכפתור לסימולציית סריקת עגלה");
-    await waitForUser("לחץ על 🧪 בדיקת לקיחת מתכלים בתחתית הדף");
-    setHighlight(null, null);
     await sleep(800);
-    // Verify DispenseSheet opened
+    setHighlight('[data-testid="dev-dispense-trigger"]');
+    await waitUser("גלול לתחתית הדף ולחץ על 🧪 בדיקת לקיחת מתכלים, ואז לחץ המשך כאן");
+    setHighlight(null);
+    await sleep(600);
     const sheetOpen = document.querySelector('[role="dialog"]') !== null ||
       document.querySelector('[data-radix-dialog-content]') !== null;
     if (sheetOpen) {
       updateStep(2, "pass", "✓ חלון הלקיחה נפתח — סימולציית סריקת עגלה הצליחה");
     } else {
-      updateStep(2, "manual", "↩ בוצע ידנית — לא ניתן לאמת פתיחת חלון אוטומטית");
+      updateStep(2, "manual", "↩ בוצע ידנית — אמת שחלון הלקיחה נפתח ולחץ המשך");
     }
-    await sleep(1500);
+    await sleep(800);
     return true;
-  }, [navigate, setHighlight, updateStep, waitForUser]);
+  }, [navigate, setStep, updateStep, waitUser]);
 
   const runStep4 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 3 }));
-    setHighlight('[data-testid="dev-dispense-trigger"]', null);
-    await sleep(500);
-    // Check emergency button exists in DOM
-    const emergencyBtn = document.querySelector('button.bg-red-600') ||
-      document.querySelector('[aria-label*="חירום"]') ||
-      Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("חירום"));
+    setStep(3);
+    const emergencyBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("חירום") && b.classList.contains("bg-red-600"),
+    );
     if (emergencyBtn) {
-      setHighlight(null, "וודא שהכפתור האדום נמצא בראש החלון — מעל רשימת הפריטים");
       updateStep(3, "pass", "✓ כפתור חירום נמצא בראש החלון");
     } else {
-      updateStep(3, "fail", "✗ כפתור חירום לא נמצא", "בדוק את סדר ה-JSX ב-DispenseSheet.tsx — הכפתור חייב להיות לפני רשימת הפריטים");
+      updateStep(3, "fail", "✗ כפתור חירום לא נמצא", "בדוק סדר JSX ב-DispenseSheet.tsx");
     }
-    await waitForUser("וודא שהכפתור האדום 🚨 חירום נמצא מעל הפריטים, ולחץ המשך");
-    setHighlight(null, null);
-    await sleep(500);
+    await waitUser("וודא שהכפתור האדום 🚨 חירום נמצא מעל הפריטים, ולאחר מכן לחץ המשך");
+    await sleep(400);
     return true;
-  }, [setHighlight, updateStep, waitForUser]);
+  }, [setStep, updateStep, waitUser]);
 
   const runStep5 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 4 }));
-    const plusBtns = Array.from(document.querySelectorAll('button[aria-label="הוסף"]'));
-    if (plusBtns.length > 0) {
-      setHighlight('button[aria-label="הוסף"]', "לחץ + על לפחות שני פריטים");
-    }
-    await waitForUser("בחר כמות > 0 לפחות לשני פריטים, לאחר מכן לחץ המשך");
-    setHighlight(null, null);
-    // Count selected items
-    const continueBtns = Array.from(document.querySelectorAll("button")).filter((b) => b.textContent?.trim() === "המשך");
-    if (continueBtns.length > 0) {
-      setHighlight(null, 'לחץ על "המשך"');
-    }
-    await waitForUser('לחץ על "המשך" בחלון הלקיחה');
-    setHighlight(null, null);
-    updateStep(4, "pass", "✓ פריטים נבחרו — עבר לבחירת מטופל");
-    await sleep(1000);
+    setStep(4);
+    setHighlight('button[aria-label="הוסף"]');
+    await waitUser("לחץ + על לפחות 2 פריטים כדי לבחור כמות > 0, ולאחר מכן לחץ 'המשך' בתוך החלון. אז לחץ המשך כאן");
+    setHighlight(null);
+    updateStep(4, "pass", "✓ פריטים נבחרו ועבר לבחירת מטופל");
+    await sleep(600);
     return true;
-  }, [setHighlight, updateStep, waitForUser]);
+  }, [setStep, updateStep, waitUser]);
 
   const runStep6 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 5 }));
-    await sleep(500);
-    // Check patient cards loaded
-    const patientCards = document.querySelectorAll('button.rounded-xl.border.text-right.min-h-\\[80px\\]').length;
+    setStep(5);
+    await sleep(400);
+    const patientCards = document.querySelectorAll(".grid .rounded-xl.border.min-h-\\[80px\\]").length;
     if (patientCards > 0) {
-      updateStep(5, "pass", `✓ ${patientCards} כרטיסי מטופלים נטענו בתצוגת 2 עמודות`);
+      updateStep(5, "pass", `✓ ${patientCards} כרטיסי מטופלים נטענו`);
     } else {
       updateStep(5, "warn", "⚠ לא נמצאו כרטיסי מטופלים — בחר ללא שיוך");
     }
-    await waitForUser("בחר מטופל מהרשימה או לחץ 'ללא שיוך למטופל', ואז לחץ 'אשר לקיחה'");
-    setHighlight(null, null);
-    await sleep(500);
+    await waitUser("בחר מטופל או לחץ 'ללא שיוך למטופל', ואז לחץ 'אשר לקיחה'. לאחר מכן לחץ המשך כאן");
+    await sleep(400);
     return true;
-  }, [setHighlight, updateStep, waitForUser]);
+  }, [setStep, updateStep, waitUser]);
 
   const runStep7 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 6 }));
-    setWt((prev) => ({ ...prev, userPrompt: "שולח בקשה..." }));
-    // Wait for success screen
+    setStep(6);
+    setProcessing("שולח בקשה לשרת...");
     await sleep(2000);
-    const hasCheckmark = document.querySelector("svg.text-green-500") !== null ||
-      document.querySelector(".text-green-500") !== null;
+    setProcessing("");
+    const hasCheckmark = document.querySelector(".text-green-500") !== null;
     if (hasCheckmark) {
-      updateStep(6, "pass", "✓ מסך הצלחה מוצג");
+      updateStep(6, "pass", "✓ מסך הצלחה מוצג עם צ'קמארק ירוק");
     } else {
-      updateStep(6, "manual", "↩ בוצע ידנית — אמת שמסך הצלחה הוצג עם שם טכנאי ומטופל");
+      updateStep(6, "manual", "↩ בוצע ידנית — אמת שמסך הצלחה מוצג");
     }
-    // DB verification
     try {
       const data = await fetchLastDispense();
       const lastLog = data.logs[0];
       if (lastLog && lastLog.quantityAdded < 0) {
         updateStep(6, "pass", "✓ DB — מלאי ירד (quantity_added < 0)");
       } else {
-        updateStep(6, "fail", "✗ DB — quantity_added לא שלילי", "בדוק את ה-transaction ב-containers.ts");
+        updateStep(6, "fail", "✗ DB — quantity_added לא שלילי", "בדוק transaction ב-containers.ts");
       }
       if (lastLog?.createdByUserId) {
         updateStep(6, "pass", "✓ DB — created_by_user_id נשמר");
       } else {
-        updateStep(6, "fail", "✗ DB — created_by_user_id חסר", "createdByUserId חייב לבוא מ-auth");
+        updateStep(6, "fail", "✗ DB — created_by_user_id חסר");
       }
-      if (data.lastBillingEntry && data.lastBillingEntry.status === "pending") {
+      if (data.lastBillingEntry?.status === "pending") {
         updateStep(6, "pass", "✓ DB — billing entry נוצר עם סטטוס pending");
       } else if (lastLog?.animalId) {
-        updateStep(6, "fail", "✗ DB — billing entry חסר עבור לקיחה עם מטופל", "בדוק את הכנסת billingLedger ב-containers.ts");
+        updateStep(6, "fail", "✗ DB — billing entry חסר לבחירת מטופל");
       }
     } catch {
-      updateStep(6, "warn", "⚠ לא ניתן לאמת DB — השרת לא החזיר נתונים");
+      updateStep(6, "warn", "⚠ לא ניתן לאמת DB — /api/test/last-dispense נכשל");
     }
-    // Check auto-close after 3s
+    // Check auto-close
     await sleep(3500);
-    const sheetStillOpen = document.querySelector('[role="dialog"]') !== null ||
-      document.querySelector('[data-radix-dialog-content]') !== null;
-    if (!sheetStillOpen) {
+    const sheetOpen = document.querySelector('[role="dialog"]') !== null;
+    if (!sheetOpen) {
       updateStep(6, "pass", "✓ חלון נסגר אוטומטית אחרי 3 שניות");
     } else {
-      updateStep(6, "fail", "✗ חלון לא נסגר אוטומטית", "בדוק את setTimeout ב-DispenseSheet.tsx בסטייט success");
+      updateStep(6, "fail", "✗ חלון לא נסגר אוטומטית", "בדוק setTimeout ב-DispenseSheet.tsx state=success");
     }
-    await sleep(500);
+    await waitUser("לחץ המשך לאחר שחלון הלקיחה נסגר");
     return true;
-  }, [updateStep]);
+  }, [setStep, setProcessing, updateStep, waitUser]);
 
   const runStep8 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 7 }));
+    setStep(7);
     navigate("/inventory?devmode=1");
-    await sleep(800);
-    setHighlight('[data-testid="dev-dispense-trigger"]', "לחץ לפתיחת חלון לקיחה לבדיקת חירום");
-    await waitForUser("לחץ על 🧪 בדיקת לקיחת מתכלים שוב לפתיחת חלון חדש");
-    setHighlight(null, null);
+    await sleep(700);
+    setHighlight('[data-testid="dev-dispense-trigger"]');
+    await waitUser("לחץ שוב על 🧪 בדיקת לקיחת מתכלים לפתיחת חלון לבדיקת חירום, ואז לחץ המשך");
+    setHighlight(null);
     updateStep(7, "pass", "✓ חלון הלקיחה נפתח");
-    await sleep(800);
+    await sleep(500);
     return true;
-  }, [navigate, setHighlight, updateStep, waitForUser]);
+  }, [navigate, setStep, updateStep, waitUser]);
 
   const runStep9 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 8 }));
-    const emergencyBtn = Array.from(document.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("חירום") && b.classList.contains("bg-red-600"),
-    );
-    if (emergencyBtn) {
-      setHighlight(null, "לחץ על 🚨 חירום — זה מדמה מצב החייאה");
-    }
-    await waitForUser("לחץ על כפתור 🚨 חירום");
-    setHighlight(null, null);
-    setWt((prev) => ({ ...prev, userPrompt: "רושם חירום..." }));
+    setStep(8);
+    await waitUser("לחץ על הכפתור האדום 🚨 חירום בתוך חלון הלקיחה, ולאחר מכן לחץ המשך כאן");
+    setProcessing("רושם חירום...");
     await sleep(2500);
-    // Check emergency success screen
+    setProcessing("");
     const hasEmergencyText = document.body.textContent?.includes("חירום נרשם");
     if (hasEmergencyText) {
       updateStep(8, "pass", "✓ מסך חירום מוצג — 'חירום נרשם'");
     } else {
       updateStep(8, "manual", "↩ בוצע ידנית — אמת שמסך 'חירום נרשם' הוצג");
     }
-    // Verify no auto-close (wait 4 seconds)
-    await sleep(4000);
-    const sheetStillOpen = document.querySelector('[role="dialog"]') !== null ||
-      document.querySelector('[data-radix-dialog-content]') !== null;
-    if (sheetStillOpen) {
+    // Verify no auto-close after 4s
+    await sleep(4200);
+    const sheetOpen = document.querySelector('[role="dialog"]') !== null;
+    if (sheetOpen) {
       updateStep(8, "pass", "✓ חלון לא נסגר אוטומטית — נכון לחירום");
     } else {
-      updateStep(8, "fail", "✗ חלון נסגר לבד — שגיאה קריטית", "הסר את setTimeout ממסך emergency-success ב-DispenseSheet.tsx");
+      updateStep(8, "fail", "✗ חלון נסגר לבד בחירום", "הסר setTimeout ממסך emergency-success");
     }
-    // DB check
     try {
       const data = await fetchLastDispense();
       if (data.pendingEmergencies > 0) {
-        updateStep(8, "pass", "✓ DB — emergency log עם pendingCompletion: true");
+        updateStep(8, "pass", `✓ DB — ${data.pendingEmergencies} emergency log עם pendingCompletion: true`);
       } else {
-        updateStep(8, "fail", "✗ DB — emergency log לא נמצא עם pendingCompletion", "בדוק את הכנסת metadata.pendingCompletion=true ב-containers.ts");
+        updateStep(8, "fail", "✗ DB — emergency log לא נמצא עם pendingCompletion", "בדוק metadata.pendingCompletion=true ב-containers.ts");
       }
     } catch {
       updateStep(8, "warn", "⚠ לא ניתן לאמת DB emergency");
     }
-    setHighlight(null, "לחץ 'סגור לעכשיו'");
-    await waitForUser("לחץ 'סגור לעכשיו' לסגירת חלון החירום");
-    setHighlight(null, null);
-    updateStep(8, "pass", "✓ חלון נסגר");
-    await sleep(500);
+    await waitUser("לחץ 'סגור לעכשיו' בתוך חלון החירום, ואז לחץ המשך");
+    await sleep(400);
     return true;
-  }, [setHighlight, updateStep, waitForUser]);
+  }, [setStep, setProcessing, updateStep, waitUser]);
 
   const runStep10 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 9 }));
+    setStep(9);
     navigate("/shift-handover");
     await sleep(1500);
-    const hasConsumablesSection = document.body.textContent?.includes("צריכת מתכלים במשמרת");
-    if (hasConsumablesSection) {
+    const hasSection = document.body.textContent?.includes("צריכת מתכלים במשמרת");
+    if (hasSection) {
       updateStep(9, "pass", "✓ סקציית מתכלים מופיעה בחפיפת משמרת");
     } else {
-      updateStep(9, "fail", "✗ הסקציה לא נמצאה", "בדוק את shift-handover-page.tsx — הוסף את סקציית consumablesQ");
+      updateStep(9, "fail", "✗ הסקציה לא נמצאה", "בדוק shift-handover-page.tsx");
     }
-    // Check pending emergency badge
-    await sleep(1000);
-    const hasPulse = document.querySelector(".animate-pulse") !== null;
-    const hasEmergencyCount = document.body.textContent?.includes("חירום ממתין");
-    if (hasEmergencyCount) {
-      updateStep(9, "pass", "✓ כרטיס 'חירום ממתין' מופיע" + (hasPulse ? " עם אנימציה" : ""));
+    await sleep(800);
+    const hasPendingEmergency = document.body.textContent?.includes("חירום ממתין");
+    if (hasPendingEmergency) {
+      updateStep(9, "pass", "✓ כרטיס חירום ממתין מופיע");
     } else {
-      updateStep(9, "warn", "⚠ כרטיס חירום לא זוהה בדום — בדוק ידנית");
+      updateStep(9, "warn", "⚠ כרטיס חירום ממתין לא זוהה — בדוק ידנית");
     }
-    // Check emergency row in table
-    const hasRedBorder = document.querySelector(".border-r-red-500") !== null ||
-      document.querySelector('[class*="border-r-4"]') !== null;
+    const hasRedBorder = document.querySelector('.border-r-red-500, [class*="border-r-4"]') !== null;
     if (hasRedBorder) {
-      updateStep(9, "pass", "✓ שורת חירום עם גבול אדום מופיעה בטבלה");
+      updateStep(9, "pass", "✓ שורת חירום עם גבול אדום נמצאה בטבלה");
     } else {
-      updateStep(9, "warn", "⚠ גבול אדום לשורת חירום לא זוהה — בדוק ידנית");
+      updateStep(9, "warn", "⚠ גבול אדום לא זוהה — בדוק ידנית");
     }
-    setHighlight('button:has(> *)', "לחץ 'השלם עכשיו' בשורת החירום בטבלה");
-    await waitForUser("מצא שורת חירום (גבול אדום) בטבלה ולחץ 'השלם עכשיו'");
-    setHighlight(null, null);
+    await waitUser("לחץ 'השלם עכשיו' בשורת החירום בטבלה, ואז לחץ המשך");
     await sleep(500);
     return true;
-  }, [navigate, setHighlight, updateStep, waitForUser]);
+  }, [navigate, setStep, updateStep, waitUser]);
 
   const runStep11 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 10 }));
-    await sleep(800);
-    const hasEmergencyCompleteTitle = document.body.textContent?.includes("השלמת חירום");
-    if (hasEmergencyCompleteTitle) {
+    setStep(10);
+    await sleep(700);
+    const hasTitle = document.body.textContent?.includes("השלמת חירום");
+    if (hasTitle) {
       updateStep(10, "pass", "✓ חלון השלמה נפתח עם כותרת 'השלמת חירום'");
     } else {
       updateStep(10, "manual", "↩ בוצע ידנית — אמת שחלון 'השלמת חירום' נפתח");
     }
-    await waitForUser("בחר פריטים שנלקחו בחירום, בחר מטופל (או ללא שיוך), ולאחר מכן לחץ 'אשר פירוט חירום'");
-    setHighlight(null, null);
+    await waitUser("בחר פריטים עם +, בחר ללא שיוך למטופל, לחץ 'אשר פירוט חירום', ואז לחץ המשך");
     await sleep(2000);
-    const hasGreenCheck = document.querySelector(".text-green-500") !== null;
-    if (hasGreenCheck) {
-      updateStep(10, "pass", "✓ השלמת חירום אושרה — מסך הצלחה מוצג");
+    const hasGreen = document.querySelector(".text-green-500") !== null;
+    if (hasGreen) {
+      updateStep(10, "pass", "✓ השלמת חירום אושרה");
     } else {
       updateStep(10, "manual", "↩ בוצע ידנית — אמת שמסך הצלחה הוצג");
     }
-    // DB check
     try {
       const data = await fetchLastDispense();
       if (data.pendingEmergencies === 0) {
         updateStep(10, "pass", "✓ DB — pendingCompletion עודכן ל-false");
       } else {
-        updateStep(10, "fail", "✗ DB — pendingCompletion לא עודכן", "בדוק את update של inventoryLogs metadata ב-completeEmergency endpoint");
+        updateStep(10, "fail", "✗ DB — pendingCompletion לא עודכן", "בדוק completeEmergency endpoint ב-containers.ts");
       }
     } catch {
       updateStep(10, "warn", "⚠ לא ניתן לאמת DB");
     }
-    await sleep(1500);
+    await sleep(1000);
     return true;
-  }, [setHighlight, updateStep, waitForUser]);
+  }, [setStep, updateStep, waitUser]);
 
   const runStep12 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 11 }));
+    setStep(11);
     navigate("/inventory?devmode=1");
-    await sleep(800);
-    setHighlight('[data-testid="dev-dispense-trigger"]', "לחץ לפתיחת חלון לקיחה נוסף");
-    await waitForUser("לחץ על 🧪 בדיקת לקיחת מתכלים");
-    setHighlight(null, null);
-    await sleep(600);
-    await waitForUser("בחר פריטים ואז לחץ 'המשך', ובמסך הבא לחץ 'ללא שיוך למטופל', ולאחר מכן 'אשר לקיחה'");
-    setHighlight(null, null);
+    await sleep(700);
+    setHighlight('[data-testid="dev-dispense-trigger"]');
+    await waitUser("לחץ על 🧪 בדיקת לקיחת מתכלים, בחר פריטים, לחץ המשך, בחר ללא שיוך, לחץ אשר לקיחה. ואז לחץ המשך כאן");
+    setHighlight(null);
     await sleep(2500);
-    // DB check — animal_id should be null
     try {
       const data = await fetchLastDispense();
       const lastLog = data.logs[0];
-      if (lastLog && lastLog.animalId === null) {
-        updateStep(11, "pass", "✓ DB — animal_id = null כצפוי לבחירת ללא שיוך");
+      if (lastLog?.animalId === null) {
+        updateStep(11, "pass", "✓ DB — animal_id = null כצפוי");
       } else {
-        updateStep(11, "fail", "✗ DB — animal_id אינו null", "בדוק שכאשר selectedAnimalId=null נשלח animalId=null לשרת");
+        updateStep(11, "fail", "✗ DB — animal_id אינו null", "בדוק animalId=null נשלח לשרת כשבוחרים ללא שיוך");
       }
       if (!data.lastBillingEntry) {
-        updateStep(11, "pass", "✓ DB — אין billing entry חדש כצפוי לבחירת ללא שיוך");
+        updateStep(11, "pass", "✓ DB — אין billing entry חדש כצפוי");
       }
     } catch {
       updateStep(11, "warn", "⚠ לא ניתן לאמת DB");
     }
     await sleep(500);
     return true;
-  }, [navigate, setHighlight, updateStep, waitForUser]);
+  }, [navigate, setStep, updateStep, waitUser]);
 
   const runStep13 = useCallback(async () => {
-    setWt((prev) => ({ ...prev, currentStep: 12 }));
+    setStep(12);
     try {
       const data = await fetchLastDispense();
       const allHaveUserId = data.logs.every((l) => Boolean(l.createdByUserId));
-      const allHaveDisplayName = data.logs.every((l) => Boolean(l.createdByDisplayName));
       if (allHaveUserId) {
         updateStep(12, "pass", "✓ כל הלקיחות כוללות created_by_user_id — עקרון השקיפות מקוים");
       } else {
-        updateStep(12, "fail", "✗ יש לקיחות ללא created_by_user_id — זו שגיאה קריטית", "createdByUserId חייב לבוא מ-req.authUser!.id");
+        updateStep(12, "fail", "✗ יש לקיחות ללא created_by_user_id", "createdByUserId חייב לבוא מ-req.authUser!.id");
       }
-      if (allHaveDisplayName) {
+      const allHaveName = data.logs.every((l) => Boolean(l.createdByDisplayName));
+      if (allHaveName) {
         updateStep(12, "pass", "✓ כל הלקיחות כוללות displayName של הטכנאי");
       } else {
-        updateStep(12, "warn", "⚠ חלק מהלקיחות חסרות displayName — בדוק JOIN עם vt_users");
+        updateStep(12, "warn", "⚠ חלק מהלקיחות חסרות displayName");
       }
     } catch {
-      updateStep(12, "warn", "⚠ לא ניתן לאמת שקיפות ב-DB");
+      updateStep(12, "warn", "⚠ לא ניתן לאמת שקיפות");
     }
-    await sleep(1500);
+    await sleep(1200);
     return true;
-  }, [updateStep]);
+  }, [setStep, updateStep]);
 
   const runStep14 = useCallback(() => {
-    setWt((prev) => ({ ...prev, currentStep: 13 }));
-    const allResults = wt.results;
+    setStep(13);
+    const allResults = resultsRef.current;
     const passed = allResults.filter((r) => r.status === "pass").length;
     const failed = allResults.filter((r) => r.status === "fail").length;
     const warned = allResults.filter((r) => r.status === "warn").length;
@@ -576,26 +457,30 @@ export default function DevVerifyPage() {
         ? `⚠ הבדיקות עברו עם ${warned} אזהרות ו-${manual} שלבים ידניים`
         : "✓ כל הבדיקות עברו בהצלחה — המערכת מוכנה לפיילוט";
 
-    const status: StepStatus = failed > 0 ? "fail" : warned > 0 || manual > 0 ? "warn" : "pass";
+    const status: StepResult["status"] = failed > 0 ? "fail" : warned > 0 || manual > 0 ? "warn" : "pass";
     updateStep(13, status, summaryMsg);
-  }, [updateStep, wt.results]);
+    navigate("/dev-verify?devmode=1");
+  }, [setStep, updateStep, navigate]);
 
-  // ── Main walkthrough runner ───────────────────────────────────────────────
+  // ── Main runner ───────────────────────────────────────────────────────────
 
   const startWalkthrough = useCallback(async () => {
-    setWt({
+    setResults([]);
+    setWalkthroughRunning(true);
+    overlaySetState({
       active: true,
       currentStep: 0,
-      results: [],
+      totalSteps: TOTAL_STEPS,
+      stepName: STEP_NAMES[0],
       waitingForUser: false,
       userPrompt: "",
-      highlightSelector: null,
-      tooltipText: null,
+      processingMsg: "",
     });
 
     const ok1 = await runStep1();
     if (!ok1) {
-      setWt((prev) => ({ ...prev, active: false }));
+      overlayStop();
+      setWalkthroughRunning(false);
       return;
     }
     await runStep2();
@@ -612,14 +497,15 @@ export default function DevVerifyPage() {
     await runStep13();
     runStep14();
 
-    setHighlight(null, null);
-    setWt((prev) => ({ ...prev, active: false, waitingForUser: false, highlightSelector: null, tooltipText: null }));
-  }, [runStep1, runStep2, runStep3, runStep4, runStep5, runStep6, runStep7, runStep8, runStep9, runStep10, runStep11, runStep12, runStep13, runStep14, setHighlight]);
+    setHighlight(null);
+    overlaySetState({ active: false, waitingForUser: false, processingMsg: "" });
+    setWalkthroughRunning(false);
+  }, [runStep1, runStep2, runStep3, runStep4, runStep5, runStep6, runStep7, runStep8, runStep9, runStep10, runStep11, runStep12, runStep13, runStep14]);
 
   const stopWalkthrough = useCallback(() => {
-    userActionResolveRef.current?.();
-    userActionResolveRef.current = null;
-    setWt((prev) => ({ ...prev, active: false, waitingForUser: false, highlightSelector: null, tooltipText: null }));
+    overlayStop();
+    setHighlight(null);
+    setWalkthroughRunning(false);
   }, []);
 
   const generateReport = useCallback(() => {
@@ -627,20 +513,18 @@ export default function DevVerifyPage() {
       "VetTrack — דוח בדיקת לקיחת מתכלים",
       `תאריך: ${new Date().toLocaleString("he-IL")}`,
       "─".repeat(40),
-      ...wt.results.map((r) =>
+      ...results.map((r) =>
         `שלב ${r.stepIndex + 1} [${r.status.toUpperCase()}] ${r.name}: ${r.message}${r.fixHint ? ` — תיקון: ${r.fixHint}` : ""}`,
       ),
       "─".repeat(40),
-      `סיכום: ${wt.results.filter((r) => r.status === "pass").length} עברו / ${wt.results.filter((r) => r.status === "fail").length} נכשלו / ${wt.results.filter((r) => r.status === "warn").length} אזהרות`,
+      `סיכום: ${results.filter((r) => r.status === "pass").length} עברו / ${results.filter((r) => r.status === "fail").length} נכשלו / ${results.filter((r) => r.status === "warn").length} אזהרות`,
     ];
     const text = lines.join("\n");
-    navigator.clipboard?.writeText(text).then(() => {
-      alert("הדוח הועתק ללוח");
-    }).catch(() => {
+    navigator.clipboard?.writeText(text).then(() => alert("הדוח הועתק ללוח")).catch(() => {
       const w = window.open("", "_blank");
-      if (w) { w.document.write(`<pre>${text}</pre>`); }
+      if (w) w.document.write(`<pre dir="rtl">${text}</pre>`);
     });
-  }, [wt.results]);
+  }, [results]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -656,10 +540,10 @@ export default function DevVerifyPage() {
     );
   }
 
-  const finalResult = wt.results.find((r) => r.stepIndex === 13);
-  const passedCount = wt.results.filter((r) => r.status === "pass").length;
-  const failedCount = wt.results.filter((r) => r.status === "fail").length;
-  const warnCount = wt.results.filter((r) => r.status === "warn").length;
+  const finalResult = results.find((r) => r.stepIndex === 13);
+  const passedCount = results.filter((r) => r.status === "pass").length;
+  const failedCount = results.filter((r) => r.status === "fail").length;
+  const warnCount = results.filter((r) => r.status === "warn").length;
 
   return (
     <Layout>
@@ -667,110 +551,47 @@ export default function DevVerifyPage() {
         <title>בדיקת לקיחת מתכלים — VetTrack Dev</title>
       </Helmet>
 
-      {/* Absolute highlight ring overlay */}
-      <div className="pointer-events-none fixed inset-0 z-[89]" aria-hidden>
-        <HighlightRing selector={wt.highlightSelector} />
-        <Tooltip selector={wt.highlightSelector} text={wt.tooltipText} />
-      </div>
-
-      {/* Floating step indicator — shown during walkthrough */}
-      {wt.active && (
-        <div
-          className="fixed top-0 left-0 right-0 z-[100] bg-gray-900 text-white px-4 py-2 flex items-center gap-3"
-          dir="rtl"
-        >
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-xs font-bold text-red-400">● בודק</span>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold truncate">{STEP_NAMES[wt.currentStep] ?? "..."}</p>
-            <div className="h-1 bg-gray-700 rounded-full mt-1 overflow-hidden">
-              <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-700"
-                style={{ width: `${((wt.currentStep + 1) / TOTAL_STEPS) * 100}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="shrink-0 flex items-center gap-2 text-xs text-gray-400">
-            <span>שלב {wt.currentStep + 1} מתוך {TOTAL_STEPS}</span>
-            <button
-              onClick={stopWalkthrough}
-              className="text-gray-300 hover:text-white ml-2 text-sm"
-            >
-              עצור ✕
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div
-        className={cn("max-w-2xl mx-auto p-4 space-y-4", wt.active && "pt-16")}
-        dir="rtl"
-      >
+      <div className="max-w-2xl mx-auto p-4 space-y-4" dir="rtl">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            🧪 בדיקת לקיחת מתכלים — מדריך מלא
-          </h1>
+          <h1 className="text-2xl font-bold">🧪 בדיקת לקיחת מתכלים — מדריך מלא</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            14 שלבים אוטומטיים-חצי-ידניים לאימות זרימת הלקיחה מקצה לקצה
+            14 שלבים לאימות זרימת הלקיחה מקצה לקצה
           </p>
         </div>
 
-        {/* Start button */}
-        {!wt.active && wt.results.length === 0 && (
+        {/* Start / Restart button */}
+        {!walkthroughRunning && (
           <button
             onClick={startWalkthrough}
             className="w-full min-h-[56px] bg-blue-600 text-white rounded-xl text-lg font-bold hover:bg-blue-700 active:bg-blue-800 transition-colors"
           >
-            🎬 הפעל בדיקה מודרכת מלאה
+            {results.length > 0 ? "הרץ שוב מהתחלה" : "🎬 הפעל בדיקה מודרכת מלאה"}
           </button>
         )}
 
-        {/* Restart button */}
-        {!wt.active && wt.results.length > 0 && (
+        {walkthroughRunning && (
+          <div className="rounded-xl border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+            הבדיקה פועלת — עקוב אחר ההוראות בתחתית המסך
+          </div>
+        )}
+
+        {walkthroughRunning && (
           <button
-            onClick={startWalkthrough}
-            className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl text-base font-bold hover:bg-blue-700 transition-colors"
+            onClick={stopWalkthrough}
+            className="w-full min-h-[48px] border border-destructive text-destructive rounded-xl text-sm hover:bg-destructive/5 transition-colors"
           >
-            הרץ שוב מהתחלה
+            עצור בדיקה
           </button>
         )}
 
-        {/* User action prompt */}
-        {wt.active && wt.waitingForUser && (
-          <div className="rounded-xl border-2 border-blue-400 bg-blue-50 p-4 space-y-3" dir="rtl">
-            <p className="text-blue-900 font-semibold text-base">{wt.userPrompt}</p>
-            <button
-              onClick={continueWalkthrough}
-              className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
-            >
-              המשך ✓
-            </button>
-          </div>
-        )}
-
-        {/* Running indicator */}
-        {wt.active && !wt.waitingForUser && (
-          <div className="rounded-xl border bg-muted/40 p-4 text-center text-sm text-muted-foreground animate-pulse">
-            מריץ שלב {wt.currentStep + 1}...{wt.userPrompt ? ` — ${wt.userPrompt}` : ""}
-          </div>
-        )}
-
-        {/* Final summary card */}
-        {finalResult && !wt.active && (
+        {/* Final summary */}
+        {finalResult && !walkthroughRunning && (
           <div
             className={cn(
               "rounded-xl border-2 p-4 space-y-3",
-              finalResult.status === "pass"
-                ? "border-green-500 bg-green-50"
-                : finalResult.status === "fail"
-                  ? "border-red-500 bg-red-50"
-                  : "border-amber-500 bg-amber-50",
+              finalResult.status === "pass" ? "border-green-500 bg-green-50" :
+              finalResult.status === "fail" ? "border-red-500 bg-red-50" : "border-amber-500 bg-amber-50",
             )}
-            dir="rtl"
           >
             <p className={cn(
               "text-lg font-bold",
@@ -779,7 +600,7 @@ export default function DevVerifyPage() {
             )}>
               {finalResult.message}
             </p>
-            <div className="flex gap-2 text-sm flex-wrap">
+            <div className="flex gap-3 text-sm flex-wrap">
               <span className="text-green-700 font-semibold">{passedCount} ✓ עברו</span>
               {failedCount > 0 && <span className="text-red-700 font-semibold">{failedCount} ✗ נכשלו</span>}
               {warnCount > 0 && <span className="text-amber-700 font-semibold">{warnCount} ⚠ אזהרות</span>}
@@ -794,25 +615,25 @@ export default function DevVerifyPage() {
         )}
 
         {/* Results panel */}
-        {wt.results.length > 0 && (
+        {results.length > 0 && (
           <div className="space-y-2">
             <h2 className="text-base font-bold">תוצאות בדיקה</h2>
-            <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
-              {wt.results.map((result, i) => (
+            <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
+              {results.map((result, i) => (
                 <StepRow key={i} result={result} />
               ))}
             </div>
           </div>
         )}
 
-        {/* Steps list — shown before start */}
-        {!wt.active && wt.results.length === 0 && (
+        {/* Step list preview */}
+        {!walkthroughRunning && results.length === 0 && (
           <div className="rounded-xl border p-4 space-y-2">
             <p className="text-sm font-semibold text-muted-foreground">14 שלבי הבדיקה:</p>
             <ol className="space-y-1">
               {STEP_NAMES.map((name, i) => (
                 <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                  <span className="w-5 shrink-0 text-left tabular-nums opacity-50">{i + 1}.</span>
+                  <span className="w-6 shrink-0 tabular-nums opacity-50 text-left">{i + 1}.</span>
                   {name}
                 </li>
               ))}
