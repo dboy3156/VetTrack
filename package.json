@@ -25,6 +25,7 @@
     "migrate": "tsx scripts/run-migrations.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1037.0",
     "@clerk/clerk-react": "^5.0.0",
     "@clerk/clerk-sdk-node": "^5.1.6",
     "@clerk/express": "^1.0.0",
