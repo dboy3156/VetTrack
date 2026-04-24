@@ -1014,3 +1014,10 @@ export interface InventoryContainerWithItems extends InventoryContainer {
     code: string | null;
   }>;
 }
+
+export interface ActivePatient {
+  animalId: string;
+  animalName: string;
+  species: string | null;
+  breed: string | null;
+}
