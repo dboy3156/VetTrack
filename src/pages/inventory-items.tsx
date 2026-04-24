@@ -47,10 +47,6 @@ export default function InventoryItemsPage() {
   const qc = useQueryClient();
   const p = t.inventoryItemsPage;
   const { userId, role } = useAuth();
-  const [isDevMode] = useState(() =>
-    typeof window !== "undefined" &&
-    window.location.search.includes("devmode=1"),
-  );
   const isAdmin = role === "admin";
 
   const [search, setSearch] = useState("");
@@ -189,15 +185,6 @@ export default function InventoryItemsPage() {
             </Button>
           )}
         </div>
-
-        {isDevMode && (
-          <div
-            className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 font-medium mb-4"
-            dir="rtl"
-          >
-            ⚠️ לפיילוט: וודא שכל שמות הפריטים בעברית — לדוגמה &quot;מזרק 5מ״ל&quot; במקום &quot;Syringe 5ml&quot;
-          </div>
-        )}
 
         <Input
           placeholder={p.searchPlaceholder}
