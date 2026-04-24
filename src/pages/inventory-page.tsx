@@ -787,6 +787,19 @@ export default function InventoryPage() {
                             >
                               <Plus className="w-4 h-4" />
                             </Button>
+                            {line.expected > 0 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-11 w-11 rounded-xl shrink-0 text-emerald-600 border-emerald-300"
+                                disabled={otherUserHasSession || optimisticActual >= line.expected}
+                                onClick={() => scanLine(line.itemId, line.code, line.label, line.expected - optimisticActual)}
+                                aria-label={`Full restock ${line.label}`}
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
 
                         </div>
@@ -901,4 +914,4 @@ export default function InventoryPage() {
 
     </Layout>
   );
-}
+}  
