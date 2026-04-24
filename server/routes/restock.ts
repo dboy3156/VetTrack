@@ -1,141 +1,193 @@
-/**
- * /api/restock/scan — Optimized Route
- * VetTrack · Node.js + Express + Drizzle ORM + PostgreSQL
- *
- * ─── BOTTLENECKS FOUND ──────────────────────────────────
- * 1. Sequential awaits  — lookups run one-after-another instead of parallel
- * 2. Missing indexes    — scans on qrCode / assetTag without B-tree index
- * 3. Full table reads   — no .limit(1) on item lookup → Postgres scans all rows
- * 4. Per-request auth   — re-fetching user row on every scan (no cache)
- * 5. Implicit lock      — UPDATE inside long transaction holds row lock ~4-5s
- * 6. No early-exit      — validation happens AFTER all DB reads
- * ─────────────────────────────────────────────────────────
- */
-
-import { Router, Request, Response } from "express";
-import { db } from "../db";
-import { equipment, restockLog, users } from "../db/schema";
-import { eq, sql } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
-import { logger } from "../lib/logger";
+import { Router } from "express";
+import { randomUUID } from "crypto";
+import { z } from "zod";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
+import {
+  finishSession,
+  getContainerInventoryView,
+  resolveItemByNFCTag,
+  RestockServiceError,
+  scanItem,
+  startRestockSession,
+} from "../services/restock.service.js";
 
 const router = Router();
 
-// ── Timing helper ────────────────────────────────────────
-function mark(label: string, start: number) {
-  const ms = Date.now() - start;
-  logger.info({ step: label, ms }, `[restock/scan] ${label} → ${ms}ms`);
-  return ms;
+const startSchema = z.object({
+  containerId: z.string().uuid(),
+});
+
+const scanSchema = z.object({
+  sessionId: z.string().uuid(),
+  itemId: z.string().uuid().optional(),
+  nfcTagId: z.string().trim().min(1).max(200).optional(),
+  delta: z.number().int().refine((v) => v !== 0, { message: "delta must be non-zero" }),
+});
+
+const finishSchema = z.object({
+  sessionId: z.string().uuid(),
+});
+
+const containerItemsSchema = z.object({
+  containerId: z.string().uuid(),
+});
+
+function resolveRequestId(
+  res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void },
+  incoming: unknown,
+): string {
+  const incomingStr = typeof incoming === "string" ? incoming.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incomingStr || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") res.setHeader("x-request-id", requestId);
+  return requestId;
 }
 
-// ── POST /api/restock/scan ───────────────────────────────
-router.post("/scan", requireAuth, async (req: Request, res: Response) => {
-  const t0 = Date.now();
-
-  // ── 1. Validate input immediately (no DB hit yet) ─────
-  const { qrCode, locationId, quantity } = req.body as {
-    qrCode?: string;
-    locationId?: string;
-    quantity?: number;
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
   };
+}
 
-  if (!qrCode || !locationId) {
-    return res.status(400).json({ error: "חסר qrCode או locationId" });
+function mapErrorToHttp(err: unknown, requestId: string) {
+  if (err instanceof RestockServiceError) {
+    return {
+      status: err.status,
+      body: apiError({
+        code: err.code,
+        reason: err.code,
+        message: err.message,
+        requestId,
+      }),
+    };
   }
-  mark("input-validation", t0);
+  return {
+    status: 500,
+    body: apiError({
+      code: "INTERNAL_ERROR",
+      reason: "RESTOCK_ROUTE_FAILED",
+      message: "Restock operation failed",
+      requestId,
+    }),
+  };
+}
 
-  const userId = req.auth?.userId; // from Clerk middleware
-
-  try {
-    // ── 2. Parallel fetch — item + user in one round-trip ─
-    const t1 = Date.now();
-
-    const [itemRows, userRows] = await Promise.all([
-      db
-        .select({
-          id: equipment.id,
-          name: equipment.name,
-          currentStock: equipment.currentStock,
-          minStock: equipment.minStock,
-          locationId: equipment.locationId,
-        })
-        .from(equipment)
-        .where(eq(equipment.qrCode, qrCode))
-        .limit(1), // ← critical: stop after first match
-
-      db
-        .select({ id: users.id, role: users.role, displayName: users.displayName })
-        .from(users)
-        .where(eq(users.clerkId, userId!))
-        .limit(1),
-    ]);
-
-    mark("parallel-fetch", t1);
-
-    // ── 3. Early exits after fetch ────────────────────────
-    const item = itemRows[0];
-    if (!item) {
-      return res.status(404).json({ error: "ציוד לא נמצא" });
-    }
-
-    const user = userRows[0];
-    if (!user) {
-      return res.status(403).json({ error: "משתמש לא מורשה" });
-    }
-
-    // ── 4. Single atomic UPDATE + INSERT (one transaction) ─
-    const t2 = Date.now();
-
-    const newStock = (item.currentStock ?? 0) + (quantity ?? 1);
-
-    // Use a short, tight transaction — no awaits inside except the SQL itself
-    await db.transaction(async (tx) => {
-      await tx
-        .update(equipment)
-        .set({
-          currentStock: newStock,
-          locationId: locationId,
-          updatedAt: new Date(),
-        })
-        .where(eq(equipment.id, item.id));
-
-      await tx.insert(restockLog).values({
-        equipmentId: item.id,
-        userId: user.id,
-        locationId,
-        quantity: quantity ?? 1,
-        newStock,
-        scannedAt: new Date(),
+router.post(
+  "/start",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(startSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const body = req.body as z.infer<typeof startSchema>;
+      const session = await startRestockSession({
+        clinicId: req.clinicId!,
+        containerId: body.containerId,
+        userId: req.authUser!.id,
       });
-    });
+      res.status(201).json(session);
+    } catch (err) {
+      console.error(err);
+      const mapped = mapErrorToHttp(err, requestId);
+      res.status(mapped.status).json(mapped.body);
+    }
+  },
+);
 
-    mark("db-write", t2);
-
-    // ── 5. Respond immediately — fire notifications async ─
-    const total = Date.now() - t0;
-    logger.info({ totalMs: total, qrCode, userId }, "[restock/scan] DONE");
-
-    res.json({
-      ok: true,
-      item: { id: item.id, name: item.name, newStock },
-      ms: total,
-    });
-
-    // ── 6. Post-response side-effects (non-blocking) ──────
-    setImmediate(() => {
-      if (newStock < (item.minStock ?? 0)) {
-        // trigger low-stock notification without delaying response
-        import("../services/notifications")
-          .then(({ sendLowStockAlert }) =>
-            sendLowStockAlert(item.id, newStock, item.minStock ?? 0)
-          )
-          .catch((err) => logger.error(err, "notification failed"));
+router.post(
+  "/scan",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(scanSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const body = req.body as z.infer<typeof scanSchema>;
+      let itemId = body.itemId ?? null;
+      if (!itemId && body.nfcTagId) {
+        const item = await resolveItemByNFCTag({
+          clinicId: req.clinicId!,
+          nfcTagId: body.nfcTagId,
+        });
+        itemId = item.id;
       }
-    });
-  } catch (err) {
-    logger.error(err, "[restock/scan] error");
-    res.status(500).json({ error: "שגיאת שרת" });
-  }
-});
+      if (!itemId) {
+        return res.status(400).json(
+          apiError({
+            code: "VALIDATION_FAILED",
+            reason: "ITEM_ID_REQUIRED",
+            message: "Either itemId or nfcTagId must be provided",
+            requestId,
+          }),
+        );
+      }
+
+      const result = await scanItem({
+        clinicId: req.clinicId!,
+        sessionId: body.sessionId,
+        itemId,
+        delta: body.delta,
+        userId: req.authUser!.id,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error(err);
+      const mapped = mapErrorToHttp(err, requestId);
+      res.status(mapped.status).json(mapped.body);
+    }
+  },
+);
+
+router.post(
+  "/finish",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(finishSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const body = req.body as z.infer<typeof finishSchema>;
+      const result = await finishSession({
+        clinicId: req.clinicId!,
+        sessionId: body.sessionId,
+        userId: req.authUser!.id,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error(err);
+      const mapped = mapErrorToHttp(err, requestId);
+      res.status(mapped.status).json(mapped.body);
+    }
+  },
+);
+
+router.post(
+  "/container-items",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(containerItemsSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const body = req.body as z.infer<typeof containerItemsSchema>;
+      const result = await getContainerInventoryView({
+        clinicId: req.clinicId!,
+        containerId: body.containerId,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error(err);
+      const mapped = mapErrorToHttp(err, requestId);
+      res.status(mapped.status).json(mapped.body);
+    }
+  },
+);
 
 export default router;

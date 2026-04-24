@@ -240,7 +240,7 @@ export async function scanItem(params: {
       throw new RestockServiceError("CONTAINER_NOT_FOUND", 404, "Container not found");
     }
 
-    const template = await ensureTemplateItemsSeededInTx(tx, params.clinicId, container.name, session.containerId);
+    const template = blueprintEntryForContainerName(container.name);
     const [item] = await tx
       .select()
       .from(inventoryItems)
