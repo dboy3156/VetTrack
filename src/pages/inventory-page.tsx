@@ -265,45 +265,122 @@ export default function InventoryPage() {
     }
   }, [selectedId, startSessionMut]);
 
-  // ── scan ──────────────────────────────────────────────────────────────────
+  // REPLACE your entire scanLine() function with this:
 
-  const scanLine = useCallback(
-    async (itemId: string | null, code: string, label: string, delta: number) => {
-      const sessionId = await getOrCreateSession();
-      if (!sessionId || !selectedId) return;
+const scanLine = useCallback(
+  async (itemId: string | null, code: string, label: string, delta: number) => {
+    if (!selectedId) return;
 
-      let resolvedItemId = itemId;
+    const currentValue = optimisticActualByCode[code] ?? lines.find((l) => l.code === code)?.actual ?? 0;
+    const nextValue = Math.max(0, currentValue + delta);
+
+    // Immediate UI response
+    setOptimisticActualByCode((prev) => ({
+      ...prev,
+      [code]: nextValue,
+    }));
+
+    setRowPendingByCode((prev) => ({
+      ...prev,
+      [code]: (prev[code] ?? 0) + 1,
+    }));
+
+    setRowPulseCode(code);
+    setTimeout(() => setRowPulseCode(null), 220);
+
+    const sessionId = await getOrCreateSession();
+
+    if (!sessionId) {
+      // rollback
+      setOptimisticActualByCode((prev) => ({
+        ...prev,
+        [code]: currentValue,
+      }));
+
+      setRowPendingByCode((prev) => ({
+        ...prev,
+        [code]: Math.max(0, (prev[code] ?? 1) - 1),
+      }));
+
+      return;
+    }
+
+    let resolvedItemId = itemId;
+
+    try {
       if (!resolvedItemId) {
-        // First interaction may happen before template rows are seeded for this container.
-        // Re-read the container view after session creation and resolve line by blueprint code.
         const latest = await api.restock.containerItems(selectedId);
-        qc.setQueryData(["/api/restock/container-items", selectedId], latest);
-        resolvedItemId = latest.lines.find((line) => line.code === code)?.itemId ?? null;
+
+        qc.setQueryData(
+          ["/api/restock/container-items", selectedId],
+          latest
+        );
+
+        resolvedItemId =
+          latest.lines.find((line) => line.code === code)?.itemId ?? null;
       }
-      if (!resolvedItemId) {
-        haptics.error();
-        showScanOverlay(label, null);
-        return;
-      }
+
+      if (!resolvedItemId) throw new Error("Missing item id");
 
       dispatch({ type: "scan-request" });
-      try {
-        const result = await scanMut.mutateAsync({ sessionId, itemId: resolvedItemId, delta });
-        const name = result?.item?.label ?? label;
-        setFlashRowId({ id: resolvedItemId, type: "success" });
+
+      const result = await scanMut.mutateAsync({
+        sessionId,
+        itemId: resolvedItemId,
+        delta,
+      });
+
+      const name = result?.item?.label ?? label;
+
+      setFlashRowId({
+        id: resolvedItemId,
+        type: "success",
+      });
+
+      setTimeout(() => setFlashRowId(null), 600);
+
+      haptics.tap();
+      showScanOverlay(name, delta);
+      setScanGeneration((g) => g + 1);
+
+      qc.invalidateQueries({
+        queryKey: ["/api/restock/container-items", selectedId],
+      });
+    } catch {
+      // rollback
+      setOptimisticActualByCode((prev) => ({
+        ...prev,
+        [code]: currentValue,
+      }));
+
+      if (resolvedItemId) {
+        setFlashRowId({
+          id: resolvedItemId,
+          type: "error",
+        });
+
         setTimeout(() => setFlashRowId(null), 600);
-        haptics.tap();
-        showScanOverlay(name, delta);
-        setScanGeneration((g) => g + 1);
-      } catch {
-        setFlashRowId({ id: resolvedItemId, type: "error" });
-        setTimeout(() => setFlashRowId(null), 600);
-        haptics.error();
-        showScanOverlay(label, null);
       }
-    },
-    [getOrCreateSession, qc, scanMut, selectedId, showScanOverlay],
-  );
+
+      haptics.error();
+      showScanOverlay(label, null);
+    } finally {
+      setRowPendingByCode((prev) => ({
+        ...prev,
+        [code]: Math.max(0, (prev[code] ?? 1) - 1),
+      }));
+    }
+  },
+  [
+    getOrCreateSession,
+    lines,
+    optimisticActualByCode,
+    qc,
+    scanMut,
+    selectedId,
+    showScanOverlay,
+  ],
+);
 
   // ── inline edit ───────────────────────────────────────────────────────────
 
