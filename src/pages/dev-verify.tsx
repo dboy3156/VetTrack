@@ -443,13 +443,12 @@ export default function DevVerifyPage() {
     return true;
   }, [setStep, updateStep]);
 
-  const runStep14 = useCallback(() => {
+  const runStep14 = useCallback((latestResults: StepResult[]) => {
     setStep(13);
-    const allResults = resultsRef.current;
-    const passed = allResults.filter((r) => r.status === "pass").length;
-    const failed = allResults.filter((r) => r.status === "fail").length;
-    const warned = allResults.filter((r) => r.status === "warn").length;
-    const manual = allResults.filter((r) => r.status === "manual").length;
+    const passed = latestResults.filter((r) => r.status === "pass").length;
+    const failed = latestResults.filter((r) => r.status === "fail").length;
+    const warned = latestResults.filter((r) => r.status === "warn").length;
+    const manual = latestResults.filter((r) => r.status === "manual").length;
 
     const summaryMsg = failed > 0
       ? `✗ ${failed} בדיקות נכשלו, ${warned} אזהרות, ${passed} עברו`
@@ -495,7 +494,7 @@ export default function DevVerifyPage() {
     await runStep11();
     await runStep12();
     await runStep13();
-    runStep14();
+    runStep14(resultsRef.current);
 
     setHighlight(null);
     overlaySetState({ active: false, waitingForUser: false, processingMsg: "" });

@@ -101,7 +101,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   const appointmentsQ = useQuery({
     queryKey: ["/api/appointments", today],
     queryFn: () => api.appointments.list({ day: today }),
-    enabled: isOpen && (sheetState === "confirm" || sheetState === "emergency-complete"),
+    enabled: isOpen,
     staleTime: 60_000,
     retry: false,
   });
@@ -135,7 +135,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
         takenAt: result.takenAt,
         dispensed: result.dispensed,
         emergencyEventId: result.emergencyEventId,
-        isEmergency: !result.dispensed,
+        isEmergency: Boolean(result.emergencyEventId),
       });
       setSheetState(result.emergencyEventId ? "emergency-success" : "success");
     },
@@ -216,7 +216,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   if (sheetState === "emergency-complete") {
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl" dir="rtl">
+        <SheetContent side="bottom" dir="rtl" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl">
           {renderDragHandle()}
           <div className="px-4 pb-6 space-y-4">
             <SheetHeader>
@@ -324,7 +324,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   if (sheetState === "success") {
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl" dir="rtl">
+        <SheetContent side="bottom" dir="rtl" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl">
           {renderDragHandle()}
           <div className="px-4 pb-8 flex flex-col items-center text-center space-y-4">
             <CheckCircle className="w-20 h-20 text-green-500 mt-4" />
@@ -360,7 +360,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   if (sheetState === "emergency-success") {
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl" dir="rtl">
+        <SheetContent side="bottom" dir="rtl" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl">
           {renderDragHandle()}
           <div className="px-4 pb-8 flex flex-col items-center text-center space-y-4">
             <XCircle className="w-20 h-20 text-red-500 mt-4" />
@@ -396,7 +396,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   if (sheetState === "confirm") {
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl" dir="rtl">
+        <SheetContent side="bottom" dir="rtl" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl">
           {renderDragHandle()}
           <div className="px-4 pb-6 space-y-4">
             <SheetHeader>
@@ -482,7 +482,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   // STATE: ITEMS (STATE 0 + STATE 1 — emergency button + item list)
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl" dir="rtl">
+      <SheetContent side="bottom" dir="rtl" className="max-h-[90vh] overflow-y-auto p-0 rounded-t-2xl">
         {renderDragHandle()}
         <div className="px-4 pb-6 space-y-4">
           <SheetHeader>

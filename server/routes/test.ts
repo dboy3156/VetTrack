@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, desc, eq, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, isNull, lte, sql } from "drizzle-orm";
 import { animals, billingLedger, db, equipment, equipmentReturns, inventoryLogs, scheduledNotifications, users } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
@@ -289,16 +289,19 @@ router.get("/last-dispense", requireAuth, async (req, res) => {
       .orderBy(desc(inventoryLogs.createdAt))
       .limit(3);
 
-    // Count pending emergencies
-    const allLogs = await db
-      .select({ id: inventoryLogs.id, metadata: inventoryLogs.metadata })
+    // Count pending emergencies — filter at SQL level to avoid full table scan
+    const [pendingRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
       .from(inventoryLogs)
-      .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.logType, "adjustment")));
-
-    const pendingEmergencies = allLogs.filter((l) => {
-      const m = l.metadata as Record<string, unknown> | null;
-      return m?.isEmergency === true && m?.pendingCompletion === true;
-    }).length;
+      .where(
+        and(
+          eq(inventoryLogs.clinicId, clinicId),
+          eq(inventoryLogs.logType, "adjustment"),
+          sql`${inventoryLogs.metadata}->>'isEmergency' = 'true'`,
+          sql`${inventoryLogs.metadata}->>'pendingCompletion' = 'true'`,
+        ),
+      );
+    const pendingEmergencies = pendingRow?.count ?? 0;
 
     // Check if last log has a billing entry
     const lastLog = logs[0];

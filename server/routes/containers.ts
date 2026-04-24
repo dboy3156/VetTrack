@@ -536,7 +536,7 @@ router.patch(
             roomId: container.roomId,
             note: null,
             metadata: { isEmergency: true, emergencyEventId: eventId, itemId: lineItem.itemId },
-            createdByUserId: actorUserId,
+            createdByUserId: origLog.createdByUserId,
           });
 
           dispensedItems.push({
