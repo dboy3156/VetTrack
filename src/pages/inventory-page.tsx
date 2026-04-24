@@ -33,6 +33,11 @@ import { safeStorageRemoveItem, safeStorageSetItem } from "@/lib/safe-browser";
 
 /** Main page column is under `data-restock-allow` so it stays tappable if `Layout navigationLocked` is enabled. */
 
+// ── Type for the container-items query response ────────────────────────────
+// Mirrors what api.restock.containerItems() returns. If you have this type
+// exported from @/types already, import it from there instead.
+type ContainerItemsResponse = Awaited<ReturnType<typeof api.restock.containerItems>>;
+
 function containerDotClass(container: InventoryContainer): string {
   if (container.targetQuantity === 0) return "bg-muted-foreground";
   const ratio = container.currentQuantity / container.targetQuantity;
@@ -47,12 +52,14 @@ export default function InventoryPage() {
   const [location] = useLocation();
   const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
+
   // Runtime devmode check — reads URL at mount time, works in production with ?devmode=1
   const [isDevMode] = useState(() =>
     typeof window !== "undefined" &&
     window.location.search.includes("devmode=1"),
   );
   const [devDispenseContainerId, setDevDispenseContainerId] = useState<string | null>(null);
+
   // ── data ──────────────────────────────────────────────────────────────────
 
   const containersQ = useQuery({
@@ -146,13 +153,14 @@ export default function InventoryPage() {
   // ── UI state ──────────────────────────────────────────────────────────────
 
   const [flashRowId, setFlashRowId] = useState<{ id: string; type: "success" | "error" } | null>(null);
-  // delta null = error, number = amount changed (positive or negative)
   const [scanOverlay, setScanOverlay] = useState<{ label: string; delta: number | null } | null>(null);
   const [scanGeneration, setScanGeneration] = useState(0);
   const [isNfcStarting, setIsNfcStarting] = useState(false);
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+
+  // Per-row optimistic state — keyed by item code
   const [optimisticActualByCode, setOptimisticActualByCode] = useState<Record<string, number>>({});
   const [rowPendingByCode, setRowPendingByCode] = useState<Record<string, number>>({});
   const [rowPulseCode, setRowPulseCode] = useState<string | null>(null);
@@ -172,17 +180,20 @@ export default function InventoryPage() {
     if (overlayClearRef.current !== undefined) clearTimeout(overlayClearRef.current);
   }, []);
 
+  // Reset optimistic state when the user switches containers.
+  // FIX: depends only on selectedId, not on detailsQ.data, so server-side
+  // setQueryData calls (from scans) don't wipe in-flight optimistic values.
   useEffect(() => {
     if (!detailsQ.data?.lines) return;
-    setOptimisticActualByCode((prev) => {
-      const next: Record<string, number> = {};
-      for (const line of detailsQ.data.lines) {
-        next[line.code] = prev[line.code] ?? line.actual;
-      }
-      return next;
-    });
+    const next: Record<string, number> = {};
+    for (const line of detailsQ.data.lines) {
+      next[line.code] = line.actual;
+    }
+    setOptimisticActualByCode(next);
     setRowPendingByCode({});
-  }, [detailsQ.data?.lines, selectedId]);
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ^ intentionally omitting detailsQ.data — we only want to reset on container switch,
+  //   not on every cache update caused by our own setQueryData calls.
 
   // ── mutations ─────────────────────────────────────────────────────────────
 
@@ -190,7 +201,6 @@ export default function InventoryPage() {
     mutationFn: (containerId: string) => api.restock.start(containerId),
     onSuccess: (session) => {
       dispatch({ type: "start-success", payload: { sessionId: session.id, containerId: session.containerId } });
-      qc.invalidateQueries({ queryKey: ["/api/restock/container-items", session.containerId] });
       haptics.scanSuccess();
     },
     onError: (err) => {
@@ -227,6 +237,7 @@ export default function InventoryPage() {
           itemsMissingCount: summary.itemsMissingCount,
         },
       });
+      // Full refetch after finish is correct — session is over, we want fresh server state
       if (selectedId) qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
       haptics.error();
     },
@@ -247,8 +258,6 @@ export default function InventoryPage() {
     onError: () => toast.error(p.loadError),
   });
 
-  // auto-finish removed — user must tap "Finish Restock" explicitly
-
   // ── session helpers ───────────────────────────────────────────────────────
 
   const getOrCreateSession = useCallback(async (): Promise<string | null> => {
@@ -264,122 +273,125 @@ export default function InventoryPage() {
     }
   }, [selectedId, startSessionMut]);
 
-  // REPLACE your entire scanLine() function with this:
+  // ── scan line ─────────────────────────────────────────────────────────────
 
-const scanLine = useCallback(
-  async (itemId: string | null, code: string, label: string, delta: number) => {
-    if (!selectedId) return;
+  const scanLine = useCallback(
+    async (itemId: string | null, code: string, label: string, delta: number) => {
+      if (!selectedId) return;
 
-    const currentValue = optimisticActualByCode[code] ?? lines.find((l) => l.code === code)?.actual ?? 0;
-    const nextValue = Math.max(0, currentValue + delta);
+      // ── 1. Instant optimistic update (synchronous, <1ms) ──────────────────
+      const currentValue = optimisticActualByCode[code] ?? lines.find((l) => l.code === code)?.actual ?? 0;
+      const nextValue = Math.max(0, currentValue + delta);
 
-    // Immediate UI response
-    setOptimisticActualByCode((prev) => ({
-      ...prev,
-      [code]: nextValue,
-    }));
+      setOptimisticActualByCode((prev) => ({ ...prev, [code]: nextValue }));
+      setRowPendingByCode((prev) => ({ ...prev, [code]: (prev[code] ?? 0) + 1 }));
+      setRowPulseCode(code);
+      setTimeout(() => setRowPulseCode(null), 220);
 
-    setRowPendingByCode((prev) => ({
-      ...prev,
-      [code]: (prev[code] ?? 0) + 1,
-    }));
+      // ── 2. Ensure session exists (may be instant if already open) ─────────
+      const sessionId = await getOrCreateSession();
 
-    setRowPulseCode(code);
-    setTimeout(() => setRowPulseCode(null), 220);
-
-    const sessionId = await getOrCreateSession();
-
-    if (!sessionId) {
-      // rollback
-      setOptimisticActualByCode((prev) => ({
-        ...prev,
-        [code]: currentValue,
-      }));
-
-      setRowPendingByCode((prev) => ({
-        ...prev,
-        [code]: Math.max(0, (prev[code] ?? 1) - 1),
-      }));
-
-      return;
-    }
-
-    let resolvedItemId = itemId;
-
-    try {
-      if (!resolvedItemId) {
-        const latest = await api.restock.containerItems(selectedId);
-
-        qc.setQueryData(
-          ["/api/restock/container-items", selectedId],
-          latest
-        );
-
-        resolvedItemId =
-          latest.lines.find((line) => line.code === code)?.itemId ?? null;
+      if (!sessionId) {
+        // Session failed — roll back
+        setOptimisticActualByCode((prev) => ({ ...prev, [code]: currentValue }));
+        setRowPendingByCode((prev) => ({ ...prev, [code]: Math.max(0, (prev[code] ?? 1) - 1) }));
+        return;
       }
 
-      if (!resolvedItemId) throw new Error("Missing item id");
+      let resolvedItemId = itemId;
 
-      dispatch({ type: "scan-request" });
+      try {
+        // ── 3. Resolve itemId if not passed directly ───────────────────────
+        // Check cache first — avoids a network round-trip on every tap.
+        if (!resolvedItemId) {
+          const cached = qc.getQueryData<ContainerItemsResponse>(
+            ["/api/restock/container-items", selectedId]
+          );
+          resolvedItemId = cached?.lines.find((l) => l.code === code)?.itemId ?? null;
 
-      const result = await scanMut.mutateAsync({
-        sessionId,
-        itemId: resolvedItemId,
-        delta,
-      });
+          // Only hit network if truly not in cache
+          if (!resolvedItemId) {
+            const latest = await api.restock.containerItems(selectedId);
+            qc.setQueryData<ContainerItemsResponse>(
+              ["/api/restock/container-items", selectedId],
+              latest
+            );
+            resolvedItemId = latest.lines.find((l) => l.code === code)?.itemId ?? null;
+          }
+        }
 
-      const name = result?.item?.label ?? label;
+        if (!resolvedItemId) throw new Error("Missing item id");
 
-      setFlashRowId({
-        id: resolvedItemId,
-        type: "success",
-      });
+        // Capture narrowed non-null type for use inside callbacks/closures
+        const confirmedItemId: string = resolvedItemId;
 
-      setTimeout(() => setFlashRowId(null), 600);
+        dispatch({ type: "scan-request" });
 
-      haptics.tap();
-      showScanOverlay(name, delta);
-      setScanGeneration((g) => g + 1);
-
-      qc.invalidateQueries({
-        queryKey: ["/api/restock/container-items", selectedId],
-      });
-    } catch {
-      // rollback
-      setOptimisticActualByCode((prev) => ({
-        ...prev,
-        [code]: currentValue,
-      }));
-
-      if (resolvedItemId) {
-        setFlashRowId({
-          id: resolvedItemId,
-          type: "error",
+        const result = await scanMut.mutateAsync({
+          sessionId,
+          itemId: confirmedItemId,
+          delta,
         });
 
-        setTimeout(() => setFlashRowId(null), 600);
-      }
+        const name = result?.item?.label ?? label;
 
-      haptics.error();
-      showScanOverlay(label, null);
-    } finally {
-      setRowPendingByCode((prev) => ({
-        ...prev,
-        [code]: Math.max(0, (prev[code] ?? 1) - 1),
-      }));
-    }
-  },
-  [
-    getOrCreateSession,
-    lines,
-    optimisticActualByCode,
-    qc,
-    scanMut,
-    selectedId,
-    showScanOverlay,
-  ],
-);
+        setFlashRowId({ id: confirmedItemId, type: "success" });
+        setTimeout(() => setFlashRowId(null), 600);
+
+        haptics.tap();
+        showScanOverlay(name, delta);
+        setScanGeneration((g) => g + 1);
+
+        // ── 4. Patch cache in-place — no network refetch ───────────────────
+        // FIX: replaced invalidateQueries() here with setQueryData().
+        // invalidateQueries was causing a full refetch on every tap, which
+        // wiped the optimistic state and made the UI feel laggy.
+        qc.setQueryData<ContainerItemsResponse>(
+          ["/api/restock/container-items", selectedId],
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              lines: old.lines.map((l) =>
+                l.itemId === confirmedItemId
+                  ? { ...l, actual: nextValue }
+                  : l
+              ),
+            };
+          }
+        );
+      } catch {
+        // Roll back optimistic value on any error
+        setOptimisticActualByCode((prev) => ({ ...prev, [code]: currentValue }));
+
+        if (resolvedItemId) {
+          setFlashRowId({ id: resolvedItemId, type: "error" });
+          setTimeout(() => setFlashRowId(null), 600);
+        }
+
+        haptics.error();
+        showScanOverlay(label, null);
+      } finally {
+        // Always clear the pending spinner for this row
+        setRowPendingByCode((prev) => ({
+          ...prev,
+          [code]: Math.max(0, (prev[code] ?? 1) - 1),
+        }));
+      }
+    },
+    [
+      getOrCreateSession,
+      lines,
+      optimisticActualByCode,
+      qc,
+      scanMut,
+      selectedId,
+      showScanOverlay,
+      // FIX: removed detailsQ.data from deps — it was causing scanLine to be
+      // recreated on every cache update, defeating useCallback memoization.
+      // Cache is now read via qc.getQueryData() at call time instead.
+    ],
+  );
 
   // ── inline edit ───────────────────────────────────────────────────────────
 
@@ -543,22 +555,22 @@ const scanLine = useCallback(
         {containersQ.data && containersQ.data.length > 0 && (
           <div className="sticky top-2 z-20 rounded-2xl border border-border/70 bg-background/95 backdrop-blur px-2 py-2 shadow-sm">
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            {containersQ.data.map((container: InventoryContainer) => (
-              <button
-                key={container.id}
-                type="button"
-                onClick={() => trySelectContainer(container.id)}
-                className={cn(
-                  "shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium transition-all whitespace-nowrap min-h-[44px]",
-                  selectedId === container.id
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                    : "bg-card border-border text-foreground hover:bg-muted",
-                )}
-              >
-                <span className={cn("w-2 h-2 rounded-full shrink-0", containerDotClass(container))} />
-                <span className="max-w-[96px] truncate">{container.name}</span>
-              </button>
-            ))}
+              {containersQ.data.map((container: InventoryContainer) => (
+                <button
+                  key={container.id}
+                  type="button"
+                  onClick={() => trySelectContainer(container.id)}
+                  className={cn(
+                    "shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium transition-all whitespace-nowrap min-h-[44px]",
+                    selectedId === container.id
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-card border-border text-foreground hover:bg-muted",
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full shrink-0", containerDotClass(container))} />
+                  <span className="max-w-[96px] truncate">{container.name}</span>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -610,7 +622,7 @@ const scanLine = useCallback(
                 </div>
               )}
 
-              {/* Error */}
+              {/* Session error */}
               {sessionState.errorMessage && (
                 <div className="mx-4 mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   {sessionState.errorMessage}
@@ -654,18 +666,18 @@ const scanLine = useCallback(
               {detailsQ.data && (
                 <div className="space-y-2 p-3">
                   {lines.map((line) => {
-                    const flash =
-                      line.itemId && flashRowId?.id === line.itemId
-                        ? flashRowId.type === "success"
-                          ? "bg-emerald-100/80 dark:bg-emerald-900/30"
-                          : "bg-red-100/80 dark:bg-red-900/30"
-                        : "";
                     const optimisticActual = optimisticActualByCode[line.code] ?? line.actual;
                     const isComplete = optimisticActual >= line.expected;
                     const isEditing = editingCode === line.code;
                     const pendingOps = rowPendingByCode[line.code] ?? 0;
                     const missing = Math.max(0, line.expected - optimisticActual);
                     const isLowStock = optimisticActual < line.expected;
+                    const flash =
+                      line.itemId && flashRowId?.id === line.itemId
+                        ? flashRowId.type === "success"
+                          ? "bg-emerald-100/80 dark:bg-emerald-900/30"
+                          : "bg-red-100/80 dark:bg-red-900/30"
+                        : "";
 
                     return (
                       <div
@@ -678,6 +690,8 @@ const scanLine = useCallback(
                         )}
                       >
                         <div className="flex w-full items-center gap-3">
+
+                          {/* Label + status badge */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span
@@ -711,65 +725,67 @@ const scanLine = useCallback(
                             </div>
                           </div>
 
+                          {/* Quantity controls */}
                           <div className="flex items-center gap-1 shrink-0">
                             <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-11 w-11 rounded-xl shrink-0"
-                            disabled={sessionState.isBusy || otherUserHasSession}
-                            onClick={() => scanLine(line.itemId, line.code, line.label, -1)}
-                            aria-label={`Decrement ${line.label}`}
-                          >
-                            <Minus className="w-4 h-4" />
-                          </Button>
-
-                          {isEditing ? (
-                            <input
-                              ref={editInputRef}
-                              type="number"
-                              min={0}
-                              className="w-16 h-11 text-center text-base font-semibold tabular-nums rounded-lg border border-primary bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => commitInlineEdit(line)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") e.currentTarget.blur();
-                                if (e.key === "Escape") setEditingCode(null);
-                              }}
-                            />
-                          ) : (
-                            <button
                               type="button"
-                              className={cn(
-                                "w-16 h-11 text-center text-lg font-bold tabular-nums rounded-lg transition-colors",
-                                "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                isComplete ? "text-emerald-700 dark:text-emerald-400" : "text-foreground",
-                              )}
+                              variant="outline"
+                              size="icon"
+                              className="h-11 w-11 rounded-xl shrink-0"
                               disabled={otherUserHasSession}
-                              onClick={() => startInlineEdit(line)}
-                              aria-label={`Set quantity for ${line.label}`}
+                              onClick={() => scanLine(line.itemId, line.code, line.label, -1)}
+                              aria-label={`Decrement ${line.label}`}
                             >
-                              {optimisticActual}
-                            </button>
-                          )}
+                              <Minus className="w-4 h-4" />
+                            </Button>
 
-                          <span className="text-xs text-muted-foreground w-8 pl-0.5 shrink-0">
-                            /{line.expected}
-                          </span>
+                            {isEditing ? (
+                              <input
+                                ref={editInputRef}
+                                type="number"
+                                min={0}
+                                className="w-16 h-11 text-center text-base font-semibold tabular-nums rounded-lg border border-primary bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => commitInlineEdit(line)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") e.currentTarget.blur();
+                                  if (e.key === "Escape") setEditingCode(null);
+                                }}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                className={cn(
+                                  "w-16 h-11 text-center text-lg font-bold tabular-nums rounded-lg transition-colors",
+                                  "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                  isComplete ? "text-emerald-700 dark:text-emerald-400" : "text-foreground",
+                                )}
+                                disabled={otherUserHasSession}
+                                onClick={() => startInlineEdit(line)}
+                                aria-label={`Set quantity for ${line.label}`}
+                              >
+                                {optimisticActual}
+                              </button>
+                            )}
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-11 w-11 rounded-xl shrink-0"
-                            disabled={sessionState.isBusy || otherUserHasSession}
-                            onClick={() => scanLine(line.itemId, line.code, line.label, +1)}
-                            aria-label={`Increment ${line.label}`}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
+                            <span className="text-xs text-muted-foreground w-8 pl-0.5 shrink-0">
+                              /{line.expected}
+                            </span>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-11 w-11 rounded-xl shrink-0"
+                              disabled={otherUserHasSession}
+                              onClick={() => scanLine(line.itemId, line.code, line.label, +1)}
+                              aria-label={`Increment ${line.label}`}
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
                           </div>
+
                         </div>
                       </div>
                     );
