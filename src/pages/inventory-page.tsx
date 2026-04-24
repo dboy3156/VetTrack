@@ -717,7 +717,7 @@ const scanLine = useCallback(
                             variant="outline"
                             size="icon"
                             className="h-11 w-11 rounded-xl shrink-0"
-                            disabled={sessionState.isBusy || otherUserHasSession}
+                            disabled={sessionState.isBusy || 
                             onClick={() => scanLine(line.itemId, line.code, line.label, -1)}
                             aria-label={`Decrement ${line.label}`}
                           >
@@ -763,7 +763,7 @@ const scanLine = useCallback(
                             variant="outline"
                             size="icon"
                             className="h-11 w-11 rounded-xl shrink-0"
-                            disabled={sessionState.isBusy || otherUserHasSession}
+                            disabled={sessionState.isBusy || 
                             onClick={() => scanLine(line.itemId, line.code, line.label, +1)}
                             aria-label={`Increment ${line.label}`}
                           >
