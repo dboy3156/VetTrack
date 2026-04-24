@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, Loader2, Minus, Plus, CheckCircle2, AlertTriangle, Nfc } from "lucide-react";
 import { toast } from "sonner";
+import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 import {
   useCallback,
   useEffect,
@@ -39,12 +40,16 @@ function containerDotClass(container: InventoryContainer): string {
   return "bg-red-500";
 }
 
+const isDevMode = typeof window !== "undefined" &&
+  (import.meta.env.DEV || window.location.search.includes("devmode=1"));
+
 export default function InventoryPage() {
   const qc = useQueryClient();
   const p = t.inventoryPage;
   const [location] = useLocation();
   const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
+  const [devDispenseContainerId, setDevDispenseContainerId] = useState<string | null>(null);
 
   // ── data ──────────────────────────────────────────────────────────────────
 
@@ -696,6 +701,36 @@ export default function InventoryPage() {
             <span className="text-base font-semibold leading-snug">{scanOverlay.label}</span>
           </div>
         </div>
+      )}
+
+      {/* Dev-mode dispense test trigger — visible only in non-production or ?devmode=1 */}
+      {isDevMode && (
+        <div className="max-w-2xl mx-auto px-4 pb-20" data-testid="dev-dispense-trigger-section">
+          <div className="border border-dashed border-gray-300 rounded-xl p-3 mt-2">
+            <button
+              data-testid="dev-dispense-trigger"
+              onClick={async () => {
+                const containers = containersQ.data;
+                if (!containers || containers.length === 0) {
+                  toast.error("אין עגלות במערכת — צור עגלה תחילה");
+                  return;
+                }
+                setDevDispenseContainerId(containers[0].id);
+              }}
+              className="w-full text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 min-h-[48px] hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            >
+              🧪 בדיקת לקיחת מתכלים
+            </button>
+          </div>
+        </div>
+      )}
+
+      {devDispenseContainerId && (
+        <DispenseSheet
+          containerId={devDispenseContainerId}
+          isOpen={Boolean(devDispenseContainerId)}
+          onClose={() => setDevDispenseContainerId(null)}
+        />
       )}
     </Layout>
   );

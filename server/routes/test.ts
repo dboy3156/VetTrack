@@ -2,8 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { db, equipment, equipmentReturns, scheduledNotifications } from "../db.js";
+import { and, desc, eq, isNull, lte } from "drizzle-orm";
+import { animals, billingLedger, db, equipment, equipmentReturns, inventoryLogs, scheduledNotifications, users } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { isTestMode } from "../lib/test-mode.js";
@@ -247,6 +247,106 @@ router.get("/returns/:id", requireAuth, requireTestMode, async (req, res) => {
         code: "INTERNAL_ERROR",
         reason: "RETURN_FETCH_FAILED",
         message: "Failed to fetch return",
+        requestId,
+      }),
+    );
+  }
+});
+
+/**
+ * GET /api/test/last-dispense
+ * Returns the last 3 adjustment inventory logs for this clinic with DB verification fields.
+ * Used by the dispense walkthrough to verify DB state after a dispense action.
+ * Non-production only (enforced by requireNotProduction middleware above).
+ */
+router.get("/last-dispense", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+
+    const logs = await db
+      .select({
+        id: inventoryLogs.id,
+        containerId: inventoryLogs.containerId,
+        quantityAdded: inventoryLogs.quantityAdded,
+        animalId: inventoryLogs.animalId,
+        createdByUserId: inventoryLogs.createdByUserId,
+        createdAt: inventoryLogs.createdAt,
+        metadata: inventoryLogs.metadata,
+        animalName: animals.name,
+        createdByDisplayName: users.displayName,
+      })
+      .from(inventoryLogs)
+      .leftJoin(animals, eq(inventoryLogs.animalId, animals.id))
+      .leftJoin(users, eq(inventoryLogs.createdByUserId, users.id))
+      .where(
+        and(
+          eq(inventoryLogs.clinicId, clinicId),
+          eq(inventoryLogs.logType, "adjustment"),
+          lte(inventoryLogs.quantityAdded, 0),
+        ),
+      )
+      .orderBy(desc(inventoryLogs.createdAt))
+      .limit(3);
+
+    // Count pending emergencies
+    const allLogs = await db
+      .select({ id: inventoryLogs.id, metadata: inventoryLogs.metadata })
+      .from(inventoryLogs)
+      .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.logType, "adjustment")));
+
+    const pendingEmergencies = allLogs.filter((l) => {
+      const m = l.metadata as Record<string, unknown> | null;
+      return m?.isEmergency === true && m?.pendingCompletion === true;
+    }).length;
+
+    // Check if last log has a billing entry
+    const lastLog = logs[0];
+    let lastBillingEntry = null;
+    if (lastLog?.animalId) {
+      const [billing] = await db
+        .select()
+        .from(billingLedger)
+        .where(
+          and(
+            eq(billingLedger.clinicId, clinicId),
+            eq(billingLedger.animalId, lastLog.animalId),
+          ),
+        )
+        .orderBy(desc(billingLedger.createdAt))
+        .limit(1);
+      lastBillingEntry = billing ?? null;
+    }
+
+    res.json({
+      logs: logs.map((l) => ({
+        id: l.id,
+        containerId: l.containerId,
+        quantityAdded: l.quantityAdded,
+        animalId: l.animalId,
+        animalName: l.animalName,
+        createdByUserId: l.createdByUserId,
+        createdByDisplayName: l.createdByDisplayName,
+        createdAt: l.createdAt,
+        metadata: l.metadata,
+      })),
+      pendingEmergencies,
+      lastBillingEntry: lastBillingEntry
+        ? {
+            id: lastBillingEntry.id,
+            status: lastBillingEntry.status,
+            animalId: lastBillingEntry.animalId,
+            itemId: lastBillingEntry.itemId,
+          }
+        : null,
+    });
+  } catch (err) {
+    console.error("[test] last-dispense failed", err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "LAST_DISPENSE_FAILED",
+        message: "Failed to fetch last dispense",
         requestId,
       }),
     );
