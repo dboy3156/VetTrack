@@ -43,14 +43,14 @@ import { cn } from "@/lib/utils";
 type FormState = { code: string; label: string; category: string; nfcTagId: string };
 const BLANK: FormState = { code: "", label: "", category: "", nfcTagId: "" };
 
-const isDevMode =
-  process.env.NODE_ENV !== "production" ||
-  (typeof window !== "undefined" && window.location.search.includes("devmode=1"));
-
 export default function InventoryItemsPage() {
   const qc = useQueryClient();
   const p = t.inventoryItemsPage;
   const { userId, role } = useAuth();
+  const [isDevMode] = useState(() =>
+    typeof window !== "undefined" &&
+    window.location.search.includes("devmode=1"),
+  );
   const isAdmin = role === "admin";
 
   const [search, setSearch] = useState("");
