@@ -472,6 +472,7 @@ export const inventoryLogs = pgTable(
     animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
     roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
     note: text("note"),
+    metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     createdByUserId: text("created_by_user_id")
       .notNull()

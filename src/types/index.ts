@@ -980,3 +980,36 @@ export interface ForecastApprovePayload {
   auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
   patientWeightOverrides?: Record<string, number>;
 }
+
+export interface ConsumablesReportEvent {
+  id: string;
+  itemLabel: string;
+  quantity: number;
+  animalName: string | null;
+  takenByDisplayName: string;
+  takenAt: string;
+  containerName: string;
+  isEmergency: boolean;
+  pendingCompletion: boolean;
+}
+
+export interface ConsumablesReport {
+  totalEvents: number;
+  unlinkedCount: number;
+  unlinkedPct: number;
+  pendingEmergencies: number;
+  byItem: Array<{ itemId: string; label: string; totalQuantity: number }>;
+  byAnimal: Array<{ animalId: string | null; animalName: string | null; totalEvents: number }>;
+  byUser: Array<{ userId: string; displayName: string; totalEvents: number }>;
+  events: ConsumablesReportEvent[];
+}
+
+export interface InventoryContainerWithItems extends InventoryContainer {
+  items: Array<{
+    id: string;
+    itemId: string;
+    quantity: number;
+    label: string | null;
+    code: string | null;
+  }>;
+}
