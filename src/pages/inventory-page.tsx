@@ -269,7 +269,7 @@ export default function InventoryPage() {
     try {
       const session = await startSessionMut.mutateAsync(selectedId);
       sessionIdRef.current = session.id;
-     z activeContainerIdRef.current = selectedId;
+      activeContainerIdRef.current = selectedId;
       return session.id;
     } catch {
       return null;
