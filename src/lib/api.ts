@@ -11,6 +11,8 @@ import type {
   ShiftHandoverSummary,
   ShiftHandoverSession,
   InventoryContainer,
+  InventoryContainerWithItems,
+  ConsumablesReport,
   ScanLog,
   TransferLog,
   Folder,
@@ -1058,6 +1060,46 @@ export const api = {
         `/api/containers/${id}/blind-audit`,
         { method: "POST", body: JSON.stringify({ physicalCount, note }) },
       ),
+    dispense: (
+      containerId: string,
+      data: {
+        items: Array<{ itemId: string; quantity: number }>;
+        animalId?: string | null;
+        isEmergency?: boolean;
+      },
+    ) =>
+      request<{
+        success: boolean;
+        emergencyEventId?: string;
+        dispensed?: Array<{ itemId: string; label: string; quantity: number; newStock: number }>;
+        takenBy: { userId: string; displayName: string };
+        takenAt: string;
+        billingIds?: string[];
+      }>(`/api/containers/${containerId}/dispense`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    completeEmergency: (
+      eventId: string,
+      data: {
+        items: Array<{ itemId: string; quantity: number }>;
+        animalId?: string | null;
+      },
+    ) =>
+      request<{
+        success: boolean;
+        dispensed: Array<{ itemId: string; label: string; quantity: number; newStock: number }>;
+        takenBy: { userId: string; displayName: string };
+        takenAt: string;
+        billingIds: string[];
+      }>(`/api/containers/emergency/${eventId}/complete`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    getByNfcTag: (nfcTagId: string) =>
+      request<InventoryContainerWithItems>(
+        `/api/containers?nfcTagId=${encodeURIComponent(nfcTagId)}`,
+      ),
   },
   restock: {
     start: (containerId: string) =>
@@ -1170,6 +1212,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body ?? {}),
       }),
+    consumablesReport: (from: string, to: string) =>
+      request<ConsumablesReport>(
+        `/api/shift-handover/consumables-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      ),
   },
   forecast: {
     parseJson: (body: { text: string; windowHours?: 24 | 72; weekendMode?: boolean }) =>

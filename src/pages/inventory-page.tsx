@@ -45,7 +45,6 @@ export default function InventoryPage() {
   const [location] = useLocation();
   const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
-
   // ── data ──────────────────────────────────────────────────────────────────
 
   const containersQ = useQuery({
@@ -697,6 +696,7 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+
     </Layout>
   );
 }

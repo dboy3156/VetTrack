@@ -68,6 +68,7 @@ import {
   safeStorageGetItem,
   safeStorageSetItem,
 } from "@/lib/safe-browser";
+import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 
 interface NavItem {
   href: string;
@@ -112,6 +113,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const [qsVisible, setQsVisible] = useState(false);
   const [alertBadgeAnimating, setAlertBadgeAnimating] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
+  const [dispenseContainerId, setDispenseContainerId] = useState<string | null>(null);
   const navLockToastDebounceRef = useRef(false);
   const prevAlertCountRef = useRef(0);
   const { isAdmin, role, userId, effectiveRole } = useAuth();
@@ -291,12 +293,27 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       }
     }
 
+    // Try equipment first
     try {
       await api.equipment.get(assetId);
       navigate(`/equipment/${assetId}`);
+      return;
     } catch {
-      toast.error(t.layout.toast.equipmentNotFound);
+      // Not equipment — try container by NFC tag
     }
+
+    try {
+      const container = await api.containers.getByNfcTag(assetId);
+      if (container?.id) {
+        haptics.scanSuccess();
+        setDispenseContainerId(container.id);
+        return;
+      }
+    } catch {
+      // Not a container either
+    }
+
+    toast.error(t.layout.toast.equipmentNotFound);
   }, 1500);
 
   const { data: equipment } = useQuery({
@@ -1177,6 +1194,14 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         open={syncQueueOpen}
         onClose={() => setSyncQueueOpen(false)}
       />
+
+      {dispenseContainerId && (
+        <DispenseSheet
+          containerId={dispenseContainerId}
+          isOpen={Boolean(dispenseContainerId)}
+          onClose={() => setDispenseContainerId(null)}
+        />
+      )}
 
       <OnboardingWalkthrough />
     </div>
