@@ -23,6 +23,7 @@ import {
   RefreshCw,
   CheckCircle,
   LayoutDashboard,
+  ReceiptText,
   Globe,
   Settings,
   Moon,
@@ -396,6 +397,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         ]
       : []),
     { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
+    { href: "/billing", label: lh.billing, icon: <ReceiptText className="w-5 h-5" /> },
     { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: lh.printQr, icon: <QrCode className="w-5 h-5" />, menuOnly: true },
     { href: "/procurement", label: lh.procurement, icon: <ShoppingCart className="w-5 h-5" />, adminOnly: true, menuOnly: true },
@@ -419,7 +421,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const managementMenuItems = useMemo(
     () =>
-      ["/analytics", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"]
+      ["/analytics", "/billing", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
