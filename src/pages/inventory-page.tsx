@@ -180,9 +180,10 @@ export default function InventoryPage() {
     if (overlayClearRef.current !== undefined) clearTimeout(overlayClearRef.current);
   }, []);
 
-  // Reset optimistic state when the user switches containers.
-  // FIX: depends only on selectedId, not on detailsQ.data, so server-side
-  // setQueryData calls (from scans) don't wipe in-flight optimistic values.
+ // Reset optimistic state when container switches OR when data first loads.
+  // Using detailsQ.isSuccess (boolean) instead of detailsQ.data — isSuccess flips
+  // false→true exactly once per container load then stays true, so this effect
+  // does NOT re-run on every setQueryData call from our own scans.
   useEffect(() => {
     if (!detailsQ.data?.lines) return;
     const next: Record<string, number> = {};
@@ -191,16 +192,16 @@ export default function InventoryPage() {
     }
     setOptimisticActualByCode(next);
     setRowPendingByCode({});
-  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // ^ intentionally omitting detailsQ.data — we only want to reset on container switch,
-  //   not on every cache update caused by our own setQueryData calls.
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, detailsQ.isSuccess]);
+  
   // ── mutations ─────────────────────────────────────────────────────────────
 
   const startSessionMut = useMutation({
     mutationFn: (containerId: string) => api.restock.start(containerId),
     onSuccess: (session) => {
       dispatch({ type: "start-success", payload: { sessionId: session.id, containerId: session.containerId } });
+      qc.invalidateQueries({ queryKey: ["/api/restock/container-items", session.containerId] });
       haptics.scanSuccess();
     },
     onError: (err) => {
@@ -267,6 +268,8 @@ export default function InventoryPage() {
     dispatch({ type: "start-request" });
     try {
       const session = await startSessionMut.mutateAsync(selectedId);
+      sessionIdRef.current = session.id;
+     z activeContainerIdRef.current = selectedId;
       return session.id;
     } catch {
       return null;
