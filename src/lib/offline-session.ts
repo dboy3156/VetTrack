@@ -1,3 +1,5 @@
+import { safeStorageGetItem, safeStorageRemoveItem, safeStorageSetItem } from "@/lib/safe-browser";
+
 export interface OfflineSessionSnapshot {
   userId: string;
   email: string;
@@ -47,14 +49,14 @@ export function saveOfflineSession(data: {
       tokenExp,
       lastActiveAt: Date.now(),
     };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+    safeStorageSetItem(SESSION_KEY, JSON.stringify(snapshot));
   } catch {
   }
 }
 
 export function restoreOfflineSession(): OfflineSessionSnapshot | null {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = safeStorageGetItem(SESSION_KEY);
     if (!raw) return null;
 
     const snapshot = JSON.parse(raw) as Partial<OfflineSessionSnapshot>;
@@ -80,7 +82,7 @@ export function restoreOfflineSession(): OfflineSessionSnapshot | null {
 
 export function clearOfflineSession(): void {
   try {
-    localStorage.removeItem(SESSION_KEY);
+    safeStorageRemoveItem(SESSION_KEY);
   } catch {
   }
 }

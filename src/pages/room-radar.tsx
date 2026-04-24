@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import type { Equipment, Room, RoomActivityEntry, EquipmentStatus } from "@/types";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
+import { haptics } from "@/lib/haptics";
 
 function toInitials(name: string | null | undefined): string {
   if (!name?.trim()) return "?";
@@ -370,7 +371,7 @@ export default function RoomRadarPage() {
     onSuccess: (result) => {
       setVerifiedCount(result.affected);
       setVerifyState("done");
-      navigator.vibrate?.([50, 30, 100]);
+      haptics.scanSuccess();
       queryClient.invalidateQueries({ queryKey: ["/api/rooms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       verifyTimerRef.current = setTimeout(() => {

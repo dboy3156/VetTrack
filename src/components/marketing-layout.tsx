@@ -18,7 +18,7 @@ export function MarketingLayout({ children, showAppCta, showAuthCta }: Marketing
   const lp = t.landingPage;
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground font-sans antialiased overflow-x-hidden">
+    <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-background text-foreground font-sans antialiased">
       <div
         className="pointer-events-none fixed inset-x-0 top-0 h-[min(70vh,720px)] -z-10"
         style={{
@@ -34,7 +34,7 @@ export function MarketingLayout({ children, showAppCta, showAuthCta }: Marketing
       <header className="sticky top-safe z-50 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 md:h-[4.25rem] flex items-center justify-between">
           <Link
-            href="/landing"
+            href="/"
             className="flex items-center gap-2.5 group select-none rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
           >
             <div
@@ -56,7 +56,7 @@ export function MarketingLayout({ children, showAppCta, showAuthCta }: Marketing
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Marketing">
             {showAppCta && (
               <Link
-                href="/"
+                href="/home"
                 className={cn(
                   "inline-flex items-center gap-2 rounded-2xl text-sm font-bold px-4 py-2.5 min-h-11",
                   "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
@@ -103,7 +103,7 @@ export function MarketingLayout({ children, showAppCta, showAuthCta }: Marketing
             className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm text-muted-foreground"
             aria-label={lp.footerNavAria}
           >
-            <Link href="/" className="hover:text-foreground transition-colors">
+            <Link href="/home" className="hover:text-foreground transition-colors">
               {lp.footerAppHome}
             </Link>
             <Link href="/equipment" className="hover:text-foreground transition-colors">

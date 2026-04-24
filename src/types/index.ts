@@ -561,6 +561,21 @@ export interface BillingItem {
   createdAt: string;
 }
 
+export interface BillingSummary {
+  totalCents: number;
+  pendingCents: number;
+  syncedCents: number;
+  voidedCents: number;
+  byType: {
+    EQUIPMENT: number;
+    CONSUMABLE: number;
+  };
+  byDay: Array<{
+    date: string;
+    totalCents: number;
+  }>;
+}
+
 export const INVENTORY_ITEM_CATEGORIES = [
   "IV Access",
   "Syringes",
@@ -906,9 +921,14 @@ export interface ForecastPatientEntry {
 export interface ForecastResult {
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat?: "smartflow" | "generic";
   patients: ForecastPatientEntry[];
   totalFlags: number;
   parsedAt: string;
+  parseFailures?: Array<{
+    fileName: string;
+    message: string;
+  }>;
 }
 
 /** Response shape from POST /api/forecast/parse */
@@ -925,6 +945,11 @@ export interface ForecastApproveResponse {
    * fell back to mailto. Safe to show in UI (contains no credentials).
    */
   smtpFallbackReason?: string;
+}
+
+export interface ForecastKeepaliveResponse {
+  parseId: string;
+  expiresAt: string;
 }
 
 export interface DrugAuditEntry {
@@ -954,4 +979,45 @@ export interface ForecastApprovePayload {
   pharmacistDoseAcks: string[];
   auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
   patientWeightOverrides?: Record<string, number>;
+}
+
+export interface ConsumablesReportEvent {
+  id: string;
+  containerId: string;
+  itemLabel: string;
+  quantity: number;
+  animalName: string | null;
+  takenByDisplayName: string;
+  takenAt: string;
+  containerName: string;
+  isEmergency: boolean;
+  pendingCompletion: boolean;
+}
+
+export interface ConsumablesReport {
+  totalEvents: number;
+  unlinkedCount: number;
+  unlinkedPct: number;
+  pendingEmergencies: number;
+  byItem: Array<{ itemId: string; label: string; totalQuantity: number }>;
+  byAnimal: Array<{ animalId: string | null; animalName: string | null; totalEvents: number }>;
+  byUser: Array<{ userId: string; displayName: string; totalEvents: number }>;
+  events: ConsumablesReportEvent[];
+}
+
+export interface InventoryContainerWithItems extends InventoryContainer {
+  items: Array<{
+    id: string;
+    itemId: string;
+    quantity: number;
+    label: string | null;
+    code: string | null;
+  }>;
+}
+
+export interface ActivePatient {
+  animalId: string;
+  animalName: string;
+  species: string | null;
+  breed: string | null;
 }

@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { QrScanner } from "@/components/qr-scanner";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { haptics } from "@/lib/haptics";
 
 export default function MyEquipmentPage() {
   const { userId } = useAuth();
@@ -61,7 +62,7 @@ export default function MyEquipmentPage() {
     mutationFn: ({ id, isPluggedIn, plugInDeadlineMinutes }: { id: string; isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
       api.equipment.return(id, { isPluggedIn, plugInDeadlineMinutes }),
     onSuccess: () => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(t.myEquipment.toast.returnSuccess);

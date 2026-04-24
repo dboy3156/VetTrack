@@ -23,6 +23,7 @@ import {
   RefreshCw,
   CheckCircle,
   LayoutDashboard,
+  ReceiptText,
   Globe,
   Settings,
   Moon,
@@ -43,6 +44,7 @@ import {
   ShoppingCart,
   Syringe,
   Lock,
+  Film,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -61,6 +63,12 @@ import { ReportIssueDialog } from "@/components/report-issue-dialog";
 import { SyncQueueSheet } from "@/components/sync-queue-sheet";
 import { UpdateBanner } from "@/components/update-banner";
 import { haptics } from "@/lib/haptics";
+import {
+  isOnline as getOnlineStatus,
+  safeStorageGetItem,
+  safeStorageSetItem,
+} from "@/lib/safe-browser";
+import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 
 interface NavItem {
   href: string;
@@ -97,7 +105,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const [quickSettingsUseViewportRight, setQuickSettingsUseViewportRight] = useState(false);
   const [quickSettingsViewportTop, setQuickSettingsViewportTop] = useState(0);
   const [syncQueueOpen, setSyncQueueOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(getOnlineStatus());
   const [internalScannerOpen, setInternalScannerOpen] = useState(false);
   const [menuMounted, setMenuMounted] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -105,6 +113,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const [qsVisible, setQsVisible] = useState(false);
   const [alertBadgeAnimating, setAlertBadgeAnimating] = useState(false);
   const [reportIssueOpen, setReportIssueOpen] = useState(false);
+  const [dispenseContainerId, setDispenseContainerId] = useState<string | null>(null);
   const navLockToastDebounceRef = useRef(false);
   const prevAlertCountRef = useRef(0);
   const { isAdmin, role, userId, effectiveRole } = useAuth();
@@ -235,7 +244,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         toast.error("Invalid container NFC tag");
         return;
       }
-      const rawActive = localStorage.getItem("vt_active_restock_session");
+      const rawActive = safeStorageGetItem("vt_active_restock_session");
       if (rawActive) {
         try {
           const parsed = JSON.parse(rawActive) as { containerId?: string };
@@ -248,7 +257,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           /* ignore */
         }
       }
-      sessionStorage.setItem("vt_auto_restock_container", containerId);
+      safeStorageSetItem("vt_auto_restock_container", containerId, "session");
       haptics.scanSuccess();
       navigate(`/inventory?container=${encodeURIComponent(containerId)}`);
       return;
@@ -260,7 +269,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         toast.error("Invalid inventory item NFC tag");
         return;
       }
-      const raw = localStorage.getItem("vt_active_restock_session");
+      const raw = safeStorageGetItem("vt_active_restock_session");
       if (!raw) {
         toast.error("Start a restock session before scanning item tags");
         return;
@@ -285,14 +294,28 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       }
     }
 
+    // Try equipment first
     try {
       await api.equipment.get(assetId);
       haptics.scanSuccess();
       navigate(`/equipment/${assetId}`);
+      return;
     } catch {
-      haptics.warning();
-      toast.error(t.layout.toast.equipmentNotFound);
+      // Not equipment — try container by NFC tag
     }
+
+    try {
+      const container = await api.containers.getByNfcTag(assetId);
+      if (container?.id) {
+        haptics.scanSuccess();
+        setDispenseContainerId(container.id);
+        return;
+      }
+    } catch {
+      // Not a container either
+    }
+
+    toast.error(t.layout.toast.equipmentNotFound);
   }, 1500);
 
   const { data: equipment } = useQuery({
@@ -393,15 +416,17 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         ]
       : []),
     { href: "/analytics", label: lh.analytics, icon: <BarChart3 className="w-5 h-5" /> },
+    { href: "/billing", label: lh.billing, icon: <ReceiptText className="w-5 h-5" /> },
     { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: lh.printQr, icon: <QrCode className="w-5 h-5" />, menuOnly: true },
     { href: "/procurement", label: lh.procurement, icon: <ShoppingCart className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/admin", label: lh.admin, icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/admin/shifts", label: lh.adminShifts, icon: <CalendarDays className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/stability", label: lh.stability, icon: <FlaskConical className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/app-tour", label: lh.appTour, icon: <Film className="w-5 h-5" />, menuOnly: true },
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
-    { href: "/landing", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
+    { href: "/", label: lh.about, icon: <Globe className="w-5 h-5" />, menuOnly: true },
   ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, canAccessPharmacyForecastNav, myCount, lh, t]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
@@ -415,14 +440,14 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const managementMenuItems = useMemo(
     () =>
-      ["/analytics", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"]
+      ["/analytics", "/billing", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
   );
   const systemMenuItems = useMemo(
     () =>
-      ["/help", "/settings", "/landing"]
+      ["/app-tour", "/help", "/settings", "/"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
@@ -430,7 +455,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
   const bottomNavActive = useMemo(
     () => ({
-      home: location === "/" || location === "",
+      home: location === "/home" || location === "/" || location === "",
       equipment: location.startsWith("/equipment"),
       rooms: location.startsWith("/rooms"),
     }),
@@ -494,7 +519,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         <UpdateBanner />
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link
-            href="/"
+            href="/home"
             className="flex items-center gap-2 group select-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div
@@ -1000,7 +1025,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             />
           )}
           <Link
-            href="/"
+            href="/home"
             className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
             data-testid="bottom-nav-home"
           >
@@ -1171,6 +1196,14 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         open={syncQueueOpen}
         onClose={() => setSyncQueueOpen(false)}
       />
+
+      {dispenseContainerId && (
+        <DispenseSheet
+          containerId={dispenseContainerId}
+          isOpen={Boolean(dispenseContainerId)}
+          onClose={() => setDispenseContainerId(null)}
+        />
+      )}
 
       <OnboardingWalkthrough />
     </div>

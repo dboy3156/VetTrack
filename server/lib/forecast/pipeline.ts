@@ -5,6 +5,7 @@ import { parsePatientBlocks } from "./confidenceScorer.js";
 import { enrichAndForecast, type FormularyDrugRow } from "./forecastEngine.js";
 import { extractPdfPatientDemographics } from "./flowsheetDemographics.js";
 import { createFormularyFuse } from "./fieldExtractor.js";
+import { buildGenericForecastResult } from "./genericExtractor.js";
 import { detectStructure, extractRecordNumberHint } from "./structureDetector.js";
 import { preprocessFlowsheetText } from "./flowsheetPreprocess.js";
 import type { ForecastResult } from "./types.js";
@@ -43,10 +44,26 @@ export function fingerprintForecastExclusions(substrings: string[]): string {
 
 /** Run parse → fuzzy match → forecast. Patient identity comes from PDF text, not vt_animals. */
 export async function runForecastPipeline(params: {
+  // ORIGINAL
+  // export async function runForecastPipeline(params: {
+  //   rawText: string;
+  //   clinicId: string;
+  //   windowHours: 24 | 72;
+  //   weekendMode: boolean;
+  //   exclusionSubstrings?: string[];
+  // }): Promise<ForecastResult> {
+  //   await syncFormularyFromSeed(params.clinicId);
+  //   ...
+  //   const cleaned = preprocessFlowsheetText(params.rawText);
+  //   const blocks = detectStructure(cleaned);
+  //   const parsed = parsePatientBlocks(blocks, fuse, extractRecordNumberHint);
+  //   return enrichAndForecast(...);
+  // }
   rawText: string;
   clinicId: string;
   windowHours: 24 | 72;
   weekendMode: boolean;
+  pdfSourceFormat?: "smartflow" | "generic";
   /** Caller may pre-fetch exclusions (e.g. to fold into an idempotency hash) to avoid a duplicate DB query. */
   exclusionSubstrings?: string[];
 }): Promise<ForecastResult> {
@@ -70,6 +87,16 @@ export async function runForecastPipeline(params: {
   const exclusionSubstrings =
     params.exclusionSubstrings ?? (await loadForecastExclusionSubstrings(params.clinicId));
 
+  if (params.pdfSourceFormat === "generic") {
+    return buildGenericForecastResult({
+      rawText: params.rawText,
+      formularyRows: formularyRows.map(mapFormularyRow),
+      windowHours: params.windowHours,
+      weekendMode: params.weekendMode,
+      exclusionSubstrings,
+    });
+  }
+
   const cleaned = preprocessFlowsheetText(params.rawText);
   const blocks = detectStructure(cleaned);
   const parsed = parsePatientBlocks(blocks, fuse, extractRecordNumberHint);
@@ -82,4 +109,15 @@ export async function runForecastPipeline(params: {
     pdfPatient,
     exclusionSubstrings,
   });
+  return {
+    ...enrichAndForecast({
+      parsedBlocks: parsed,
+      windowHours: params.windowHours,
+      weekendMode: params.weekendMode,
+      formularyByNormalizedName,
+      pdfPatient,
+      exclusionSubstrings,
+    }),
+    pdfSourceFormat: "smartflow",
+  };
 }

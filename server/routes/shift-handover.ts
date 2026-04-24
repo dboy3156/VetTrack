@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, desc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
-import { appointments, billingLedger, db, equipment, scanLogs, shiftSessions, usageSessions } from "../db.js";
+import { animals, appointments, billingLedger, containers, db, equipment, inventoryItems, inventoryLogs, scanLogs, shiftSessions, usageSessions, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 
@@ -347,5 +347,132 @@ router.post(
     }
   },
 );
+
+// GET /api/shift-handover/consumables-report?from=<ISO>&to=<ISO>
+router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const fromParam = typeof req.query.from === "string" ? req.query.from : null;
+    const toParam = typeof req.query.to === "string" ? req.query.to : null;
+
+    // Default to current shift window if params not provided
+    const now = new Date();
+    const fromDate = fromParam ? new Date(fromParam) : new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const toDate = toParam ? new Date(toParam) : now;
+
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return res.status(400).json(apiError({ code: "VALIDATION_FAILED", reason: "INVALID_DATE", message: "Invalid from/to date", requestId }));
+    }
+
+    const rows = await db
+      .select({
+        id: inventoryLogs.id,
+        containerId: inventoryLogs.containerId,
+        containerName: containers.name,
+        itemId: sql<string | null>`${inventoryLogs.metadata}->>'itemId'`,
+        itemLabel: inventoryItems.label,
+        quantityAdded: inventoryLogs.quantityAdded,
+        animalId: inventoryLogs.animalId,
+        animalName: animals.name,
+        createdByUserId: inventoryLogs.createdByUserId,
+        takenByDisplayName: users.displayName,
+        createdAt: inventoryLogs.createdAt,
+        metadata: inventoryLogs.metadata,
+      })
+      .from(inventoryLogs)
+      .leftJoin(containers, eq(inventoryLogs.containerId, containers.id))
+      .leftJoin(inventoryItems, sql`${inventoryLogs.metadata}->>'itemId' = ${inventoryItems.id}`)
+      .leftJoin(animals, eq(inventoryLogs.animalId, animals.id))
+      .leftJoin(users, eq(inventoryLogs.createdByUserId, users.id))
+      .where(
+        and(
+          eq(inventoryLogs.clinicId, clinicId),
+          eq(inventoryLogs.logType, "adjustment"),
+          gte(inventoryLogs.createdAt, fromDate),
+          lte(inventoryLogs.createdAt, toDate),
+          lte(inventoryLogs.quantityAdded, sql`0`),
+        ),
+      )
+      .orderBy(desc(inventoryLogs.createdAt));
+
+    const totalEvents = rows.length;
+    const unlinkedCount = rows.filter((r) => !r.animalId).length;
+    const unlinkedPct = totalEvents > 0 ? Math.round((unlinkedCount / totalEvents) * 100) : 0;
+
+    // Count pending emergencies
+    const pendingEmergencies = rows.filter((r) => {
+      const meta = r.metadata as Record<string, unknown> | null;
+      return meta?.isEmergency === true && meta?.pendingCompletion === true;
+    }).length;
+
+    // Aggregate by item
+    const itemTotals = new Map<string, { itemId: string; label: string; totalQuantity: number }>();
+    for (const r of rows) {
+      if (!r.itemId) continue;
+      const key = r.itemId;
+      const existing = itemTotals.get(key);
+      if (existing) {
+        existing.totalQuantity += Math.abs(r.quantityAdded);
+      } else {
+        itemTotals.set(key, { itemId: r.itemId, label: r.itemLabel ?? r.itemId, totalQuantity: Math.abs(r.quantityAdded) });
+      }
+    }
+
+    // Aggregate by animal
+    const animalTotals = new Map<string | null, { animalId: string | null; animalName: string | null; totalEvents: number }>();
+    for (const r of rows) {
+      const key = r.animalId ?? null;
+      const existing = animalTotals.get(key);
+      if (existing) {
+        existing.totalEvents += 1;
+      } else {
+        animalTotals.set(key, { animalId: r.animalId ?? null, animalName: r.animalName ?? null, totalEvents: 1 });
+      }
+    }
+
+    // Aggregate by user
+    const userTotals = new Map<string, { userId: string; displayName: string; totalEvents: number }>();
+    for (const r of rows) {
+      const key = r.createdByUserId;
+      const existing = userTotals.get(key);
+      if (existing) {
+        existing.totalEvents += 1;
+      } else {
+        userTotals.set(key, { userId: r.createdByUserId, displayName: r.takenByDisplayName ?? r.createdByUserId, totalEvents: 1 });
+      }
+    }
+
+    const events = rows.map((r) => {
+      const meta = r.metadata as Record<string, unknown> | null;
+      return {
+        id: r.id,
+        containerId: r.containerId,
+        itemLabel: r.itemLabel ?? "—",
+        quantity: Math.abs(r.quantityAdded),
+        animalName: r.animalName ?? null,
+        takenByDisplayName: r.takenByDisplayName ?? r.createdByUserId,
+        takenAt: r.createdAt.toISOString(),
+        containerName: r.containerName ?? "—",
+        isEmergency: meta?.isEmergency === true,
+        pendingCompletion: meta?.pendingCompletion === true,
+      };
+    });
+
+    return res.json({
+      totalEvents,
+      unlinkedCount,
+      unlinkedPct,
+      pendingEmergencies,
+      byItem: [...itemTotals.values()].sort((a, b) => b.totalQuantity - a.totalQuantity),
+      byAnimal: [...animalTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),
+      byUser: [...userTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),
+      events,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "CONSUMABLES_REPORT_FAILED", message: "Failed to load consumables report", requestId }));
+  }
+});
 
 export default router;

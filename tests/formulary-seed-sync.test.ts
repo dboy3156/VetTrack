@@ -43,9 +43,14 @@ describe("activeRowEligibleForSeedSync", () => {
     expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(true);
   });
 
-  it("is eligible when row.unitType is null (will be updated)", () => {
+  it("is NOT eligible when row.unitType is null (customized away from seed)", () => {
     const row = makeRow({ unitType: null });
-    expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(true);
+    expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(false);
+  });
+
+  it("is NOT eligible when row.unitType was customized from seed", () => {
+    const row = makeRow({ unitType: "ampule" });
+    expect(activeRowEligibleForSeedSync(row, baseEntry)).toBe(false);
   });
 
   it("is NOT eligible when unitVolumeMl set (pharmacy extension)", () => {

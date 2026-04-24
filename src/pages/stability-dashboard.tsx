@@ -363,7 +363,7 @@ export default function StabilityDashboardPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <ShieldCheck className="w-12 h-12 text-muted-foreground" />
           <p className="text-muted-foreground">Admin access required</p>
-          <Button asChild variant="outline"><Link href="/">Go Home</Link></Button>
+          <Button asChild variant="outline"><Link href="/home">Go Home</Link></Button>
         </div>
       </Layout>
     );

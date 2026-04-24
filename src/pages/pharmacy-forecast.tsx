@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -7,20 +7,105 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ErrorCard } from "@/components/ui/error-card";
+import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 import { api } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { validateMergedForecastForApproval } from "@/lib/forecast/approveGate";
 import { applyManualQuantities, normalizeQuantityKey } from "@/lib/pharmacyForecastMerge";
 import { useAuth } from "@/hooks/use-auth";
-import type { ForecastDrugEntry, ForecastResult, ForecastPatientEntry } from "@/types";
+import type { ForecastApproveResponse, ForecastDrugEntry, ForecastResult, ForecastPatientEntry } from "@/types";
 import type { AuditState, PatientAuditState, DrugAuditEntry } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Syringe, Loader2, FileUp, ClipboardPaste, ArrowLeft, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const FORECAST_DRAFT_STORAGE_KEY = "pharmacy-forecast-draft-v1";
+const KEEPALIVE_INTERVAL_MS = 30_000;
+
+type InputMode = "paste" | "pdf";
+type ReviewTab = "review" | "audit" | "email";
+type StepMode = "input" | "review";
+
+interface ForecastDraftSnapshot {
+  step: StepMode;
+  inputMode: InputMode;
+  pasteText: string;
+  forecastResult: ForecastResult | null;
+  windowHours: 24 | 72;
+  forecastParseId: string | null;
+  manualQty: Record<string, number>;
+  pharmacistDoseAcks: Record<string, boolean>;
+  auditState: AuditState | null;
+  activeTab: ReviewTab;
+  lastRequestId: string | null;
+}
+
+function safeVibrate(pattern: number | number[]): void {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    // graceful degradation for unsupported/blocked vibration APIs
+  }
+}
+
+function loadForecastDraftSnapshot(): ForecastDraftSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(FORECAST_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ForecastDraftSnapshot>;
+    if (parsed == null || typeof parsed !== "object") return null;
+    return {
+      step: parsed.step === "review" ? "review" : "input",
+      inputMode: parsed.inputMode === "pdf" ? "pdf" : "paste",
+      pasteText: typeof parsed.pasteText === "string" ? parsed.pasteText : "",
+      windowHours: parsed.windowHours === 72 ? 72 : 24,
+      forecastResult: parsed.forecastResult ?? null,
+      forecastParseId: typeof parsed.forecastParseId === "string" ? parsed.forecastParseId : null,
+      manualQty: parsed.manualQty ?? {},
+      pharmacistDoseAcks: parsed.pharmacistDoseAcks ?? {},
+      auditState: parsed.auditState ?? null,
+      activeTab: parsed.activeTab === "email" ? "email" : parsed.activeTab === "audit" ? "audit" : "review",
+      lastRequestId: typeof parsed.lastRequestId === "string" ? parsed.lastRequestId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveForecastDraftSnapshot(snapshot: ForecastDraftSnapshot): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(FORECAST_DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // best-effort snapshot persistence only
+  }
+}
+
+function clearForecastDraftSnapshot(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(FORECAST_DRAFT_STORAGE_KEY);
+  } catch {
+    // no-op
+  }
+}
+
+function toErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message.trim().length > 0 ? err.message : fallback;
+}
+
+function extractRequestId(message: string): string | null {
+  const match = /\(requestId:\s*([^)]+)\)/i.exec(message);
+  return match?.[1]?.trim() || null;
+}
 
 function canAccessPharmacyForecast(role: string | null | undefined, effectiveRole: string | null | undefined): boolean {
   const r = String(effectiveRole ?? role ?? "").trim().toLowerCase();
@@ -87,6 +172,28 @@ function PharmacyEmailPreviewPanel({
         </div>
       </div>
       <div className="max-h-[min(420px,70vh)] overflow-y-auto p-3 space-y-4">
+        {result.parseFailures && result.parseFailures.length > 0 ? (
+          <Card className="border-amber-300/80 bg-amber-50/60 shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-amber-900">
+                {t.pharmacyForecast.parseFailuresTitle}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {result.parseFailures.map((failure) => (
+                  <div
+                    key={`${failure.fileName}-${failure.message}`}
+                    className="rounded-lg border border-amber-200 bg-white/70 px-3 py-2"
+                  >
+                    <p className="text-sm font-medium text-amber-900">{failure.fileName}</p>
+                    <p className="text-xs text-amber-800 mt-0.5">{failure.message}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         {sorted.map((p) => {
           const pAudit = auditState?.patients[p.recordNumber];
           const weightKg = pAudit?.weightOverride ?? p.weightKg;
@@ -220,6 +327,8 @@ function isPatientAuditComplete(
 }
 
 export default function PharmacyForecastPage() {
+  // ORIGINAL
+  // export default function PharmacyForecastPage() { /* pre-item2 baseline preserved in git history */ }
   const { role, effectiveRole, isLoaded, name, email } = useAuth();
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canUse = canAccessPharmacyForecast(role, effectiveRole);
@@ -227,7 +336,7 @@ export default function PharmacyForecastPage() {
   const [step, setStep] = useState<"input" | "review">("input");
   const [inputMode, setInputMode] = useState<"paste" | "pdf">("paste");
   const [pasteText, setPasteText] = useState("");
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [windowHours, setWindowHours] = useState<24 | 72>(() => defaultWindowHours());
@@ -240,6 +349,11 @@ export default function PharmacyForecastPage() {
   const [pharmacistDoseAcks, setPharmacistDoseAcks] = useState<Record<string, boolean>>({});
   const [auditState, setAuditState] = useState<AuditState | null>(null);
   const [activeTab, setActiveTab] = useState<"review" | "audit" | "email">("review");
+  const [sessionRecoveryPending, setSessionRecoveryPending] = useState(false);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const [lastRequestId, setLastRequestId] = useState<string | null>(null);
+  const draftHydratedRef = useRef(false);
+  const keepaliveWarnedRef = useRef(false);
 
   const isThursday = new Intl.DateTimeFormat("he-IL", {
     timeZone: "Asia/Jerusalem",
@@ -258,15 +372,118 @@ export default function PharmacyForecastPage() {
   const emailQueryClient = useQueryClient();
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState("");
+  const pdfSourceFormat: "smartflow" | "generic" =
+    pharmacyEmailQuery.data?.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow";
+  const [selectedPdfSourceFormat, setSelectedPdfSourceFormat] = useState<"smartflow" | "generic">("smartflow");
   const saveEmailMutation = useMutation({
-    mutationFn: (email: string | null) => api.forecast.setPharmacyEmail(email),
+    mutationFn: (payload: { pharmacyEmail: string | null; forecastPdfSourceFormat?: "smartflow" | "generic" }) =>
+      api.forecast.setPharmacyEmail(payload),
     onSuccess: (result) => {
       emailQueryClient.setQueryData(["/api/forecast/clinic/pharmacy-email"], result);
       setEditingEmail(false);
-      toast.success("Pharmacy email saved");
+      setSelectedPdfSourceFormat(result.forecastPdfSourceFormat === "generic" ? "generic" : "smartflow");
+      toast.success("הגדרות תחזית נשמרו");
     },
-    onError: () => toast.error("Failed to save pharmacy email"),
+    onError: () => toast.error("שמירת ההגדרות נכשלה"),
   });
+
+  useEffect(() => {
+    setSelectedPdfSourceFormat(pdfSourceFormat);
+  }, [pdfSourceFormat]);
+
+  const clearReviewState = useCallback((resetInput = false) => {
+    setStep("input");
+    setForecastResult(null);
+    setForecastParseId(null);
+    setManualQty({});
+    setPharmacistDoseAcks({});
+    setAuditState(null);
+    setActiveTab("review");
+    setSessionRecoveryPending(false);
+    setRestoredDraft(false);
+    if (resetInput) {
+      setPasteText("");
+      setPdfFiles([]);
+    }
+    clearForecastDraftSnapshot();
+  }, []);
+
+  useEffect(() => {
+    if (draftHydratedRef.current || !isLoaded || !canUse) return;
+    draftHydratedRef.current = true;
+    const snapshot = loadForecastDraftSnapshot();
+    if (!snapshot) return;
+    setStep(snapshot.step);
+    setInputMode(snapshot.inputMode);
+    setPasteText(snapshot.pasteText);
+    setForecastResult(snapshot.forecastResult ?? null);
+    setWindowHours(snapshot.windowHours);
+    setForecastParseId(snapshot.forecastParseId);
+    setManualQty(snapshot.manualQty);
+    setPharmacistDoseAcks(snapshot.pharmacistDoseAcks);
+    setAuditState(snapshot.auditState);
+    setActiveTab(snapshot.activeTab);
+    setLastRequestId(snapshot.lastRequestId);
+    if (snapshot.step === "review" && snapshot.forecastParseId) {
+      setRestoredDraft(true);
+      toast.message(t.pharmacyForecast.sessionRestored);
+    }
+  }, [isLoaded, canUse]);
+
+  useEffect(() => {
+    setSelectedPdfSourceFormat(pdfSourceFormat);
+  }, [pdfSourceFormat]);
+
+  useEffect(() => {
+    if (!isLoaded || !canUse) return;
+    saveForecastDraftSnapshot({
+      step,
+      inputMode,
+      pasteText,
+      forecastResult,
+      windowHours,
+      forecastParseId,
+      manualQty,
+      pharmacistDoseAcks,
+      auditState,
+      activeTab,
+      lastRequestId,
+    });
+  }, [
+    isLoaded,
+    canUse,
+    step,
+    inputMode,
+    pasteText,
+    forecastResult,
+    windowHours,
+    forecastParseId,
+    manualQty,
+    pharmacistDoseAcks,
+    auditState,
+    activeTab,
+    lastRequestId,
+  ]);
+
+  const keepaliveMutation = useMutation({
+    mutationFn: async (parseId: string) => {
+      return api.forecast.parseKeepalive(parseId);
+    },
+    onError: () => {
+      if (keepaliveWarnedRef.current) return;
+      keepaliveWarnedRef.current = true;
+      toast.message(t.pharmacyForecast.sessionKeepaliveFailed);
+    },
+  });
+
+  useEffect(() => {
+    if (step !== "review" || !forecastParseId) return;
+    const timer = window.setInterval(() => {
+      if (!forecastParseId || keepaliveMutation.isPending) return;
+      keepaliveMutation.mutate(forecastParseId);
+    }, KEEPALIVE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [step, forecastParseId, keepaliveMutation]);
 
   const mergedPreview = useMemo(() => {
     if (!forecastResult) return null;
@@ -338,8 +555,8 @@ export default function PharmacyForecastPage() {
     mutationFn: async () => {
       const params = { windowHours, weekendMode: windowHours === 72 };
       if (inputMode === "pdf") {
-        if (!pdfFile) throw new Error(t.pharmacyForecast.errors.noFile);
-        return api.forecast.parseMultipart(pdfFile, params);
+        if (pdfFiles.length === 0) throw new Error(t.pharmacyForecast.errors.noFile);
+        return api.forecast.parseMultipart(pdfFiles, params);
       }
       const text = pasteText.trim();
       if (!text) throw new Error(t.pharmacyForecast.errors.noText);
@@ -361,14 +578,14 @@ export default function PharmacyForecastPage() {
       setAuditState(initAuditState(parseId, rest));
       setActiveTab("review");
       setStep("review");
+      setRestoredDraft(false);
+      keepaliveWarnedRef.current = false;
       toast.success(t.pharmacyForecast.parseOk);
     },
     onError: (e: Error) => toast.error(e.message || t.pharmacyForecast.parseFailed),
   });
 
-  const approveMutation = useMutation({
-    mutationFn: () => {
-      if (!forecastParseId) throw new Error("no parse session");
+  const runApprove = useCallback(async (parseId: string) => {
       const trace: Record<string, { forecastedQty: number | null; onHandQty: number }> = {};
       const weightOverrides: Record<string, number> = {};
       const patientFlagAcks: string[] = [];
@@ -389,7 +606,7 @@ export default function PharmacyForecastPage() {
         }
       }
       return api.forecast.approve({
-        parseId: forecastParseId,
+        parseId,
         manualQuantities: manualQty,
         pharmacistDoseAcks: Object.entries(pharmacistDoseAcks)
           .filter(([, v]) => v)
@@ -399,6 +616,60 @@ export default function PharmacyForecastPage() {
         auditTrace: Object.keys(trace).length > 0 ? trace : undefined,
         patientWeightOverrides: Object.keys(weightOverrides).length > 0 ? weightOverrides : undefined,
       });
+  }, [auditState, manualQty, pharmacistDoseAcks]);
+
+  const attemptSessionRecoveryAndApprove = useCallback(async (): Promise<ForecastApproveResponse> => {
+    if (sessionRecoveryPending) {
+      throw new Error(t.pharmacyForecast.sessionRecoveryFailed);
+    }
+    if (!forecastParseId || inputMode !== "paste") throw new Error(t.pharmacyForecast.sessionRecoveryFailed);
+    const text = pasteText.trim();
+    if (!text) throw new Error(t.pharmacyForecast.errors.noText);
+
+    setSessionRecoveryPending(true);
+    toast.message(t.pharmacyForecast.approveRecoveringSession);
+
+    try {
+      const reparsed = await api.forecast.parseJson({
+        text,
+        windowHours,
+        weekendMode: windowHours === 72,
+      });
+      const { parseId: nextParseId, ...nextResult } = reparsed;
+      setForecastParseId(nextParseId);
+      setForecastResult(nextResult);
+      setAuditState((prev) => {
+        if (!prev) return initAuditState(nextParseId, nextResult);
+        return { ...prev, forecastRunId: nextParseId };
+      });
+      toast.success(t.pharmacyForecast.sessionRecovered);
+      const approval = await runApprove(nextParseId);
+      safeVibrate([25, 30, 25]);
+      return approval;
+    } catch (recoveryError) {
+      safeVibrate([60, 40, 60]);
+      throw recoveryError;
+    } finally {
+      setSessionRecoveryPending(false);
+    }
+  }, [sessionRecoveryPending, forecastParseId, inputMode, pasteText, windowHours, runApprove]);
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      if (!forecastParseId) throw new Error(t.pharmacyForecast.sessionRecoveryFailed);
+      try {
+        const approval = await runApprove(forecastParseId);
+        safeVibrate([25, 30, 25]);
+        return approval;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("PARSE_SESSION_INVALID")) {
+          const recovered = await attemptSessionRecoveryAndApprove();
+          return recovered;
+        }
+        safeVibrate([60, 40, 60]);
+        throw error;
+      }
     },
     onSuccess: (res) => {
       if (res.deliveryMethod === "smtp") {
@@ -415,17 +686,17 @@ export default function PharmacyForecastPage() {
       if (res.mailtoUrl) {
         window.location.href = res.mailtoUrl;
       }
-      setStep("input");
-      setForecastResult(null);
-      setForecastParseId(null);
-      setPasteText("");
-      setPdfFile(null);
-      setManualQty({});
-      setPharmacistDoseAcks({});
-      setAuditState(null);
-      setActiveTab("review");
+      clearReviewState(true);
+      setSessionRecoveryPending(false);
     },
-    onError: (e: Error) => toast.error(e.message || t.pharmacyForecast.approveFailed),
+    onError: (e: Error) => {
+      const message = e.message || "";
+      if (!message.includes("PARSE_SESSION_INVALID")) {
+        toast.error(message || t.pharmacyForecast.approveFailed);
+      } else {
+        toast.error(t.pharmacyForecast.sessionRecoveryFailed);
+      }
+    },
   });
 
   const technicianLabel = name || email || "";
@@ -437,6 +708,22 @@ export default function PharmacyForecastPage() {
       [key]: Number.isFinite(n) && n >= 0 ? n : 0,
     }));
   }, []);
+
+  const handleParse = useCallback(async () => {
+    try {
+      await parseMutation.mutateAsync();
+    } catch {
+      // parse mutation already reports user-facing errors
+    }
+  }, [parseMutation]);
+
+  const handleApprove = useCallback(async () => {
+    try {
+      await approveMutation.mutateAsync();
+    } catch {
+      // approve mutation already reports user-facing errors
+    }
+  }, [approveMutation]);
 
   if (isLoaded && resolvedRole === "student") {
     return <Redirect to="/equipment" replace />;
@@ -456,21 +743,38 @@ export default function PharmacyForecastPage() {
 
   return (
     <Layout title={t.pharmacyForecast.title}>
-      <div className="space-y-4 pb-28 max-w-2xl mx-auto px-3">
+      <div
+        className="min-h-[100dvh] space-y-4 max-w-2xl mx-auto px-3 pb-nav-safe"
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      >
         <div className="space-y-1">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Syringe className="h-6 w-6 text-primary" />
             {t.pharmacyForecast.title}
           </h1>
           <p className="text-sm text-muted-foreground">{t.pharmacyForecast.subtitle}</p>
+          <p className="text-xs text-muted-foreground">
+            {t.pharmacyForecast.pdfSourceFormatCurrent}{" "}
+            <span className="font-medium text-foreground">
+              {pdfSourceFormat === "generic"
+                ? t.pharmacyForecast.pdfSourceFormatGeneric
+                : t.pharmacyForecast.pdfSourceFormatSmartflow}
+            </span>
+          </p>
         </div>
+
+        {restoredDraft ? (
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2">
+            <p className="text-xs text-blue-900">{t.pharmacyForecast.sessionRestored}</p>
+          </div>
+        ) : null}
 
         {pharmacyMissing ? (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 space-y-2">
             <p className="text-sm text-foreground">{t.pharmacyForecast.pharmacyEmailMissing}</p>
             {resolvedRole === "admin" && (
               editingEmail ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 max-w-md">
                   <Input
                     type="email"
                     placeholder="pharmacy@example.com"
@@ -479,37 +783,79 @@ export default function PharmacyForecastPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         const v = emailInput.trim();
-                        saveEmailMutation.mutate(v || null);
+                        saveEmailMutation.mutate({
+                          pharmacyEmail: v || null,
+                          forecastPdfSourceFormat: selectedPdfSourceFormat,
+                        });
                       }
                     }}
-                    className="h-8 text-sm max-w-xs"
+                    className="h-8 text-[16px] max-w-xs"
+                    autoComplete="off"
                     autoFocus
                     data-testid="pharmacy-email-input"
                   />
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      {t.pharmacyForecast.pdfSourceFormatLabel}
+                    </Label>
+                    <Select
+                      value={selectedPdfSourceFormat}
+                      onValueChange={(value: "smartflow" | "generic") => setSelectedPdfSourceFormat(value)}
+                    >
+                      <SelectTrigger className="h-8 text-xs" data-testid="forecast-pdf-source-format-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="smartflow">{t.pharmacyForecast.pdfSourceFormatSmartflow}</SelectItem>
+                        <SelectItem value="generic">{t.pharmacyForecast.pdfSourceFormatGeneric}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     className="h-8 text-xs"
-                    onClick={() => saveEmailMutation.mutate(emailInput.trim() || null)}
+                    onClick={() =>
+                      saveEmailMutation.mutate({
+                        pharmacyEmail: emailInput.trim() || null,
+                        forecastPdfSourceFormat: selectedPdfSourceFormat,
+                      })
+                    }
                     disabled={saveEmailMutation.isPending}
                     data-testid="btn-save-pharmacy-email"
                   >
                     {saveEmailMutation.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                    Save
+                    שמור
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingEmail(false)}>
-                    Cancel
+                    ביטול
                   </Button>
+                  </div>
                 </div>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => { setEmailInput(""); setEditingEmail(true); }}
-                  data-testid="btn-set-pharmacy-email"
-                >
-                  Set pharmacy email
-                </Button>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {t.pharmacyForecast.pdfSourceFormatCurrent}{" "}
+                    <span className="font-medium text-foreground">
+                      {pdfSourceFormat === "generic"
+                        ? t.pharmacyForecast.pdfSourceFormatGeneric
+                        : t.pharmacyForecast.pdfSourceFormatSmartflow}
+                    </span>
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      setEmailInput(pharmacyEmailQuery.data?.pharmacyEmail ?? "");
+                      setSelectedPdfSourceFormat(pdfSourceFormat);
+                      setEditingEmail(true);
+                    }}
+                    data-testid="btn-set-pharmacy-email"
+                  >
+                    {t.pharmacyForecast.pharmacySettingsCta}
+                  </Button>
+                </div>
               )
             )}
           </div>
@@ -577,28 +923,39 @@ export default function PharmacyForecastPage() {
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder={t.pharmacyForecast.pastePlaceholder}
-                className="min-h-[160px] font-mono text-sm"
+                className="min-h-[160px] font-mono text-[16px]"
               />
             ) : (
               <div className="space-y-2">
                 <input
                   ref={fileRef}
                   type="file"
+                  multiple
                   accept="application/pdf"
                   className="hidden"
-                  onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => setPdfFiles(Array.from(e.target.files ?? []))}
                 />
                 <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()}>
                   {t.pharmacyForecast.choosePdf}
                 </Button>
-                {pdfFile ? <p className="text-xs text-muted-foreground">{pdfFile.name}</p> : null}
+                {pdfFiles.length > 0 ? (
+                  <div className="space-y-1">
+                    {pdfFiles.map((file) => (
+                      <p key={`${file.name}-${file.size}`} className="text-xs text-muted-foreground">
+                        {file.name}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             )}
 
             <Button
               className="w-full"
               disabled={parseMutation.isPending}
-              onClick={() => parseMutation.mutate()}
+              onClick={() => {
+                void handleParse();
+              }}
             >
               {parseMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {t.pharmacyForecast.parseAction}
@@ -611,15 +968,7 @@ export default function PharmacyForecastPage() {
               variant="ghost"
               size="sm"
               className="gap-2 -ms-2"
-              onClick={() => {
-                setStep("input");
-                setForecastResult(null);
-                setForecastParseId(null);
-                setManualQty({});
-                setPharmacistDoseAcks({});
-                setAuditState(null);
-                setActiveTab("review");
-              }}
+              onClick={() => clearReviewState(false)}
             >
               <ArrowLeft className="h-4 w-4" />
               {t.pharmacyForecast.back}
@@ -635,7 +984,8 @@ export default function PharmacyForecastPage() {
               </div>
             ) : null}
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+            <PageErrorBoundary fallbackLabel={t.pageErrorBoundary.defaultFallback}>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
               <TabsList className="w-full grid grid-cols-3">
                 <TabsTrigger value="review">{t.pharmacyForecast.tabReview}</TabsTrigger>
                 <TabsTrigger value="audit">{t.pharmacyForecast.tabAudit}</TabsTrigger>
@@ -650,7 +1000,7 @@ export default function PharmacyForecastPage() {
 
               {/* ── Review tab — unchanged content ── */}
               <TabsContent value="review" className="space-y-3 mt-3">
-                {forecastResult?.patients.map((p: ForecastPatientEntry) => (
+                {(forecastResult?.patients ?? []).map((p: ForecastPatientEntry) => (
                   <Card key={`${p.recordNumber}-${p.name}`}>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base">
@@ -658,18 +1008,18 @@ export default function PharmacyForecastPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {p.flags.includes("PATIENT_UNKNOWN") ? (
+                      {p.flags?.includes("PATIENT_UNKNOWN") ? (
                         <div className="text-xs font-medium text-amber-800">{t.pharmacyForecast.patientUnknown}</div>
                       ) : null}
-                      {p.flags.includes("WEIGHT_UNKNOWN") ? (
+                      {p.flags?.includes("WEIGHT_UNKNOWN") ? (
                         <div className="text-xs font-medium text-amber-800">{t.pharmacyForecast.weightUnknownBanner}</div>
                       ) : null}
-                      {p.flags.includes("ALL_DRUGS_EXCLUDED") ? (
+                      {p.flags?.includes("ALL_DRUGS_EXCLUDED") ? (
                         <div className="text-xs font-medium text-amber-800">
                           {t.pharmacyForecast.allDrugsExcludedWarning}
                         </div>
                       ) : null}
-                      {p.drugs.map((d: ForecastDrugEntry) => {
+                      {(p.drugs ?? []).map((d: ForecastDrugEntry) => {
                         const key = normalizeQuantityKey(p.recordNumber, d.drugName);
                         const needsInput = d.type === "prn" || d.flags.length > 0;
                         const variant = badgeVariantForDrug(d);
@@ -709,6 +1059,8 @@ export default function PharmacyForecastPage() {
                                 <Input
                                   type="number"
                                   min={0}
+                                  inputMode="numeric"
+                                  autoComplete="off"
                                   className="h-8 max-w-[100px]"
                                   value={manualQty[key] ?? ""}
                                   onChange={(e) => handleQtyChange(key, e.target.value)}
@@ -828,6 +1180,8 @@ export default function PharmacyForecastPage() {
                                           type="number"
                                           min={0.1}
                                           step={0.1}
+                                          inputMode="decimal"
+                                          autoComplete="off"
                                           placeholder={t.pharmacyForecast.auditWeightPlaceholder}
                                           className="h-8 max-w-[90px]"
                                           value={pAudit.weightOverride ?? ""}
@@ -895,6 +1249,8 @@ export default function PharmacyForecastPage() {
                                             <Input
                                               type="number"
                                               min={0}
+                                              inputMode="numeric"
+                                              autoComplete="off"
                                               className="h-7 w-16 text-center mx-auto"
                                               value={entry.onHandQty}
                                               onChange={(e) => {
@@ -970,35 +1326,49 @@ export default function PharmacyForecastPage() {
                   />
                 ) : null}
               </TabsContent>
-            </Tabs>
+              </Tabs>
+            </PageErrorBoundary>
 
             <div className="text-xs text-muted-foreground">{t.pharmacyForecast.approveNote}</div>
 
-            <div className="space-y-2">
-              <Button
-                className={cn(
-                  "w-full",
-                  approvalGate.ok && !pharmacyMissing ? "bg-green-600 hover:bg-green-600/90 text-white" : "bg-muted text-muted-foreground",
-                )}
-                disabled={
-                  approveMutation.isPending ||
-                  !approvalGate.ok ||
-                  pharmacyMissing ||
-                  !forecastResult ||
-                  !forecastParseId ||
-                  !auditComplete
-                }
-                onClick={() => approveMutation.mutate()}
-              >
-                {approveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {!approvalGate.ok ? t.pharmacyForecast.approveCannotShort : t.pharmacyForecast.approveSend}
-              </Button>
-              {!approvalGate.ok ? (
-                <p className="text-xs text-muted-foreground text-center px-1">
-                  {t.pharmacyForecast.approveGateLabel(approvalGate.code, approvalGate.message)}
-                </p>
-              ) : null}
-            </div>
+            <PageErrorBoundary fallbackLabel={t.pageErrorBoundary.defaultFallback}>
+              <div className="space-y-2">
+                <Button
+                  className={cn(
+                    "w-full",
+                    approvalGate.ok && !pharmacyMissing
+                      ? "bg-green-600 hover:bg-green-600/90 text-white"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                  disabled={
+                    approveMutation.isPending ||
+                    sessionRecoveryPending ||
+                    !approvalGate.ok ||
+                    pharmacyMissing ||
+                    !forecastResult ||
+                    !forecastParseId ||
+                    !auditComplete
+                  }
+                  onClick={() => {
+                    void handleApprove();
+                  }}
+                >
+                  {approveMutation.isPending || sessionRecoveryPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  {!approvalGate.ok
+                    ? t.pharmacyForecast.approveCannotShort
+                    : sessionRecoveryPending
+                      ? t.pharmacyForecast.approveRecoveringSession
+                      : t.pharmacyForecast.approveSend}
+                </Button>
+                {!approvalGate.ok ? (
+                  <p className="text-xs text-muted-foreground text-center px-1">
+                    {t.pharmacyForecast.approveGateLabel(approvalGate.code, approvalGate.message)}
+                  </p>
+                ) : null}
+              </div>
+            </PageErrorBoundary>
           </div>
         )}
       </div>

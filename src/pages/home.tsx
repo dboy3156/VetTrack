@@ -33,6 +33,7 @@ import {
   FilePlus2,
   Droplets,
   type LucideIcon,
+  Film,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
@@ -186,6 +187,13 @@ export default function HomePage() {
       hint: "Charges and ledger",
       icon: Receipt,
       href: "/billing",
+    },
+    {
+      id: "app-tour",
+      label: "סיור באפליקציה",
+      hint: "הדרכה + סרטון",
+      icon: Film,
+      href: "/app-tour",
     },
   ];
 

@@ -25,8 +25,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -34,11 +32,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X } from "lucide-react";
+import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const STATUS_BADGE: Record<BillingLedgerEntry["status"], string> = {
   pending:
@@ -48,18 +56,53 @@ const STATUS_BADGE: Record<BillingLedgerEntry["status"], string> = {
   voided: "bg-muted text-muted-foreground border-border",
 };
 
-function formatCents(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+const STATUS_LABEL: Record<BillingLedgerEntry["status"], string> = {
+  pending: "ממתין",
+  synced: "מסונכרן",
+  voided: "מבוטל",
+};
+
+function formatCents(cents: number): string {
+  return `₪${(cents / 100).toFixed(2)}`;
 }
+
+function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+type DateRange = "today" | "week" | "month" | "all";
+
+function getDateRange(range: DateRange): { from?: string; to?: string } {
+  const now = new Date();
+  const toIso = (d: Date) => d.toISOString();
+  if (range === "today") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { from: toIso(start), to: toIso(now) };
+  }
+  if (range === "week") {
+    const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return { from: toIso(start), to: toIso(now) };
+  }
+  if (range === "month") {
+    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return { from: toIso(start), to: toIso(now) };
+  }
+  return {};
+}
+
+const PAGE_SIZE = 50;
 
 export default function BillingLedgerPage() {
   const qc = useQueryClient();
   const p = t.billingLedger;
-  const { userId, role } = useAuth();
-  const isAdmin = role === "admin";
+  const { userId, isAdmin } = useAuth();
 
+  const [dateRange, setDateRange] = useState<DateRange>("month");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [page, setPage] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [voidTarget, setVoidTarget] = useState<BillingLedgerEntry | null>(null);
 
@@ -71,9 +114,24 @@ export default function BillingLedgerPage() {
     unitPriceCents: 0,
   });
 
+  const dateParams = useMemo(() => getDateRange(dateRange), [dateRange]);
+
+  const summaryQ = useQuery({
+    queryKey: ["/api/billing/summary", dateParams],
+    queryFn: () => api.billing.summary(dateParams),
+    enabled: !!userId,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   const ledgerQ = useQuery({
-    queryKey: ["/api/billing", statusFilter],
-    queryFn: () => api.billing.list(statusFilter !== "all" ? { status: statusFilter } : undefined),
+    queryKey: ["/api/billing", statusFilter, dateParams],
+    queryFn: () =>
+      api.billing.list({
+        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+        ...dateParams,
+        limit: 500,
+      }),
     enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
@@ -107,7 +165,7 @@ export default function BillingLedgerPage() {
     onError: () => toast.error(p.chargeVoidFailed),
   });
 
-  const entries = ledgerQ.data ?? [];
+  const allEntries = ledgerQ.data ?? [];
 
   const todayStart = useMemo(() => {
     const d = new Date();
@@ -122,7 +180,7 @@ export default function BillingLedgerPage() {
     return d;
   }, []);
 
-  const nonVoidedEntries = useMemo(() => entries.filter((entry) => entry.status !== "voided"), [entries]);
+  const nonVoidedEntries = useMemo(() => allEntries.filter((entry) => entry.status !== "voided"), [allEntries]);
   const chargesToday = useMemo(
     () =>
       nonVoidedEntries
@@ -155,26 +213,45 @@ export default function BillingLedgerPage() {
   );
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
-  const visibleEntries = useMemo(() => {
-    if (!normalizedSearch) {
-      return entries;
-    }
-
-    return entries.filter((entry) => {
-      const createdDate = new Date(entry.createdAt).toLocaleDateString().toLowerCase();
-      return (
-        entry.animalId.toLowerCase().includes(normalizedSearch) ||
-        entry.itemId.toLowerCase().includes(normalizedSearch) ||
-        entry.itemType.toLowerCase().includes(normalizedSearch) ||
-        entry.status.toLowerCase().includes(normalizedSearch) ||
-        createdDate.includes(normalizedSearch)
-      );
+  const filteredEntries = useMemo(() => {
+    return allEntries.filter((e) => {
+      if (typeFilter === "EQUIPMENT" && e.itemType !== "EQUIPMENT") return false;
+      if (typeFilter === "CONSUMABLE" && e.itemType !== "CONSUMABLE") return false;
+      if (normalizedSearch) {
+        const createdDate = new Date(e.createdAt).toLocaleDateString().toLowerCase();
+        return (
+          e.animalId.toLowerCase().includes(normalizedSearch) ||
+          e.itemId.toLowerCase().includes(normalizedSearch) ||
+          e.itemType.toLowerCase().includes(normalizedSearch) ||
+          e.status.toLowerCase().includes(normalizedSearch) ||
+          createdDate.includes(normalizedSearch)
+        );
+      }
+      return true;
     });
-  }, [entries, normalizedSearch]);
+  }, [allEntries, typeFilter, normalizedSearch]);
+
+  const visibleEntries = filteredEntries.slice(0, (page + 1) * PAGE_SIZE);
+  const hasMore = filteredEntries.length > visibleEntries.length;
+
+  const summary = summaryQ.data;
+  const chartData = summary?.byDay.map((d) => ({
+    date: formatShortDate(d.date),
+    amount: d.totalCents / 100,
+  })) ?? [];
+
+  const rangeButtons: { key: DateRange; label: string }[] = [
+    { key: "today", label: p.rangeToday },
+    { key: "week", label: p.rangeWeek },
+    { key: "month", label: p.rangeMonth },
+    { key: "all", label: p.rangeAll },
+  ];
 
   return (
     <Layout>
-      <Helmet><title>{p.title} — VetTrack</title></Helmet>
+      <Helmet>
+        <title>{p.title} — VetTrack</title>
+      </Helmet>
 
       <div className="w-full space-y-6 motion-safe:animate-page-enter">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,12 +259,30 @@ export default function BillingLedgerPage() {
             <Receipt className="h-7 w-7 shrink-0 text-primary" aria-hidden />
             <h1 className="truncate text-2xl font-bold tracking-tight">{p.title}</h1>
           </div>
-          {isAdmin && (
-            <Button size="sm" className="min-h-[40px] shrink-0" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              {p.addCharge}
-            </Button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              {rangeButtons.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setDateRange(key); setPage(0); }}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    dateRange === key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {isAdmin && (
+              <Button size="sm" className="min-h-[40px] shrink-0" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" />
+                {p.addCharge}
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -231,34 +326,83 @@ export default function BillingLedgerPage() {
           </div>
         </div>
 
-        {/* Search + status filters */}
+        {/* Bar Chart */}
+        {!summaryQ.isPending && !summaryQ.isError && chartData.length > 0 && (
+          <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
+            <p className="text-sm font-semibold text-foreground mb-3">{p.chartTitle}</p>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={4}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `₪${v}`}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [`₪${value.toFixed(2)}`, ""]}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--card))",
+                      color: "hsl(var(--foreground))",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="amount" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Search + type + status filters */}
         <div className="rounded-xl border bg-card p-3 sm:p-4">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by animal ID, item ID, status, date, or type"
-                className="pl-9 pr-8"
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                  placeholder="Search by animal ID, item ID, status, date, or type"
+                  className="pl-9 pr-8"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(0); }}>
+                <SelectTrigger className="w-36 h-9 text-xs bg-background">
+                  <SelectValue placeholder={p.filterType} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{p.type_all}</SelectItem>
+                  <SelectItem value="EQUIPMENT">{p.type_equipment}</SelectItem>
+                  <SelectItem value="CONSUMABLE">{p.type_consumable}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-wrap gap-2">
               {["all", "pending", "synced", "voided"].map((s) => (
                 <button
                   key={s}
                   type="button"
-                  onClick={() => setStatusFilter(s)}
+                  onClick={() => { setStatusFilter(s); setPage(0); }}
                   className={`min-h-[36px] rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                     statusFilter === s
                       ? "bg-primary text-primary-foreground border-primary"
@@ -319,11 +463,11 @@ export default function BillingLedgerPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
-                          {entry.status}
+                          {STATUS_LABEL[entry.status]}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {new Date(entry.createdAt).toLocaleDateString()}
+                        {new Date(entry.createdAt).toLocaleDateString("he-IL")}
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">
@@ -360,7 +504,7 @@ export default function BillingLedgerPage() {
                       <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleDateString()}</p>
                     </div>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
-                      {entry.status}
+                      {STATUS_LABEL[entry.status]}
                     </span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -395,6 +539,18 @@ export default function BillingLedgerPage() {
                 </div>
               ))}
             </div>
+
+            {hasMore && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((pg) => pg + 1)}
+                >
+                  {p.loadMore}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -422,8 +578,8 @@ export default function BillingLedgerPage() {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EQUIPMENT">EQUIPMENT</SelectItem>
-                  <SelectItem value="CONSUMABLE">CONSUMABLE</SelectItem>
+                  <SelectItem value="EQUIPMENT">{p.type_equipment}</SelectItem>
+                  <SelectItem value="CONSUMABLE">{p.type_consumable}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -437,7 +593,7 @@ export default function BillingLedgerPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{p.fieldQty}</Label>
+                <Label>{p.colQty}</Label>
                 <Input
                   type="number"
                   min={1}

@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import type { ShiftRole, UserRole } from "@/types";
 import { useEffect } from "react";
+import { safeReloadPage } from "@/lib/safe-browser";
 
 export default function SettingsPage() {
   const { settings, update, reset } = useSettings();
@@ -158,7 +159,7 @@ export default function SettingsPage() {
         <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
           <ErrorCard
             message="Unable to load settings for this session."
-            onRetry={() => window.location.reload()}
+            onRetry={() => safeReloadPage()}
           />
         </div>
       </Layout>

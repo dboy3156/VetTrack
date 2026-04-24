@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Package, Loader2, Minus, Plus, CheckCircle2, AlertTriangle, Nfc } from "lucide-react";
 import { toast } from "sonner";
+import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 import {
   useCallback,
   useEffect,
@@ -27,6 +28,8 @@ import {
 import { useLocation } from "wouter";
 import { getCurrentUserId } from "@/lib/auth-store";
 import { useAuth } from "@/hooks/use-auth";
+import { haptics } from "@/lib/haptics";
+import { safeStorageRemoveItem, safeStorageSetItem } from "@/lib/safe-browser";
 
 /** Main page column is under `data-restock-allow` so it stays tappable if `Layout navigationLocked` is enabled. */
 
@@ -44,7 +47,12 @@ export default function InventoryPage() {
   const [location] = useLocation();
   const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
-
+  // Runtime devmode check — reads URL at mount time, works in production with ?devmode=1
+  const [isDevMode] = useState(() =>
+    typeof window !== "undefined" &&
+    window.location.search.includes("devmode=1"),
+  );
+  const [devDispenseContainerId, setDevDispenseContainerId] = useState<string | null>(null);
   // ── data ──────────────────────────────────────────────────────────────────
 
   const containersQ = useQuery({
@@ -96,15 +104,15 @@ export default function InventoryPage() {
   // Persist active session across page reloads
   useEffect(() => {
     if (sessionState.activeSessionId && sessionState.activeContainerId) {
-      localStorage.setItem(
+      safeStorageSetItem(
         "vt_active_restock_session",
         JSON.stringify({
           sessionId: sessionState.activeSessionId,
           containerId: sessionState.activeContainerId,
-        }),
+        })
       );
     } else {
-      localStorage.removeItem("vt_active_restock_session");
+      safeStorageRemoveItem("vt_active_restock_session");
     }
   }, [sessionState.activeSessionId, sessionState.activeContainerId]);
 
@@ -183,7 +191,7 @@ export default function InventoryPage() {
     onSuccess: (session) => {
       dispatch({ type: "start-success", payload: { sessionId: session.id, containerId: session.containerId } });
       qc.invalidateQueries({ queryKey: ["/api/restock/container-items", session.containerId] });
-      navigator.vibrate?.([30, 20, 30]);
+      haptics.scanSuccess();
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : "Failed to start restock session";
@@ -221,7 +229,7 @@ export default function InventoryPage() {
         },
       });
       if (selectedId) qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
-      navigator.vibrate?.([100, 50, 100]);
+      haptics.error();
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : "Failed to finish restock session";
@@ -234,7 +242,7 @@ export default function InventoryPage() {
     mutationFn: () => api.containers.bootstrapDefaults(),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["/api/containers"] });
-      if (res.inserted > 0) { navigator.vibrate?.(40); toast.success(p.quickAddSuccess); }
+      if (res.inserted > 0) { haptics.itemAdded(); toast.success(p.quickAddSuccess); }
       else toast(p.quickAddNothing);
     },
     onError: () => toast.error(p.loadError),
@@ -260,78 +268,41 @@ export default function InventoryPage() {
   // ── scan ──────────────────────────────────────────────────────────────────
 
   const scanLine = useCallback(
-    async (itemId: string | null, label: string, delta: number) => {
-      const lineForOptimistic = lines.find((l) => l.itemId === itemId);
-      if (!itemId) {
-        navigator.vibrate?.(150);
+    async (itemId: string | null, code: string, label: string, delta: number) => {
+      const sessionId = await getOrCreateSession();
+      if (!sessionId || !selectedId) return;
+
+      let resolvedItemId = itemId;
+      if (!resolvedItemId) {
+        // First interaction may happen before template rows are seeded for this container.
+        // Re-read the container view after session creation and resolve line by blueprint code.
+        const latest = await api.restock.containerItems(selectedId);
+        qc.setQueryData(["/api/restock/container-items", selectedId], latest);
+        resolvedItemId = latest.lines.find((line) => line.code === code)?.itemId ?? null;
+      }
+      if (!resolvedItemId) {
+        haptics.error();
         showScanOverlay(label, null);
         return;
       }
 
-      if (lineForOptimistic) {
-        const currentActual = optimisticActualByCode[lineForOptimistic.code] ?? lineForOptimistic.actual;
-        const nextActual = Math.max(0, currentActual + delta);
-        setOptimisticActualByCode((prev) => ({ ...prev, [lineForOptimistic.code]: nextActual }));
-        setRowPendingByCode((prev) => ({
-          ...prev,
-          [lineForOptimistic.code]: (prev[lineForOptimistic.code] ?? 0) + 1,
-        }));
-      }
-
-      const sessionId = await getOrCreateSession();
-      if (!sessionId) {
-        if (lineForOptimistic) {
-          setOptimisticActualByCode((prev) => ({
-            ...prev,
-            [lineForOptimistic.code]: lineForOptimistic.actual,
-          }));
-          setRowPendingByCode((prev) => ({
-            ...prev,
-            [lineForOptimistic.code]: Math.max(0, (prev[lineForOptimistic.code] ?? 1) - 1),
-          }));
-        }
-        return;
-      }
       dispatch({ type: "scan-request" });
       try {
-        const result = await scanMut.mutateAsync({ sessionId, itemId, delta });
+        const result = await scanMut.mutateAsync({ sessionId, itemId: resolvedItemId, delta });
         const name = result?.item?.label ?? label;
-        setFlashRowId({ id: itemId, type: "success" });
-        if (lineForOptimistic) {
-          setOptimisticActualByCode((prev) => ({
-            ...prev,
-            [lineForOptimistic.code]:
-              prev[lineForOptimistic.code] ?? lineForOptimistic.actual,
-          }));
-          setRowPendingByCode((prev) => ({
-            ...prev,
-            [lineForOptimistic.code]: Math.max(0, (prev[lineForOptimistic.code] ?? 1) - 1),
-          }));
-          setRowPulseCode(lineForOptimistic.code);
-          setTimeout(() => setRowPulseCode((current) => (current === lineForOptimistic.code ? null : current)), 420);
-        }
+        setFlashRowId({ id: resolvedItemId, type: "success" });
         setTimeout(() => setFlashRowId(null), 600);
-        navigator.vibrate?.(50);
+        haptics.tap();
         showScanOverlay(name, delta);
         setScanGeneration((g) => g + 1);
       } catch {
-        if (lineForOptimistic) {
-          setOptimisticActualByCode((prev) => ({
-            ...prev,
-            [lineForOptimistic.code]: lineForOptimistic.actual,
-          }));
-          setRowPendingByCode((prev) => ({
-            ...prev,
-            [lineForOptimistic.code]: Math.max(0, (prev[lineForOptimistic.code] ?? 1) - 1),
-          }));
-        }
-        setFlashRowId({ id: itemId, type: "error" });
+        setFlashRowId({ id: resolvedItemId, type: "error" });
         setTimeout(() => setFlashRowId(null), 600);
-        navigator.vibrate?.(150);
+        haptics.error();
         showScanOverlay(label, null);
       }
     },
-    [getOrCreateSession, lines, optimisticActualByCode, scanMut, showScanOverlay],
+    [getOrCreateSession, qc, scanMut, selectedId, showScanOverlay],
   );
 
   // ── inline edit ───────────────────────────────────────────────────────────
@@ -347,14 +318,14 @@ export default function InventoryPage() {
     setEditingCode(null);
     const parsed = parseInt(editValue, 10);
     if (isNaN(parsed) || parsed < 0 || parsed === line.actual) return;
-    await scanLine(line.itemId, line.label, parsed - line.actual);
+    await scanLine(line.itemId, line.code, line.label, parsed - line.actual);
   }, [editValue, scanLine]);
 
   // ── tab selection ─────────────────────────────────────────────────────────
 
   const trySelectContainer = (id: string) => {
     if (isRestocking && id !== selectedId) {
-      navigator.vibrate?.(150);
+      haptics.error();
       toast.warning("Finish restock before switching containers.");
       return;
     }
@@ -379,12 +350,12 @@ export default function InventoryPage() {
     const container = containersQ.data?.find((c) => c.nfcTagId === tagId);
     if (container) {
       if (isRestocking && container.id !== selectedId) {
-        navigator.vibrate?.(150);
+        haptics.error();
         toast.warning("Finish restock before switching containers.");
         return;
       }
       setSelectedId(container.id);
-      navigator.vibrate?.([30, 20, 30]);
+      haptics.scanSuccess();
       if (!(sessionIdRef.current && activeContainerIdRef.current === container.id)) {
         dispatch({ type: "start-request" });
         startSessionMut.mutateAsync(container.id).catch(() => {});
@@ -399,12 +370,12 @@ export default function InventoryPage() {
       .mutateAsync({ sessionId, nfcTagId: tagId, delta: 1 })
       .then((result) => {
         showScanOverlay(result.item.label, 1);
-        navigator.vibrate?.(50);
+        haptics.tap();
         setScanGeneration((g) => g + 1);
       })
       .catch(() => {
-        showScanOverlay("Unknown NFC tag - assign this tag to an inventory item", null);
-        navigator.vibrate?.(150);
+        showScanOverlay("Unknown NFC tag — assign this tag to an inventory item", null);
+        haptics.error();
       });
   }, [containersQ.data, isRestocking, selectedId, startSessionMut, scanMut, showScanOverlay]);
 
@@ -670,8 +641,8 @@ export default function InventoryPage() {
                             variant="outline"
                             size="icon"
                             className="h-11 w-11 rounded-xl shrink-0"
-                            disabled={otherUserHasSession}
-                            onClick={() => scanLine(line.itemId, line.label, -1)}
+                            disabled={sessionState.isBusy || otherUserHasSession}
+                            onClick={() => scanLine(line.itemId, line.code, line.label, -1)}
                             aria-label={`Decrement ${line.label}`}
                           >
                             <Minus className="w-4 h-4" />
@@ -716,8 +687,8 @@ export default function InventoryPage() {
                             variant="outline"
                             size="icon"
                             className="h-11 w-11 rounded-xl shrink-0"
-                            disabled={otherUserHasSession}
-                            onClick={() => scanLine(line.itemId, line.label, +1)}
+                            disabled={sessionState.isBusy || otherUserHasSession}
+                            onClick={() => scanLine(line.itemId, line.code, line.label, +1)}
                             aria-label={`Increment ${line.label}`}
                           >
                             <Plus className="w-4 h-4" />
@@ -802,6 +773,37 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+
+      {/* Devmode dispense trigger — visible at runtime when ?devmode=1 is in URL */}
+      {isDevMode && (
+        <div className="max-w-2xl mx-auto px-4 pb-20" data-testid="dev-dispense-trigger-section">
+          <div className="border border-dashed border-gray-300 rounded-xl p-3 mt-2">
+            <button
+              data-testid="dev-dispense-trigger"
+              onClick={() => {
+                const containers = containersQ.data;
+                if (!containers || containers.length === 0) {
+                  toast.error("אין עגלות במערכת — צור עגלה תחילה");
+                  return;
+                }
+                setDevDispenseContainerId(containers[0].id);
+              }}
+              className="w-full text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 min-h-[48px] hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            >
+              🧪 בדיקת לקיחת מתכלים
+            </button>
+          </div>
+        </div>
+      )}
+
+      {devDispenseContainerId && (
+        <DispenseSheet
+          containerId={devDispenseContainerId}
+          isOpen={Boolean(devDispenseContainerId)}
+          onClose={() => setDevDispenseContainerId(null)}
+        />
+      )}
+
     </Layout>
   );
 }

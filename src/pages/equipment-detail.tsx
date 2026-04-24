@@ -82,6 +82,9 @@ import { MoveRoomSheet } from "@/components/move-room-sheet";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 import { useSettings } from "@/hooks/use-settings";
 import { playCriticalAlertTone } from "@/lib/sounds";
+import { haptics } from "@/lib/haptics";
+import { safeStorageSetItem } from "@/lib/safe-browser";
+import { isOnline } from "@/lib/safe-browser";
 
 const STATUS_CONFIG = {
   ok: { icon: CheckCircle2, color: "text-emerald-600", iconBg: "bg-emerald-50" },
@@ -157,7 +160,7 @@ export default function EquipmentDetailPage() {
 
   useEffect(() => {
     if (id) {
-      localStorage.setItem("vettrack_last_equipment_id", id);
+      safeStorageSetItem("vettrack_last_equipment_id", id);
     }
     return () => {};
   }, [id]);
@@ -313,7 +316,7 @@ export default function EquipmentDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
   }
 
-  const isOffline = !navigator.onLine;
+  const isOffline = !isOnline();
 
   const scanMut = useMutation({
     mutationFn: async () => {
@@ -332,7 +335,7 @@ export default function EquipmentDetailPage() {
       return { result, prev, capturedStatus, wasOffline: result.pendingSyncId !== undefined };
     },
     onSuccess: ({ result, prev, capturedStatus, wasOffline }) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       setScanDialogOpen(false);
       setScanNote("");
       setScanPhoto(null);
@@ -400,7 +403,7 @@ export default function EquipmentDetailPage() {
       return { result, prev };
     },
     onSuccess: ({ result, prev }) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       setCheckoutLocation("");
 
       const { equipment: updated, undoToken } = result;
@@ -445,7 +448,7 @@ export default function EquipmentDetailPage() {
       return { result, prev, usedPluggedIn: nextPluggedIn, usedDeadline: nextDeadline };
     },
     onSuccess: ({ result, prev, usedPluggedIn, usedDeadline }) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       const { equipment: updated, undoToken } = result;
       const wasOffline = result.pendingSyncId !== undefined;
       setReturnDialogOpen(false);
@@ -515,7 +518,7 @@ export default function EquipmentDetailPage() {
       return { result, prev, capturedNote };
     },
     onSuccess: ({ result, prev, capturedNote }) => {
-      navigator.vibrate?.(50);
+      haptics.tap();
       setReportIssueOpen(false);
       setReportIssueNote("");
       setReportIssuePhoto(null);
@@ -552,7 +555,7 @@ export default function EquipmentDetailPage() {
       }
 
       setTimeout(() => {
-        if (!navigator.onLine) {
+        if (!isOnline()) {
           toast.warning(t.equipmentDetail.toast.issueWhatsAppOffline);
         } else if (isStudentEquipmentRole) {
           toast.success(t.equipmentDetail.toast.issueReported);

@@ -6,6 +6,7 @@ import {
   setStoredLocale,
   type Locale,
 } from "@/lib/i18n";
+import { safeStorageGetItem, safeStorageSetItem } from "@/lib/safe-browser";
 
 export type Density = "compact" | "comfortable";
 export type TimeFormat = "12h" | "24h";
@@ -45,7 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 function loadSettings(): Settings {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = safeStorageGetItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
     if ("language" in parsed) {
@@ -61,7 +62,7 @@ function loadSettings(): Settings {
 
 function saveSettings(settings: Settings) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    safeStorageSetItem(STORAGE_KEY, JSON.stringify(settings));
   } catch {
   }
 }

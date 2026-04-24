@@ -2,6 +2,7 @@ import { interpolate } from "../../lib/i18n/index";
 import type { Locale as SharedLocale } from "../../lib/i18n/types";
 import enDict from "../../locales/en.json";
 import heDict from "../../locales/he.json";
+import { safeStorageGetItem, safeStorageSetItem } from "./safe-browser";
 
 export type Locale = SharedLocale;
 export const LOCALE_STORAGE_KEY = "vettrack-locale";
@@ -30,7 +31,7 @@ export function resolveClientLocale(locale: string | null | undefined): Locale {
 export function getStoredLocale(): Locale {
   try {
     if (typeof window === "undefined") return "he";
-    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    const stored = safeStorageGetItem(LOCALE_STORAGE_KEY);
     return resolveClientLocale(stored);
   } catch {
     return "he";
@@ -41,7 +42,7 @@ export function setStoredLocale(locale: string): Locale {
   const resolved = resolveClientLocale(locale);
   try {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(LOCALE_STORAGE_KEY, resolved);
+      safeStorageSetItem(LOCALE_STORAGE_KEY, resolved);
       refreshTranslations(resolved);
       window.dispatchEvent(new CustomEvent("vettrack:locale-changed", { detail: resolved }));
     }

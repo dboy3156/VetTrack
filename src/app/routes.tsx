@@ -1,6 +1,7 @@
 import { Route, Switch } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
+import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -29,6 +30,7 @@ const AppointmentsPage = lazy(() => import("@/pages/appointments"));
 const MedicationHubPage = lazy(() => import("@/pages/meds"));
 const PharmacyForecastPage = lazy(() => import("@/pages/pharmacy-forecast"));
 const CodeBluePage = lazy(() => import("@/pages/code-blue"));
+const AppTourPage = lazy(() => import("@/pages/app-tour"));
 const WhatsNewPage = lazy(() => import("@/pages/whats-new"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 const BillingLedgerPage = lazy(() => import("@/pages/billing-ledger"));
@@ -38,43 +40,47 @@ const ProcurementPage = lazy(() => import("@/pages/procurement"));
 
 export function AppRoutes() {
   return (
-    <Switch>
-      <Route path="/landing" component={LandingPage} />
-      {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
-      <Route path="/signin/*?" component={SignInPage} />
-      <Route path="/signup/*?" component={SignUpPage} />
+    <PageErrorBoundary fallbackLabel="Page rendering failed">
+      <Switch>
+        <Route path="/" component={LandingPage} />
+        <Route path="/landing" component={LandingPage} />
+        {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
+        <Route path="/signin/*?" component={SignInPage} />
+        <Route path="/signup/*?" component={SignUpPage} />
 
-      <Route path="/"><AuthGuard><HomePage /></AuthGuard></Route>
-      <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
-      <Route path="/equipment/new"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
-      <Route path="/equipment/:id/edit"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
-      <Route path="/equipment/:id/qr"><AuthGuard><EquipmentQrPrintPage /></AuthGuard></Route>
-      <Route path="/equipment/:id"><AuthGuard><EquipmentDetailPage /></AuthGuard></Route>
-      <Route path="/alerts"><AuthGuard><AlertsPage /></AuthGuard></Route>
-      <Route path="/my-equipment"><AuthGuard><MyEquipmentPage /></AuthGuard></Route>
-      <Route path="/rooms"><AuthGuard><RoomsListPage /></AuthGuard></Route>
-      <Route path="/rooms/:id"><AuthGuard><RoomRadarPage /></AuthGuard></Route>
-      <Route path="/shift-handover"><AuthGuard><ShiftHandoverPage /></AuthGuard></Route>
-      <Route path="/inventory"><AuthGuard><InventoryPage /></AuthGuard></Route>
-      <Route path="/analytics"><AuthGuard><AnalyticsPage /></AuthGuard></Route>
-      <Route path="/dashboard"><AuthGuard><ManagementDashboardPage /></AuthGuard></Route>
-      <Route path="/print"><AuthGuard><QrPrintPage /></AuthGuard></Route>
-      <Route path="/admin"><AuthGuard><AdminPage /></AuthGuard></Route>
-      <Route path="/admin/shifts"><AuthGuard><AdminShiftsPage /></AuthGuard></Route>
-      <Route path="/appointments"><AuthGuard><AppointmentsPage /></AuthGuard></Route>
-      <Route path="/meds"><AuthGuard><MedicationHubPage /></AuthGuard></Route>
-      <Route path="/pharmacy-forecast"><AuthGuard><PharmacyForecastPage /></AuthGuard></Route>
-      <Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>
-      <Route path="/stability"><AuthGuard><StabilityDashboardPage /></AuthGuard></Route>
-      <Route path="/settings"><AuthGuard><SettingsPage /></AuthGuard></Route>
-      <Route path="/help"><AuthGuard><HelpPage /></AuthGuard></Route>
-      <Route path="/audit-log"><AuthGuard><AuditLogPage /></AuthGuard></Route>
-      <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
-      <Route path="/billing"><AuthGuard><BillingLedgerPage /></AuthGuard></Route>
-      <Route path="/patients/:id"><AuthGuard><PatientDetailPage /></AuthGuard></Route>
-      <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
-      <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
-      <Route component={NotFoundPage} />
-    </Switch>
+        <Route path="/home"><AuthGuard><HomePage /></AuthGuard></Route>
+        <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
+        <Route path="/equipment/new"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
+        <Route path="/equipment/:id/edit"><AuthGuard><NewEquipmentPage /></AuthGuard></Route>
+        <Route path="/equipment/:id/qr"><AuthGuard><EquipmentQrPrintPage /></AuthGuard></Route>
+        <Route path="/equipment/:id"><AuthGuard><EquipmentDetailPage /></AuthGuard></Route>
+        <Route path="/alerts"><AuthGuard><AlertsPage /></AuthGuard></Route>
+        <Route path="/my-equipment"><AuthGuard><MyEquipmentPage /></AuthGuard></Route>
+        <Route path="/rooms"><AuthGuard><RoomsListPage /></AuthGuard></Route>
+        <Route path="/rooms/:id"><AuthGuard><RoomRadarPage /></AuthGuard></Route>
+        <Route path="/shift-handover"><AuthGuard><ShiftHandoverPage /></AuthGuard></Route>
+        <Route path="/inventory"><AuthGuard><InventoryPage /></AuthGuard></Route>
+        <Route path="/analytics"><AuthGuard><AnalyticsPage /></AuthGuard></Route>
+        <Route path="/dashboard"><AuthGuard><ManagementDashboardPage /></AuthGuard></Route>
+        <Route path="/print"><AuthGuard><QrPrintPage /></AuthGuard></Route>
+        <Route path="/admin"><AuthGuard><AdminPage /></AuthGuard></Route>
+        <Route path="/admin/shifts"><AuthGuard><AdminShiftsPage /></AuthGuard></Route>
+        <Route path="/appointments"><AuthGuard><AppointmentsPage /></AuthGuard></Route>
+        <Route path="/meds"><AuthGuard><MedicationHubPage /></AuthGuard></Route>
+        <Route path="/pharmacy-forecast"><AuthGuard><PharmacyForecastPage /></AuthGuard></Route>
+        <Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>
+        <Route path="/app-tour"><AuthGuard><AppTourPage /></AuthGuard></Route>
+        <Route path="/stability"><AuthGuard><StabilityDashboardPage /></AuthGuard></Route>
+        <Route path="/settings"><AuthGuard><SettingsPage /></AuthGuard></Route>
+        <Route path="/help"><AuthGuard><HelpPage /></AuthGuard></Route>
+        <Route path="/audit-log"><AuthGuard><AuditLogPage /></AuthGuard></Route>
+        <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
+        <Route path="/billing"><AuthGuard><BillingLedgerPage /></AuthGuard></Route>
+        <Route path="/patients/:id"><AuthGuard><PatientDetailPage /></AuthGuard></Route>
+        <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
+        <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
+        <Route component={NotFoundPage} />
+      </Switch>
+    </PageErrorBoundary>
   );
 }

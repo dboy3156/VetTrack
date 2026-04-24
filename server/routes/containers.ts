@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { containerItems, containers, db, inventoryLogs, auditLogs } from "../db.js";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
-import { logAudit } from "../lib/audit.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
 import { restockContainerInTx } from "../services/inventory.service.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
@@ -72,6 +71,37 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
+    const nfcTagId = typeof req.query.nfcTagId === "string" ? req.query.nfcTagId.trim() : null;
+
+    if (nfcTagId) {
+      // Lookup by NFC tag — return single container with items or 404
+      const [container] = await db
+        .select()
+        .from(containers)
+        .where(and(eq(containers.clinicId, clinicId), eq(containers.nfcTagId, nfcTagId)))
+        .limit(1);
+
+      if (!container) {
+        return res.status(404).json(
+          apiError({ code: "NOT_FOUND", reason: "CONTAINER_NOT_FOUND", message: "No container found for this NFC tag", requestId }),
+        );
+      }
+
+      const items = await db
+        .select({
+          id: containerItems.id,
+          itemId: containerItems.itemId,
+          quantity: containerItems.quantity,
+          label: inventoryItems.label,
+          code: inventoryItems.code,
+        })
+        .from(containerItems)
+        .leftJoin(inventoryItems, eq(containerItems.itemId, inventoryItems.id))
+        .where(and(eq(containerItems.clinicId, clinicId), eq(containerItems.containerId, container.id)));
+
+      return res.json({ ...container, items });
+    }
+
     const rows = await db
       .select()
       .from(containers)
@@ -185,6 +215,392 @@ router.post(
         requestId,
       }),
     );
+  },
+);
+
+// ─── Dispense schemas ─────────────────────────────────────────────────────────
+
+const dispenseSchema = z.object({
+  items: z.array(
+    z.object({
+      itemId: z.string().min(1),
+      quantity: z.number().int().min(1),
+    }),
+  ),
+  animalId: z.string().nullable().optional(),
+  isEmergency: z.boolean().optional().default(false),
+});
+
+const completeEmergencySchema = z.object({
+  items: z.array(
+    z.object({
+      itemId: z.string().min(1),
+      quantity: z.number().int().min(1),
+    }),
+  ),
+  animalId: z.string().nullable().optional(),
+});
+
+// POST /api/containers/:id/dispense
+router.post(
+  "/:id/dispense",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateUuid("id"),
+  validateBody(dispenseSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const clinicId = req.clinicId!;
+      const actorUserId = req.authUser!.id;
+      const actorDisplayName = req.authUser!.name || req.authUser!.email;
+      const containerId = req.params.id;
+      const body = req.body as z.infer<typeof dispenseSchema>;
+      const { isEmergency, animalId } = body;
+      const takenAt = new Date();
+
+      if (isEmergency) {
+        // Emergency dispense: just log it, no stock changes
+        const emergencyEventId = randomUUID();
+        await db.transaction(async (tx) => {
+          const [container] = await tx
+            .select()
+            .from(containers)
+            .where(and(eq(containers.clinicId, clinicId), eq(containers.id, containerId)))
+            .limit(1);
+          if (!container) throw Object.assign(new Error("CONTAINER_NOT_FOUND"), { statusCode: 404 });
+
+          await tx.insert(inventoryLogs).values({
+            id: emergencyEventId,
+            clinicId,
+            containerId,
+            taskId: null,
+            logType: "adjustment",
+            quantityBefore: 0,
+            quantityAdded: 0,
+            quantityAfter: 0,
+            animalId: null,
+            roomId: container.roomId,
+            note: "emergency",
+            metadata: { isEmergency: true, containerId, pendingCompletion: true },
+            createdByUserId: actorUserId,
+          });
+        });
+
+        return res.json({
+          success: true,
+          emergencyEventId,
+          takenBy: { userId: actorUserId, displayName: actorDisplayName },
+          takenAt: takenAt.toISOString(),
+        });
+      }
+
+      // Normal dispense
+      const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
+      const billingIds: string[] = [];
+
+      await db.transaction(async (tx) => {
+        const [container] = await tx
+          .select()
+          .from(containers)
+          .where(and(eq(containers.clinicId, clinicId), eq(containers.id, containerId)))
+          .limit(1);
+        if (!container) throw Object.assign(new Error("CONTAINER_NOT_FOUND"), { statusCode: 404 });
+
+        for (const lineItem of body.items) {
+          // Verify container item exists and has sufficient quantity
+          const [ci] = await tx
+            .select()
+            .from(containerItems)
+            .where(
+              and(
+                eq(containerItems.clinicId, clinicId),
+                eq(containerItems.containerId, containerId),
+                eq(containerItems.itemId, lineItem.itemId),
+              ),
+            )
+            .limit(1);
+
+          if (!ci) {
+            throw Object.assign(new Error("ITEM_NOT_IN_CONTAINER"), {
+              statusCode: 409,
+              code: "INSUFFICIENT_STOCK",
+              itemId: lineItem.itemId,
+              available: 0,
+              requested: lineItem.quantity,
+            });
+          }
+
+          if (ci.quantity < lineItem.quantity) {
+            throw Object.assign(new Error("INSUFFICIENT_STOCK"), {
+              statusCode: 409,
+              code: "INSUFFICIENT_STOCK",
+              itemId: lineItem.itemId,
+              available: ci.quantity,
+              requested: lineItem.quantity,
+            });
+          }
+
+          // Get item label
+          const [item] = await tx
+            .select({ label: inventoryItems.label })
+            .from(inventoryItems)
+            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, lineItem.itemId)))
+            .limit(1);
+
+          const newQty = ci.quantity - lineItem.quantity;
+
+          // Decrement container item quantity
+          await tx
+            .update(containerItems)
+            .set({ quantity: newQty, updatedAt: new Date() })
+            .where(
+              and(
+                eq(containerItems.clinicId, clinicId),
+                eq(containerItems.containerId, containerId),
+                eq(containerItems.itemId, lineItem.itemId),
+              ),
+            );
+
+          // Insert inventory log
+          await tx.insert(inventoryLogs).values({
+            id: randomUUID(),
+            clinicId,
+            containerId,
+            taskId: null,
+            logType: "adjustment",
+            quantityBefore: ci.quantity,
+            quantityAdded: -lineItem.quantity,
+            quantityAfter: newQty,
+            animalId: animalId ?? null,
+            roomId: container.roomId,
+            note: null,
+            metadata: { isEmergency: false, itemId: lineItem.itemId },
+            createdByUserId: actorUserId,
+          });
+
+          dispensedItems.push({
+            itemId: lineItem.itemId,
+            label: item?.label ?? lineItem.itemId,
+            quantity: lineItem.quantity,
+            newStock: newQty,
+          });
+
+          // Billing if animalId provided
+          if (animalId) {
+            const billingId = randomUUID();
+            const idempotencyKey = `dispense_${clinicId}_${containerId}_${lineItem.itemId}_${takenAt.getTime()}`;
+            await tx.insert(billingLedger).values({
+              id: billingId,
+              clinicId,
+              animalId,
+              itemType: "CONSUMABLE",
+              itemId: lineItem.itemId,
+              quantity: lineItem.quantity,
+              unitPriceCents: 0,
+              totalAmountCents: 0,
+              idempotencyKey,
+              status: "pending",
+            });
+            billingIds.push(billingId);
+          }
+        }
+      });
+
+      return res.json({
+        success: true,
+        dispensed: dispensedItems,
+        takenBy: { userId: actorUserId, displayName: actorDisplayName },
+        takenAt: takenAt.toISOString(),
+        billingIds,
+      });
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown>;
+      if (e.code === "INSUFFICIENT_STOCK") {
+        return res.status(409).json({
+          code: "INSUFFICIENT_STOCK",
+          error: "INSUFFICIENT_STOCK",
+          reason: "Insufficient stock",
+          message: "Insufficient stock for requested item",
+          itemId: e.itemId,
+          available: e.available,
+          requested: e.requested,
+          requestId,
+        });
+      }
+      if ((e as { statusCode?: number }).statusCode === 404) {
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "CONTAINER_NOT_FOUND", message: "Container not found", requestId }));
+      }
+      console.error(err);
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "DISPENSE_FAILED", message: "Failed to process dispense", requestId }));
+    }
+  },
+);
+
+// PATCH /api/containers/emergency/:eventId/complete
+router.patch(
+  "/emergency/:eventId/complete",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(completeEmergencySchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const clinicId = req.clinicId!;
+      const actorUserId = req.authUser!.id;
+      const actorDisplayName = req.authUser!.name || req.authUser!.email;
+      const eventId = req.params.eventId;
+      const body = req.body as z.infer<typeof completeEmergencySchema>;
+      const { animalId } = body;
+      const takenAt = new Date();
+
+      const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
+      const billingIds: string[] = [];
+
+      await db.transaction(async (tx) => {
+        // Find the emergency event log
+        const [origLog] = await tx
+          .select()
+          .from(inventoryLogs)
+          .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, eventId)))
+          .limit(1);
+
+        if (!origLog) throw Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });
+
+        const meta = origLog.metadata as Record<string, unknown> | null;
+        if (!meta?.isEmergency || !meta?.pendingCompletion) {
+          throw Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });
+        }
+
+        const containerId = origLog.containerId;
+
+        const [container] = await tx
+          .select()
+          .from(containers)
+          .where(and(eq(containers.clinicId, clinicId), eq(containers.id, containerId)))
+          .limit(1);
+        if (!container) throw Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });
+
+        for (const lineItem of body.items) {
+          const [ci] = await tx
+            .select()
+            .from(containerItems)
+            .where(
+              and(
+                eq(containerItems.clinicId, clinicId),
+                eq(containerItems.containerId, containerId),
+                eq(containerItems.itemId, lineItem.itemId),
+              ),
+            )
+            .limit(1);
+
+          if (!ci || ci.quantity < lineItem.quantity) {
+            throw Object.assign(new Error("INSUFFICIENT_STOCK"), {
+              statusCode: 409,
+              code: "INSUFFICIENT_STOCK",
+              itemId: lineItem.itemId,
+              available: ci?.quantity ?? 0,
+              requested: lineItem.quantity,
+            });
+          }
+
+          const [item] = await tx
+            .select({ label: inventoryItems.label })
+            .from(inventoryItems)
+            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, lineItem.itemId)))
+            .limit(1);
+
+          const newQty = ci.quantity - lineItem.quantity;
+
+          await tx
+            .update(containerItems)
+            .set({ quantity: newQty, updatedAt: new Date() })
+            .where(
+              and(
+                eq(containerItems.clinicId, clinicId),
+                eq(containerItems.containerId, containerId),
+                eq(containerItems.itemId, lineItem.itemId),
+              ),
+            );
+
+          await tx.insert(inventoryLogs).values({
+            id: randomUUID(),
+            clinicId,
+            containerId,
+            taskId: null,
+            logType: "adjustment",
+            quantityBefore: ci.quantity,
+            quantityAdded: -lineItem.quantity,
+            quantityAfter: newQty,
+            animalId: animalId ?? null,
+            roomId: container.roomId,
+            note: null,
+            metadata: { isEmergency: true, emergencyEventId: eventId, itemId: lineItem.itemId },
+            createdByUserId: origLog.createdByUserId,
+          });
+
+          dispensedItems.push({
+            itemId: lineItem.itemId,
+            label: item?.label ?? lineItem.itemId,
+            quantity: lineItem.quantity,
+            newStock: newQty,
+          });
+
+          if (animalId) {
+            const billingId = randomUUID();
+            const idempotencyKey = `dispense_${clinicId}_${containerId}_${lineItem.itemId}_${takenAt.getTime()}_em_${eventId}`;
+            await tx.insert(billingLedger).values({
+              id: billingId,
+              clinicId,
+              animalId,
+              itemType: "CONSUMABLE",
+              itemId: lineItem.itemId,
+              quantity: lineItem.quantity,
+              unitPriceCents: 0,
+              totalAmountCents: 0,
+              idempotencyKey,
+              status: "pending",
+            });
+            billingIds.push(billingId);
+          }
+        }
+
+        // Mark original emergency log as completed
+        await tx
+          .update(inventoryLogs)
+          .set({
+            metadata: { ...meta, pendingCompletion: false },
+          })
+          .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, eventId)));
+      });
+
+      return res.json({
+        success: true,
+        dispensed: dispensedItems,
+        takenBy: { userId: actorUserId, displayName: actorDisplayName },
+        takenAt: takenAt.toISOString(),
+        billingIds,
+      });
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown>;
+      if (e.code === "INSUFFICIENT_STOCK") {
+        return res.status(409).json({
+          code: "INSUFFICIENT_STOCK",
+          error: "INSUFFICIENT_STOCK",
+          reason: "Insufficient stock",
+          message: "Insufficient stock for requested item",
+          itemId: e.itemId,
+          available: e.available,
+          requested: e.requested,
+          requestId,
+        });
+      }
+      if ((e as { statusCode?: number }).statusCode === 404) {
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "EVENT_NOT_FOUND", message: "Emergency event not found", requestId }));
+      }
+      console.error(err);
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "COMPLETE_EMERGENCY_FAILED", message: "Failed to complete emergency", requestId }));
+    }
   },
 );
 

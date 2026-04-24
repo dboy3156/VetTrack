@@ -6,6 +6,7 @@ import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { restoreOfflineSession, saveOfflineSession, clearOfflineSession } from "@/lib/offline-session";
 import { setAuthStateRef, clearHaltQueue, processQueue } from "@/lib/sync-engine";
+import { isOnline, safeReloadPage } from "@/lib/safe-browser";
 
 export type UserStatus = "pending" | "active" | "blocked" | null;
 export type AccessDeniedReason =
@@ -65,7 +66,7 @@ const AuthContext = createContext<AuthContextType>({
 function DevAuthProviderInner({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
-  const offlineSnapshot = typeof window !== "undefined" && !navigator.onLine
+  const offlineSnapshot = typeof window !== "undefined" && !isOnline()
     ? restoreOfflineSession()
     : null;
 
@@ -131,7 +132,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
       isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
     });
     if (typeof window !== "undefined") {
-      window.location.assign("/landing");
+      safeReloadPage({ minIntervalMs: 1000 });
     }
   }, [queryClient]);
 
@@ -237,7 +238,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
   const { getToken, signOut: clerkSignOut } = useClerkAuth();
   const queryClient = useQueryClient();
 
-  const offlineSnapshot = typeof window !== "undefined" && !navigator.onLine
+  const offlineSnapshot = typeof window !== "undefined" && !isOnline()
     ? restoreOfflineSession()
     : null;
 
@@ -311,7 +312,7 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
     clearHaltQueue();
     setAuthState({ userId: "", email: "", name: "", bearerToken: null });
     queryClient.clear();
-    await clerkSignOut({ redirectUrl: "/landing" });
+    await clerkSignOut({ redirectUrl: "/" });
   }, [queryClient, clerkSignOut]);
 
   const refreshAuth = useCallback(() => {

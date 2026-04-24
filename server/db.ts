@@ -66,6 +66,7 @@ export const owners = pgTable("vt_owners", {
 export const clinics = pgTable("vt_clinics", {
   id: text("id").primaryKey(),
   pharmacyEmail: text("pharmacy_email"),
+  forecastPdfSourceFormat: varchar("forecast_pdf_source_format", { length: 20 }).notNull().default("smartflow"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -471,6 +472,7 @@ export const inventoryLogs = pgTable(
     animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
     roomId: text("room_id").references(() => rooms.id, { onDelete: "set null" }),
     note: text("note"),
+    metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     createdByUserId: text("created_by_user_id")
       .notNull()

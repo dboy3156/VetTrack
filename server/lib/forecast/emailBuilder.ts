@@ -30,6 +30,29 @@ export function buildPharmacyOrderEmail(params: {
   auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
   patientWeightOverrides?: Record<string, number>;
 }): { subject: string; text: string; html: string } {
+  // ORIGINAL
+  // export function buildPharmacyOrderEmail(params: {
+  //   result: ForecastResult;
+  //   technicianName: string;
+  //   auditOrOrderHint?: string;
+  //   auditTrace?: Record<string, { forecastedQty: number | null; onHandQty: number }>;
+  //   patientWeightOverrides?: Record<string, number>;
+  // }): { subject: string; text: string; html: string } {
+  //   const {
+  //     result,
+  //     technicianName,
+  //     auditTrace = {},
+  //     patientWeightOverrides = {},
+  //   } = params;
+  //   const n = result.patients.length;
+  //   const mode = result.weekendMode || result.windowHours === 72 ? "סוף שבוע" : "רגיל";
+  //   const dayStr = new Date(result.parsedAt).toLocaleDateString("he-IL");
+  //   const subject = `הזמנת תרופות ICU · ${n} מטופלים · ${result.windowHours}ש׳ (${mode}) · ${dayStr} · אישר/ה: ${technicianName}`;
+  //   const sorted = [...result.patients].sort((a, b) =>
+  //     a.recordNumber.localeCompare(b.recordNumber, undefined, { numeric: true }),
+  //   );
+  //   // ... full implementation preserved in git history; only parse-failure sections added below.
+  // }
   const {
     result,
     technicianName,
@@ -54,6 +77,13 @@ export function buildPharmacyOrderEmail(params: {
   ];
   if (params.auditOrOrderHint) lines.push(`מזהה: ${params.auditOrOrderHint}`);
   lines.push("");
+  if (result.parseFailures && result.parseFailures.length > 0) {
+    lines.push("קבצים שלא פוענחו:");
+    for (const failure of result.parseFailures) {
+      lines.push(`• ${failure.fileName} — ${failure.message}`);
+    }
+    lines.push("");
+  }
 
   for (const p of sorted) {
     const wt = patientWeightOverrides[p.recordNumber] ?? p.weightKg;
@@ -138,6 +168,21 @@ export function buildPharmacyOrderEmail(params: {
     </div>`;
   }).join("\n");
 
+  const parseFailuresSection =
+    result.parseFailures && result.parseFailures.length > 0
+      ? `
+    <div style="margin:0 0 20px;border:1px solid #f59e0b;border-radius:8px;overflow:hidden">
+      <div style="background:#fef3c7;color:#92400e;padding:10px 16px;font-size:14px;font-weight:700">
+        קבצים שלא פוענחו
+      </div>
+      <div style="padding:12px 16px;background:#fffbeb" dir="rtl">
+        ${result.parseFailures
+          .map((failure) => `<div style="font-size:13px;color:#92400e;margin-bottom:6px"><strong>${esc(failure.fileName)}</strong> — ${esc(failure.message)}</div>`)
+          .join("")}
+      </div>
+    </div>`
+      : "";
+
   const html = `<!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -151,7 +196,7 @@ export function buildPharmacyOrderEmail(params: {
       <span>הוכן ע״י: <strong>${esc(technicianName)}</strong></span>
       ${params.auditOrOrderHint ? `<span style="opacity:.75">מזהה: ${esc(params.auditOrOrderHint)}</span>` : ""}
     </div>
-    <div style="padding:16px 24px">${patientSections}</div>
+    <div style="padding:16px 24px">${parseFailuresSection}${patientSections}</div>
     <div style="background:#f7f9fc;border-top:1px solid #e2e8f0;padding:12px 24px;font-size:12px;color:#888;text-align:center">
       נוצר אוטומטית על ידי VetTrack · ICU Pharmacy Forecast · ${esc(dayStr)}
     </div>

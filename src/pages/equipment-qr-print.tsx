@@ -6,6 +6,7 @@ import { generateQrUrl } from '@/lib/utils';
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/hooks/use-auth';
 import { authFetch } from '@/lib/auth-fetch';
+import { safePrintPage } from '@/lib/safe-browser';
 
 export default function EquipmentQRPrint() {
   const { id } = useParams<{ id: string }>();
@@ -25,14 +26,14 @@ export default function EquipmentQRPrint() {
 
   useEffect(() => {
     if (isSuccess) {
-      const timer = setTimeout(() => window.print(), 800);
+      const timer = setTimeout(() => safePrintPage(), 800);
       return () => clearTimeout(timer);
     }
   }, [isSuccess]);
 
   if (!equipment) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh' }}>
         <p>{t.common.loading}</p>
       </div>
     );
@@ -44,7 +45,7 @@ export default function EquipmentQRPrint() {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: '100vh',
+      minHeight: '100dvh',
       backgroundColor: '#ffffff',
       padding: '32px',
       fontFamily: 'sans-serif',

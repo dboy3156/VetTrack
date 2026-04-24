@@ -11,6 +11,7 @@ import {
 import { getAuthHeaders } from "./auth-store";
 import { clearOfflineSession } from "./offline-session";
 import { addConflict } from "./conflict-store";
+import { isOnline } from "./safe-browser";
 
 const MAX_RETRIES = 5;
 const RETRY_DELAYS_MS = [2000, 5000, 10000];
@@ -91,12 +92,12 @@ function openCircuit() {
     circuitResetTimerId = null;
     notifyListeners();
     toast.success(t.syncEngine.resumedTryingPending, { duration: 3000 });
-    if (navigator.onLine && !haltQueue) processQueue().catch(() => {});
+    if (isOnline() && !haltQueue) processQueue().catch(() => {});
   }, CIRCUIT_COOLDOWN_MS);
 }
 
 export async function processQueue(): Promise<void> {
-  if (syncing || !navigator.onLine) return;
+  if (syncing || !isOnline()) return;
 
   if (Date.now() < circuitOpenUntil) {
     notifyListeners();
@@ -200,7 +201,7 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
   let currentRetries = item.retries || 0;
   let lastResult: ItemResult = "transient_failure";
 
-  while (currentRetries < MAX_RETRIES && navigator.onLine && !haltQueue) {
+  while (currentRetries < MAX_RETRIES && isOnline() && !haltQueue) {
     const result = await attemptSync(item);
     lastResult = result;
 
@@ -243,7 +244,7 @@ async function processSingleItemWithRetry(item: PendingSync): Promise<ItemResult
       return "transient_failure";
     }
 
-    if (navigator.onLine) {
+    if (isOnline()) {
       const base = RETRY_DELAYS_MS[currentRetries - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
       await sleep(jitteredDelay(base));
     } else {
@@ -372,7 +373,7 @@ export function initSyncEngine(queryClient?: QueryClient) {
 
   window.addEventListener("online", handleOnline);
 
-  if (navigator.onLine) {
+  if (isOnline()) {
     setTimeout(() => processQueue(), 1000);
   }
 

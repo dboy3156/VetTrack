@@ -11,6 +11,9 @@ import type {
   ShiftHandoverSummary,
   ShiftHandoverSession,
   InventoryContainer,
+  InventoryContainerWithItems,
+  ConsumablesReport,
+  ActivePatient,
   ScanLog,
   TransferLog,
   Folder,
@@ -51,10 +54,12 @@ import type {
   RestockContainerView,
   RestockFinishSummary,
   BillingLedgerEntry,
+  BillingSummary,
   InventoryItem,
   PurchaseOrder,
   ForecastParseResponse,
   ForecastApproveResponse,
+  ForecastKeepaliveResponse,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -78,6 +83,7 @@ import {
 } from "./auth-store";
 import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
+import { isOnline } from "./safe-browser";
 
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -139,7 +145,7 @@ function isNetworkError(err: unknown): boolean {
   if (err instanceof TimeoutError) return true;
   if (err instanceof OfflineResponseError) return true;
   if (err instanceof DOMException && err.name === "AbortError") return false;
-  if (!navigator.onLine) return true;
+  if (!isOnline()) return true;
   if (err instanceof TypeError) return true;
   if (err instanceof Error && err.message.includes("Failed to fetch")) return true;
   return false;
@@ -1055,6 +1061,46 @@ export const api = {
         `/api/containers/${id}/blind-audit`,
         { method: "POST", body: JSON.stringify({ physicalCount, note }) },
       ),
+    dispense: (
+      containerId: string,
+      data: {
+        items: Array<{ itemId: string; quantity: number }>;
+        animalId?: string | null;
+        isEmergency?: boolean;
+      },
+    ) =>
+      request<{
+        success: boolean;
+        emergencyEventId?: string;
+        dispensed?: Array<{ itemId: string; label: string; quantity: number; newStock: number }>;
+        takenBy: { userId: string; displayName: string };
+        takenAt: string;
+        billingIds?: string[];
+      }>(`/api/containers/${containerId}/dispense`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    completeEmergency: (
+      eventId: string,
+      data: {
+        items: Array<{ itemId: string; quantity: number }>;
+        animalId?: string | null;
+      },
+    ) =>
+      request<{
+        success: boolean;
+        dispensed: Array<{ itemId: string; label: string; quantity: number; newStock: number }>;
+        takenBy: { userId: string; displayName: string };
+        takenAt: string;
+        billingIds: string[];
+      }>(`/api/containers/emergency/${eventId}/complete`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    getByNfcTag: (nfcTagId: string) =>
+      request<InventoryContainerWithItems>(
+        `/api/containers?nfcTagId=${encodeURIComponent(nfcTagId)}`,
+      ),
   },
   restock: {
     start: (containerId: string) =>
@@ -1112,6 +1158,13 @@ export const api = {
       note?: string;
     }) => request<BillingLedgerEntry>("/api/billing", { method: "POST", body: JSON.stringify(data) }),
     void: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}/void`, { method: "PATCH" }),
+    summary: (params?: { from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      const query = qs.toString();
+      return request<BillingSummary>(`/api/billing/summary${query ? `?${query}` : ""}`);
+    },
   },
   inventoryItems: {
     list: () => request<InventoryItem[]>("/api/inventory-items"),
@@ -1160,6 +1213,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body ?? {}),
       }),
+    consumablesReport: (from: string, to: string) =>
+      request<ConsumablesReport>(
+        `/api/shift-handover/consumables-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      ),
   },
   forecast: {
     parseJson: (body: { text: string; windowHours?: 24 | 72; weekendMode?: boolean }) =>
@@ -1167,9 +1224,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    parseMultipart: (file: File, params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
+    parseMultipart: (files: File[], params?: { windowHours?: 24 | 72; weekendMode?: boolean }) => {
       const fd = new FormData();
-      fd.append("file", file);
+      for (const file of files) {
+        fd.append("file", file);
+      }
       if (params?.windowHours != null) fd.append("windowHours", String(params.windowHours));
       if (params?.weekendMode != null) fd.append("weekendMode", String(params.weekendMode));
       return request<ForecastParseResponse>("/api/forecast/parse", {
@@ -1191,13 +1250,22 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-    getPharmacyEmail: () =>
-      request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email"),
-    setPharmacyEmail: (pharmacyEmail: string | null) =>
-      request<{ pharmacyEmail: string | null }>("/api/forecast/clinic/pharmacy-email", {
-        method: "PATCH",
-        body: JSON.stringify({ pharmacyEmail }),
+    parseKeepalive: (parseId: string) =>
+      request<ForecastKeepaliveResponse>(`/api/forecast/parse/${encodeURIComponent(parseId)}/keepalive`, {
+        method: "POST",
       }),
+    getPharmacyEmail: () =>
+      request<{ pharmacyEmail: string | null; forecastPdfSourceFormat: "smartflow" | "generic" }>(
+        "/api/forecast/clinic/pharmacy-email",
+      ),
+    setPharmacyEmail: (body: { pharmacyEmail: string | null; forecastPdfSourceFormat?: "smartflow" | "generic" }) =>
+      request<{ pharmacyEmail: string | null; forecastPdfSourceFormat: "smartflow" | "generic" }>(
+        "/api/forecast/clinic/pharmacy-email",
+        {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        },
+      ),
     listExclusions: () =>
       request<{ exclusions: import("@/types").PharmacyForecastExclusion[] }>("/api/forecast/clinic/pharmacy-forecast-exclusions"),
     addExclusion: (data: { matchSubstring: string; note?: string | null }) =>
@@ -1207,5 +1275,9 @@ export const api = {
       }),
     removeExclusion: (id: string) =>
       request<void>(`/api/forecast/clinic/pharmacy-forecast-exclusions/${id}`, { method: "DELETE" }),
+  },
+  animals: {
+    active: () =>
+      request<{ animals: ActivePatient[] }>("/api/animals/active"),
   },
 };

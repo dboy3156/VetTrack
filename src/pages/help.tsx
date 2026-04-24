@@ -235,7 +235,7 @@ export default function HelpPage() {
         </Section>
 
         <div className="text-center pt-2 pb-4">
-          <Link href="/">
+          <Link href="/home">
             <Button variant="outline" className="gap-2 h-11">
               {t.helpPage.backToDashboard}
             </Button>
