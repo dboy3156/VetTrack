@@ -7,6 +7,7 @@ import { ErrorCard } from "@/components/ui/error-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Package, Loader2, Minus, Plus, CheckCircle2, AlertTriangle, Nfc } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -140,9 +141,13 @@ export default function InventoryPage() {
   // delta null = error, number = amount changed (positive or negative)
   const [scanOverlay, setScanOverlay] = useState<{ label: string; delta: number | null } | null>(null);
   const [scanGeneration, setScanGeneration] = useState(0);
+  const [isNfcStarting, setIsNfcStarting] = useState(false);
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [optimisticActualByCode, setOptimisticActualByCode] = useState<Record<string, number>>({});
+  const [rowPendingByCode, setRowPendingByCode] = useState<Record<string, number>>({});
+  const [rowPulseCode, setRowPulseCode] = useState<string | null>(null);
 
   // ── overlay ───────────────────────────────────────────────────────────────
 
@@ -158,6 +163,18 @@ export default function InventoryPage() {
   useEffect(() => () => {
     if (overlayClearRef.current !== undefined) clearTimeout(overlayClearRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!detailsQ.data?.lines) return;
+    setOptimisticActualByCode((prev) => {
+      const next: Record<string, number> = {};
+      for (const line of detailsQ.data.lines) {
+        next[line.code] = prev[line.code] ?? line.actual;
+      }
+      return next;
+    });
+    setRowPendingByCode({});
+  }, [detailsQ.data?.lines, selectedId]);
 
   // ── mutations ─────────────────────────────────────────────────────────────
 
@@ -244,30 +261,77 @@ export default function InventoryPage() {
 
   const scanLine = useCallback(
     async (itemId: string | null, label: string, delta: number) => {
+      const lineForOptimistic = lines.find((l) => l.itemId === itemId);
       if (!itemId) {
         navigator.vibrate?.(150);
         showScanOverlay(label, null);
         return;
       }
+
+      if (lineForOptimistic) {
+        const currentActual = optimisticActualByCode[lineForOptimistic.code] ?? lineForOptimistic.actual;
+        const nextActual = Math.max(0, currentActual + delta);
+        setOptimisticActualByCode((prev) => ({ ...prev, [lineForOptimistic.code]: nextActual }));
+        setRowPendingByCode((prev) => ({
+          ...prev,
+          [lineForOptimistic.code]: (prev[lineForOptimistic.code] ?? 0) + 1,
+        }));
+      }
+
       const sessionId = await getOrCreateSession();
-      if (!sessionId) return;
+      if (!sessionId) {
+        if (lineForOptimistic) {
+          setOptimisticActualByCode((prev) => ({
+            ...prev,
+            [lineForOptimistic.code]: lineForOptimistic.actual,
+          }));
+          setRowPendingByCode((prev) => ({
+            ...prev,
+            [lineForOptimistic.code]: Math.max(0, (prev[lineForOptimistic.code] ?? 1) - 1),
+          }));
+        }
+        return;
+      }
       dispatch({ type: "scan-request" });
       try {
         const result = await scanMut.mutateAsync({ sessionId, itemId, delta });
         const name = result?.item?.label ?? label;
         setFlashRowId({ id: itemId, type: "success" });
+        if (lineForOptimistic) {
+          setOptimisticActualByCode((prev) => ({
+            ...prev,
+            [lineForOptimistic.code]:
+              prev[lineForOptimistic.code] ?? lineForOptimistic.actual,
+          }));
+          setRowPendingByCode((prev) => ({
+            ...prev,
+            [lineForOptimistic.code]: Math.max(0, (prev[lineForOptimistic.code] ?? 1) - 1),
+          }));
+          setRowPulseCode(lineForOptimistic.code);
+          setTimeout(() => setRowPulseCode((current) => (current === lineForOptimistic.code ? null : current)), 420);
+        }
         setTimeout(() => setFlashRowId(null), 600);
         navigator.vibrate?.(50);
         showScanOverlay(name, delta);
         setScanGeneration((g) => g + 1);
       } catch {
+        if (lineForOptimistic) {
+          setOptimisticActualByCode((prev) => ({
+            ...prev,
+            [lineForOptimistic.code]: lineForOptimistic.actual,
+          }));
+          setRowPendingByCode((prev) => ({
+            ...prev,
+            [lineForOptimistic.code]: Math.max(0, (prev[lineForOptimistic.code] ?? 1) - 1),
+          }));
+        }
         setFlashRowId({ id: itemId, type: "error" });
         setTimeout(() => setFlashRowId(null), 600);
         navigator.vibrate?.(150);
         showScanOverlay(label, null);
       }
     },
-    [getOrCreateSession, scanMut, showScanOverlay],
+    [getOrCreateSession, lines, optimisticActualByCode, scanMut, showScanOverlay],
   );
 
   // ── inline edit ───────────────────────────────────────────────────────────
@@ -339,13 +403,14 @@ export default function InventoryPage() {
         setScanGeneration((g) => g + 1);
       })
       .catch(() => {
-        showScanOverlay("Unknown item", null);
+        showScanOverlay("Unknown NFC tag - assign this tag to an inventory item", null);
         navigator.vibrate?.(150);
       });
   }, [containersQ.data, isRestocking, selectedId, startSessionMut, scanMut, showScanOverlay]);
 
   const startNFCScan = async () => {
     if (!nfcSupported || nfcActiveRef.current) return;
+    setIsNfcStarting(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ndef = new (window as any).NDEFReader();
@@ -353,9 +418,13 @@ export default function InventoryPage() {
       nfcActiveRef.current = true;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ndef.onreading = (event: any) => handleNFCTag(event.serialNumber as string);
-      toast.success("NFC scanning active");
+      navigator.vibrate?.([20, 25, 20]);
+      toast.success("NFC ready — tap a tag", { duration: 3200 });
     } catch {
+      navigator.vibrate?.(140);
       toast.error("Failed to start NFC scanning");
+    } finally {
+      setIsNfcStarting(false);
     }
   };
 
@@ -367,7 +436,7 @@ export default function InventoryPage() {
         <title>{p.title} — VetTrack</title>
       </Helmet>
 
-      <div className="max-w-2xl mx-auto p-4 space-y-4" data-restock-allow>
+      <div className="max-w-2xl mx-auto p-4 pb-24 space-y-4 motion-safe:animate-page-enter" data-restock-allow>
 
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -376,9 +445,15 @@ export default function InventoryPage() {
             {p.title}
           </h1>
           {nfcSupported && (
-            <Button variant="outline" size="sm" onClick={startNFCScan} className="gap-1.5 shrink-0">
-              <Nfc className="w-4 h-4" />
-              NFC
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startNFCScan}
+              disabled={isNfcStarting || nfcActiveRef.current}
+              className="gap-1.5 shrink-0 min-h-[40px]"
+            >
+              {isNfcStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Nfc className="w-4 h-4" />}
+              {nfcActiveRef.current ? "NFC live" : isNfcStarting ? "Starting..." : "NFC"}
             </Button>
           )}
         </div>
@@ -399,31 +474,35 @@ export default function InventoryPage() {
 
         {/* Empty state */}
         {containersQ.data?.length === 0 && !containersQ.isLoading && (
-          <div className="flex flex-col items-center gap-5 rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center">
-            <p className="text-muted-foreground text-sm max-w-sm leading-relaxed">{p.empty}</p>
-            <Button
-              variant="default"
-              size="lg"
-              className="min-h-[48px] rounded-xl font-semibold"
-              disabled={bootstrapMut.isPending}
-              onClick={() => bootstrapMut.mutate()}
-            >
-              {bootstrapMut.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
-              {p.quickAdd}
-            </Button>
-          </div>
+          <EmptyState
+            icon={Package}
+            message={p.empty}
+            action={
+              <Button
+                variant="default"
+                size="lg"
+                className="min-h-[48px] rounded-xl font-semibold"
+                disabled={bootstrapMut.isPending}
+                onClick={() => bootstrapMut.mutate()}
+              >
+                {bootstrapMut.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
+                {p.quickAdd}
+              </Button>
+            }
+          />
         )}
 
         {/* Tab strip */}
         {containersQ.data && containersQ.data.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div className="sticky top-2 z-20 rounded-2xl border border-border/70 bg-background/95 backdrop-blur px-2 py-2 shadow-sm">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {containersQ.data.map((container: InventoryContainer) => (
               <button
                 key={container.id}
                 type="button"
                 onClick={() => trySelectContainer(container.id)}
                 className={cn(
-                  "shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-medium transition-all whitespace-nowrap",
+                  "shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium transition-all whitespace-nowrap min-h-[44px]",
                   selectedId === container.id
                     ? "bg-primary text-primary-foreground border-primary shadow-sm"
                     : "bg-card border-border text-foreground hover:bg-muted",
@@ -433,6 +512,7 @@ export default function InventoryPage() {
                 <span className="max-w-[96px] truncate">{container.name}</span>
               </button>
             ))}
+            </div>
           </div>
         )}
 
@@ -451,7 +531,7 @@ export default function InventoryPage() {
                 )}
               >
                 <span className="min-w-0 flex-1 break-words">
-                  {isRestocking ? `🟡 Restocking — ${selected.name}` : selected.name}
+                  {isRestocking ? `Restocking · ${selected.name}` : selected.name}
                 </span>
                 {selected.department && (
                   <span className="text-xs font-normal opacity-60 shrink-0">{selected.department}</span>
@@ -507,9 +587,16 @@ export default function InventoryPage() {
 
               {/* Items skeleton */}
               {detailsQ.isLoading && (
-                <div className="space-y-px p-4">
+                <div className="space-y-2 p-4">
                   {[...Array(5)].map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                    <div key={i} className="rounded-xl border border-border/70 p-3 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-10 w-10 rounded-xl" />
+                        <Skeleton className="h-6 w-16 rounded-md" />
+                        <Skeleton className="h-10 w-10 rounded-xl" />
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -523,7 +610,7 @@ export default function InventoryPage() {
 
               {/* Item rows */}
               {detailsQ.data && (
-                <div className="divide-y divide-border">
+                <div className="space-y-2 p-3">
                   {lines.map((line) => {
                     const flash =
                       line.itemId && flashRowId?.id === line.itemId
@@ -531,40 +618,64 @@ export default function InventoryPage() {
                           ? "bg-emerald-100/80 dark:bg-emerald-900/30"
                           : "bg-red-100/80 dark:bg-red-900/30"
                         : "";
-                    const isComplete = line.actual >= line.expected;
+                    const optimisticActual = optimisticActualByCode[line.code] ?? line.actual;
+                    const isComplete = optimisticActual >= line.expected;
                     const isEditing = editingCode === line.code;
+                    const pendingOps = rowPendingByCode[line.code] ?? 0;
+                    const missing = Math.max(0, line.expected - optimisticActual);
+                    const isLowStock = optimisticActual < line.expected;
 
                     return (
                       <div
                         key={line.code}
                         className={cn(
-                          "flex items-center gap-3 px-4 py-3 bg-card transition-colors duration-200",
+                          "rounded-xl border border-border/70 px-3 py-3 bg-card transition-all duration-200",
                           flash,
+                          rowPulseCode === line.code && "ring-2 ring-emerald-400/60",
+                          pendingOps > 0 && "opacity-95",
                         )}
                       >
-                        {/* Status dot */}
-                        <span
-                          className={cn(
-                            "w-1.5 h-1.5 rounded-full shrink-0",
-                            isComplete
-                              ? "bg-emerald-500"
-                              : line.actual === 0
-                                ? "bg-red-500"
-                                : "bg-amber-400",
-                          )}
-                        />
+                        <div className="flex w-full items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "w-2 h-2 rounded-full shrink-0",
+                                  isComplete
+                                    ? "bg-emerald-500"
+                                    : optimisticActual === 0
+                                      ? "bg-red-500"
+                                      : "bg-amber-400",
+                                )}
+                              />
+                              <p className="text-sm font-semibold min-w-0 truncate">{line.label}</p>
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 text-xs">
+                              {isLowStock ? (
+                                <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-50 px-2 py-0.5 text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
+                                  Low stock: {missing} missing
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-50 px-2 py-0.5 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                  Stocked
+                                </span>
+                              )}
+                              {pendingOps > 0 && (
+                                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Syncing...
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                        {/* Label */}
-                        <p className="flex-1 text-sm font-medium min-w-0 truncate">{line.label}</p>
-
-                        {/* Controls */}
-                        <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
-                            className="h-9 w-9 rounded-xl shrink-0"
-                            disabled={sessionState.isBusy || otherUserHasSession}
+                            className="h-11 w-11 rounded-xl shrink-0"
+                            disabled={otherUserHasSession}
                             onClick={() => scanLine(line.itemId, line.label, -1)}
                             aria-label={`Decrement ${line.label}`}
                           >
@@ -576,7 +687,7 @@ export default function InventoryPage() {
                               ref={editInputRef}
                               type="number"
                               min={0}
-                              className="w-14 h-9 text-center text-base font-semibold tabular-nums rounded-lg border border-primary bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              className="w-16 h-11 text-center text-base font-semibold tabular-nums rounded-lg border border-primary bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               onBlur={() => commitInlineEdit(line)}
@@ -589,7 +700,7 @@ export default function InventoryPage() {
                             <button
                               type="button"
                               className={cn(
-                                "w-14 h-9 text-center text-base font-semibold tabular-nums rounded-lg transition-colors",
+                                "w-16 h-11 text-center text-lg font-bold tabular-nums rounded-lg transition-colors",
                                 "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                 isComplete ? "text-emerald-700 dark:text-emerald-400" : "text-foreground",
                               )}
@@ -597,11 +708,11 @@ export default function InventoryPage() {
                               onClick={() => startInlineEdit(line)}
                               aria-label={`Set quantity for ${line.label}`}
                             >
-                              {line.actual}
+                              {optimisticActual}
                             </button>
                           )}
 
-                          <span className="text-xs text-muted-foreground w-7 pl-0.5 shrink-0">
+                          <span className="text-xs text-muted-foreground w-8 pl-0.5 shrink-0">
                             /{line.expected}
                           </span>
 
@@ -609,14 +720,15 @@ export default function InventoryPage() {
                             type="button"
                             variant="outline"
                             size="icon"
-                            className="h-9 w-9 rounded-xl shrink-0"
-                            disabled={sessionState.isBusy || otherUserHasSession}
+                            className="h-11 w-11 rounded-xl shrink-0"
+                            disabled={otherUserHasSession}
                             onClick={() => scanLine(line.itemId, line.label, +1)}
                             aria-label={`Increment ${line.label}`}
                           >
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
+                      </div>
                       </div>
                     );
                   })}
@@ -647,7 +759,7 @@ export default function InventoryPage() {
 
               {/* Finish button */}
               {isRestocking && (
-                <div className="p-4 border-t">
+                <div className="p-4 border-t sticky bottom-0 bg-card/95 backdrop-blur">
                   <Button
                     type="button"
                     className="w-full min-h-[48px] rounded-xl text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow"
@@ -686,7 +798,7 @@ export default function InventoryPage() {
           >
             <span className="text-2xl font-bold tabular-nums shrink-0">
               {scanOverlay.delta === null
-                ? "✗"
+                ? "!"
                 : scanOverlay.delta > 0
                   ? `+${scanOverlay.delta}`
                   : `${scanOverlay.delta}`}

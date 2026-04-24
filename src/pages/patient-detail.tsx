@@ -1,0 +1,690 @@
+import { useMemo } from "react";
+import { Helmet } from "react-helmet-async";
+import { Link, Redirect, useParams } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Activity,
+  ArrowLeft,
+  ArrowUpRight,
+  ClipboardList,
+  LayoutGrid,
+  MapPin,
+  Package,
+  Pill,
+  Radar,
+  Receipt,
+  Sparkles,
+  Syringe,
+  UserRound,
+} from "lucide-react";
+import { t, getDirection } from "@/lib/i18n";
+import { api } from "@/lib/api";
+import { Layout } from "@/components/layout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorCard } from "@/components/ui/error-card";
+import { useAuth } from "@/hooks/use-auth";
+import { useSettings } from "@/hooks/use-settings";
+import { cn, computeAlerts, formatRelativeTime } from "@/lib/utils";
+import { statusToBadgeVariant } from "@/lib/design-tokens";
+import type {
+  ActivityFeedItem,
+  Appointment,
+  BillingLedgerEntry,
+  Equipment,
+  MedicationExecutionTask,
+} from "@/types";
+
+const ROLE_LEVEL: Record<string, number> = {
+  admin: 40,
+  vet: 30,
+  senior_technician: 25,
+  lead_technician: 22,
+  vet_tech: 20,
+  technician: 20,
+  student: 10,
+};
+
+function roleLevel(role: string | null | undefined): number {
+  return ROLE_LEVEL[String(role ?? "").trim().toLowerCase()] ?? 0;
+}
+
+function metaString(meta: Record<string, unknown> | null | undefined, keys: string[]): string | null {
+  if (!meta) return null;
+  for (const k of keys) {
+    const v = meta[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function formatMoney(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+const BILLING_STATUS_CLASS: Record<BillingLedgerEntry["status"], string> = {
+  pending: "bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800",
+  synced: "bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800",
+  voided: "bg-muted text-muted-foreground border-border line-through",
+};
+
+const APPOINTMENT_STATUS_LABEL: Record<Appointment["status"], string> = {
+  pending: "Pending",
+  assigned: "Assigned",
+  scheduled: "Scheduled",
+  arrived: "Arrived",
+  in_progress: "In progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  no_show: "No show",
+};
+
+function medDrugLabel(task: MedicationExecutionTask): string {
+  if (!task.metadata || typeof task.metadata !== "object" || Array.isArray(task.metadata)) {
+    return typeof task.notes === "string" && task.notes.trim() ? task.notes.trim() : "—";
+  }
+  const m = task.metadata as Record<string, unknown>;
+  const name = metaString(m, ["drugName", "medicationName"]);
+  if (name) return name;
+  return typeof task.notes === "string" && task.notes.trim() ? task.notes.trim() : "—";
+}
+
+function SectionTitle({
+  icon: Icon,
+  title,
+  className,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("mb-3 flex items-center gap-2", className)}>
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
+        <Icon className="h-4 w-4 text-primary" />
+      </span>
+      <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
+    </div>
+  );
+}
+
+export default function PatientDetailPage() {
+  const { id: animalId } = useParams<{ id: string }>();
+  const p = t.patientDetail;
+  const { userId, effectiveRole, role } = useAuth();
+  const { settings } = useSettings();
+  const dir = getDirection(settings.locale);
+  const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
+  const canTasks = roleLevel(resolvedRole) >= ROLE_LEVEL.technician;
+  const canBilling = roleLevel(resolvedRole) >= ROLE_LEVEL.vet;
+
+  const equipmentQ = useQuery({
+    queryKey: ["/api/equipment"],
+    queryFn: api.equipment.list,
+    enabled: Boolean(userId),
+    staleTime: 20_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const billingQ = useQuery({
+    queryKey: ["/api/billing", "patient", animalId],
+    queryFn: () => api.billing.list({ animalId: animalId!, limit: 25 }),
+    enabled: Boolean(userId && animalId && canBilling),
+    staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const dashboardQ = useQuery({
+    queryKey: ["/api/tasks/dashboard", userId ?? "", "patient"],
+    queryFn: () => api.tasks.dashboard(),
+    enabled: Boolean(userId && animalId && canTasks),
+    staleTime: 20_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const medActiveQ = useQuery({
+    queryKey: ["/api/tasks/medication-active", userId ?? "", "patient"],
+    queryFn: () => api.tasks.medicationActive(),
+    enabled: Boolean(userId && animalId && canTasks),
+    staleTime: 15_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const activityQ = useQuery({
+    queryKey: ["/api/activity", "patient", animalId],
+    queryFn: () => api.activity.feed(),
+    enabled: Boolean(userId && animalId),
+    staleTime: 20_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const dischargeQ = useQuery({
+    queryKey: ["/api/shift-handover/discharge", animalId],
+    queryFn: () => api.shiftHandover.getDischargeItems(animalId!),
+    enabled: Boolean(userId && animalId && canTasks),
+    staleTime: 20_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const derived = useMemo(() => {
+    if (!animalId) {
+      return {
+        patientName: p.unknownName,
+        species: null as string | null,
+        roomName: null as string | null,
+        roomId: null as string | null,
+        linkedEquipment: [] as Equipment[],
+        patientEquipmentIds: new Set<string>(),
+        careTasks: [] as Appointment[],
+        medTasks: [] as MedicationExecutionTask[],
+        patientAlerts: [] as ReturnType<typeof computeAlerts>,
+        timeline: [] as ActivityFeedItem[],
+        billing: [] as BillingLedgerEntry[],
+        dischargeItems: [] as { sessionId: string; equipmentId: string; equipmentName: string; startedAt: string }[],
+        statusKind: "stable" as "stable" | "attention" | "in_progress" | "billing",
+      };
+    }
+
+    const equipment = equipmentQ.data ?? [];
+    const linkedEquipment = equipment.filter((e) => e.linkedAnimalId === animalId);
+    const patientEquipmentIds = new Set(linkedEquipment.map((e) => e.id));
+
+    const dischargeItems = dischargeQ.data?.items ?? [];
+    for (const row of dischargeItems) {
+      if (row.equipmentId) patientEquipmentIds.add(row.equipmentId);
+    }
+
+    let patientName = p.unknownName;
+    const fromEq = linkedEquipment.find((e) => e.linkedAnimalName?.trim());
+    if (fromEq?.linkedAnimalName?.trim()) patientName = fromEq.linkedAnimalName.trim();
+
+    let species: string | null = null;
+    let roomName: string | null = null;
+    let roomId: string | null = null;
+    const firstRoomed = linkedEquipment.find((e) => e.roomId && e.roomName);
+    if (firstRoomed) {
+      roomId = firstRoomed.roomId ?? null;
+      roomName = firstRoomed.roomName ?? null;
+    }
+
+    const dashboard = dashboardQ.data;
+    const allAppointments: Appointment[] = dashboard
+      ? [...dashboard.overdue, ...dashboard.today, ...dashboard.upcoming, ...dashboard.myTasks]
+      : [];
+    const careTasks = allAppointments
+      .filter((a) => a.animalId === animalId && a.status !== "completed" && a.status !== "cancelled" && a.status !== "no_show")
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+    for (const task of careTasks) {
+      if (!task.metadata || typeof task.metadata !== "object") continue;
+      const m = task.metadata as Record<string, unknown>;
+      const sp = metaString(m, ["species", "animalSpecies", "patientSpecies"]);
+      if (sp) {
+        species = sp;
+        break;
+      }
+    }
+
+    const medTasks = (medActiveQ.data ?? []).filter((task) => task.animalId === animalId);
+
+    const hasOverdue = careTasks.some((a) => a.isOverdue);
+    const hasInProgress = careTasks.some((a) => a.status === "in_progress") || medTasks.some((m) => m.status === "in_progress");
+    const hasOpenUsage = dischargeItems.length > 0;
+
+    let statusKind: "stable" | "attention" | "in_progress" | "billing" = "stable";
+    if (hasInProgress) statusKind = "in_progress";
+    else if (hasOverdue) statusKind = "attention";
+    else if (hasOpenUsage) statusKind = "billing";
+
+    const patientAlerts = computeAlerts(equipment).filter((a) => patientEquipmentIds.has(a.equipmentId));
+
+    const activity = activityQ.data?.items ?? [];
+    const timeline = activity
+      .filter((item) => item.equipmentId && patientEquipmentIds.has(item.equipmentId))
+      .slice(0, 14);
+
+    const billing = (billingQ.data ?? []).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return {
+      patientName,
+      species,
+      roomName,
+      roomId,
+      linkedEquipment,
+      patientEquipmentIds,
+      careTasks,
+      medTasks,
+      patientAlerts,
+      timeline,
+      billing,
+      dischargeItems,
+      statusKind,
+    };
+  }, [
+    animalId,
+    equipmentQ.data,
+    dashboardQ.data,
+    medActiveQ.data,
+    activityQ.data,
+    billingQ.data,
+    dischargeQ.data,
+    p.unknownName,
+  ]);
+
+  if (!animalId?.trim()) {
+    return <Redirect to="/" />;
+  }
+
+  const loadingCore = equipmentQ.isLoading;
+  const loadFailed = equipmentQ.isError;
+
+  const statusBadge =
+    derived.statusKind === "in_progress"
+      ? { label: p.statusInProgress, className: "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200" }
+      : derived.statusKind === "attention"
+        ? { label: p.statusAttention, className: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" }
+        : derived.statusKind === "billing"
+          ? { label: p.statusOpenBilling, className: "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200" }
+          : { label: p.statusStable, className: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" };
+
+  return (
+    <Layout>
+      <Helmet>
+        <title>{`${derived.patientName} — ${p.pageTitle} — VetTrack`}</title>
+        <meta name="description" content="Patient operating center — equipment, billing, tasks, and activity in one place." />
+      </Helmet>
+
+      <div className="motion-safe:animate-page-enter pb-24">
+        <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 pt-4 sm:max-w-2xl sm:px-5 lg:max-w-4xl">
+          <header className="flex flex-wrap items-center gap-3">
+            <Button variant="ghost" size="sm" className="h-9 gap-1.5 px-2 text-muted-foreground hover:text-foreground" asChild>
+              <Link href="/appointments">
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+                {p.back}
+              </Link>
+            </Button>
+            <div className="ms-auto flex items-center gap-2 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              {p.operatingCenter}
+            </div>
+          </header>
+
+          {loadFailed ? (
+            <ErrorCard message={p.loadError} onRetry={() => equipmentQ.refetch()} />
+          ) : null}
+
+          <section
+            className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/25 p-5 shadow-sm sm:p-6"
+            style={{ direction: dir }}
+          >
+            <div className="pointer-events-none absolute -end-16 -top-20 h-48 w-48 rounded-full bg-primary/[0.07] blur-2xl" />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 flex-1 gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-background/80 shadow-inner">
+                  <UserRound className="h-7 w-7 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  {loadingCore ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-8 w-48 max-w-full" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  ) : (
+                    <>
+                      <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{derived.patientName}</h1>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/80">{p.recordId}</span>
+                        <span dir="ltr" className="ms-1.5 inline-block rounded-md bg-muted/80 px-1.5 py-0.5 font-mono text-[11px]">
+                          {animalId}
+                        </span>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+              <Badge variant="outline" className={cn("shrink-0 border px-3 py-1 text-xs font-semibold", statusBadge.className)}>
+                {statusBadge.label}
+              </Badge>
+            </div>
+
+            <dl className="relative mt-5 grid grid-cols-1 gap-3 border-t border-border/50 pt-5 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border/50 bg-background/60 px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{p.summarySpecies}</dt>
+                <dd className="mt-1 text-sm font-medium text-foreground">{derived.species ?? p.speciesUnknown}</dd>
+              </div>
+              <div className="rounded-2xl border border-border/50 bg-background/60 px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{p.summaryRoom}</dt>
+                <dd className="mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate">{derived.roomName ?? p.roomUnknown}</span>
+                </dd>
+              </div>
+              <div className="rounded-2xl border border-border/50 bg-background/60 px-3 py-2.5">
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{p.summaryStatus}</dt>
+                <dd className="mt-1 text-sm font-medium text-foreground">{statusBadge.label}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section style={{ direction: dir }}>
+            <SectionTitle icon={Package} title={p.sectionEquipment} />
+            {loadingCore ? (
+              <div className="space-y-2">
+                <Skeleton className="h-24 w-full rounded-2xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
+              </div>
+            ) : derived.linkedEquipment.length === 0 && derived.dischargeItems.length === 0 ? (
+              <EmptyState icon={Package} message={p.equipmentEmpty} />
+            ) : (
+              <div className="space-y-4">
+                {derived.linkedEquipment.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{p.equipmentLinked}</p>
+                    <ul className="space-y-2">
+                      {derived.linkedEquipment.map((eq) => (
+                        <li key={eq.id}>
+                          <Card className="border-border/60 shadow-sm overflow-hidden transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+                            <div className={cn("flex border-s-[5px]", eq.status === "ok" ? "border-s-emerald-500" : "border-s-amber-500")}>
+                              <CardContent className="flex w-full items-center gap-3 p-3">
+                                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                  <Link href={`/equipment/${eq.id}`} className="font-semibold text-foreground hover:text-primary truncate">
+                                    {eq.name}
+                                  </Link>
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                                    {eq.roomName ? <span>{eq.roomName}</span> : null}
+                                    {eq.checkedOutById ? (
+                                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                        {p.equipmentInUse}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <Badge variant={statusToBadgeVariant(eq.status)} className="shrink-0 capitalize">
+                                  {eq.status.replace(/_/g, " ")}
+                                </Badge>
+                              </CardContent>
+                            </div>
+                          </Card>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {derived.dischargeItems.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{p.equipmentOpenUsage}</p>
+                    <ul className="space-y-2">
+                      {derived.dischargeItems.map((row) => (
+                        <li key={row.sessionId}>
+                          <Card className="border-violet-200/60 bg-violet-50/30 dark:border-violet-900/50 dark:bg-violet-950/20">
+                            <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
+                              <div className="min-w-0">
+                                <Link href={`/equipment/${row.equipmentId}`} className="font-semibold hover:text-primary truncate block">
+                                  {row.equipmentName}
+                                </Link>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  <span dir="ltr">{formatRelativeTime(row.startedAt)}</span>
+                                </p>
+                              </div>
+                              <Button size="sm" variant="outline" className="h-8 shrink-0 gap-1 text-xs" asChild>
+                                <Link href="/shift-handover">
+                                  {p.actionHandover}
+                                  <ArrowUpRight className="h-3 w-3 rtl:rotate-180" />
+                                </Link>
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : !canTasks ? null : null}
+              </div>
+            )}
+          </section>
+
+          <section style={{ direction: dir }}>
+            <SectionTitle icon={Receipt} title={p.sectionBilling} />
+            {!canBilling ? (
+              <p className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                {p.billingRestricted}
+              </p>
+            ) : billingQ.isError ? (
+              <ErrorCard message={t.billingLedger.loadError} onRetry={() => billingQ.refetch()} />
+            ) : billingQ.isLoading ? (
+              <Skeleton className="h-32 w-full rounded-2xl" />
+            ) : derived.billing.length === 0 ? (
+              <EmptyState icon={Receipt} message={p.billingEmpty} />
+            ) : (
+              <Card className="border-border/60 shadow-sm overflow-hidden">
+                <CardContent className="divide-y divide-border/60 p-0">
+                  {derived.billing.slice(0, 8).map((entry) => (
+                    <div key={entry.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium capitalize">
+                          {entry.itemType.toLowerCase()} · <span dir="ltr" className="font-mono text-xs">{entry.itemId}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          <span dir="ltr">{formatRelativeTime(entry.createdAt)}</span>
+                          {" · "}
+                          <span dir="ltr">×{entry.quantity}</span>
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span dir="ltr" className="text-sm font-semibold tabular-nums">
+                          {formatMoney(entry.totalAmountCents)}
+                        </span>
+                        <Badge variant="outline" className={cn("text-[10px]", BILLING_STATUS_CLASS[entry.status])}>
+                          {entry.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </section>
+
+          <section style={{ direction: dir }}>
+            <SectionTitle icon={ClipboardList} title={p.sectionCare} />
+            {!canTasks ? (
+              <p className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                {p.tasksRestricted}
+              </p>
+            ) : dashboardQ.isError || medActiveQ.isError ? (
+              <ErrorCard message={p.loadError} onRetry={() => { dashboardQ.refetch(); medActiveQ.refetch(); }} />
+            ) : dashboardQ.isLoading || medActiveQ.isLoading ? (
+              <Skeleton className="h-40 w-full rounded-2xl" />
+            ) : (
+              <div className="space-y-4">
+                {derived.careTasks.length === 0 && derived.medTasks.length === 0 ? (
+                  <EmptyState icon={ClipboardList} message={p.tasksEmpty} />
+                ) : (
+                  <>
+                    {derived.careTasks.length > 0 ? (
+                      <Card className="border-border/60 shadow-sm">
+                        <CardContent className="space-y-2 p-3">
+                          {derived.careTasks.slice(0, 8).map((task) => (
+                            <div
+                              key={task.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">
+                                  {task.taskType ? `${task.taskType.replace(/_/g, " ")} · ` : ""}
+                                  <span className="text-muted-foreground">{APPOINTMENT_STATUS_LABEL[task.status]}</span>
+                                </p>
+                                {task.notes ? <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.notes}</p> : null}
+                              </div>
+                              <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
+                                {task.priority ?? "normal"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    ) : null}
+
+                    {derived.medTasks.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <Syringe className="h-3.5 w-3.5" />
+                          {t.medsPage.taskLabel}
+                        </p>
+                        <Card className="border-border/60 shadow-sm">
+                          <CardContent className="space-y-2 p-3">
+                            {derived.medTasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="rounded-xl border border-border/50 bg-background/80 px-3 py-2"
+                              >
+                                <p className="text-sm font-semibold">{medDrugLabel(task)}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5 capitalize">
+                                  {task.status.replace(/_/g, " ")}
+                                  {task.animalWeightKg != null ? (
+                                    <span dir="ltr" className="ms-2">
+                                      · {task.animalWeightKg} kg
+                                    </span>
+                                  ) : null}
+                                </p>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{p.alertsTitle}</p>
+                  {derived.patientAlerts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{p.alertsEmpty}</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {derived.patientAlerts.slice(0, 6).map((alert) => (
+                        <li key={`${alert.equipmentId}-${alert.type}`}>
+                          <Card className="border-destructive/25 bg-destructive/[0.04]">
+                            <CardContent className="flex items-start gap-2 p-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold">{alert.equipmentName}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{alert.detail}</p>
+                              </div>
+                              <Badge variant="destructive" className="shrink-0 text-[10px] capitalize">
+                                {alert.type.replace(/_/g, " ")}
+                              </Badge>
+                            </CardContent>
+                          </Card>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section style={{ direction: dir }}>
+            <SectionTitle icon={Activity} title={p.sectionTimeline} />
+            {activityQ.isError ? (
+              <ErrorCard message={p.loadError} onRetry={() => activityQ.refetch()} />
+            ) : activityQ.isLoading ? (
+              <Skeleton className="h-36 w-full rounded-2xl" />
+            ) : derived.timeline.length === 0 ? (
+              <EmptyState icon={Activity} message={p.timelineEmpty} />
+            ) : (
+              <Card className="border-border/60 shadow-sm">
+                <CardContent className="divide-y divide-border/60 p-0">
+                  {derived.timeline.map((item) => (
+                    <div key={item.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {item.type === "scan"
+                            ? p.timelineScan
+                            : item.type === "transfer"
+                              ? p.timelineTransfer
+                              : p.timelineCreated}
+                          {": "}
+                          <Link href={`/equipment/${item.equipmentId}`} className="hover:text-primary">
+                            {item.equipmentName}
+                          </Link>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.note ? <span className="line-clamp-2">{item.note}</span> : null}
+                        </p>
+                      </div>
+                      <span dir="ltr" className="shrink-0 text-xs text-muted-foreground">
+                        {formatRelativeTime(item.timestamp)}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </section>
+
+          <section className="pb-4" style={{ direction: dir }}>
+            <SectionTitle icon={LayoutGrid} title={p.sectionQuickActions} />
+            <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] snap-x snap-mandatory">
+              <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
+                <Link href="/appointments">
+                  <ClipboardList className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-semibold">{p.actionTasks}</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">{p.actionTasksHint}</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
+                <Link href="/meds">
+                  <Pill className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-semibold">{p.actionMeds}</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">{p.actionMedsHint}</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
+                <Link href="/billing">
+                  <Receipt className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-semibold">{p.actionBilling}</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">{p.actionBillingHint}</span>
+                </Link>
+              </Button>
+              {derived.roomId ? (
+                <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
+                  <Link href={`/rooms/${derived.roomId}`}>
+                    <Radar className="h-5 w-5 text-primary" />
+                    <span className="text-xs font-semibold">{p.actionRoom}</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">{p.actionRoomHint}</span>
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
+                  <Link href="/rooms">
+                    <Radar className="h-5 w-5 text-primary" />
+                    <span className="text-xs font-semibold">{p.actionRoom}</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">{p.actionRoomHint}</span>
+                  </Link>
+                </Button>
+              )}
+              <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
+                <Link href="/shift-handover">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-semibold">{p.actionHandover}</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">{p.actionHandoverHint}</span>
+                </Link>
+              </Button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </Layout>
+  );
+}

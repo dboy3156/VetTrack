@@ -77,7 +77,24 @@ if (!rootEl) {
           <AppErrorBoundary>
             <SyncProvider>
               <AppBootstrap />
-              <Toaster position="top-center" />
+              <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                duration={3800}
+                toastOptions={{
+                  classNames: {
+                    toast:
+                      "group rounded-2xl border border-border/70 bg-background/95 shadow-lg backdrop-blur-md",
+                    title: "font-semibold text-foreground",
+                    description: "text-muted-foreground text-sm",
+                    success: "border-emerald-200/90 dark:border-emerald-900/80",
+                    error: "border-destructive/35",
+                    warning: "border-amber-200/90 dark:border-amber-900/70",
+                    info: "border-primary/25",
+                  },
+                }}
+              />
             </SyncProvider>
           </AppErrorBoundary>
         </ClerkAuthProviderInner>

@@ -6,6 +6,7 @@ import { Layout } from "@/components/layout";
 import { ErrorCard } from "@/components/ui/error-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -34,10 +35,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, Plus, Ban } from "lucide-react";
+import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X } from "lucide-react";
 
 const STATUS_BADGE: Record<BillingLedgerEntry["status"], string> = {
   pending: "bg-amber-100 text-amber-800 border-amber-200",
@@ -56,6 +57,7 @@ export default function BillingLedgerPage() {
   const isAdmin = role === "admin";
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [voidTarget, setVoidTarget] = useState<BillingLedgerEntry | null>(null);
 
@@ -85,7 +87,7 @@ export default function BillingLedgerPage() {
         unitPriceCents: form.unitPriceCents,
       }),
     onSuccess: () => {
-      toast.success(p.chargeAdded);
+      toast.success(p.chargeAdded, { duration: 3200 });
       qc.invalidateQueries({ queryKey: ["/api/billing"] });
       setAddOpen(false);
       setForm({ animalId: "", itemType: "CONSUMABLE", itemId: "", quantity: 1, unitPriceCents: 0 });
@@ -96,7 +98,7 @@ export default function BillingLedgerPage() {
   const voidMut = useMutation({
     mutationFn: (id: string) => api.billing.void(id),
     onSuccess: () => {
-      toast.success(p.chargeVoided);
+      toast.success(p.chargeVoided, { duration: 3200 });
       qc.invalidateQueries({ queryKey: ["/api/billing"] });
       setVoidTarget(null);
     },
@@ -104,15 +106,76 @@ export default function BillingLedgerPage() {
   });
 
   const entries = ledgerQ.data ?? [];
-  const totalPending = entries.filter((e) => e.status === "pending").reduce((s, e) => s + e.totalAmountCents, 0);
-  const totalSynced = entries.filter((e) => e.status === "synced").reduce((s, e) => s + e.totalAmountCents, 0);
+
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const weekStart = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const nonVoidedEntries = useMemo(() => entries.filter((entry) => entry.status !== "voided"), [entries]);
+  const chargesToday = useMemo(
+    () =>
+      nonVoidedEntries
+        .filter((entry) => new Date(entry.createdAt) >= todayStart)
+        .reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [nonVoidedEntries, todayStart],
+  );
+  const chargesThisWeek = useMemo(
+    () =>
+      nonVoidedEntries
+        .filter((entry) => new Date(entry.createdAt) >= weekStart)
+        .reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [nonVoidedEntries, weekStart],
+  );
+  const autoCapturedEntries = useMemo(
+    () => nonVoidedEntries.filter((entry) => entry.status === "synced"),
+    [nonVoidedEntries],
+  );
+  const autoCapturedTotal = useMemo(
+    () => autoCapturedEntries.reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [autoCapturedEntries],
+  );
+  const outstandingReviewEntries = useMemo(
+    () => nonVoidedEntries.filter((entry) => entry.status === "pending"),
+    [nonVoidedEntries],
+  );
+  const outstandingReviewTotal = useMemo(
+    () => outstandingReviewEntries.reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [outstandingReviewEntries],
+  );
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleEntries = useMemo(() => {
+    if (!normalizedSearch) {
+      return entries;
+    }
+
+    return entries.filter((entry) => {
+      const createdDate = new Date(entry.createdAt).toLocaleDateString().toLowerCase();
+      return (
+        entry.animalId.toLowerCase().includes(normalizedSearch) ||
+        entry.itemId.toLowerCase().includes(normalizedSearch) ||
+        entry.itemType.toLowerCase().includes(normalizedSearch) ||
+        entry.status.toLowerCase().includes(normalizedSearch) ||
+        createdDate.includes(normalizedSearch)
+      );
+    });
+  }, [entries, normalizedSearch]);
 
   return (
     <Layout>
       <Helmet><title>{p.title} — VetTrack</title></Helmet>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6 motion-safe:animate-page-enter">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-muted-foreground" />
             <h1 className="text-xl font-semibold">{p.title}</h1>
@@ -125,93 +188,210 @@ export default function BillingLedgerPage() {
           )}
         </div>
 
-        {/* Totals summary */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border p-3">
-            <p className="text-xs text-muted-foreground">{p.totalPending}</p>
-            <p className="text-lg font-semibold text-amber-700">{formatCents(totalPending)}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Charges Today</p>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight">{formatCents(chargesToday)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{nonVoidedEntries.length} active lines</p>
           </div>
-          <div className="rounded-lg border p-3">
-            <p className="text-xs text-muted-foreground">{p.totalSynced}</p>
-            <p className="text-lg font-semibold text-emerald-700">{formatCents(totalSynced)}</p>
+          <div className="rounded-xl border bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Charges This Week</p>
+              <Clock3 className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight">{formatCents(chargesThisWeek)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Last 7 days performance</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-emerald-700">Auto Captured Charges</p>
+              <Sparkles className="h-4 w-4 text-emerald-700" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-emerald-800">
+              {formatCents(autoCapturedTotal)}
+            </p>
+            <p className="mt-1 text-xs text-emerald-700">
+              {autoCapturedEntries.length} synced to billing
+            </p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-amber-700">Outstanding Review Items</p>
+              <AlertTriangle className="h-4 w-4 text-amber-700" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-amber-800">
+              {outstandingReviewEntries.length}
+            </p>
+            <p className="mt-1 text-xs text-amber-700">{formatCents(outstandingReviewTotal)} pending review</p>
           </div>
         </div>
 
-        {/* Status filter */}
-        <div className="flex gap-2">
-          {["all", "pending", "synced", "voided"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                statusFilter === s
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {p[`filter_${s}` as keyof typeof p] ?? s}
-            </button>
-          ))}
+        {/* Search + status filters */}
+        <div className="rounded-xl border bg-card p-3 sm:p-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by animal ID, item ID, status, date, or type"
+                className="pl-9 pr-8"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {["all", "pending", "synced", "voided"].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    statusFilter === s
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {p[`filter_${s}` as keyof typeof p] ?? s}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* Ledger */}
         {ledgerQ.isPending ? (
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+          <div className="space-y-3">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-[4.25rem] w-full rounded-2xl" />
+            ))}
           </div>
         ) : ledgerQ.isError ? (
           <ErrorCard message={p.loadError} onRetry={() => ledgerQ.refetch()} />
-        ) : entries.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12 text-sm">{p.noEntries}</p>
+        ) : visibleEntries.length === 0 ? (
+          <EmptyState
+            icon={Receipt}
+            message={p.noEntries}
+            subMessage="Charges you add or capture will show in this ledger."
+            iconBg="bg-muted/80 ring-1 ring-border/40"
+            iconColor="text-muted-foreground"
+          />
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">{p.colAnimal}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colType}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colQty}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colUnit}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colTotal}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colStatus}</th>
-                  <th className="text-left px-4 py-2 font-medium">{p.colDate}</th>
-                  {isAdmin && <th className="px-4 py-2" />}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {entries.map((entry) => (
-                  <tr key={entry.id} className={entry.status === "voided" ? "opacity-50" : ""}>
-                    <td className="px-4 py-2 font-mono text-xs truncate max-w-[100px]">{entry.animalId}</td>
-                    <td className="px-4 py-2">{entry.itemType}</td>
-                    <td className="px-4 py-2">{entry.quantity}</td>
-                    <td className="px-4 py-2">{formatCents(entry.unitPriceCents)}</td>
-                    <td className="px-4 py-2 font-medium">{formatCents(entry.totalAmountCents)}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground text-xs">
-                      {new Date(entry.createdAt).toLocaleDateString()}
-                    </td>
-                    {isAdmin && (
-                      <td className="px-4 py-2">
-                        {entry.status !== "voided" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 px-2"
-                            onClick={() => setVoidTarget(entry)}
-                          >
-                            <Ban className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </td>
-                    )}
+          <div className="space-y-3">
+            <div className="hidden overflow-hidden rounded-xl border lg:block">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colAnimal}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colType}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colQty}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colUnit}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colTotal}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colStatus}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colDate}</th>
+                    {isAdmin && <th className="px-4 py-3" />}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y">
+                  {visibleEntries.map((entry) => (
+                    <tr key={entry.id} className={entry.status === "voided" ? "opacity-50" : ""}>
+                      <td className="px-4 py-3 font-mono text-xs">{entry.animalId}</td>
+                      <td className="px-4 py-3">{entry.itemType}</td>
+                      <td className="px-4 py-3">{entry.quantity}</td>
+                      <td className="px-4 py-3">{formatCents(entry.unitPriceCents)}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        <span className={entry.status === "synced" ? "text-emerald-700" : ""}>
+                          {formatCents(entry.totalAmountCents)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
+                          {entry.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {new Date(entry.createdAt).toLocaleDateString()}
+                      </td>
+                      {isAdmin && (
+                        <td className="px-4 py-3">
+                          {entry.status !== "voided" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive h-7 px-2"
+                              onClick={() => setVoidTarget(entry)}
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid gap-3 lg:hidden">
+              {visibleEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={`rounded-xl border bg-card p-4 shadow-sm ${entry.status === "voided" ? "opacity-60" : ""} ${
+                    entry.status === "synced" ? "border-emerald-200 bg-emerald-50/50" : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate font-mono text-xs text-muted-foreground">{entry.animalId}</p>
+                      <p className="text-sm font-medium">{entry.itemType}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
+                      {entry.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg border bg-background p-2">
+                      <p className="text-muted-foreground">Qty</p>
+                      <p className="font-semibold">{entry.quantity}</p>
+                    </div>
+                    <div className="rounded-lg border bg-background p-2">
+                      <p className="text-muted-foreground">Unit</p>
+                      <p className="font-semibold">{formatCents(entry.unitPriceCents)}</p>
+                    </div>
+                    <div className="col-span-2 rounded-lg border bg-background p-2">
+                      <p className="text-muted-foreground">Total</p>
+                      <p className={`text-base font-semibold ${entry.status === "synced" ? "text-emerald-700" : ""}`}>
+                        {formatCents(entry.totalAmountCents)}
+                      </p>
+                    </div>
+                  </div>
+                  {isAdmin && entry.status !== "voided" ? (
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive h-8 px-2"
+                        onClick={() => setVoidTarget(entry)}
+                      >
+                        <Ban className="mr-1 h-3.5 w-3.5" />
+                        {p.voidConfirm}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

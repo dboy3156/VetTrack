@@ -18,6 +18,9 @@ import {
   LogOut,
   Wrench,
   CheckCircle2,
+  Sparkles,
+  ScanSearch,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -34,6 +37,7 @@ interface QrScannerProps {
 type ScannerPhase =
   | "init"
   | "scanning"
+  | "resolving"
   | "permission_denied"
   | "no_camera"
   | "error"
@@ -120,6 +124,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showFallbackHint, setShowFallbackHint] = useState(false);
+  const [confirmFlash, setConfirmFlash] = useState(false);
   const containerId = "qr-scanner-container";
 
   const navigateToEquipment = useCallback(
@@ -196,6 +201,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
         return;
       }
 
+      setPhase("resolving");
       const eq = await resolveEquipmentId(equipmentId);
       if (!eq) {
         setNotFoundId(equipmentId);
@@ -205,7 +211,9 @@ export function QrScanner({ onClose }: QrScannerProps) {
       }
 
       await stopScannerRef.current();
-      navigator.vibrate?.(50); // Haptic feedback — Android Web API; iOS: TODO: Capacitor Haptics plugin
+      navigator.vibrate?.([20, 40, 30]); // richer success pulse
+      setConfirmFlash(true);
+      setTimeout(() => setConfirmFlash(false), 260);
       setScannedEquipment(eq);
       setPhase("result");
     },
@@ -379,13 +387,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
       toast.error(t.qrScanner.invalidCodeFormat);
       return;
     }
+    setPhase("resolving");
     const eq = await resolveEquipmentId(equipmentId);
     if (!eq) {
       setNotFoundId(equipmentId);
       setPhase("not_found");
       return;
     }
-    navigator.vibrate?.(50);
+    navigator.vibrate?.([20, 40, 30]);
+    setConfirmFlash(true);
+    setTimeout(() => setConfirmFlash(false), 260);
     setScannedEquipment(eq);
     setPhase("result");
   };
@@ -466,10 +477,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 bg-black flex flex-col animate-fade-in" data-testid="qr-scanner-overlay">
+    <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 bg-black flex flex-col motion-safe:animate-page-enter" data-testid="qr-scanner-overlay">
+      {confirmFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-emerald-400/20 animate-pulse" />}
       {/* Header */}
-      <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-black/80" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
-        <span className="text-white font-semibold text-lg">{t.qrScanner.title}</span>
+      <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/95 to-black/65 backdrop-blur-sm" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
+        <div className="flex flex-col">
+          <span className="text-white font-semibold text-lg">{t.qrScanner.title}</span>
+          <span className="text-[11px] uppercase tracking-[0.16em] text-white/55">
+            Scan equipment
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           {torchSupported && phase === "scanning" && (
             <Button
@@ -509,6 +526,20 @@ export function QrScanner({ onClose }: QrScannerProps) {
             <div className="flex flex-col items-center gap-3 text-white">
               <Loader2 className="w-10 h-10 animate-spin" />
               <p className="text-sm font-medium">Starting camera…</p>
+            </div>
+          </div>
+        )}
+
+        {/* Resolving scan */}
+        {phase === "resolving" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/15 bg-black/70 px-6 py-5 text-white">
+              <div className="relative">
+                <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                <ScanSearch className="w-4 h-4 absolute -bottom-1 -right-1 text-white/90" />
+              </div>
+              <p className="text-sm font-semibold">Looking up equipment…</p>
+              <p className="text-xs text-white/60">One moment</p>
             </div>
           </div>
         )}
@@ -595,10 +626,10 @@ export function QrScanner({ onClose }: QrScannerProps) {
         {phase === "not_found" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/90 p-6">
             <div className="flex flex-col items-center gap-4 text-center text-white max-w-xs">
-              <AlertCircle className="w-14 h-14 text-amber-400" />
-              <p className="font-bold text-lg">Equipment Not Found</p>
+              <Tag className="w-14 h-14 text-amber-400" />
+              <p className="font-bold text-lg">Unknown Tag</p>
               <p className="text-sm text-white/70">
-                No equipment matches:{" "}
+                We scanned a tag, but it is not linked yet:
                 <span className="font-mono text-xs break-all">{notFoundId}</span>
               </p>
               <div className="flex flex-col gap-2 w-full mt-2">
@@ -620,6 +651,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
                   <Keyboard className="w-4 h-4" />
                   Enter Code Manually
                 </Button>
+                <Button
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/equipment/new?prefillId=${encodeURIComponent(notFoundId || "")}`);
+                  }}
+                >
+                  Link this tag to equipment
+                </Button>
               </div>
             </div>
           </div>
@@ -633,8 +674,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
               style={{
                 width: 250,
                 height: 250,
-                boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
-                borderRadius: "2px",
+                boxShadow: "0 0 0 9999px rgba(0,0,0,0.58)",
+                borderRadius: "18px",
               }}
             >
               {/* Corner brackets */}
@@ -645,7 +686,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
               {/* Animated scan line */}
               <div className="qr-scan-line absolute left-0 right-0 h-0.5 bg-primary/80" />
               {/* Helper text below the frame */}
-              <p className="text-white/70 text-xs text-center absolute -bottom-8 left-0 right-0 whitespace-nowrap">
+              <p className="text-white/75 text-xs text-center absolute -bottom-9 left-0 right-0 whitespace-nowrap">
                 {t.qrScanner.guideAim}
               </p>
             </div>
@@ -655,7 +696,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
       {/* "Enter code manually" footer (scanning phase) */}
       {phase === "scanning" && (
-        <div className="bg-black/80 px-4 pt-3 flex flex-col items-center gap-2" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+        <div className="bg-gradient-to-t from-black/95 to-black/70 px-4 pt-3 flex flex-col items-center gap-2 border-t border-white/10" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
           {showFallbackHint && (
             <p className="text-white/60 text-xs text-center animate-fade-in">
               Having trouble? Try entering the ID manually.
@@ -720,8 +761,20 @@ export function QrScanner({ onClose }: QrScannerProps) {
       {/* Inline quick-action sheet — shown after successful QR resolve */}
       {phase === "result" && scannedEquipment && (
         <div className="flex-1 bg-black/95 flex flex-col justify-end" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
-          <div className="bg-card rounded-t-3xl px-5 pt-5 pb-6 mx-0 w-full" data-testid="scan-inline-sheet">
+          <div
+            className="bg-card rounded-t-3xl px-5 pt-5 pb-6 mx-0 w-full motion-safe:animate-in motion-safe:slide-in-from-bottom-6 motion-safe:duration-300"
+            data-testid="scan-inline-sheet"
+          >
             <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
+            <div className="mb-4 rounded-2xl border border-emerald-200/70 bg-emerald-50 px-3 py-3">
+              <div className="flex items-center gap-2 text-emerald-800">
+                <div className="relative">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <Sparkles className="h-3.5 w-3.5 absolute -right-1 -top-1 text-emerald-500" />
+                </div>
+                <p className="text-sm font-semibold">Equipment matched</p>
+              </div>
+            </div>
 
             {/* Equipment info */}
             <div className="flex items-start gap-3 mb-4">
