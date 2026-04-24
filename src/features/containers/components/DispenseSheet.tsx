@@ -49,6 +49,11 @@ function formatTimeHHMM(isoString: string): string {
   return d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 }
 
+function isEnglishLabel(label: string | null): boolean {
+  if (!label) return false;
+  return /^[a-zA-Z0-9\s/\-.]+$/.test(label);
+}
+
 export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }: DispenseSheetProps) {
   const qc = useQueryClient();
 
@@ -235,8 +240,14 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                     const qty = selections.get(item.itemId) ?? 0;
                     return (
                       <div key={item.itemId} className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
-                        <div className="flex-1 text-right">
-                          <span className="text-base font-medium">{item.label}</span>
+                        <div className="flex-1 text-right min-w-0">
+                          <span className="text-base font-medium break-words leading-snug">{item.label}</span>
+                          {isEnglishLabel(item.label) && (
+                            <span
+                              className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1 align-middle shrink-0"
+                              title="שם באנגלית — מומלץ לתרגם"
+                            />
+                          )}
                           <span className="text-xs text-muted-foreground mr-2">({item.quantity} במלאי)</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -380,6 +391,9 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
             >
               השלם פירוט אחרי הטיפול
             </Button>
+            <p className="text-xs text-muted-foreground px-2">
+              תוכל להשלים גם מדף חפיפת משמרת
+            </p>
             <button
               onClick={onClose}
               className="text-sm text-muted-foreground py-2 min-h-[44px]"
@@ -522,8 +536,14 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                 const qty = selections.get(item.itemId) ?? 0;
                 return (
                   <div key={item.itemId} className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
-                    <div className="flex-1 text-right">
-                      <span className="text-base font-medium">{item.label}</span>
+                    <div className="flex-1 text-right min-w-0">
+                      <span className="text-base font-medium break-words leading-snug">{item.label}</span>
+                      {isEnglishLabel(item.label) && (
+                        <span
+                          className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1 align-middle shrink-0"
+                          title="שם באנגלית — מומלץ לתרגם"
+                        />
+                      )}
                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
                         {item.quantity}
                       </span>

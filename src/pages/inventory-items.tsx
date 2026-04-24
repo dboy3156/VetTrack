@@ -43,6 +43,10 @@ import { cn } from "@/lib/utils";
 type FormState = { code: string; label: string; category: string; nfcTagId: string };
 const BLANK: FormState = { code: "", label: "", category: "", nfcTagId: "" };
 
+const isDevMode =
+  process.env.NODE_ENV !== "production" ||
+  (typeof window !== "undefined" && window.location.search.includes("devmode=1"));
+
 export default function InventoryItemsPage() {
   const qc = useQueryClient();
   const p = t.inventoryItemsPage;
@@ -185,6 +189,15 @@ export default function InventoryItemsPage() {
             </Button>
           )}
         </div>
+
+        {isDevMode && (
+          <div
+            className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 font-medium mb-4"
+            dir="rtl"
+          >
+            ⚠️ לפיילוט: וודא שכל שמות הפריטים בעברית — לדוגמה &quot;מזרק 5מ״ל&quot; במקום &quot;Syringe 5ml&quot;
+          </div>
+        )}
 
         <Input
           placeholder={p.searchPlaceholder}
