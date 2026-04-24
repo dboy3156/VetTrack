@@ -19,7 +19,7 @@ async function main() {
 
   const { db, pool, users, containers, inventoryItems, containerItems, restockSessions } =
     await import("../server/db.js");
-  const { startRestockSession, scanItem, RestockServiceError } = await import(
+  const { startRestockSession, scanItem, getContainerInventoryView, RestockServiceError } = await import(
     "../server/services/restock.service.js",
   );
 
@@ -69,6 +69,75 @@ async function main() {
         const session = await startRestockSession({ clinicId, containerId, userId: userA });
         assert.strictEqual(session?.status, "active");
         assert.strictEqual(session?.containerId, containerId);
+      } finally {
+        await purgeClinic(clinicId);
+      }
+    }
+
+    // ─── Blueprint view: legacy item codes are resolved for ER Supply Cart ───
+    {
+      const clinicId = randomUUID();
+      const userId = randomUUID();
+      const containerId = randomUUID();
+      const legacySyringeId = randomUUID();
+      const legacyIvId = randomUUID();
+      try {
+        await db.insert(users).values({
+          id: userId,
+          clinicId,
+          clerkId: `clerk_${randomUUID()}`,
+          email: `legacy_${randomUUID()}@example.com`,
+          name: "Legacy Codes User",
+        });
+        await db.insert(containers).values({
+          id: containerId,
+          clinicId,
+          name: "ER Supply Cart",
+          department: "Emergency",
+        });
+        await db.insert(inventoryItems).values([
+          {
+            id: legacySyringeId,
+            clinicId,
+            code: "SYR_5ML",
+            label: "Syringe 5ml",
+            category: "Emergency",
+          },
+          {
+            id: legacyIvId,
+            clinicId,
+            code: "IV_16G",
+            label: "IV Catheter 16G",
+            category: "Emergency",
+          },
+        ]);
+        await db.insert(containerItems).values([
+          {
+            id: randomUUID(),
+            clinicId,
+            containerId,
+            itemId: legacySyringeId,
+            quantity: 20,
+          },
+          {
+            id: randomUUID(),
+            clinicId,
+            containerId,
+            itemId: legacyIvId,
+            quantity: 20,
+          },
+        ]);
+
+        const view = await getContainerInventoryView({ clinicId, containerId });
+        const syringeLine = view.lines.find((line) => line.code === "SYRINGE_5ML");
+        const ivLine = view.lines.find((line) => line.code === "IV_CATHETER_16G");
+
+        assert(syringeLine, "SYRINGE_5ML line should be present for ER Supply Cart");
+        assert(ivLine, "IV_CATHETER_16G line should be present for ER Supply Cart");
+        assert.strictEqual(syringeLine.actual, 20);
+        assert.strictEqual(ivLine.actual, 20);
+        assert.strictEqual(syringeLine.itemId, legacySyringeId);
+        assert.strictEqual(ivLine.itemId, legacyIvId);
       } finally {
         await purgeClinic(clinicId);
       }
