@@ -36,7 +36,6 @@ const NotFoundPage = lazy(() => import("@/pages/not-found"));
 const BillingLedgerPage = lazy(() => import("@/pages/billing-ledger"));
 const InventoryItemsPage = lazy(() => import("@/pages/inventory-items"));
 const ProcurementPage = lazy(() => import("@/pages/procurement"));
-const DevVerifyPage = lazy(() => import("@/pages/dev-verify"));
 
 export function AppRoutes() {
   return (
@@ -78,7 +77,6 @@ export function AppRoutes() {
         <Route path="/billing"><AuthGuard><BillingLedgerPage /></AuthGuard></Route>
         <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
         <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
-        <Route path="/dev-verify"><AuthGuard><DevVerifyPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
     </PageErrorBoundary>
