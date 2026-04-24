@@ -209,7 +209,6 @@ export default function InventoryPage() {
       }),
     onSuccess: () => {
       dispatch({ type: "scan-success" });
-      if (selectedId) qc.invalidateQueries({ queryKey: ["/api/restock/container-items", selectedId] });
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : "Failed to apply scan";
