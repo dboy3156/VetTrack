@@ -22,18 +22,36 @@ import {
 // Managed Postgres providers (Neon, Supabase, Heroku, Railway public proxy, …)
 // require TLS and signal it via `sslmode=require` in the URL. Enable SSL when
 // either the URL asks for it or we're in production.
-const DB_URL = getPostgresqlConnectionString();
-const URL_REQUIRES_SSL = /[?&]sslmode=(require|verify-ca|verify-full)\b/i.test(DB_URL);
+const DIRECT_URL = getPostgresqlConnectionString();
+const DIRECT_URL_REQUIRES_SSL = /[?&]sslmode=(require|verify-ca|verify-full)\b/i.test(DIRECT_URL);
+
+// When PGBOUNCER_URL is set (Railway PgBouncer service), app queries go through
+// the pooler. Migrations always use the direct connection (advisory locks and DDL
+// transactions are incompatible with PgBouncer transaction mode).
+const APP_URL = process.env.PGBOUNCER_URL?.trim() || DIRECT_URL;
+const APP_URL_REQUIRES_SSL = /[?&]sslmode=(require|verify-ca|verify-full)\b/i.test(APP_URL);
+
+const sslConfig = (requiresSsl: boolean) =>
+  process.env.NODE_ENV === "production" || requiresSsl
+    ? { rejectUnauthorized: false }
+    : false;
 
 export const pool = new Pool({
-  connectionString: DB_URL,
-  ssl:
-    process.env.NODE_ENV === "production" || URL_REQUIRES_SSL
-      ? { rejectUnauthorized: false }
-      : false,
+  connectionString: APP_URL,
+  ssl: sslConfig(APP_URL_REQUIRES_SSL),
   max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 10000,
+});
+
+// Direct connection used exclusively by the migration runner — never goes through
+// PgBouncer so that advisory locks and DDL transactions work correctly.
+export const directPool = new Pool({
+  connectionString: DIRECT_URL,
+  ssl: sslConfig(DIRECT_URL_REQUIRES_SSL),
+  max: 3,
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 10000,
 });
 
 export const db = drizzle(pool);

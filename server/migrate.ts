@@ -1,4 +1,4 @@
-import { pool } from "./db.js";
+import { directPool as pool } from "./db.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
