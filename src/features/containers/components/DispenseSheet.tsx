@@ -19,7 +19,7 @@ import {
   Plus,
   ChevronRight,
 } from "lucide-react";
-import type { InventoryContainerWithItems, Appointment } from "@/types";
+import type { InventoryContainerWithItems, ActivePatient } from "@/types";
 
 interface DispenseSheetProps {
   containerId: string;
@@ -47,6 +47,11 @@ interface DispenseSuccessData {
 function formatTimeHHMM(isoString: string): string {
   const d = new Date(isoString);
   return d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+}
+
+function isEnglishLabel(label: string | null): boolean {
+  if (!label) return false;
+  return /^[a-zA-Z0-9\s/\-.]+$/.test(label);
 }
 
 export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }: DispenseSheetProps) {
@@ -96,33 +101,21 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
     retry: false,
   });
 
-  // Fetch today's appointments to get active patients
-  const today = new Date().toISOString().slice(0, 10);
-  const appointmentsQ = useQuery({
-    queryKey: ["/api/appointments", today],
-    queryFn: () => api.appointments.list({ day: today }),
+  // Fetch today's active patients via dedicated endpoint
+  const activePatientsQ = useQuery({
+    queryKey: ["/api/animals/active"],
+    queryFn: () => api.animals.active(),
     enabled: isOpen,
     staleTime: 60_000,
     retry: false,
   });
 
-  // Unique animals from today's appointments
-  const activePatients = (() => {
-    if (!appointmentsQ.data) return [];
-    const seen = new Set<string>();
-    const patients: Array<{ animalId: string; animalName: string; species?: string | null }> = [];
-    for (const appt of appointmentsQ.data as Appointment[]) {
-      if (appt.animalId && !seen.has(appt.animalId)) {
-        seen.add(appt.animalId);
-        patients.push({
-          animalId: appt.animalId,
-          animalName: (appt as unknown as { animalName?: string }).animalName ?? appt.animalId,
-          species: (appt as unknown as { species?: string }).species,
-        });
-      }
-    }
-    return patients;
-  })();
+  const activePatients: ActivePatient[] = activePatientsQ.data?.animals ?? [];
+
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.log("[DispenseSheet] activePatients:", activePatients);
+  }
 
   const dispenseMut = useMutation({
     mutationFn: (data: { items: Array<{ itemId: string; quantity: number }>; animalId?: string | null; isEmergency?: boolean }) =>
@@ -235,8 +228,14 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                     const qty = selections.get(item.itemId) ?? 0;
                     return (
                       <div key={item.itemId} className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
-                        <div className="flex-1 text-right">
-                          <span className="text-base font-medium">{item.label}</span>
+                        <div className="flex-1 text-right min-w-0">
+                          <span className="text-base font-medium break-words leading-snug">{item.label}</span>
+                          {isEnglishLabel(item.label) && (
+                            <span
+                              className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1 align-middle shrink-0"
+                              title="שם באנגלית — מומלץ לתרגם"
+                            />
+                          )}
                           <span className="text-xs text-muted-foreground mr-2">({item.quantity} במלאי)</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -278,7 +277,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                             : "border-border bg-background",
                         )}
                       >
-                        <div className="font-semibold text-sm">{p.animalName}</div>
+                        <div className="font-semibold text-sm break-words">{p.animalName || "מטופל ללא שם"}</div>
                         {p.species && <div className="text-xs text-muted-foreground">{p.species}</div>}
                         {selectedAnimalId === p.animalId && (
                           <CheckCircle className="w-4 h-4 text-primary mt-1" />
@@ -380,6 +379,9 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
             >
               השלם פירוט אחרי הטיפול
             </Button>
+            <p className="text-xs text-muted-foreground px-2">
+              תוכל להשלים גם מדף חפיפת משמרת
+            </p>
             <button
               onClick={onClose}
               className="text-sm text-muted-foreground py-2 min-h-[44px]"
@@ -404,7 +406,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
               <p className="text-sm text-muted-foreground text-right">בחר מטופל או השאר ללא שיוך</p>
             </SheetHeader>
 
-            {appointmentsQ.isLoading ? (
+            {activePatientsQ.isLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
@@ -422,7 +424,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                           : "border-border bg-background",
                       )}
                     >
-                      <div className="font-semibold text-sm">{p.animalName}</div>
+                      <div className="font-semibold text-sm break-words">{p.animalName || "מטופל ללא שם"}</div>
                       {p.species && <div className="text-xs text-muted-foreground">{p.species}</div>}
                       {selectedAnimalId === p.animalId && (
                         <CheckCircle className="w-4 h-4 text-primary mt-1" />
@@ -522,8 +524,14 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                 const qty = selections.get(item.itemId) ?? 0;
                 return (
                   <div key={item.itemId} className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
-                    <div className="flex-1 text-right">
-                      <span className="text-base font-medium">{item.label}</span>
+                    <div className="flex-1 text-right min-w-0">
+                      <span className="text-base font-medium break-words leading-snug">{item.label}</span>
+                      {isEnglishLabel(item.label) && (
+                        <span
+                          className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1 align-middle shrink-0"
+                          title="שם באנגלית — מומלץ לתרגם"
+                        />
+                      )}
                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
                         {item.quantity}
                       </span>

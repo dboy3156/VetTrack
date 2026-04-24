@@ -30,6 +30,7 @@ import billingRoutes from "../routes/billing.js";
 import inventoryItemsRoutes from "../routes/inventory-items.js";
 import procurementRoutes from "../routes/procurement.js";
 import forecastRoutes from "../routes/forecast.js";
+import animalsRoutes from "../routes/animals.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -61,6 +62,7 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/inventory-items", inventoryItemsRoutes);
   app.use("/api/procurement", procurementRoutes);
   app.use("/api/forecast", forecastRoutes);
+  app.use("/api/animals", animalsRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);
   app.use("/api/health/ready", healthRoutes);

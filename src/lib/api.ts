@@ -13,6 +13,7 @@ import type {
   InventoryContainer,
   InventoryContainerWithItems,
   ConsumablesReport,
+  ActivePatient,
   ScanLog,
   TransferLog,
   Folder,
@@ -1274,5 +1275,9 @@ export const api = {
       }),
     removeExclusion: (id: string) =>
       request<void>(`/api/forecast/clinic/pharmacy-forecast-exclusions/${id}`, { method: "DELETE" }),
+  },
+  animals: {
+    active: () =>
+      request<{ animals: ActivePatient[] }>("/api/animals/active"),
   },
 };

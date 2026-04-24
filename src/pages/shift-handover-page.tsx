@@ -352,6 +352,15 @@ export default function ShiftHandoverPage() {
               צריכת מתכלים במשמרת
             </h2>
 
+            {consumablesQ.data.pendingEmergencies > 0 && (
+              <div className="flex items-center gap-3 rounded-xl border border-red-400 bg-red-50 dark:bg-red-950/25 p-3">
+                <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <p className="text-sm font-bold text-red-800 dark:text-red-300 flex-1">
+                  {consumablesQ.data.pendingEmergencies} אירועי חירום ממתינים להשלמה
+                </p>
+              </div>
+            )}
+
             {/* Summary cards */}
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-xl border p-3 text-center">
@@ -401,7 +410,7 @@ export default function ShiftHandoverPage() {
                           {formatTimeHHMM(ev.takenAt)}
                         </td>
                         <td className="px-3 py-2 font-medium">{ev.takenByDisplayName}</td>
-                        <td className="px-3 py-2">{ev.itemLabel}</td>
+                        <td className="px-3 py-2 break-words max-w-[120px]">{ev.itemLabel}</td>
                         <td className="px-3 py-2 tabular-nums">{ev.quantity}</td>
                         <td className="px-3 py-2">
                           {ev.pendingCompletion ? (
@@ -410,9 +419,9 @@ export default function ShiftHandoverPage() {
                                 חירום — ממתין לשיוך
                               </span>
                               <Button
-                                variant="outline"
+                                variant="default"
                                 size="sm"
-                                className="h-6 px-2 text-xs"
+                                className="h-7 px-3 text-xs font-bold bg-red-600 hover:bg-red-700 text-white min-h-[44px]"
                                 onClick={() => {
                                   setCompleteEmergencyEventId(ev.id);
                                   setCompleteEmergencyContainerId(ev.containerId);

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, Loader2, Minus, Plus, CheckCircle2, AlertTriangle, Nfc } from "lucide-react";
 import { toast } from "sonner";
+import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 import {
   useCallback,
   useEffect,
@@ -45,6 +46,12 @@ export default function InventoryPage() {
   const [location] = useLocation();
   const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
+  // Runtime devmode check — reads URL at mount time, works in production with ?devmode=1
+  const [isDevMode] = useState(() =>
+    typeof window !== "undefined" &&
+    window.location.search.includes("devmode=1"),
+  );
+  const [devDispenseContainerId, setDevDispenseContainerId] = useState<string | null>(null);
   // ── data ──────────────────────────────────────────────────────────────────
 
   const containersQ = useQuery({
@@ -695,6 +702,36 @@ export default function InventoryPage() {
             <span className="text-base font-semibold leading-snug">{scanOverlay.label}</span>
           </div>
         </div>
+      )}
+
+      {/* Devmode dispense trigger — visible at runtime when ?devmode=1 is in URL */}
+      {isDevMode && (
+        <div className="max-w-2xl mx-auto px-4 pb-20" data-testid="dev-dispense-trigger-section">
+          <div className="border border-dashed border-gray-300 rounded-xl p-3 mt-2">
+            <button
+              data-testid="dev-dispense-trigger"
+              onClick={() => {
+                const containers = containersQ.data;
+                if (!containers || containers.length === 0) {
+                  toast.error("אין עגלות במערכת — צור עגלה תחילה");
+                  return;
+                }
+                setDevDispenseContainerId(containers[0].id);
+              }}
+              className="w-full text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 min-h-[48px] hover:bg-gray-50 active:bg-gray-100 transition-colors"
+            >
+              🧪 בדיקת לקיחת מתכלים
+            </button>
+          </div>
+        </div>
+      )}
+
+      {devDispenseContainerId && (
+        <DispenseSheet
+          containerId={devDispenseContainerId}
+          isOpen={Boolean(devDispenseContainerId)}
+          onClose={() => setDevDispenseContainerId(null)}
+        />
       )}
 
     </Layout>
