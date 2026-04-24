@@ -227,35 +227,39 @@ export async function scanItem(params: {
     throw new RestockServiceError("INVALID_DELTA", 400, "delta must be a non-zero integer");
   }
 
-  return db.transaction(async (tx) => {
-    const session = await getSessionForMutation(tx, params.clinicId, params.sessionId);
-    assertSessionOwned(session, params.userId);
-
-    const [container] = await tx
-      .select()
-      .from(containers)
-      .where(and(eq(containers.clinicId, params.clinicId), eq(containers.id, session.containerId)))
-      .limit(1);
-    if (!container) {
-      throw new RestockServiceError("CONTAINER_NOT_FOUND", 404, "Container not found");
-    }
-
-    const template = blueprintEntryForContainerName(container.name);
-    const [item] = await tx
-      .select()
-      .from(inventoryItems)
+  // ── Fetch session + container + item in parallel, outside transaction ──
+  const [sessionRows, itemRows] = await Promise.all([
+    db.select().from(restockSessions)
+      .where(and(eq(restockSessions.clinicId, params.clinicId), eq(restockSessions.id, params.sessionId)))
+      .limit(1),
+    db.select().from(inventoryItems)
       .where(and(eq(inventoryItems.clinicId, params.clinicId), eq(inventoryItems.id, params.itemId)))
-      .limit(1);
-    if (!item) {
-      throw new RestockServiceError("ITEM_NOT_FOUND", 404, "Item not found");
-    }
+      .limit(1),
+  ]);
 
-    const inTemplate =
-      template.supplyTargets.length === 0 || templateContainsItemCode(template, item.code);
-    if (!inTemplate) {
-      throw new RestockServiceError("ITEM_NOT_IN_TEMPLATE", 400, "Item does not belong to container template");
-    }
+  const session = sessionRows[0];
+  if (!session) throw new RestockServiceError("SESSION_NOT_FOUND", 404, "Restock session not found");
+  if (session.status !== "active" || session.finishedAt) throw new RestockServiceError("SESSION_CLOSED", 400, "Restock session is already finished");
+  assertSessionOwned(session, params.userId);
 
+  const item = itemRows[0];
+  if (!item) throw new RestockServiceError("ITEM_NOT_FOUND", 404, "Item not found");
+
+  const [containerRows] = await Promise.all([
+    db.select().from(containers)
+      .where(and(eq(containers.clinicId, params.clinicId), eq(containers.id, session.containerId)))
+      .limit(1),
+  ]);
+
+  const container = containerRows[0];
+  if (!container) throw new RestockServiceError("CONTAINER_NOT_FOUND", 404, "Container not found");
+
+  const template = blueprintEntryForContainerName(container.name);
+  const inTemplate = template.supplyTargets.length === 0 || templateContainsItemCode(template, item.code);
+  if (!inTemplate) throw new RestockServiceError("ITEM_NOT_IN_TEMPLATE", 400, "Item does not belong to container template");
+
+  // ── Only the mutation stays in the transaction ──
+  return db.transaction(async (tx) => {
     const now = new Date();
 
     const [updatedRow] = await tx
@@ -296,21 +300,11 @@ export async function scanItem(params: {
             setWhere: sql`${containerItems.quantity} + ${params.delta} >= 0`,
           })
           .returning({ quantity: containerItems.quantity });
-        if (!insertedRow) {
-          throw new RestockServiceError(
-            "SCAN_CONFLICT_FAILED",
-            409,
-            "Scan conflict: upsert did not apply (concurrent update or guard failed)",
-          );
-        }
+        if (!insertedRow) throw new RestockServiceError("SCAN_CONFLICT_FAILED", 409, "Scan conflict");
         nextQuantity = insertedRow.quantity;
       } catch (err) {
         if (err instanceof RestockServiceError) throw err;
-        throw new RestockServiceError(
-          "SCAN_UPDATE_FAILED",
-          500,
-          "Scan storage update failed",
-        );
+        throw new RestockServiceError("SCAN_UPDATE_FAILED", 500, "Scan storage update failed");
       }
     }
 
@@ -318,26 +312,10 @@ export async function scanItem(params: {
       const [existing] = await tx
         .select({ quantity: containerItems.quantity })
         .from(containerItems)
-        .where(
-          and(
-            eq(containerItems.containerId, session.containerId),
-            eq(containerItems.itemId, item.id),
-          ),
-        )
+        .where(and(eq(containerItems.containerId, session.containerId), eq(containerItems.itemId, item.id)))
         .limit(1);
-
-      if (!existing) {
-        throw new RestockServiceError(
-          "ITEM_NOT_IN_CONTAINER",
-          409,
-          "Cannot decrement quantity for an item not present in the container.",
-        );
-      }
-      throw new RestockServiceError(
-        "NEGATIVE_QUANTITY_NOT_ALLOWED",
-        409,
-        "Scan would produce a negative quantity.",
-      );
+      if (!existing) throw new RestockServiceError("ITEM_NOT_IN_CONTAINER", 409, "Cannot decrement quantity for an item not present in the container.");
+      throw new RestockServiceError("NEGATIVE_QUANTITY_NOT_ALLOWED", 409, "Scan would produce a negative quantity.");
     }
 
     const [event] = await tx
