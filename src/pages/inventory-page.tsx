@@ -251,31 +251,41 @@ export default function InventoryPage() {
   // ── scan ──────────────────────────────────────────────────────────────────
 
   const scanLine = useCallback(
-    async (itemId: string | null, label: string, delta: number) => {
-      if (!itemId) {
+    async (itemId: string | null, code: string, label: string, delta: number) => {
+      const sessionId = await getOrCreateSession();
+      if (!sessionId || !selectedId) return;
+
+      let resolvedItemId = itemId;
+      if (!resolvedItemId) {
+        // First interaction may happen before template rows are seeded for this container.
+        // Re-read the container view after session creation and resolve line by blueprint code.
+        const latest = await api.restock.containerItems(selectedId);
+        qc.setQueryData(["/api/restock/container-items", selectedId], latest);
+        resolvedItemId = latest.lines.find((line) => line.code === code)?.itemId ?? null;
+      }
+      if (!resolvedItemId) {
         haptics.error();
         showScanOverlay(label, null);
         return;
       }
-      const sessionId = await getOrCreateSession();
-      if (!sessionId) return;
+
       dispatch({ type: "scan-request" });
       try {
-        const result = await scanMut.mutateAsync({ sessionId, itemId, delta });
+        const result = await scanMut.mutateAsync({ sessionId, itemId: resolvedItemId, delta });
         const name = result?.item?.label ?? label;
-        setFlashRowId({ id: itemId, type: "success" });
+        setFlashRowId({ id: resolvedItemId, type: "success" });
         setTimeout(() => setFlashRowId(null), 600);
         haptics.tap();
         showScanOverlay(name, delta);
         setScanGeneration((g) => g + 1);
       } catch {
-        setFlashRowId({ id: itemId, type: "error" });
+        setFlashRowId({ id: resolvedItemId, type: "error" });
         setTimeout(() => setFlashRowId(null), 600);
         haptics.error();
         showScanOverlay(label, null);
       }
     },
-    [getOrCreateSession, scanMut, showScanOverlay],
+    [getOrCreateSession, qc, scanMut, selectedId, showScanOverlay],
   );
 
   // ── inline edit ───────────────────────────────────────────────────────────
@@ -291,7 +301,7 @@ export default function InventoryPage() {
     setEditingCode(null);
     const parsed = parseInt(editValue, 10);
     if (isNaN(parsed) || parsed < 0 || parsed === line.actual) return;
-    await scanLine(line.itemId, line.label, parsed - line.actual);
+    await scanLine(line.itemId, line.code, line.label, parsed - line.actual);
   }, [editValue, scanLine]);
 
   // ── tab selection ─────────────────────────────────────────────────────────
@@ -573,7 +583,7 @@ export default function InventoryPage() {
                             size="icon"
                             className="h-9 w-9 rounded-xl shrink-0"
                             disabled={sessionState.isBusy || otherUserHasSession}
-                            onClick={() => scanLine(line.itemId, line.label, -1)}
+                            onClick={() => scanLine(line.itemId, line.code, line.label, -1)}
                             aria-label={`Decrement ${line.label}`}
                           >
                             <Minus className="w-4 h-4" />
@@ -619,7 +629,7 @@ export default function InventoryPage() {
                             size="icon"
                             className="h-9 w-9 rounded-xl shrink-0"
                             disabled={sessionState.isBusy || otherUserHasSession}
-                            onClick={() => scanLine(line.itemId, line.label, +1)}
+                            onClick={() => scanLine(line.itemId, line.code, line.label, +1)}
                             aria-label={`Increment ${line.label}`}
                           >
                             <Plus className="w-4 h-4" />
