@@ -304,17 +304,17 @@ export default function PatientDetailPage() {
       </Helmet>
 
       <div className="motion-safe:animate-page-enter pb-24">
-        <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 pt-4 sm:max-w-2xl sm:px-5 lg:max-w-4xl">
-          <header className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" size="sm" className="h-9 gap-1.5 px-2 text-muted-foreground hover:text-foreground" asChild>
+        <div className="flex w-full flex-col gap-5 pt-2">
+          <header className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" className="h-9 min-h-[40px] gap-1.5 px-2 text-muted-foreground hover:text-foreground" asChild>
               <Link href="/appointments">
                 <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 {p.back}
               </Link>
             </Button>
-            <div className="ms-auto flex items-center gap-2 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              {p.operatingCenter}
+            <div className="ms-auto flex min-w-0 max-w-full items-center gap-2 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <span className="truncate">{p.operatingCenter}</span>
             </div>
           </header>
 
@@ -327,8 +327,8 @@ export default function PatientDetailPage() {
             style={{ direction: dir }}
           >
             <div className="pointer-events-none absolute -end-16 -top-20 h-48 w-48 rounded-full bg-primary/[0.07] blur-2xl" />
-            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 flex-1 gap-4">
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-background/80 shadow-inner">
                   <UserRound className="h-7 w-7 text-primary" />
                 </div>
@@ -351,7 +351,13 @@ export default function PatientDetailPage() {
                   )}
                 </div>
               </div>
-              <Badge variant="outline" className={cn("shrink-0 border px-3 py-1 text-xs font-semibold", statusBadge.className)}>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "w-full justify-center border px-3 py-1.5 text-xs font-semibold sm:w-auto sm:justify-start sm:shrink-0",
+                  statusBadge.className,
+                )}
+              >
                 {statusBadge.label}
               </Badge>
             </div>
@@ -383,7 +389,7 @@ export default function PatientDetailPage() {
                 <Skeleton className="h-24 w-full rounded-2xl" />
               </div>
             ) : derived.linkedEquipment.length === 0 && derived.dischargeItems.length === 0 ? (
-              <EmptyState icon={Package} message={p.equipmentEmpty} />
+              <EmptyState icon={Package} message={p.equipmentEmpty} subMessage={p.equipmentEmptySub} />
             ) : (
               <div className="space-y-4">
                 {derived.linkedEquipment.length > 0 ? (
@@ -464,7 +470,7 @@ export default function PatientDetailPage() {
             ) : billingQ.isLoading ? (
               <Skeleton className="h-32 w-full rounded-2xl" />
             ) : derived.billing.length === 0 ? (
-              <EmptyState icon={Receipt} message={p.billingEmpty} />
+              <EmptyState icon={Receipt} message={p.billingEmpty} subMessage={p.billingEmptySub} />
             ) : (
               <Card className="border-border/60 shadow-sm overflow-hidden">
                 <CardContent className="divide-y divide-border/60 p-0">
@@ -508,7 +514,7 @@ export default function PatientDetailPage() {
             ) : (
               <div className="space-y-4">
                 {derived.careTasks.length === 0 && derived.medTasks.length === 0 ? (
-                  <EmptyState icon={ClipboardList} message={p.tasksEmpty} />
+                  <EmptyState icon={ClipboardList} message={p.tasksEmpty} subMessage={p.tasksEmptySub} />
                 ) : (
                   <>
                     {derived.careTasks.length > 0 ? (
@@ -569,7 +575,10 @@ export default function PatientDetailPage() {
                 <div className="space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{p.alertsTitle}</p>
                   {derived.patientAlerts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{p.alertsEmpty}</p>
+                    <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-center">
+                      <p className="text-sm font-medium text-foreground">{p.alertsEmpty}</p>
+                      <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">{p.alertsEmptySub}</p>
+                    </div>
                   ) : (
                     <ul className="space-y-2">
                       {derived.patientAlerts.slice(0, 6).map((alert) => (
@@ -601,7 +610,7 @@ export default function PatientDetailPage() {
             ) : activityQ.isLoading ? (
               <Skeleton className="h-36 w-full rounded-2xl" />
             ) : derived.timeline.length === 0 ? (
-              <EmptyState icon={Activity} message={p.timelineEmpty} />
+              <EmptyState icon={Activity} message={p.timelineEmpty} subMessage={p.timelineEmptySub} />
             ) : (
               <Card className="border-border/60 shadow-sm">
                 <CardContent className="divide-y divide-border/60 p-0">
@@ -635,7 +644,7 @@ export default function PatientDetailPage() {
 
           <section className="pb-4" style={{ direction: dir }}>
             <SectionTitle icon={LayoutGrid} title={p.sectionQuickActions} />
-            <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] snap-x snap-mandatory">
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-webkit-overflow-scrolling:touch] snap-x snap-mandatory">
               <Button variant="outline" className="h-auto min-h-[72px] min-w-[112px] shrink-0 snap-start flex-col gap-1 border-border/70 py-3" asChild>
                 <Link href="/appointments">
                   <ClipboardList className="h-5 w-5 text-primary" />

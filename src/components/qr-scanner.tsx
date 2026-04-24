@@ -483,16 +483,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
       <div className="relative z-10 flex items-center justify-between px-4 pb-3 bg-gradient-to-b from-black/95 to-black/65 backdrop-blur-sm" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}>
         <div className="flex flex-col">
           <span className="text-white font-semibold text-lg">{t.qrScanner.title}</span>
-          <span className="text-[11px] uppercase tracking-[0.16em] text-white/55">
-            Scan equipment
+          <span className="text-[11px] uppercase tracking-[0.16em] text-white/70">
+            Equipment QR
           </span>
         </div>
         <div className="flex items-center gap-2">
           {torchSupported && phase === "scanning" && (
             <Button
               variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
+              size="icon-sm"
+              className="h-10 w-10 text-white hover:bg-white/10"
               onClick={toggleTorch}
               data-testid="btn-torch-toggle"
             >
@@ -505,12 +505,12 @@ export function QrScanner({ onClose }: QrScannerProps) {
           )}
           <Button
             variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/10"
+            size="icon-sm"
+            className="h-10 w-10 text-white hover:bg-white/10"
             onClick={onClose}
             data-testid="btn-scanner-cancel"
           >
-            <X className="w-6 h-6" />
+            <X className="h-5 w-5" />
           </Button>
         </div>
       </div>
@@ -629,9 +629,13 @@ export function QrScanner({ onClose }: QrScannerProps) {
               <Tag className="w-14 h-14 text-amber-400" />
               <p className="font-bold text-lg">Unknown Tag</p>
               <p className="text-sm text-white/70">
-                We scanned a tag, but it is not linked yet:
-                <span className="font-mono text-xs break-all">{notFoundId}</span>
+                We read a code that is not linked to equipment yet.
               </p>
+              {notFoundId ? (
+                <p className="w-full max-w-full break-all rounded-lg bg-white/5 px-2 py-1.5 text-left font-mono text-[11px] text-white/90">
+                  {notFoundId}
+                </p>
+              ) : null}
               <div className="flex flex-col gap-2 w-full mt-2">
                 <Button
                   className="gap-2"
@@ -686,7 +690,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
               {/* Animated scan line */}
               <div className="qr-scan-line absolute left-0 right-0 h-0.5 bg-primary/80" />
               {/* Helper text below the frame */}
-              <p className="text-white/75 text-xs text-center absolute -bottom-9 left-0 right-0 whitespace-nowrap">
+              <p className="absolute -bottom-10 left-0 right-0 px-2 text-center text-[11px] leading-snug text-white/80 sm:text-xs">
                 {t.qrScanner.guideAim}
               </p>
             </div>
@@ -720,13 +724,13 @@ export function QrScanner({ onClose }: QrScannerProps) {
 
       {/* Manual entry mode */}
       {phase === "manual" && (
-        <div className="flex-1 bg-black/95 flex flex-col items-center justify-center p-6 gap-5">
-          <p className="text-white font-bold text-xl">{t.qrScanner.manualEnterTitle}</p>
-          <p className="text-white/60 text-sm text-center">
+        <div className="flex max-h-[100dvh] flex-1 flex-col items-center justify-center gap-5 overflow-y-auto overscroll-contain bg-black/95 p-6">
+          <p className="text-center text-xl font-bold text-white">{t.qrScanner.manualEnterTitle}</p>
+          <p className="max-w-md text-center text-sm text-white/65">
             {t.qrScanner.manualEnterDesc}
           </p>
           <Input
-            className="bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
+            className="w-full max-w-md min-w-0 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-primary"
             placeholder="Equipment ID or URL…"
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
@@ -766,8 +770,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
             data-testid="scan-inline-sheet"
           >
             <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
-            <div className="mb-4 rounded-2xl border border-emerald-200/70 bg-emerald-50 px-3 py-3">
-              <div className="flex items-center gap-2 text-emerald-800">
+            <div className="mb-4 rounded-2xl border border-emerald-200/70 bg-emerald-50 px-3 py-3 dark:border-emerald-800/60 dark:bg-emerald-950/35">
+              <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
                 <div className="relative">
                   <CheckCircle2 className="h-5 w-5" />
                   <Sparkles className="h-3.5 w-3.5 absolute -right-1 -top-1 text-emerald-500" />
@@ -841,16 +845,17 @@ export function QrScanner({ onClose }: QrScannerProps) {
               )}
 
               {isCheckedOut && !checkedOutByMe && !isAdmin && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-sm text-amber-800">
-                  Only the person who checked this out (or an admin) can return it.
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  Only the teammate who checked this out—or an admin—can return it.
                 </div>
               )}
 
               {/* Status quick-actions: Mark OK / Mark Issue */}
-              <div className="flex gap-2">
+              <div className="flex min-w-0 gap-2">
                 <Button
                   variant="outline"
-                  className="flex-1 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  size="default"
+                  className="min-h-11 flex-1 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
                   onClick={handleMarkOk}
                   disabled={isActing || scannedEquipment.status === "ok"}
                   data-testid="btn-scan-inline-mark-ok"
@@ -860,7 +865,8 @@ export function QrScanner({ onClose }: QrScannerProps) {
                 </Button>
                 <Button
                   variant="outline"
-                  className="flex-1 gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  size="default"
+                  className="min-h-11 flex-1 gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
                   onClick={handleMarkIssue}
                   disabled={isActing}
                   data-testid="btn-scan-inline-mark-issue"

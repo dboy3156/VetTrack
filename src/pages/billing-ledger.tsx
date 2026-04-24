@@ -41,9 +41,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X } from "lucide-react";
 
 const STATUS_BADGE: Record<BillingLedgerEntry["status"], string> = {
-  pending: "bg-amber-100 text-amber-800 border-amber-200",
-  synced: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  voided: "bg-muted text-muted-foreground border-border line-through",
+  pending:
+    "bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/55 dark:text-amber-100 dark:border-amber-800",
+  synced:
+    "bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-950/55 dark:text-emerald-100 dark:border-emerald-800",
+  voided: "bg-muted text-muted-foreground border-border",
 };
 
 function formatCents(cents: number) {
@@ -174,14 +176,14 @@ export default function BillingLedgerPage() {
     <Layout>
       <Helmet><title>{p.title} — VetTrack</title></Helmet>
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6 motion-safe:animate-page-enter">
+      <div className="w-full space-y-6 motion-safe:animate-page-enter">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-xl font-semibold">{p.title}</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <Receipt className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+            <h1 className="truncate text-2xl font-bold tracking-tight">{p.title}</h1>
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Button size="sm" className="min-h-[40px] shrink-0" onClick={() => setAddOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
               {p.addCharge}
             </Button>
@@ -203,7 +205,7 @@ export default function BillingLedgerPage() {
               <Clock3 className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="mt-2 text-2xl font-semibold tracking-tight">{formatCents(chargesThisWeek)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Last 7 days performance</p>
+            <p className="mt-1 text-xs text-muted-foreground">Rolling 7-day total</p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
             <div className="flex items-center justify-between">
@@ -219,7 +221,7 @@ export default function BillingLedgerPage() {
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-amber-700">Outstanding Review Items</p>
+              <p className="text-xs font-medium text-amber-700">Pending review</p>
               <AlertTriangle className="h-4 w-4 text-amber-700" />
             </div>
             <p className="mt-2 text-2xl font-semibold tracking-tight text-amber-800">
@@ -255,8 +257,9 @@ export default function BillingLedgerPage() {
               {["all", "pending", "synced", "voided"].map((s) => (
                 <button
                   key={s}
+                  type="button"
                   onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  className={`min-h-[36px] rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                     statusFilter === s
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-background border-border text-muted-foreground hover:bg-muted"
@@ -282,7 +285,7 @@ export default function BillingLedgerPage() {
           <EmptyState
             icon={Receipt}
             message={p.noEntries}
-            subMessage="Charges you add or capture will show in this ledger."
+            subMessage="Manual charges and synced captures will appear here once recorded."
             iconBg="bg-muted/80 ring-1 ring-border/40"
             iconColor="text-muted-foreground"
           />
@@ -352,7 +355,7 @@ export default function BillingLedgerPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
-                      <p className="truncate font-mono text-xs text-muted-foreground">{entry.animalId}</p>
+                      <p className="break-all font-mono text-xs text-muted-foreground">{entry.animalId}</p>
                       <p className="text-sm font-medium">{entry.itemType}</p>
                       <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleDateString()}</p>
                     </div>

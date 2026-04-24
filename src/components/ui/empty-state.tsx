@@ -24,12 +24,12 @@ export function EmptyState({
   return (
     <Card
       className={cn(
-        "border border-dashed border-border/70 bg-muted/5 shadow-sm",
+        "max-w-full min-w-0 border border-dashed border-border/70 bg-muted/5 shadow-sm",
         "motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300",
         borderColor
       )}
     >
-      <CardContent className="p-8 md:p-10 text-center space-y-4">
+      <CardContent className="space-y-4 p-6 text-center sm:p-8 md:p-10">
         <div
           className={cn(
             "w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-inner",

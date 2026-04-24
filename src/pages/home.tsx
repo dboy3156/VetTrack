@@ -144,7 +144,7 @@ export default function HomePage() {
       id: "charges-today",
       title: "Charges Today",
       value: "—",
-      subtitle: "Billing sync pending",
+      subtitle: "Open billing for totals",
       icon: DollarSign,
       href: "/billing",
       loading: false,
@@ -201,10 +201,10 @@ export default function HomePage() {
         <link rel="canonical" href="https://vettrack.replit.app/" />
       </Helmet>
       <div className="motion-safe:animate-page-enter pb-20">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+        <div className="flex w-full flex-col gap-8">
           <section className="rounded-3xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 px-5 py-6 shadow-sm sm:px-7 sm:py-7">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1.5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0 flex-1 space-y-1.5">
                 <p className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
                   Today
@@ -219,7 +219,7 @@ export default function HomePage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-1 min-h-[40px] shrink-0 gap-1.5 border-border/70 bg-background/70 text-xs text-muted-foreground hover:text-foreground"
+                className="min-h-[40px] w-full shrink-0 gap-1.5 self-stretch border-border/70 bg-background/70 text-xs text-muted-foreground hover:text-foreground sm:mt-1 sm:w-auto sm:self-auto"
                 onClick={() => setShiftSummaryOpen(true)}
                 data-testid="btn-shift-summary"
               >
@@ -330,8 +330,8 @@ export default function HomePage() {
                       <Activity className="h-4 w-4 text-primary" />
                       Live Activity
                     </h2>
-                    <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[11px] tabular-nums">
-                      {(activityData?.items?.length ?? 0).toString()} updates
+                    <Badge variant="secondary" className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] tabular-nums">
+                      {(activityData?.items?.length ?? 0).toString()} events
                     </Badge>
                   </div>
 
@@ -349,7 +349,7 @@ export default function HomePage() {
                         return (
                           <Link key={item.id} href={`/equipment/${item.equipmentId}`}>
                             <div className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/60 p-3.5 transition-colors duration-200 hover:bg-muted/50 motion-safe:hover:shadow-sm">
-                              <div className="flex min-w-0 items-start gap-3">
+                              <div className="flex min-w-0 flex-1 items-start gap-3">
                                 <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted">
                                   <StatusIcon className={`h-3.5 w-3.5 ${statusColor}`} />
                                 </span>
@@ -360,11 +360,11 @@ export default function HomePage() {
                                   <p className="truncate text-xs text-muted-foreground">{actionText}</p>
                                 </div>
                               </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <p className="text-[11px] text-muted-foreground">
+                              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                                <p className="max-w-[4.5rem] truncate text-end text-[11px] tabular-nums text-muted-foreground sm:max-w-none sm:whitespace-nowrap">
                                   {formatRelativeTime(item.timestamp)}
                                 </p>
-                                <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/80" />
+                                <ArrowUpRight className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground/80 sm:block" aria-hidden />
                               </div>
                             </div>
                           </Link>
@@ -483,7 +483,7 @@ export default function HomePage() {
                     </div>
                     <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
                       <span className="text-muted-foreground">Billing today</span>
-                      <span className="font-semibold text-foreground">—</span>
+                      <span className="font-semibold text-foreground tabular-nums">—</span>
                     </div>
                   </div>
                 </CardContent>

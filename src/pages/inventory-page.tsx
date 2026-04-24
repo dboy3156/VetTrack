@@ -436,11 +436,11 @@ export default function InventoryPage() {
         <title>{p.title} — VetTrack</title>
       </Helmet>
 
-      <div className="max-w-2xl mx-auto p-4 pb-24 space-y-4 motion-safe:animate-page-enter" data-restock-allow>
+      <div className="w-full space-y-4 pb-24 motion-safe:animate-page-enter" data-restock-allow>
 
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <h1 className="text-2xl font-bold flex items-center gap-2 tracking-tight">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold flex items-center gap-2 tracking-tight min-w-0">
             <Package className="w-7 h-7 text-primary shrink-0" aria-hidden />
             {p.title}
           </h1>
@@ -560,11 +560,6 @@ export default function InventoryPage() {
               {detailsQ.data && missingCount === 0 && totalItems > 0 && (
                 <div className="mx-4 mt-3 mb-1 rounded-lg border border-emerald-400/50 bg-emerald-50 px-3 py-2 text-center text-sm font-medium text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-700">
                   ✓ All items stocked
-                  {isRestocking && (
-                    <span className="block text-xs font-normal mt-0.5 opacity-80">
-                      Finishing session in 1.5s…
-                    </span>
-                  )}
                 </div>
               )}
 
@@ -653,7 +648,7 @@ export default function InventoryPage() {
                             <div className="mt-1 flex items-center gap-2 text-xs">
                               {isLowStock ? (
                                 <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-50 px-2 py-0.5 text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
-                                  Low stock: {missing} missing
+                                  Short by {missing}
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-50 px-2 py-0.5 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300">
@@ -670,7 +665,7 @@ export default function InventoryPage() {
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
-                          <Button
+                            <Button
                             type="button"
                             variant="outline"
                             size="icon"
@@ -727,8 +722,8 @@ export default function InventoryPage() {
                           >
                             <Plus className="w-4 h-4" />
                           </Button>
+                          </div>
                         </div>
-                      </div>
                       </div>
                     );
                   })}
