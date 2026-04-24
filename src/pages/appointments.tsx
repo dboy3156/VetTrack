@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Redirect } from "wouter";
+import { Link, Redirect } from "wouter";
 import { t } from "@/lib/i18n";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -308,6 +308,18 @@ function formatDevice(animalId: string | null | undefined): string {
   if (!animalId) return "Unassigned device";
   if (looksLikeUuid(animalId)) return "Assigned device";
   return animalId;
+}
+
+function PatientChartLink({ animalId }: { animalId: string | null | undefined }) {
+  if (!animalId || !looksLikeUuid(animalId)) return null;
+  return (
+    <Link
+      href={`/patients/${animalId}`}
+      className="inline-flex shrink-0 items-center rounded-md border border-primary/25 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/10"
+    >
+      {t.patientDetail.pageTitle}
+    </Link>
+  );
 }
 
 function formatLocation(ownerId: string | null | undefined): string | null {
@@ -724,7 +736,10 @@ export default function AppointmentsPage() {
                 <div className="rounded-xl border border-border/70 p-4 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1 min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{formatDevice(nbt.animalId)}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold">{formatDevice(nbt.animalId)}</div>
+                        <PatientChartLink animalId={nbt.animalId} />
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {compactMeta(formatLocation(nbt.ownerId), resolveVet(nbt.vetId), timeRange)}
                       </div>
@@ -820,7 +835,10 @@ export default function AppointmentsPage() {
                   {(dashboardQuery.data?.overdue ?? []).map((overdueItem) => (
                     <li key={overdueItem.id} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.overdue}`}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(overdueItem.animalId)}</span>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(overdueItem.animalId)}</span>
+                          <PatientChartLink animalId={overdueItem.animalId} />
+                        </div>
                         <Badge variant="outline" className={URGENT_BADGE_STYLES.overdue}>
                           overdue
                         </Badge>
@@ -842,7 +860,10 @@ export default function AppointmentsPage() {
                   {(recommendationsQuery.data?.urgentTasks ?? []).map((urgentItem) => (
                     <li key={`urgent-${urgentItem.id}`} className={`rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.critical}`}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(urgentItem.animalId)}</span>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(urgentItem.animalId)}</span>
+                          <PatientChartLink animalId={urgentItem.animalId} />
+                        </div>
                         <Badge variant="outline" className={URGENT_BADGE_STYLES.critical}>
                           critical
                         </Badge>
@@ -936,7 +957,10 @@ export default function AppointmentsPage() {
                     return (
                     <li key={todayTask.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.soon}`}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(todayTask.animalId)}</span>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(todayTask.animalId)}</span>
+                          <PatientChartLink animalId={todayTask.animalId} />
+                        </div>
                         <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
                           {isDelayedMedicationTask(todayTask) ? (
                             <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
@@ -1057,7 +1081,10 @@ export default function AppointmentsPage() {
                     return (
                     <li key={myTask.id} className={`flex flex-col gap-1.5 rounded-lg border p-3 text-sm ${TASK_CARD_STYLES.normal}`}>
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(myTask.animalId)}</span>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="font-semibold min-w-0 flex-1 break-words">{formatDevice(myTask.animalId)}</span>
+                          <PatientChartLink animalId={myTask.animalId} />
+                        </div>
                         <div className="flex flex-wrap items-center justify-end gap-1 shrink-0">
                           {isDelayedMedicationTask(myTask) ? (
                             <Badge variant="outline" className="text-[10px] bg-red-100 border-red-300 text-red-900">
@@ -1324,8 +1351,9 @@ export default function AppointmentsPage() {
                         style={{ top: top + 1, height }}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="text-xs font-semibold min-w-0 flex-1 break-words">
-                            {formatDevice(appointment.animalId)}
+                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs font-semibold break-words">
+                            <span className="min-w-0">{formatDevice(appointment.animalId)}</span>
+                            <PatientChartLink animalId={appointment.animalId} />
                           </div>
                           <div className="flex flex-wrap justify-end gap-1 shrink-0">
                             {isDelayedMedicationTask(appointment) ? (

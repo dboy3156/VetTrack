@@ -258,6 +258,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         }
       }
       safeStorageSetItem("vt_auto_restock_container", containerId, "session");
+      haptics.scanSuccess();
       navigate(`/inventory?container=${encodeURIComponent(containerId)}`);
       return;
     }
@@ -296,6 +297,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     // Try equipment first
     try {
       await api.equipment.get(assetId);
+      haptics.scanSuccess();
       navigate(`/equipment/${assetId}`);
       return;
     } catch {
@@ -996,7 +998,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       <main
         className={cn(
           "max-w-2xl mx-auto px-4 pb-nav-safe",
-          settings.density === "compact" ? "py-3" : "py-5"
+          settings.density === "compact" ? "py-3" : "py-6"
         )}
       >
         {children}

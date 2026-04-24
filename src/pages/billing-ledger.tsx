@@ -6,6 +6,8 @@ import { Layout } from "@/components/layout";
 import { ErrorCard } from "@/components/ui/error-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -33,10 +35,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, Plus, Ban, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -47,9 +49,11 @@ import {
 } from "recharts";
 
 const STATUS_BADGE: Record<BillingLedgerEntry["status"], string> = {
-  pending: "bg-amber-100 text-amber-800 border-amber-200",
-  synced: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  voided: "bg-muted text-muted-foreground border-border line-through",
+  pending:
+    "bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/55 dark:text-amber-100 dark:border-amber-800",
+  synced:
+    "bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-950/55 dark:text-emerald-100 dark:border-emerald-800",
+  voided: "bg-muted text-muted-foreground border-border",
 };
 
 const STATUS_LABEL: Record<BillingLedgerEntry["status"], string> = {
@@ -96,6 +100,7 @@ export default function BillingLedgerPage() {
 
   const [dateRange, setDateRange] = useState<DateRange>("month");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
@@ -142,7 +147,7 @@ export default function BillingLedgerPage() {
         unitPriceCents: form.unitPriceCents,
       }),
     onSuccess: () => {
-      toast.success(p.chargeAdded);
+      toast.success(p.chargeAdded, { duration: 3200 });
       qc.invalidateQueries({ queryKey: ["/api/billing"] });
       setAddOpen(false);
       setForm({ animalId: "", itemType: "CONSUMABLE", itemId: "", quantity: 1, unitPriceCents: 0 });
@@ -153,7 +158,7 @@ export default function BillingLedgerPage() {
   const voidMut = useMutation({
     mutationFn: (id: string) => api.billing.void(id),
     onSuccess: () => {
-      toast.success(p.chargeVoided);
+      toast.success(p.chargeVoided, { duration: 3200 });
       qc.invalidateQueries({ queryKey: ["/api/billing"] });
       setVoidTarget(null);
     },
@@ -161,13 +166,70 @@ export default function BillingLedgerPage() {
   });
 
   const allEntries = ledgerQ.data ?? [];
+
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const weekStart = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const nonVoidedEntries = useMemo(() => allEntries.filter((entry) => entry.status !== "voided"), [allEntries]);
+  const chargesToday = useMemo(
+    () =>
+      nonVoidedEntries
+        .filter((entry) => new Date(entry.createdAt) >= todayStart)
+        .reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [nonVoidedEntries, todayStart],
+  );
+  const chargesThisWeek = useMemo(
+    () =>
+      nonVoidedEntries
+        .filter((entry) => new Date(entry.createdAt) >= weekStart)
+        .reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [nonVoidedEntries, weekStart],
+  );
+  const autoCapturedEntries = useMemo(
+    () => nonVoidedEntries.filter((entry) => entry.status === "synced"),
+    [nonVoidedEntries],
+  );
+  const autoCapturedTotal = useMemo(
+    () => autoCapturedEntries.reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [autoCapturedEntries],
+  );
+  const outstandingReviewEntries = useMemo(
+    () => nonVoidedEntries.filter((entry) => entry.status === "pending"),
+    [nonVoidedEntries],
+  );
+  const outstandingReviewTotal = useMemo(
+    () => outstandingReviewEntries.reduce((sum, entry) => sum + entry.totalAmountCents, 0),
+    [outstandingReviewEntries],
+  );
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredEntries = useMemo(() => {
     return allEntries.filter((e) => {
       if (typeFilter === "EQUIPMENT" && e.itemType !== "EQUIPMENT") return false;
       if (typeFilter === "CONSUMABLE" && e.itemType !== "CONSUMABLE") return false;
+      if (normalizedSearch) {
+        const createdDate = new Date(e.createdAt).toLocaleDateString().toLowerCase();
+        return (
+          e.animalId.toLowerCase().includes(normalizedSearch) ||
+          e.itemId.toLowerCase().includes(normalizedSearch) ||
+          e.itemType.toLowerCase().includes(normalizedSearch) ||
+          e.status.toLowerCase().includes(normalizedSearch) ||
+          createdDate.includes(normalizedSearch)
+        );
+      }
       return true;
     });
-  }, [allEntries, typeFilter]);
+  }, [allEntries, typeFilter, normalizedSearch]);
 
   const visibleEntries = filteredEntries.slice(0, (page + 1) * PAGE_SIZE);
   const hasMore = filteredEntries.length > visibleEntries.length;
@@ -191,19 +253,18 @@ export default function BillingLedgerPage() {
         <title>{p.title} — VetTrack</title>
       </Helmet>
 
-      <div dir="rtl" className="flex flex-col gap-5 pb-24 animate-fade-in">
-        {/* Header */}
+      <div className="w-full space-y-6 motion-safe:animate-page-enter">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-2xl font-bold leading-tight">{p.title}</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <Receipt className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+            <h1 className="truncate text-2xl font-bold tracking-tight">{p.title}</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Date range filter */}
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
               {rangeButtons.map(({ key, label }) => (
                 <button
                   key={key}
+                  type="button"
                   onClick={() => { setDateRange(key); setPage(0); }}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                     dateRange === key
@@ -216,64 +277,57 @@ export default function BillingLedgerPage() {
               ))}
             </div>
             {isAdmin && (
-              <Button size="sm" onClick={() => setAddOpen(true)}>
-                <Plus className="h-4 w-4 ms-1" />
+              <Button size="sm" className="min-h-[40px] shrink-0" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" />
                 {p.addCharge}
               </Button>
             )}
           </div>
         </div>
 
-        {/* Summary Cards */}
-        {summaryQ.isPending ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Charges Today</p>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight">{formatCents(chargesToday)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{nonVoidedEntries.length} active lines</p>
           </div>
-        ) : summaryQ.isError ? (
-          <ErrorCard message={p.loadError} onRetry={() => summaryQ.refetch()} />
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <TrendingUp className="h-4 w-4" />
-                <span className="text-xs font-medium">{p.totalBilled}</span>
-              </div>
-              <p className="text-2xl font-bold text-foreground tabular-nums">
-                {formatCents(summary?.totalCents ?? 0)}
-              </p>
+          <div className="rounded-xl border bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Charges This Week</p>
+              <Clock3 className="h-4 w-4 text-muted-foreground" />
             </div>
-            <div className="flex flex-col gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                <Clock className="h-4 w-4" />
-                <span className="text-xs font-medium">{p.totalPending}</span>
-              </div>
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums">
-                {formatCents(summary?.pendingCents ?? 0)}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
-                <span className="text-xs font-medium">{p.totalSynced}</span>
-              </div>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
-                {formatCents(summary?.syncedCents ?? 0)}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/40 p-4 shadow-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <XCircle className="h-4 w-4" />
-                <span className="text-xs font-medium">{p.totalVoided}</span>
-              </div>
-              <p className="text-2xl font-bold text-muted-foreground tabular-nums">
-                {formatCents(summary?.voidedCents ?? 0)}
-              </p>
-            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight">{formatCents(chargesThisWeek)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Rolling 7-day total</p>
           </div>
-        )}
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-emerald-700">Auto Captured Charges</p>
+              <Sparkles className="h-4 w-4 text-emerald-700" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-emerald-800">
+              {formatCents(autoCapturedTotal)}
+            </p>
+            <p className="mt-1 text-xs text-emerald-700">
+              {autoCapturedEntries.length} synced to billing
+            </p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-amber-700">Pending review</p>
+              <AlertTriangle className="h-4 w-4 text-amber-700" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-amber-800">
+              {outstandingReviewEntries.length}
+            </p>
+            <p className="mt-1 text-xs text-amber-700">{formatCents(outstandingReviewTotal)} pending review</p>
+          </div>
+        </div>
 
         {/* Bar Chart */}
-        {!summaryQ.isPending && !summaryQ.isError && (
+        {!summaryQ.isPending && !summaryQ.isError && chartData.length > 0 && (
           <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
             <p className="text-sm font-semibold text-foreground mb-3">{p.chartTitle}</p>
             <div className="h-48">
@@ -309,88 +363,111 @@ export default function BillingLedgerPage() {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
-            <SelectTrigger className="w-36 h-8 text-xs bg-card">
-              <SelectValue placeholder={p.filterStatus} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{p.filter_all}</SelectItem>
-              <SelectItem value="pending">{p.filter_pending}</SelectItem>
-              <SelectItem value="synced">{p.filter_synced}</SelectItem>
-              <SelectItem value="voided">{p.filter_voided}</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(0); }}>
-            <SelectTrigger className="w-36 h-8 text-xs bg-card">
-              <SelectValue placeholder={p.filterType} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{p.type_all}</SelectItem>
-              <SelectItem value="EQUIPMENT">{p.type_equipment}</SelectItem>
-              <SelectItem value="CONSUMABLE">{p.type_consumable}</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Search + type + status filters */}
+        <div className="rounded-xl border bg-card p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                  placeholder="Search by animal ID, item ID, status, date, or type"
+                  className="pl-9 pr-8"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(0); }}>
+                <SelectTrigger className="w-36 h-9 text-xs bg-background">
+                  <SelectValue placeholder={p.filterType} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{p.type_all}</SelectItem>
+                  <SelectItem value="EQUIPMENT">{p.type_equipment}</SelectItem>
+                  <SelectItem value="CONSUMABLE">{p.type_consumable}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {["all", "pending", "synced", "voided"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => { setStatusFilter(s); setPage(0); }}
+                  className={`min-h-[36px] rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    statusFilter === s
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {p[`filter_${s}` as keyof typeof p] ?? s}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* Ledger */}
         {ledgerQ.isPending ? (
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}
+          <div className="space-y-3">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-[4.25rem] w-full rounded-2xl" />
+            ))}
           </div>
         ) : ledgerQ.isError ? (
           <ErrorCard message={p.loadError} onRetry={() => ledgerQ.refetch()} />
-        ) : filteredEntries.length === 0 ? (
-          <div className="flex flex-col items-center py-16 gap-3 text-center">
-            <Receipt className="h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">{p.noEntries}</p>
-          </div>
+        ) : visibleEntries.length === 0 ? (
+          <EmptyState
+            icon={Receipt}
+            message={p.noEntries}
+            subMessage="Manual charges and synced captures will appear here once recorded."
+            iconBg="bg-muted/80 ring-1 ring-border/40"
+            iconColor="text-muted-foreground"
+          />
         ) : (
-          <>
-            <div className="rounded-xl border border-border/60 overflow-hidden shadow-sm">
+          <div className="space-y-3">
+            <div className="hidden overflow-hidden rounded-xl border lg:block">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 border-b border-border/60">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground">{p.colDate}</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground">{p.colStatus}</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground">{p.colAmount}</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground">{p.colQty}</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground">{p.colItem}</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-xs text-muted-foreground">{p.colPatient}</th>
-                    {isAdmin && <th className="px-4 py-2.5 w-10" />}
+                    <th className="text-left px-4 py-3 font-semibold">{p.colAnimal}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colType}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colQty}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colUnit}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colTotal}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colStatus}</th>
+                    <th className="text-left px-4 py-3 font-semibold">{p.colDate}</th>
+                    {isAdmin && <th className="px-4 py-3" />}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/40">
+                <tbody className="divide-y">
                   {visibleEntries.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      className={`hover:bg-muted/30 transition-colors ${entry.status === "voided" ? "opacity-50" : ""}`}
-                    >
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(entry.createdAt).toLocaleDateString("he-IL")}
+                    <tr key={entry.id} className={entry.status === "voided" ? "opacity-50" : ""}>
+                      <td className="px-4 py-3 font-mono text-xs">{entry.animalId}</td>
+                      <td className="px-4 py-3">{entry.itemType}</td>
+                      <td className="px-4 py-3">{entry.quantity}</td>
+                      <td className="px-4 py-3">{formatCents(entry.unitPriceCents)}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        <span className={entry.status === "synced" ? "text-emerald-700" : ""}>
+                          {formatCents(entry.totalAmountCents)}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
                           {STATUS_LABEL[entry.status]}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-semibold tabular-nums">
-                        {formatCents(entry.totalAmountCents)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground tabular-nums">
-                        {entry.quantity}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="text-xs font-mono truncate max-w-[120px]">{entry.itemId}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {entry.itemType === "EQUIPMENT" ? p.type_equipment : p.type_consumable}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground truncate max-w-[100px]">
-                        {entry.animalId}
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {new Date(entry.createdAt).toLocaleDateString("he-IL")}
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">
@@ -398,7 +475,7 @@ export default function BillingLedgerPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                              className="text-destructive hover:text-destructive h-7 px-2"
                               onClick={() => setVoidTarget(entry)}
                             >
                               <Ban className="h-3.5 w-3.5" />
@@ -412,18 +489,69 @@ export default function BillingLedgerPage() {
               </table>
             </div>
 
+            <div className="grid gap-3 lg:hidden">
+              {visibleEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={`rounded-xl border bg-card p-4 shadow-sm ${entry.status === "voided" ? "opacity-60" : ""} ${
+                    entry.status === "synced" ? "border-emerald-200 bg-emerald-50/50" : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="break-all font-mono text-xs text-muted-foreground">{entry.animalId}</p>
+                      <p className="text-sm font-medium">{entry.itemType}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
+                      {STATUS_LABEL[entry.status]}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg border bg-background p-2">
+                      <p className="text-muted-foreground">Qty</p>
+                      <p className="font-semibold">{entry.quantity}</p>
+                    </div>
+                    <div className="rounded-lg border bg-background p-2">
+                      <p className="text-muted-foreground">Unit</p>
+                      <p className="font-semibold">{formatCents(entry.unitPriceCents)}</p>
+                    </div>
+                    <div className="col-span-2 rounded-lg border bg-background p-2">
+                      <p className="text-muted-foreground">Total</p>
+                      <p className={`text-base font-semibold ${entry.status === "synced" ? "text-emerald-700" : ""}`}>
+                        {formatCents(entry.totalAmountCents)}
+                      </p>
+                    </div>
+                  </div>
+                  {isAdmin && entry.status !== "voided" ? (
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive h-8 px-2"
+                        onClick={() => setVoidTarget(entry)}
+                      >
+                        <Ban className="mr-1 h-3.5 w-3.5" />
+                        {p.voidConfirm}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
             {hasMore && (
               <div className="flex justify-center">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => setPage((pg) => pg + 1)}
                 >
                   {p.loadMore}
                 </Button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

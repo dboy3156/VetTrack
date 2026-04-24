@@ -1,7 +1,7 @@
 import { t } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearch, useLocation } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -13,7 +13,6 @@ import { ErrorCard } from "@/components/ui/error-card";
 import { ShiftSummarySheet } from "@/components/shift-summary-sheet";
 import { computeAlerts } from "@/lib/utils";
 import {
-  Package,
   AlertTriangle,
   CheckCircle2,
   Wrench,
@@ -22,13 +21,22 @@ import {
   Scan,
   ClipboardCheck,
   Activity,
-  User,
+  DollarSign,
+  Users,
+  ListTodo,
+  Boxes,
+  ArrowUpRight,
+  Receipt,
+  BadgePlus,
+  ShieldAlert,
+  Sparkles,
+  FilePlus2,
   Droplets,
+  type LucideIcon,
   Film,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatRelativeTime } from "@/lib/utils";
-import { statusToBadgeVariant } from "@/lib/design-tokens";
 import { QrScanner } from "@/components/qr-scanner";
 import { getCurrentUserId } from "@/lib/auth-store";
 
@@ -52,7 +60,6 @@ export default function HomePage() {
   const queryClient = useQueryClient();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [shiftSummaryOpen, setShiftSummaryOpen] = useState(false);
-  const [, navigate] = useLocation();
   const searchStr = useSearch();
 
   useEffect(() => {
@@ -77,13 +84,118 @@ export default function HomePage() {
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const { data: taskDashboard, isLoading: tasksLoading } = useQuery({
+    queryKey: ["/api/tasks/dashboard", userId ?? ""],
+    queryFn: () => api.tasks.dashboard(),
+    enabled: !!userId,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
   const totalCount = equipment?.length ?? 0;
-  const okCount = equipment?.filter((e) => e.status === "ok").length ?? 0;
-  const issueCount = equipment?.filter((e) => e.status === "issue").length ?? 0;
-  const maintenanceCount = equipment?.filter((e) => e.status === "maintenance").length ?? 0;
+  const tasksDueCount =
+    taskDashboard ? taskDashboard.counts.today + taskDashboard.counts.overdue : null;
+  const activePatientsCount = taskDashboard
+    ? new Set(
+      [...taskDashboard.today, ...taskDashboard.overdue]
+        .map((task) => task.animalId)
+        .filter((animalId): animalId is string => Boolean(animalId)),
+    ).size
+    : null;
+
+  const kpiCards: Array<{
+    id: string;
+    title: string;
+    value: number | string | null;
+    subtitle: string;
+    icon: LucideIcon;
+    href?: string;
+    loading: boolean;
+  }> = [
+    {
+      id: "active-patients",
+      title: "Active Patients",
+      value: activePatientsCount,
+      subtitle: "In active care",
+      icon: Users,
+      href: "/appointments",
+      loading: tasksLoading,
+    },
+    {
+      id: "tasks-due",
+      title: "Tasks Due",
+      value: tasksDueCount,
+      subtitle: "Today + overdue",
+      icon: ListTodo,
+      href: "/appointments",
+      loading: tasksLoading,
+    },
+    {
+      id: "inventory-alerts",
+      title: "Inventory Alerts",
+      value: alertCount,
+      subtitle: alertCount > 0 ? "Needs review" : "All clear",
+      icon: ShieldAlert,
+      href: "/alerts",
+      loading: isLoading,
+    },
+    {
+      id: "charges-today",
+      title: "Charges Today",
+      value: "—",
+      subtitle: "Open billing for totals",
+      icon: DollarSign,
+      href: "/billing",
+      loading: false,
+    },
+  ];
+
+  const quickActions: Array<{
+    id: string;
+    label: string;
+    hint: string;
+    icon: LucideIcon;
+    href?: string;
+    onClick?: () => void;
+  }> = [
+    {
+      id: "scan",
+      label: "Scan",
+      hint: "QR or NFC",
+      icon: Scan,
+      onClick: () => setScannerOpen(true),
+    },
+    {
+      id: "add-task",
+      label: "Add Task",
+      hint: "Create or assign",
+      icon: FilePlus2,
+      href: "/appointments",
+    },
+    {
+      id: "inventory",
+      label: "Inventory",
+      hint: "Stock and assets",
+      icon: Boxes,
+      href: "/inventory",
+    },
+    {
+      id: "billing",
+      label: "Billing",
+      hint: "Charges and ledger",
+      icon: Receipt,
+      href: "/billing",
+    },
+    {
+      id: "app-tour",
+      label: "סיור באפליקציה",
+      hint: "הדרכה + סרטון",
+      icon: Film,
+      href: "/app-tour",
+    },
+  ];
 
   return (
     <Layout
@@ -96,235 +208,297 @@ export default function HomePage() {
         <meta name="description" content="Real-time veterinary equipment dashboard. View status at a glance, scan QR codes, triage active alerts, and track checked-out equipment across your clinic." />
         <link rel="canonical" href="https://vettrack.replit.app/" />
       </Helmet>
-      <div className="flex flex-col gap-6 pb-20 animate-fade-in">
-
-        {/* 1. Greeting header */}
-        <div className="flex items-start justify-between pt-1 gap-3">
-          <div>
-            <h1 className="text-2xl font-bold leading-tight text-foreground">
-              {t.homePage.greeting(name?.split(" ")[0] || t.homePage.fallbackName)}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{ t.home.equipmentOverview }</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs shrink-0 mt-1 min-h-[40px] bg-card border-border/60 text-muted-foreground hover:text-foreground"
-            onClick={() => setShiftSummaryOpen(true)}
-            data-testid="btn-shift-summary"
-          >
-            <ClipboardCheck className="w-3.5 h-3.5" />
-            {t.home.shiftSummary}
-          </Button>
-        </div>
-
-        {equipmentError && (
-          <ErrorCard
-            message={t.equipmentList.errors.loadFailed}
-            onRetry={() => {
-              queryClient.clear();
-              refreshAuth();
-              refetch();
-            }}
-          />
-        )}
-
-        {/* 2. Primary action — Scan QR Code */}
-        <Button
-          size="lg"
-          className="w-full gap-3 text-base font-semibold shadow-sm min-h-[52px] rounded-2xl active:scale-[0.98] transition-transform"
-          onClick={() => setScannerOpen(true)}
-          data-testid="btn-scan-qr"
-        >
-          <Scan className="w-5 h-5" />
-          Scan QR Code
-        </Button>
-
-        <Link href="/app-tour">
-          <Card className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4 flex items-center justify-between gap-3 min-h-[64px]">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">סיור באפליקציה</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  הדרכה קצרה + הורדת סרטון לנייד
+      <div className="motion-safe:animate-page-enter pb-20">
+        <div className="flex w-full flex-col gap-8">
+          <section className="rounded-3xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 px-5 py-6 shadow-sm sm:px-7 sm:py-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <p className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Today
+                </p>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                  {t.homePage.greeting(name?.split(" ")[0] || t.homePage.fallbackName)}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {t.home.equipmentOverview}
                 </p>
               </div>
-              <Film className="w-5 h-5 text-primary shrink-0" />
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* 3. Status overview — 4 stat tiles */}
-        <div className="grid grid-cols-4 gap-2">
-          <Link href="/equipment">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-total">
-              <Package className="w-4 h-4 text-muted-foreground mb-1.5" />
-              {isLoading ? (
-                <Skeleton className="h-5 w-6" />
-              ) : (
-                <p className="text-lg font-bold text-foreground leading-none">{totalCount}</p>
-              )}
-              <p className="text-[10px] text-muted-foreground mt-1">{t.homePage.total}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[40px] w-full shrink-0 gap-1.5 self-stretch border-border/70 bg-background/70 text-xs text-muted-foreground hover:text-foreground sm:mt-1 sm:w-auto sm:self-auto"
+                onClick={() => setShiftSummaryOpen(true)}
+                data-testid="btn-shift-summary"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                {t.home.shiftSummary}
+              </Button>
             </div>
-          </Link>
+          </section>
 
-          <Link href="/equipment?status=ok">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-ok">
-              <CheckCircle2 className="w-4 h-4 text-primary mb-1.5" />
-              {isLoading ? (
-                <Skeleton className="h-5 w-6" />
-              ) : (
-                <p className="text-lg font-bold text-foreground leading-none">{okCount}</p>
-              )}
-              <p className="text-[10px] text-muted-foreground mt-1">OK</p>
-            </div>
-          </Link>
+          {equipmentError && (
+            <ErrorCard
+              message={t.equipmentList.errors.loadFailed}
+              onRetry={() => {
+                queryClient.clear();
+                refreshAuth();
+                refetch();
+              }}
+            />
+          )}
 
-          <Link href="/equipment?status=issue">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-issues">
-              <AlertTriangle className={`w-4 h-4 mb-1.5 ${issueCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-              {isLoading ? (
-                <Skeleton className="h-5 w-6" />
-              ) : (
-                <p className={`text-lg font-bold leading-none ${issueCount > 0 ? "text-destructive" : "text-foreground"}`}>{issueCount}</p>
-              )}
-              <p className="text-[10px] text-muted-foreground mt-1">{t.status.issue}</p>
-            </div>
-          </Link>
-
-          <Link href="/equipment?status=maintenance">
-            <div className="flex flex-col items-center p-3 rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer min-h-[70px] justify-center" data-testid="stat-maintenance">
-              <Wrench className={`w-4 h-4 mb-1.5 ${maintenanceCount > 0 ? "text-foreground" : "text-muted-foreground"}`} />
-              {isLoading ? (
-                <Skeleton className="h-5 w-6" />
-              ) : (
-                <p className="text-lg font-bold leading-none text-foreground">{maintenanceCount}</p>
-              )}
-              <p className="text-[10px] text-muted-foreground mt-1">{t.status.maintenance}</p>
-            </div>
-          </Link>
-        </div>
-
-        {/* 4. Active alerts — only shown when relevant */}
-        {alertCount > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-destructive" />
-                {t.homePage.activeAlerts}
-              </h2>
-              <Link href="/alerts">
-                <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-7 px-2 hover:text-foreground">
-                  {t.homePage.showAll}
-                </Button>
-              </Link>
-            </div>
-            <div className="flex flex-col gap-2">
-              {alerts.slice(0, 3).map((alert) => (
-                <Link key={`${alert.type}-${alert.equipmentId}`} href={`/equipment/${alert.equipmentId}`}>
-                  <Card className="bg-card border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="p-3.5 flex items-center justify-between gap-3 min-h-[56px]">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{alert.equipmentName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{alert.detail}</p>
-                      </div>
-                      <Badge
-                        variant={
-                          alert.type === "issue"
-                            ? "issue"
-                            : alert.type === "overdue"
-                              ? "maintenance"
-                              : "sterilized"
-                        }
-                        className="shrink-0 text-[10px] px-2 py-0.5"
-                      >
-                        {alert.type === "sterilization_due"
-                          ? t.common.sterilization
-                          : alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-              {alertCount > 3 && (
-                <Link href="/alerts">
-                  <p className="text-xs text-center text-muted-foreground py-1 hover:text-foreground transition-colors">
-                    +{alertCount - 3} more alert{alertCount - 3 !== 1 ? "s" : ""}
-                  </p>
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Recent activity — compact, max 4 items */}
-        {activityData?.items && activityData.items.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
-              <Activity className="w-4 h-4 text-muted-foreground" />
-              {t.homePage.recentActivity}
-            </h2>
-            <div className="flex flex-col gap-1.5">
-              {activityData.items.slice(0, 4).map((item) => {
-                const StatusIcon = STATUS_ICON_MAP[item.status ?? "ok"] ?? Activity;
-                const statusColor = STATUS_COLOR_MAP[item.status ?? "ok"] ?? "text-muted-foreground";
-                const actionText = item.type === "scan"
-                  ? (item.note ?? `Updated status to ${item.status}`)
-                  : (item.note ?? `Moved to ${item.toFolder || "unfiled"}`);
-
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {kpiCards.map((card) => {
+              const CardIcon = card.icon;
+              const content = (
+                <Card
+                  className="h-full border-border/60 bg-card/95 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  data-testid={`kpi-${card.id}`}
+                >
+                  <CardContent className="flex min-h-[128px] flex-col justify-between p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {card.title}
+                      </p>
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border/70 bg-muted/60">
+                        <CardIcon className="h-4 w-4 text-foreground/80" />
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {card.loading ? (
+                        <Skeleton className="h-8 w-20" />
+                      ) : (
+                        <p className="text-3xl font-semibold leading-none tracking-tight text-foreground">
+                          {card.value ?? "—"}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{card.subtitle}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+              if (card.href) {
                 return (
-                  <Link key={item.id} href={`/equipment/${item.equipmentId}`}>
-                    <Card className="bg-card border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="p-3 flex items-center gap-3 min-h-[52px]">
-                        <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                          <StatusIcon className={`w-3.5 h-3.5 ${statusColor}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="font-medium text-sm truncate leading-snug">{item.equipmentName}</p>
-                            <p className="text-[11px] text-muted-foreground shrink-0 whitespace-nowrap">
-                              {formatRelativeTime(item.timestamp)}
-                            </p>
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate">{actionText}</p>
-                        </div>
-                        {item.status && (
-                          <Badge
-                            variant={statusToBadgeVariant(item.status)}
-                            className="shrink-0 text-[10px] px-1.5 py-0.5"
-                          >
-                            {item.status}
-                          </Badge>
-                        )}
-                      </CardContent>
-                    </Card>
+                  <Link key={card.id} href={card.href}>
+                    {content}
                   </Link>
                 );
-              })}
-            </div>
-          </div>
-        )}
+              }
+              return <div key={card.id}>{content}</div>;
+            })}
+          </section>
 
-        {/* Empty state — first-time experience */}
-        {!isLoading && totalCount === 0 && (
-          <Card className="border-border/60 bg-card shadow-sm">
-            <CardContent className="p-8 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-7 h-7 text-muted-foreground" />
-              </div>
-              <h3 className="font-bold text-lg mb-1">{t.homePage.getStarted}</h3>
-              <p className="text-sm text-muted-foreground mb-5">
-                {t.homePage.getStartedDescription}
-              </p>
-              <Link href="/equipment/new">
-                <Button data-testid="btn-get-started">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Equipment
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        )}
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {quickActions.map((action) => {
+              const ActionIcon = action.icon;
+              const actionContent = (
+                <Card
+                  className="group border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  data-testid={`quick-action-${action.id}`}
+                >
+                  <CardContent className="flex min-h-[92px] items-center justify-between gap-3 p-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-semibold text-foreground">{action.label}</p>
+                      <p className="text-xs text-muted-foreground">{action.hint}</p>
+                    </div>
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-muted/70">
+                      <ActionIcon className="h-4 w-4 text-foreground/80" />
+                    </span>
+                  </CardContent>
+                </Card>
+              );
+
+              if (action.href) {
+                return (
+                  <Link key={action.id} href={action.href}>
+                    {actionContent}
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  className="w-full text-start"
+                  onClick={action.onClick}
+                >
+                  {actionContent}
+                </button>
+              );
+            })}
+          </section>
+
+          <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+            <div className="space-y-5 lg:col-span-7">
+              <Card className="border-border/60 bg-card shadow-sm">
+                <CardContent className="p-5 sm:p-6">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h2 className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
+                      <Activity className="h-4 w-4 text-primary" />
+                      Live Activity
+                    </h2>
+                    <Badge variant="secondary" className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] tabular-nums">
+                      {(activityData?.items?.length ?? 0).toString()} events
+                    </Badge>
+                  </div>
+
+                  {activityData?.items && activityData.items.length > 0 ? (
+                    <div className="space-y-2">
+                      {activityData.items.slice(0, 6).map((item) => {
+                        const StatusIcon = STATUS_ICON_MAP[item.status ?? "ok"] ?? Activity;
+                        const statusColor =
+                          STATUS_COLOR_MAP[item.status ?? "ok"] ?? "text-muted-foreground";
+                        const actionText =
+                          item.type === "scan"
+                            ? item.note ?? `Updated status to ${item.status}`
+                            : item.note ?? `Moved to ${item.toFolder || "unfiled"}`;
+
+                        return (
+                          <Link key={item.id} href={`/equipment/${item.equipmentId}`}>
+                            <div className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/60 p-3.5 transition-colors duration-200 hover:bg-muted/50 motion-safe:hover:shadow-sm">
+                              <div className="flex min-w-0 flex-1 items-start gap-3">
+                                <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted">
+                                  <StatusIcon className={`h-3.5 w-3.5 ${statusColor}`} />
+                                </span>
+                                <div className="min-w-0 space-y-0.5">
+                                  <p className="truncate text-sm font-medium text-foreground">
+                                    {item.equipmentName}
+                                  </p>
+                                  <p className="truncate text-xs text-muted-foreground">{actionText}</p>
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                                <p className="max-w-[4.5rem] truncate text-end text-[11px] tabular-nums text-muted-foreground sm:max-w-none sm:whitespace-nowrap">
+                                  {formatRelativeTime(item.timestamp)}
+                                </p>
+                                <ArrowUpRight className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground/80 sm:block" aria-hidden />
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-10 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-background/80 shadow-inner ring-1 ring-border/50">
+                        <Activity className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">No recent activity</p>
+                      <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                        Scans, status changes, and moves show up here as they happen.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {!isLoading && totalCount === 0 && (
+                <Card className="border-border/60 bg-card shadow-sm">
+                  <CardContent className="p-8 text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                      <Zap className="h-7 w-7 text-muted-foreground" />
+                    </div>
+                    <h3 className="mb-1 text-lg font-bold">{t.homePage.getStarted}</h3>
+                    <p className="mb-5 text-sm text-muted-foreground">
+                      {t.homePage.getStartedDescription}
+                    </p>
+                    <Link href="/equipment/new">
+                      <Button data-testid="btn-get-started">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Equipment
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            <div className="space-y-5 lg:col-span-5">
+              <Card className="border-border/60 bg-card shadow-sm">
+                <CardContent className="p-5 sm:p-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      Inventory Alerts
+                    </h2>
+                    <Link href="/alerts">
+                      <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                        View all
+                      </Button>
+                    </Link>
+                  </div>
+
+                  {alertCount > 0 ? (
+                    <div className="space-y-2">
+                      {alerts.slice(0, 4).map((alert) => (
+                        <Link key={`${alert.type}-${alert.equipmentId}`} href={`/equipment/${alert.equipmentId}`}>
+                          <div className="rounded-xl border border-border/60 bg-background/70 p-3.5 transition-colors hover:bg-muted/40">
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <p className="truncate text-sm font-medium text-foreground">
+                                {alert.equipmentName}
+                              </p>
+                              <Badge
+                                variant={
+                                  alert.type === "issue"
+                                    ? "issue"
+                                    : alert.type === "overdue"
+                                      ? "maintenance"
+                                      : "sterilized"
+                                }
+                                className="shrink-0 px-2 py-0.5 text-[10px]"
+                              >
+                                {alert.type === "sterilization_due"
+                                  ? t.common.sterilization
+                                  : alert.type.charAt(0).toUpperCase() + alert.type.slice(1)}
+                              </Badge>
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">{alert.detail}</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-10 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 shadow-inner ring-1 ring-emerald-500/25">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">No inventory alerts</p>
+                      <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                        Sterilization, maintenance, and issues appear here when something needs attention.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60 bg-card shadow-sm">
+                <CardContent className="p-5">
+                  <h3 className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <BadgePlus className="h-4 w-4 text-primary" />
+                    At a glance
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Tracked equipment</span>
+                      <span className="font-semibold text-foreground">{isLoading ? "—" : totalCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Tasks due now</span>
+                      <span className="font-semibold text-foreground">
+                        {tasksLoading ? "—" : tasksDueCount ?? "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="text-muted-foreground">Billing today</span>
+                      <span className="font-semibold text-foreground tabular-nums">—</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        </div>
       </div>
 
       {scannerOpen && (

@@ -339,6 +339,8 @@ const translations = {
 
   billingLedger: d.billingLedger,
 
+  patientDetail: d.patientDetail,
+
   inventoryItemsPage: d.inventoryItemsPage,
 
   procurementPage: d.procurementPage,
