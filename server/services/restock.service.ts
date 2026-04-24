@@ -37,6 +37,39 @@ function blueprintEntryForContainerName(containerName: string): InventoryBluepri
   };
 }
 
+/**
+ * Legacy/hand-seeded code aliases that should satisfy canonical blueprint targets.
+ * This keeps blueprint-mode containers compatible with existing production rows.
+ */
+const TEMPLATE_CODE_ALIASES: Record<string, readonly string[]> = {
+  SYRINGE_5ML: ["SYR_5ML"],
+  SYRINGE_10ML: ["SYR_10ML"],
+  IV_CATHETER_16G: ["IV_16G"],
+  IV_CATHETER_18G: ["IV_18G"],
+  GAUZE_4X4: ["GAUZE"],
+};
+
+function candidateCodesForTemplateCode(code: string): string[] {
+  const aliases = TEMPLATE_CODE_ALIASES[code] ?? [];
+  return [code, ...aliases];
+}
+
+function allTemplateCandidateCodes(template: InventoryBlueprintEntry): string[] {
+  const set = new Set<string>();
+  for (const target of template.supplyTargets) {
+    for (const code of candidateCodesForTemplateCode(target.code)) {
+      set.add(code);
+    }
+  }
+  return [...set];
+}
+
+function templateContainsItemCode(template: InventoryBlueprintEntry, itemCode: string): boolean {
+  return template.supplyTargets.some((target) =>
+    candidateCodesForTemplateCode(target.code).includes(itemCode),
+  );
+}
+
 async function ensureTemplateItemsSeededInTx(
   tx: DbTx,
   clinicId: string,
@@ -218,8 +251,7 @@ export async function scanItem(params: {
     }
 
     const inTemplate =
-      template.supplyTargets.length === 0 ||
-      template.supplyTargets.some((target) => target.code === item.code);
+      template.supplyTargets.length === 0 || templateContainsItemCode(template, item.code);
     if (!inTemplate) {
       throw new RestockServiceError("ITEM_NOT_IN_TEMPLATE", 400, "Item does not belong to container template");
     }
@@ -351,7 +383,7 @@ export async function finishSession(params: {
       .from(restockEvents)
       .where(and(eq(restockEvents.clinicId, params.clinicId), eq(restockEvents.sessionId, session.id)));
 
-    const templateCodes = template.supplyTargets.map((target) => target.code);
+    const templateCodes = allTemplateCandidateCodes(template);
     const itemRows = templateCodes.length
       ? await tx
           .select({
@@ -381,11 +413,13 @@ export async function finishSession(params: {
           )
       : [];
     const quantityByItemId = new Map(lineRows.map((line) => [line.itemId, line.quantity]));
-    const itemByCode = new Map(itemRows.map((item) => [item.code, item.id]));
+    const itemIdByCode = new Map(itemRows.map((item) => [item.code, item.id]));
 
     const itemsMissingCount = template.supplyTargets.reduce((count, target) => {
-      const itemId = itemByCode.get(target.code);
-      const actual = itemId ? quantityByItemId.get(itemId) ?? 0 : 0;
+      const actual = candidateCodesForTemplateCode(target.code).reduce((sum, code) => {
+        const itemId = itemIdByCode.get(code);
+        return sum + (itemId ? quantityByItemId.get(itemId) ?? 0 : 0);
+      }, 0);
       return target.targetUnits > actual ? count + 1 : count;
     }, 0);
 
@@ -451,7 +485,7 @@ export async function getContainerInventoryView(params: {
   }[];
 
   if (template.supplyTargets.length > 0) {
-    const codes = template.supplyTargets.map((target) => target.code);
+    const codes = allTemplateCandidateCodes(template);
     const itemRows = await db
       .select({
         id: inventoryItems.id,
@@ -482,10 +516,19 @@ export async function getContainerInventoryView(params: {
     const quantityByItemId = new Map(lineRows.map((line) => [line.itemId, line.quantity]));
 
     lines = template.supplyTargets.map((target) => {
-      const item = itemByCode.get(target.code);
-      const actual = item ? quantityByItemId.get(item.id) ?? 0 : 0;
+      const candidates = candidateCodesForTemplateCode(target.code)
+        .map((code) => itemByCode.get(code))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+      const actual = candidates.reduce((sum, item) => sum + (quantityByItemId.get(item.id) ?? 0), 0);
+      const actionItem =
+        candidates.reduce<typeof candidates[number] | null>((best, current) => {
+          if (!best) return current;
+          const bestQty = quantityByItemId.get(best.id) ?? 0;
+          const currentQty = quantityByItemId.get(current.id) ?? 0;
+          return currentQty > bestQty ? current : best;
+        }, null) ?? null;
       return {
-        itemId: item?.id ?? null,
+        itemId: actionItem?.id ?? null,
         code: target.code,
         label: target.label,
         expected: target.targetUnits,
