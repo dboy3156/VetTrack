@@ -51,6 +51,7 @@ import type {
   RestockContainerView,
   RestockFinishSummary,
   BillingLedgerEntry,
+  BillingSummary,
   InventoryItem,
   PurchaseOrder,
   ForecastParseResponse,
@@ -1114,6 +1115,13 @@ export const api = {
       note?: string;
     }) => request<BillingLedgerEntry>("/api/billing", { method: "POST", body: JSON.stringify(data) }),
     void: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}/void`, { method: "PATCH" }),
+    summary: (params?: { from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      const query = qs.toString();
+      return request<BillingSummary>(`/api/billing/summary${query ? `?${query}` : ""}`);
+    },
   },
   inventoryItems: {
     list: () => request<InventoryItem[]>("/api/inventory-items"),

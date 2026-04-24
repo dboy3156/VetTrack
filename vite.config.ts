@@ -43,6 +43,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
+  optimizeDeps: {
+    include: ["recharts"],
+  },
   build: {
     outDir: "dist/public",
     sourcemap: "hidden",

@@ -561,6 +561,21 @@ export interface BillingItem {
   createdAt: string;
 }
 
+export interface BillingSummary {
+  totalCents: number;
+  pendingCents: number;
+  syncedCents: number;
+  voidedCents: number;
+  byType: {
+    EQUIPMENT: number;
+    CONSUMABLE: number;
+  };
+  byDay: Array<{
+    date: string;
+    totalCents: number;
+  }>;
+}
+
 export const INVENTORY_ITEM_CATEGORIES = [
   "IV Access",
   "Syringes",
