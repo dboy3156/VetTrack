@@ -796,7 +796,7 @@ export default function InventoryPage() {
                                 disabled={otherUserHasSession || optimisticActual >= line.expected}
                                 onClick={() => scanLine(line.itemId, line.code, line.label, line.expected - optimisticActual)}
                                 aria-label={`Full restock ${line.label}`}
-                            >
+                              >
                                 <CheckCircle2 className="w-4 h-4" />
                               </Button>
                             )}
