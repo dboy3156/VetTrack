@@ -245,19 +245,6 @@ export async function scanItem(params: {
   const item = itemRows[0];
   if (!item) throw new RestockServiceError("ITEM_NOT_FOUND", 404, "Item not found");
 
-  const [containerRows] = await Promise.all([
-    db.select().from(containers)
-      .where(and(eq(containers.clinicId, params.clinicId), eq(containers.id, session.containerId)))
-      .limit(1),
-  ]);
-
-  const container = containerRows[0];
-  if (!container) throw new RestockServiceError("CONTAINER_NOT_FOUND", 404, "Container not found");
-
-  const template = blueprintEntryForContainerName(container.name);
-  const inTemplate = template.supplyTargets.length === 0 || templateContainsItemCode(template, item.code);
-  if (!inTemplate) throw new RestockServiceError("ITEM_NOT_IN_TEMPLATE", 400, "Item does not belong to container template");
-
   // ── Only the mutation stays in the transaction ──
   return db.transaction(async (tx) => {
     const now = new Date();
