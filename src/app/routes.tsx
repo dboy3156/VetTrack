@@ -1,6 +1,7 @@
 import { Route, Switch, Redirect } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
+import { GuestGuard } from "@/features/auth/components/GuestGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -56,8 +57,8 @@ export function AppRoutes() {
         <Route path="/" component={RootRoute} />
         <Route path="/landing" component={LandingPage} />
         {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
-        <Route path="/signin/*?" component={SignInPage} />
-        <Route path="/signup/*?" component={SignUpPage} />
+        <Route path="/signin/*?"><GuestGuard><SignInPage /></GuestGuard></Route>
+        <Route path="/signup/*?"><GuestGuard><SignUpPage /></GuestGuard></Route>
 
         <Route path="/home"><AuthGuard><HomePage /></AuthGuard></Route>
         <Route path="/equipment"><AuthGuard><EquipmentPage /></AuthGuard></Route>
