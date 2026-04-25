@@ -2,9 +2,10 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, desc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
-import { animals, appointments, billingLedger, containers, db, equipment, inventoryItems, inventoryLogs, scanLogs, shiftSessions, usageSessions, users } from "../db.js";
+import { animals, appointments, billingItems, billingLedger, containerItems, containers, db, equipment, inventoryItems, inventoryLogs, scanLogs, serverConfig, shiftSessions, usageSessions, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { enqueueShiftReportEmailJob } from "../lib/queue.js";
 
 const router = Router();
 
@@ -326,6 +327,31 @@ router.post(
         .update(shiftSessions)
         .set({ endedAt, note: mergedNote })
         .where(and(eq(shiftSessions.id, open.id), eq(shiftSessions.clinicId, clinicId)));
+
+      // Fire-and-forget: look up manager_email and enqueue shift report email.
+      // Use key pattern `{clinicId}:manager_email` for clinic-scoped config.
+      void (async () => {
+        try {
+          const configKey = `${clinicId}:manager_email`;
+          const [cfgRow] = await db
+            .select()
+            .from(serverConfig)
+            .where(eq(serverConfig.key, configKey))
+            .limit(1);
+          if (cfgRow?.value) {
+            await enqueueShiftReportEmailJob({
+              clinicId,
+              shiftSessionId: open.id,
+              managerEmail: cfgRow.value,
+            });
+          } else {
+            console.log("[shift-handover] no manager_email configured for clinic", clinicId);
+          }
+        } catch (emailErr) {
+          console.error("[shift-handover] failed to enqueue shift_report_email:", (emailErr as Error).message);
+        }
+      })();
+
       res.json({
         id: open.id,
         clinicId,
@@ -446,6 +472,22 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
       }
     }
 
+    // Per-user billed counts (billingLedgerId present means the dispense was billed)
+    const userBilledCounts = new Map<string, number>();
+    for (const r of rows) {
+      if (r.billingLedgerId) {
+        userBilledCounts.set(r.createdByUserId, (userBilledCounts.get(r.createdByUserId) ?? 0) + 1);
+      }
+    }
+
+    const userActivity = [...userTotals.values()]
+      .map(({ userId, displayName, totalEvents }) => {
+        const billedCount = userBilledCounts.get(userId) ?? 0;
+        const captureRatePercent = totalEvents > 0 ? Math.round((billedCount / totalEvents) * 100) : 0;
+        return { userId, userName: displayName, dispensedCount: totalEvents, billedCount, captureRatePercent };
+      })
+      .sort((a, b) => b.dispensedCount - a.dispensedCount);
+
     const events = rows.map((r) => {
       const meta = r.metadata as Record<string, unknown> | null;
       return {
@@ -471,6 +513,7 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
       byItem: [...itemTotals.values()].sort((a, b) => b.totalQuantity - a.totalQuantity),
       byAnimal: [...animalTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),
       byUser: [...userTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),
+      userActivity,
       events,
     });
   } catch (err) {
@@ -478,5 +521,200 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
     return res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "CONSUMABLES_REPORT_FAILED", message: "Failed to load consumables report", requestId }));
   }
 });
+
+// GET /api/shift-handover/pending-emergencies
+// Returns unreconciled emergency inventory log entries (all time, not billed yet).
+router.get("/pending-emergencies", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+
+    // Fetch emergency logs that are still pending completion and not yet billed
+    const rows = await db
+      .select({
+        id: inventoryLogs.id,
+        containerId: inventoryLogs.containerId,
+        containerName: containers.name,
+        quantity: inventoryLogs.quantityAdded,
+        dispensedAt: inventoryLogs.createdAt,
+        metadata: inventoryLogs.metadata,
+        // Unit price from container's billing item
+        unitPriceCents: billingItems.unitPriceCents,
+        // Item label from container items (via metadata.itemId when present)
+        itemLabel: inventoryItems.label,
+        // Whether a billing ledger entry already exists for this log
+        billingLedgerId: billingLedger.id,
+      })
+      .from(inventoryLogs)
+      .leftJoin(containers, eq(inventoryLogs.containerId, containers.id))
+      .leftJoin(billingItems, eq(containers.billingItemId, billingItems.id))
+      .leftJoin(inventoryItems, sql`${inventoryLogs.metadata}->>'itemId' = ${inventoryItems.id}`)
+      .leftJoin(
+        billingLedger,
+        sql`${billingLedger.idempotencyKey} = 'emergency_reconcile_' || ${inventoryLogs.id}`,
+      )
+      .where(
+        and(
+          eq(inventoryLogs.clinicId, clinicId),
+          eq(inventoryLogs.logType, "adjustment"),
+          sql`(${inventoryLogs.metadata}->>'isEmergency')::boolean = true`,
+          sql`(${inventoryLogs.metadata}->>'pendingCompletion' = 'true' OR ${inventoryLogs.metadata}->>'pendingCompletion' IS NULL)`,
+          isNull(billingLedger.id),
+        ),
+      )
+      .orderBy(desc(inventoryLogs.createdAt));
+
+    const items = rows.map((r) => {
+      const meta = r.metadata as Record<string, unknown> | null;
+      const qty = Math.abs(r.quantity);
+      return {
+        id: r.id,
+        containerId: r.containerId,
+        itemName: r.itemLabel ?? (meta?.itemId as string | null) ?? r.containerName ?? "Unknown Item",
+        quantity: qty,
+        dispensedAt: r.dispensedAt.toISOString(),
+        unitPriceCents: r.unitPriceCents ?? 0,
+      };
+    });
+
+    return res.json({ items });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "PENDING_EMERGENCIES_FAILED",
+        message: "Failed to load pending emergency items",
+        requestId,
+      }),
+    );
+  }
+});
+
+const reconcileSchema = z.object({
+  animalId: z.string().min(1),
+  quantity: z.number().int().min(1).optional(),
+});
+
+// PATCH /api/shift-handover/emergency/:logId/reconcile
+router.patch(
+  "/emergency/:logId/reconcile",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(reconcileSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const clinicId = req.clinicId!;
+      const logId = req.params.logId?.trim();
+      const { animalId, quantity: overrideQty } = req.body as z.infer<typeof reconcileSchema>;
+
+      if (!logId) {
+        return res.status(400).json(
+          apiError({ code: "VALIDATION_FAILED", reason: "LOG_ID_REQUIRED", message: "logId is required", requestId }),
+        );
+      }
+
+      // Fetch the original emergency log
+      const [origLog] = await db
+        .select()
+        .from(inventoryLogs)
+        .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, logId)))
+        .limit(1);
+
+      if (!origLog) {
+        return res.status(404).json(
+          apiError({ code: "NOT_FOUND", reason: "LOG_NOT_FOUND", message: "Emergency log not found", requestId }),
+        );
+      }
+
+      const meta = origLog.metadata as Record<string, unknown> | null;
+      if (!meta?.isEmergency) {
+        return res.status(400).json(
+          apiError({ code: "VALIDATION_FAILED", reason: "NOT_EMERGENCY", message: "This log is not an emergency dispense", requestId }),
+        );
+      }
+
+      const idempotencyKey = `emergency_reconcile_${logId}`;
+
+      // Check for existing billing ledger entry (idempotent)
+      const [existing] = await db
+        .select({ id: billingLedger.id })
+        .from(billingLedger)
+        .where(eq(billingLedger.idempotencyKey, idempotencyKey))
+        .limit(1);
+
+      if (existing) {
+        return res.json({ success: true, ledgerId: existing.id, alreadyReconciled: true });
+      }
+
+      // Determine price from container's billing item
+      const [containerRow] = await db
+        .select({ billingItemId: containers.billingItemId })
+        .from(containers)
+        .where(and(eq(containers.clinicId, clinicId), eq(containers.id, origLog.containerId)))
+        .limit(1);
+
+      let unitPriceCents = 0;
+      let billingItemId = containerRow?.billingItemId ?? null;
+
+      if (billingItemId) {
+        const [bi] = await db
+          .select({ unitPriceCents: billingItems.unitPriceCents })
+          .from(billingItems)
+          .where(eq(billingItems.id, billingItemId))
+          .limit(1);
+        unitPriceCents = bi?.unitPriceCents ?? 0;
+      }
+
+      // Try to get item from container_items if itemId present in metadata
+      const metaItemId = typeof meta?.itemId === "string" ? meta.itemId : null;
+      if (!billingItemId && metaItemId) {
+        // Try to find billingItem from container items configuration
+        billingItemId = null; // No fallback — unitPriceCents stays 0
+      }
+
+      const quantity = overrideQty ?? Math.abs(origLog.quantityAdded) || 1;
+      const totalAmountCents = unitPriceCents * quantity;
+
+      const billingId = randomUUID();
+      const itemId = metaItemId ?? origLog.containerId;
+
+      await db.transaction(async (tx) => {
+        // Insert billing ledger entry
+        await tx.insert(billingLedger).values({
+          id: billingId,
+          clinicId,
+          animalId,
+          itemType: "CONSUMABLE",
+          itemId,
+          quantity,
+          unitPriceCents,
+          totalAmountCents,
+          idempotencyKey,
+          status: "pending",
+        });
+
+        // Mark the emergency log as reconciled
+        await tx
+          .update(inventoryLogs)
+          .set({ metadata: { ...meta, pendingCompletion: false } })
+          .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, logId)));
+      });
+
+      return res.json({ success: true, ledgerId: billingId, alreadyReconciled: false });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json(
+        apiError({
+          code: "INTERNAL_ERROR",
+          reason: "RECONCILE_FAILED",
+          message: "Failed to reconcile emergency dispense",
+          requestId,
+        }),
+      );
+    }
+  },
+);
 
 export default router;
