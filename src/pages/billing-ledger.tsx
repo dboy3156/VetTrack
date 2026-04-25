@@ -140,7 +140,7 @@ export default function BillingLedgerPage() {
   const createMut = useMutation({
     mutationFn: () =>
       api.billing.create({
-        animalId: form.animalId.trim(),
+        animalId: form.animalId.trim() || undefined,
         itemType: form.itemType,
         itemId: form.itemId.trim(),
         quantity: form.quantity,
@@ -220,7 +220,7 @@ export default function BillingLedgerPage() {
       if (normalizedSearch) {
         const createdDate = new Date(e.createdAt).toLocaleDateString().toLowerCase();
         return (
-          e.animalId.toLowerCase().includes(normalizedSearch) ||
+          (e.animalId ?? "").toLowerCase().includes(normalizedSearch) ||
           e.itemId.toLowerCase().includes(normalizedSearch) ||
           e.itemType.toLowerCase().includes(normalizedSearch) ||
           e.status.toLowerCase().includes(normalizedSearch) ||
@@ -616,7 +616,7 @@ export default function BillingLedgerPage() {
             <Button variant="outline" onClick={() => setAddOpen(false)}>{p.cancel}</Button>
             <Button
               onClick={() => createMut.mutate()}
-              disabled={createMut.isPending || !form.animalId || !form.itemId}
+              disabled={createMut.isPending || !form.itemId}
             >
               {createMut.isPending ? p.saving : p.save}
             </Button>
