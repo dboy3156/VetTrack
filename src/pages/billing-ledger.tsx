@@ -38,7 +38,8 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
+import { Link } from "wouter";
 import {
   BarChart,
   Bar,
@@ -276,6 +277,12 @@ export default function BillingLedgerPage() {
                 </button>
               ))}
             </div>
+            <Link href="/billing/leakage">
+              <Button variant="outline" size="sm" className="min-h-[40px] shrink-0">
+                <ShieldAlert className="h-4 w-4 mr-1" />
+                Leakage Report
+              </Button>
+            </Link>
             {isAdmin && (
               <Button size="sm" className="min-h-[40px] shrink-0" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" />
