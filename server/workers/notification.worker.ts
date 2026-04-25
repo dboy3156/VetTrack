@@ -30,18 +30,36 @@ import { withTimeout } from "../lib/timeout.js";
 import { safeRedisSetex } from "../lib/redis.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
-import { db, billingLedger, inventoryLogs, serverConfig, shiftSessions } from "../db.js";
+import { db, billingLedger, inventoryLogs, serverConfig, shiftSessions, users } from "../db.js";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { getLocaleDictionaries } from "../../lib/i18n/loader.js";
+import { translate } from "../../lib/i18n/index.js";
 
 const OVERDUE_SCAN_MS = 5 * 60 * 1000;
 const AUTOMATION_TICK_MS = 90 * 1000;
 
+async function getUserLocale(userId: string): Promise<string> {
+  const [row] = await db
+    .select({ preferredLocale: users.preferredLocale })
+    .from(users)
+    .where(eq(users.clerkId, userId))
+    .limit(1);
+  return row?.preferredLocale ?? "he";
+}
+
+function tPush(locale: string, key: string, params?: Record<string, string | number | boolean>): string {
+  const { primary, fallback } = getLocaleDictionaries(locale);
+  return translate(primary, key, params, { fallbackDict: fallback, locale });
+}
+
 async function handleOverdueReminder(d: { clinicId: string; userId: string; count: number }): Promise<void> {
   if (d.count <= 0) return;
   if (checkDedupe(d.userId, "OVERDUE_REMINDER", 3_600_000)) return;
+  const locale = await getUserLocale(d.userId);
+  const bodyKey = d.count === 1 ? "push.overdue.body" : "push.overdue.bodyPlural";
   await sendPushToUser(d.clinicId, d.userId, {
-    title: "Overdue tasks",
-    body: `You have ${d.count} overdue tasks`,
+    title: tPush(locale, "push.overdue.title"),
+    body: tPush(locale, bodyKey, { count: d.count }),
     tag: "overdue-reminder",
     url: "/appointments",
   });
