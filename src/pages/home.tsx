@@ -92,6 +92,15 @@ export default function HomePage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: shiftTotal } = useQuery({
+    queryKey: ["/api/billing/shift-total"],
+    queryFn: () => api.billing.shiftTotal(),
+    enabled: !!userId,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: 60_000,
+  });
+
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
   const totalCount = equipment?.length ?? 0;
@@ -246,6 +255,30 @@ export default function HomePage() {
                 refetch();
               }}
             />
+          )}
+
+          {shiftTotal?.shiftActive && shiftTotal.totalCents > 0 && (
+            <Link href="/billing">
+              <div
+                className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                data-testid="shift-capture-badge"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/20">
+                    <BadgePlus className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold text-emerald-700 dark:text-emerald-300">
+                      ₪{(shiftTotal.totalCents / 100).toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} captured this shift
+                    </p>
+                    <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                      {shiftTotal.count} {shiftTotal.count === 1 ? "item" : "items"} billed
+                    </p>
+                  </div>
+                </div>
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-emerald-600/70 dark:text-emerald-400/70" />
+              </div>
+            </Link>
           )}
 
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -138,6 +138,145 @@ router.get("/summary", requireAuth, requireEffectiveRole("vet"), async (req, res
   }
 });
 
+// GET /api/billing/leakage-report — dispense vs. billing gap analysis
+router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const { from: fromParam, to: toParam } = req.query as Record<string, string>;
+    const fromDate = fromParam ? new Date(fromParam) : thirtyDaysAgo;
+    const toDate = toParam ? new Date(toParam) : now;
+
+    // Query dispenses (quantity_added < 0) joined to billing items via containers
+    // and left-joined to billing ledger CONSUMABLE entries for the same window
+    const result = await pool.query(
+      `WITH dispenses AS (
+        SELECT
+          bi.id            AS item_id,
+          bi.description   AS item_name,
+          bi.unit_price_cents,
+          SUM(ABS(il.quantity_added)) AS dispensed_qty
+        FROM vt_inventory_logs il
+        JOIN vt_containers c ON c.id = il.container_id
+        JOIN vt_billing_items bi ON bi.id = c.billing_item_id
+        WHERE il.clinic_id = $1
+          AND il.quantity_added < 0
+          AND il.created_at >= $2
+          AND il.created_at <= $3
+          AND c.billing_item_id IS NOT NULL
+        GROUP BY bi.id, bi.description, bi.unit_price_cents
+      ),
+      billed AS (
+        SELECT
+          item_id,
+          SUM(quantity) AS billed_qty
+        FROM vt_billing_ledger
+        WHERE clinic_id = $1
+          AND item_type = 'CONSUMABLE'
+          AND status != 'voided'
+          AND created_at >= $2
+          AND created_at <= $3
+        GROUP BY item_id
+      )
+      SELECT
+        d.item_id,
+        d.item_name,
+        d.unit_price_cents,
+        d.dispensed_qty,
+        COALESCE(b.billed_qty, 0) AS billed_qty,
+        d.dispensed_qty - COALESCE(b.billed_qty, 0) AS gap_qty,
+        (d.dispensed_qty - COALESCE(b.billed_qty, 0)) * d.unit_price_cents AS gap_value_cents
+      FROM dispenses d
+      LEFT JOIN billed b ON b.item_id = d.item_id
+      ORDER BY gap_value_cents DESC`,
+      [clinicId, fromDate, toDate],
+    );
+
+    const items = result.rows.map((r) => ({
+      itemId: r.item_id as string,
+      itemName: r.item_name as string,
+      unitPriceCents: Number(r.unit_price_cents),
+      dispensedQty: Number(r.dispensed_qty),
+      billedQty: Number(r.billed_qty),
+      gapQty: Number(r.gap_qty),
+      gapValueCents: Number(r.gap_value_cents),
+    }));
+
+    const totalDispensedQty = items.reduce((s, i) => s + i.dispensedQty, 0);
+    const totalBilledQty = items.reduce((s, i) => s + i.billedQty, 0);
+    const totalGapQty = items.reduce((s, i) => s + i.gapQty, 0);
+    const totalGapValueCents = items.reduce((s, i) => s + i.gapValueCents, 0);
+    const gapRatePercent = totalDispensedQty > 0
+      ? Math.round((totalGapQty / totalDispensedQty) * 10000) / 100
+      : 0;
+
+    res.json({
+      items,
+      summary: {
+        totalDispensedQty,
+        totalBilledQty,
+        totalGapQty,
+        totalGapValueCents,
+        gapRatePercent,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "LEAKAGE_REPORT_FAILED",
+        message: "Failed to compute leakage report",
+        requestId,
+      }),
+    );
+  }
+});
+
+// GET /api/billing/shift-total — total billing captured since current open shift started
+router.get("/shift-total", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+
+    // Find the open shift session
+    const shiftResult = await pool.query(
+      "SELECT started_at FROM vt_shift_sessions WHERE clinic_id = $1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+      [clinicId],
+    );
+
+    if (shiftResult.rows.length === 0) {
+      return res.json({ totalCents: 0, count: 0, shiftActive: false });
+    }
+
+    const startedAt: Date = shiftResult.rows[0].started_at;
+
+    // Count billing entries since shift start
+    const billingResult = await pool.query(
+      "SELECT COUNT(*) AS count, COALESCE(SUM(total_amount_cents), 0) AS total FROM vt_billing_ledger WHERE clinic_id = $1 AND created_at >= $2",
+      [clinicId, startedAt],
+    );
+
+    const count = parseInt(billingResult.rows[0].count, 10);
+    const totalCents = parseInt(billingResult.rows[0].total, 10);
+
+    res.json({ totalCents, count, shiftActive: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFT_TOTAL_FAILED",
+        message: "Failed to compute shift billing total",
+        requestId,
+      }),
+    );
+  }
+});
+
 // GET /api/billing/:id — fetch single entry
 router.get("/:id", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);

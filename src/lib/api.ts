@@ -1167,6 +1167,14 @@ export const api = {
       const query = qs.toString();
       return request<BillingSummary>(`/api/billing/summary${query ? `?${query}` : ""}`);
     },
+    leakageReport: (params?: { from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      const query = qs.toString();
+      return request<import("@/types").LeakageReport>(`/api/billing/leakage-report${query ? `?${query}` : ""}`);
+    },
+    shiftTotal: () => request<{ totalCents: number; count: number; shiftActive: boolean }>("/api/billing/shift-total"),
   },
   inventoryItems: {
     list: () => request<InventoryItem[]>("/api/inventory-items"),
