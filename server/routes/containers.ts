@@ -437,7 +437,7 @@ router.post(
               totalAmountCents: bi.unitPriceCents * candidate.quantity,
               idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
               status: "pending",
-            });
+            }).onConflictDoNothing();
             billingIds.push(autoBillingId);
           }
         } catch (autoBillingErr) {
@@ -634,7 +634,7 @@ router.patch(
             await db.insert(billingLedger).values({
               id: autoBillingId,
               clinicId,
-              animalId: animalId ?? null,
+              animalId: null, // emergencies are unregistered animals by definition
               itemType: "CONSUMABLE",
               itemId: bi.id,
               quantity: candidate.quantity,
@@ -642,7 +642,7 @@ router.patch(
               totalAmountCents: bi.unitPriceCents * candidate.quantity,
               idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
               status: "pending",
-            });
+            }).onConflictDoNothing();
             billingIds.push(autoBillingId);
           }
         } catch (autoBillingErr) {
