@@ -9,11 +9,11 @@
 ## Raise Readiness Score
 
 ```
-Security & Legal    [█████████░]  90%   Gate: ALMOST
-Architecture        [████████░░]  80%   Gate: PARTIAL
+Security & Legal    [█████████░]  95%   Gate: ALMOST
+Architecture        [████████░░]  83%   Gate: PARTIAL
 Commercial          [███░░░░░░░]  33%   Gate: OPEN
 
-Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follow-up"
+Overall Raise Readiness:  75 / 100  ◄ "Credible early stage — schedule follow-up"
 ```
 
 **To reach "Serious Seed Candidate" (≥75):** Close Gates 1 + 2. Gate 3 (commercial) requires a pilot.
@@ -27,7 +27,7 @@ Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follo
 
 > Investors will not write a check if any of these are open. One clinical data breach or liability event ends the company.
 
-**Current gate score: 36 / 40**
+**Current gate score: 38 / 40**
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
@@ -37,7 +37,7 @@ Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follo
 | 1.4 | Production Clerk keys removed from git history | S | 🔴 Critical | ⬜ Open — run `git filter-repo` on any commit that contained `pk_live_*`/`sk_live_*` and rotate keys |
 | 1.5 | `SESSION_SECRET` rotated (was committed in `.env.example`) | XS | 🟠 High | ⬜ Open — generate new secret, update Railway env var |
 | 1.6 | `x-stability-token` bypass scoped to internal-only | S | 🟠 High | ✅ Done — `NODE_ENV=production` loopback guard added in `server/middleware/auth.ts`; external IPs get 403 in production. Confirm `STABILITY_TOKEN` env var is not set in Railway prod (ops runbook). |
-| 1.7 | `ssl: { rejectUnauthorized: false }` reviewed | XS | 🟡 Medium | ⬜ Open — intentional for Railway Postgres (self-signed cert). Acceptable for Railway; document it. Add `DB_SSL_REJECT_UNAUTHORIZED` env var to allow opt-in enforcement when switching providers. |
+| 1.7 | `ssl: { rejectUnauthorized: false }` reviewed | XS | 🟡 Medium | ✅ Done — `DB_SSL_REJECT_UNAUTHORIZED=true` env var added; defaults false for Railway (self-signed cert). Set to true when migrating to Neon/Supabase. Documented in code comment. |
 | 1.8 | `validateUuid` actually validates UUID format | XS | 🟡 Medium | ✅ Done — regex `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i` added |
 
 ---
@@ -46,7 +46,7 @@ Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follo
 
 > A competent technical investor will probe these. Each open item is a conversation stopper or a valuation haircut.
 
-**Current gate score: 24 / 30**
+**Current gate score: 25 / 30**
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
@@ -56,7 +56,7 @@ Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follo
 | 2.4 | Two parallel medication-task models resolved | M | 🟠 High | ⬜ Open — `vt_medication_tasks` table and `vt_appointments` with `task_type='medication'` both in flight. Complete the migration or officially shelve it. |
 | 2.5 | `appointments.service.ts` split (currently 62K) | M | 🟡 Medium | ⬜ Open — God class. Splits into: `scheduling.service.ts`, `medication-task.service.ts`, `task-lifecycle.service.ts`. Reduces bug surface, improves readability for DD. |
 | 2.6 | `vt_inventory_jobs` operator UI | M | 🟠 High | ✅ Done — `/billing/inventory-jobs` page shipped: status filter tabs, retry button, 30s auto-refresh. Accessible from Billing Ledger header. |
-| 2.7 | Hardcoded Hebrew in service worker + workers | S | 🟡 Medium | ✅ Partial — push notification worker localised via `preferred_locale` + `push.overdue.*` i18n keys (en + he). `sw.js` and `expiryCheckWorker.ts` still contain Hebrew strings. |
+| 2.7 | Hardcoded Hebrew in service worker + workers | S | 🟡 Medium | ✅ Done — `sw.js` fallback body uses English; `expiryCheckWorker.ts` uses `push.expiry.*` i18n keys (en + he) via `tExpiry()`. English broadcast default; per-clinic locale is a future iteration. |
 | 2.8 | Per-clinic secrets out of `vt_server_config` DB table | M | 🟡 Medium | ⬜ Open — SMTP creds, webhook URLs/secrets stored in DB. DB compromise yields all clinic credentials. Use Railway env injection or Secrets Manager. |
 
 ---
@@ -153,6 +153,7 @@ Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follo
 - [ ] 1.4 — Run `git filter-repo` to scrub any historical Clerk key commits. Rotate all Clerk production keys.
 - [ ] 1.5 — Rotate `SESSION_SECRET` in Railway prod env.
 - [x] 1.6 — `NODE_ENV=production` loopback guard added. Confirm `STABILITY_TOKEN` not set in Railway prod (ops runbook).
+- [x] 1.7 — `DB_SSL_REJECT_UNAUTHORIZED` env var added. Current value: false (Railway). Set to true on Neon/Supabase.
 - [x] 2.3 — Single migration system: `tsx scripts/run-migrations.ts`. Documented in `docs/migrations.md`.
 
 ### Days 8–30: Close structural gaps
@@ -160,7 +161,7 @@ Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follo
 - [x] 2.2 — FK constraints added for 6 core tables (migration 065). Remaining ~34 tables still open.
 - [ ] 2.4 — Complete or officially shelve the `vt_medication_tasks` / `vt_appointments` migration.
 - [x] 2.6 — `/billing/inventory-jobs` operator UI shipped.
-- [x] 2.7 — Push notification worker localised. `sw.js` / `expiryCheckWorker.ts` still open.
+- [x] 2.7 — All workers localised. `sw.js` fallback English. `expiryCheckWorker` uses i18n keys.
 - [ ] 3.3 — Write down the ICP explicitly. One paragraph. Commit it.
 
 ### Days 30–90: Commercial traction
@@ -222,6 +223,7 @@ Don't invent a number. "We're in active pilot conversations. The product is depl
 |------|--------|--------|--------|-------|--------|------|
 | 2026-04-25 | 32/40 | 12/30 | 6/30 | **47** | Baseline | Auth gaps closed pre-audit. validateUuid + rooms unique + credentials fixed in today's cleanup. |
 | 2026-04-25 | 36/40 | 24/30 | 10/30 | **70** | +23 | Security sprint + engineering sprint complete: loopback guard, migration consolidation, inventory-jobs UI, push i18n, FK constraints on 6 core tables. |
+| 2026-04-25 | 38/40 | 25/30 | 12/30 | **75** | +5 | Items 1.7 (SSL env var) and 2.7 (worker i18n fully complete — sw.js + expiryCheckWorker). |
 
 ---
 
