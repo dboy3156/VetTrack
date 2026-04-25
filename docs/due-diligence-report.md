@@ -1,7 +1,7 @@
 # VetTrack — Raise Readiness Tracker
 
 **Purpose:** Internal living document. Tracks progress from current state → Serious Seed Candidate.  
-**Last updated:** 2026-04-25  
+**Last updated:** 2026-04-25 (sprint complete)  
 **Owner:** Founder / CTO
 
 ---
@@ -9,11 +9,11 @@
 ## Raise Readiness Score
 
 ```
-Security & Legal    [████████░░]  80%   Gate: PARTIAL
-Architecture        [████░░░░░░]  40%   Gate: OPEN
-Commercial          [██░░░░░░░░]  20%   Gate: OPEN
+Security & Legal    [█████████░]  90%   Gate: ALMOST
+Architecture        [████████░░]  80%   Gate: PARTIAL
+Commercial          [███░░░░░░░]  33%   Gate: OPEN
 
-Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write check"
+Overall Raise Readiness:  70 / 100  ◄ "Credible early stage — schedule follow-up"
 ```
 
 **To reach "Serious Seed Candidate" (≥75):** Close Gates 1 + 2. Gate 3 (commercial) requires a pilot.
@@ -27,7 +27,7 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 
 > Investors will not write a check if any of these are open. One clinical data breach or liability event ends the company.
 
-**Current gate score: 32 / 40**
+**Current gate score: 36 / 40**
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
@@ -36,7 +36,7 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 | 1.3 | Test credentials removed from `AGENTS.md` | XS | 🔴 Critical | ✅ Done — credentials moved to password manager reference |
 | 1.4 | Production Clerk keys removed from git history | S | 🔴 Critical | ⬜ Open — run `git filter-repo` on any commit that contained `pk_live_*`/`sk_live_*` and rotate keys |
 | 1.5 | `SESSION_SECRET` rotated (was committed in `.env.example`) | XS | 🟠 High | ⬜ Open — generate new secret, update Railway env var |
-| 1.6 | `x-stability-token` bypass scoped to internal-only | S | 🟠 High | ⬜ Open — token defaults to random per-boot (safe if `STABILITY_TOKEN` env var not set in prod). Confirm it is NOT set in Railway prod env. Add `NODE_ENV=production` guard to reject the bypass header entirely. |
+| 1.6 | `x-stability-token` bypass scoped to internal-only | S | 🟠 High | ✅ Done — `NODE_ENV=production` loopback guard added in `server/middleware/auth.ts`; external IPs get 403 in production. Confirm `STABILITY_TOKEN` env var is not set in Railway prod (ops runbook). |
 | 1.7 | `ssl: { rejectUnauthorized: false }` reviewed | XS | 🟡 Medium | ⬜ Open — intentional for Railway Postgres (self-signed cert). Acceptable for Railway; document it. Add `DB_SSL_REJECT_UNAUTHORIZED` env var to allow opt-in enforcement when switching providers. |
 | 1.8 | `validateUuid` actually validates UUID format | XS | 🟡 Medium | ✅ Done — regex `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i` added |
 
@@ -46,17 +46,17 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 
 > A competent technical investor will probe these. Each open item is a conversation stopper or a valuation haircut.
 
-**Current gate score: 12 / 30**
+**Current gate score: 24 / 30**
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
 | 2.1 | `vt_rooms.name` uniqueness fixed to per-clinic | XS | 🟠 High | ✅ Done — migration 063 + `db.ts` updated to `UNIQUE (clinic_id, name)` |
-| 2.2 | FK constraints from all tenant tables to `vt_clinics` | L | 🔴 Critical | ⬜ Open — ~40 tables with `clinic_id` but no DB-level referential integrity. One missing `WHERE clinicId=?` is a cross-tenant data leak. Plan: add FKs in a migration with `ON DELETE RESTRICT`. |
-| 2.3 | Dual migration systems consolidated | M | 🟠 High | ⬜ Open — CI uses `scripts/run-migrations.ts` (raw SQL). `pnpm db:migrate` uses Drizzle journal. Files 016, 019, 021 appear twice. Pick one path, retire the other, document it. |
+| 2.2 | FK constraints from all tenant tables to `vt_clinics` | L | 🔴 Critical | ✅ Partial — migration 065 adds `ON DELETE RESTRICT` FKs for 6 core tables (users, equipment, appointments, billing_ledger, inventory_jobs, rooms). ~34 secondary tables still open. |
+| 2.3 | Dual migration systems consolidated | M | 🟠 High | ✅ Done — `pnpm db:migrate` and `pnpm migrate` both run `tsx scripts/run-migrations.ts`. Drizzle Kit retained for `generate` only. Documented in `docs/migrations.md`. |
 | 2.4 | Two parallel medication-task models resolved | M | 🟠 High | ⬜ Open — `vt_medication_tasks` table and `vt_appointments` with `task_type='medication'` both in flight. Complete the migration or officially shelve it. |
 | 2.5 | `appointments.service.ts` split (currently 62K) | M | 🟡 Medium | ⬜ Open — God class. Splits into: `scheduling.service.ts`, `medication-task.service.ts`, `task-lifecycle.service.ts`. Reduces bug surface, improves readability for DD. |
-| 2.6 | `vt_inventory_jobs` operator UI | M | 🟠 High | ⬜ Open — documented known gap. Pharmacy/ops has no visibility into failed medication inventory deductions. Blocker for regulated hospital deployment. |
-| 2.7 | Hardcoded Hebrew in service worker + workers | S | 🟡 Medium | ⬜ Open — `sw.js`, `expiryCheckWorker.ts` contain Hebrew strings. Signals English market readiness is incomplete. |
+| 2.6 | `vt_inventory_jobs` operator UI | M | 🟠 High | ✅ Done — `/billing/inventory-jobs` page shipped: status filter tabs, retry button, 30s auto-refresh. Accessible from Billing Ledger header. |
+| 2.7 | Hardcoded Hebrew in service worker + workers | S | 🟡 Medium | ✅ Partial — push notification worker localised via `preferred_locale` + `push.overdue.*` i18n keys (en + he). `sw.js` and `expiryCheckWorker.ts` still contain Hebrew strings. |
 | 2.8 | Per-clinic secrets out of `vt_server_config` DB table | M | 🟡 Medium | ⬜ Open — SMTP creds, webhook URLs/secrets stored in DB. DB compromise yields all clinic credentials. Use Railway env injection or Secrets Manager. |
 
 ---
@@ -65,14 +65,14 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 
 > No amount of engineering quality substitutes for a paying customer. This is purely sales motion.
 
-**Current gate score: 6 / 30**
+**Current gate score: 10 / 30**
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
 | 3.1 | One signed pilot clinic (even $200/month) | Sales | 🔴 Critical | ⬜ Open — no revenue signal in repository. Product is technically capable of supporting a live pilot post security fixes. |
 | 3.2 | Pilot outcome documented (before/after, what they pay and why) | S | 🔴 Critical | ⬜ Open — requires 3.1 first. Becomes the pitch deck anchor. |
 | 3.3 | ICP articulated explicitly in writing | XS | 🟠 High | ⬜ Open — Hebrew locale + Israeli admin email suggests Israeli emergency vet clinics as initial segment. Needs to be explicit, not inferred. |
-| 3.4 | i18n threaded through push notification handlers | S | 🟡 Medium | ⬜ Open — push notifications contain hardcoded Hebrew strings. Blocks English-market rollout without engineering work. |
+| 3.4 | i18n threaded through push notification handlers | S | 🟡 Medium | ✅ Partial — overdue-reminder push notifications now localised per `preferred_locale`. Service worker offline messages still in Hebrew. |
 | 3.5 | Stripe or equivalent integrated | M | 🟡 Medium | ⬜ Open — billing ledger infrastructure exists. Webhook HMAC is in place. No payment processor. |
 
 ---
@@ -98,21 +98,21 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 
 ### "Is the multi-tenancy safe? Can Clinic A see Clinic B's data?"
 
-**Current answer:** Application-layer enforcement only. Every query uses `WHERE clinic_id = ?`. No database-level referential integrity. This is the largest structural gap.
+**Current answer:** Application-layer enforcement on all queries (`WHERE clinic_id = ?`), now backed by DB-level `ON DELETE RESTRICT` FK constraints on the 6 core tables (users, equipment, appointments, billing_ledger, inventory_jobs, rooms). ~34 secondary tables still application-layer only.
 
-**What closes it:** Item 2.2 — FK constraints across all 40 tenant tables. Non-trivial but well-defined. A migration with `ON DELETE RESTRICT` and a full query audit.
+**What closes it:** Remaining FK migrations for secondary tables (containers, inventory_items, shifts, etc.). Each is low-risk given the orphan-safety DO blocks pattern established in migration 065.
 
-**Status:** 🔴 Open
+**Status:** 🟡 Partial — 6/~40 tables FK'd
 
 ---
 
 ### "What happens when medication inventory deductions fail?"
 
-**Current answer:** Nothing visible. Failed BullMQ jobs exist in the dead-letter queue. There is no operator UI. Pharmacists cannot see, investigate, or retry failed deductions without DB access.
+**Current answer:** Failed BullMQ jobs are surfaced in the `/billing/inventory-jobs` operator page — status filter tabs (failed/pending/processing/resolved), failure reason column, one-click retry button, 30-second auto-refresh. Pharmacists can investigate and retry without DB access.
 
-**What closes it:** Item 2.6 — `/billing/inventory-jobs` page showing pending/failed jobs with retry controls.
+**What closes it:** Already closed. Nothing more needed for investor DD.
 
-**Status:** 🔴 Open
+**Status:** 🟢 Closed
 
 ---
 
@@ -152,15 +152,15 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 
 - [ ] 1.4 — Run `git filter-repo` to scrub any historical Clerk key commits. Rotate all Clerk production keys.
 - [ ] 1.5 — Rotate `SESSION_SECRET` in Railway prod env.
-- [ ] 1.6 — Confirm `STABILITY_TOKEN` is not set in Railway prod. Add `NODE_ENV=production` guard.
-- [ ] 2.3 — Decide on single migration system, document it. Resolve the 016/019/021 duplicate numbering.
+- [x] 1.6 — `NODE_ENV=production` loopback guard added. Confirm `STABILITY_TOKEN` not set in Railway prod (ops runbook).
+- [x] 2.3 — Single migration system: `tsx scripts/run-migrations.ts`. Documented in `docs/migrations.md`.
 
 ### Days 8–30: Close structural gaps
 
-- [ ] 2.2 — Add FK constraints from all tenant tables to `vt_clinics`. Migration + query audit.
+- [x] 2.2 — FK constraints added for 6 core tables (migration 065). Remaining ~34 tables still open.
 - [ ] 2.4 — Complete or officially shelve the `vt_medication_tasks` / `vt_appointments` migration.
-- [ ] 2.6 — Ship `vt_inventory_jobs` operator UI (the pharmacy failure visibility page).
-- [ ] 2.7 — Thread i18n through push notification workers.
+- [x] 2.6 — `/billing/inventory-jobs` operator UI shipped.
+- [x] 2.7 — Push notification worker localised. `sw.js` / `expiryCheckWorker.ts` still open.
 - [ ] 3.3 — Write down the ICP explicitly. One paragraph. Commit it.
 
 ### Days 30–90: Commercial traction
@@ -192,7 +192,7 @@ Overall Raise Readiness:  47 / 100  ◄ "Interesting meeting — do not write ch
 ### If they probe hard
 
 **"Multi-tenancy at the DB level?"**  
-"Application-layer today — every query enforces clinic_id with an immutable audit log of all mutations. FK constraints are on the Q3 roadmap before we scale beyond 5 clinics."
+"Six core tables now have `ON DELETE RESTRICT` FK constraints to `vt_clinics`. All queries enforce `clinic_id`. Remaining secondary tables are on the Q3 roadmap before we scale beyond 5 clinics."
 
 **"Do you have paying customers?"**  
 Don't invent a number. "We're in active pilot conversations. The product is deployed and technically capable of supporting a live clinic today."
@@ -221,6 +221,7 @@ Don't invent a number. "We're in active pilot conversations. The product is depl
 | Date | Gate 1 | Gate 2 | Gate 3 | Total | Change | Note |
 |------|--------|--------|--------|-------|--------|------|
 | 2026-04-25 | 32/40 | 12/30 | 6/30 | **47** | Baseline | Auth gaps closed pre-audit. validateUuid + rooms unique + credentials fixed in today's cleanup. |
+| 2026-04-25 | 36/40 | 24/30 | 10/30 | **70** | +23 | Security sprint + engineering sprint complete: loopback guard, migration consolidation, inventory-jobs UI, push i18n, FK constraints on 6 core tables. |
 
 ---
 
