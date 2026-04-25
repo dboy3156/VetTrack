@@ -1,5 +1,6 @@
 import { Route, Switch, Redirect } from "wouter";
 import { lazy } from "react";
+import { Loader2 } from "lucide-react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 import { useAuth } from "@/hooks/use-auth";
@@ -44,7 +45,11 @@ const ProcurementPage = lazy(() => import("@/pages/procurement"));
 function RootRoute() {
   const { isLoaded, isSignedIn, isOfflineSession } = useAuth();
   const authKnown = isLoaded || isOfflineSession;
-  if (!authKnown) return null;
+  if (!authKnown) return (
+    <div className="flex h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
   if (isSignedIn) return <Redirect to="/home" replace />;
   return <LandingPage />;
 }
