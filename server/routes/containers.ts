@@ -386,7 +386,7 @@ router.post(
             newStock: newQty,
           });
 
-          // Billing if animalId provided
+          // Billing — create entry whenever animalId is known; price from containerItem.
           if (animalId) {
             const billingId = randomUUID();
             const idempotencyKey = `dispense_${clinicId}_${containerId}_${lineItem.itemId}_${takenAt.getTime()}`;
@@ -397,8 +397,8 @@ router.post(
               itemType: "CONSUMABLE",
               itemId: lineItem.itemId,
               quantity: lineItem.quantity,
-              unitPriceCents: 0,
-              totalAmountCents: 0,
+              unitPriceCents: ci.unitPriceCents,
+              totalAmountCents: ci.unitPriceCents * lineItem.quantity,
               idempotencyKey,
               status: "pending",
             });
@@ -556,8 +556,8 @@ router.patch(
               itemType: "CONSUMABLE",
               itemId: lineItem.itemId,
               quantity: lineItem.quantity,
-              unitPriceCents: 0,
-              totalAmountCents: 0,
+              unitPriceCents: ci.unitPriceCents,
+              totalAmountCents: ci.unitPriceCents * lineItem.quantity,
               idempotencyKey,
               status: "pending",
             });
