@@ -132,6 +132,12 @@ export type AutomationExecutePayload =
   | { kind: "stuck_recovery"; taskId: string; clinicId: string }
   | { kind: "prestart_reminder"; taskId: string; clinicId: string };
 
+export type ShiftReportEmailPayload = {
+  clinicId: string;
+  shiftSessionId: string;
+  managerEmail: string;
+};
+
 export type NotificationJobData =
   | {
       type: "task_notification";
@@ -170,6 +176,12 @@ export type NotificationJobData =
       title: string;
       body: string;
       tag: string;
+    }
+  | {
+      type: "shift_report_email";
+      clinicId: string;
+      shiftSessionId: string;
+      managerEmail: string;
     };
 
 /**
@@ -391,6 +403,40 @@ export async function enqueueAutomationNotificationJobs(args: AutomationNotifyAr
       body: args.body,
       tag: args.tag,
     });
+  }
+}
+
+/**
+ * Enqueue a shift report email job. Never throws — email failure must not affect shift-end response.
+ */
+export async function enqueueShiftReportEmailJob(payload: ShiftReportEmailPayload): Promise<void> {
+  if (isCircuitOpen("queue")) {
+    incrementMetric("circuit_breaker_opened");
+    console.warn("[queue] circuit open; shift_report_email enqueue skipped");
+    return;
+  }
+  if (!getRedisUrl()) {
+    recordRedisFallback("queue.enqueueShiftReportEmailJob");
+    console.warn("QUEUE_DISABLED_NO_REDIS — shift_report_email not enqueued");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  const q = await getNotificationsQueue();
+  if (!q) {
+    recordRedisFallback("queue.enqueueShiftReportEmailJob.queueUnavailable");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  try {
+    await timedRedisOp("queue.add.shift_report_email", () =>
+      q.add("shift_report_email", payload, defaultJobOptions()),
+    );
+    queueMetrics.enqueued++;
+    incrementMetric("queue_jobs_enqueued");
+    console.log("QUEUE_JOB_ENQUEUED", "shift_report_email", { clinicId: payload.clinicId, shiftSessionId: payload.shiftSessionId });
+  } catch (err) {
+    markQueueFailure();
+    console.error("[queue] shift_report_email add failed:", (err as Error).message);
   }
 }
 
