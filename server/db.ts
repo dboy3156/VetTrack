@@ -40,7 +40,7 @@ export const db = drizzle(pool);
 
 export const users = pgTable("vt_users", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   clerkId: text("clerk_id").unique().notNull(),
   email: text("email").notNull(),
   name: text("name").notNull().default(""),
@@ -88,7 +88,7 @@ export const animals = pgTable("vt_animals", {
 
 export const appointments = pgTable("vt_appointments", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   animalId: text("animal_id").references(() => animals.id, { onDelete: "set null" }),
   ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
   vetId: text("vet_id").references(() => users.id, { onDelete: "restrict" }),
@@ -129,7 +129,7 @@ export const rooms = pgTable(
   "vt_rooms",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     floor: text("floor"),
     masterNfcTagId: text("master_nfc_tag_id").unique(),
@@ -290,7 +290,7 @@ export type NewMedicationTask = typeof medicationTasks.$inferInsert;
 
 export const equipment = pgTable("vt_equipment", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   serialNumber: text("serial_number"),
   model: text("model"),
@@ -338,7 +338,7 @@ export const patientRoomAssignments = pgTable("vt_patient_room_assignments", {
 
 export const billingLedger = pgTable("vt_billing_ledger", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   /** Nullable: capture is allowed before a patient is linked (e.g. code-blue). */
   animalId: text("animal_id")
     .references(() => animals.id, { onDelete: "set null" }),
@@ -501,7 +501,7 @@ export const inventoryJobs = pgTable(
   "vt_inventory_jobs",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     taskId: text("task_id").notNull(),
     containerId: text("container_id").notNull(),
     requiredVolumeMl: numeric("required_volume_ml").notNull(),
