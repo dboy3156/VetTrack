@@ -381,6 +381,8 @@ export const inventoryItems = pgTable(
     label: text("label").notNull(),
     nfcTagId: text("nfc_tag_id").unique(),
     category: text("category"),
+    isBillable: boolean("is_billable").notNull().default(true),
+    minimumDispenseToCapture: integer("minimum_dispense_to_capture").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

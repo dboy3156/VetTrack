@@ -596,6 +596,8 @@ export interface InventoryItem {
   label: string;
   nfcTagId: string | null;
   category: string | null;
+  isBillable: boolean;
+  minimumDispenseToCapture: number;
   createdAt: string;
 }
 

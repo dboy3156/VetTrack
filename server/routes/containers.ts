@@ -2,12 +2,13 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
+import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, pool, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
 import { restockContainerInTx } from "../services/inventory.service.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
+import { enqueueBillingWebhookJob } from "../lib/queue.js";
 
 const router = Router();
 
@@ -299,7 +300,7 @@ router.post(
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
       // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number }> = [];
+      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
 
       await db.transaction(async (tx) => {
         const [container] = await tx
@@ -410,7 +411,7 @@ router.post(
 
           // Queue auto-billing candidate for post-transaction insert
           if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity });
+            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
           }
         }
       });
@@ -420,6 +421,12 @@ router.post(
       let autoBilledCents = 0;
       for (const candidate of autoBillingCandidates) {
         try {
+          const [item] = await db
+            .select({ isBillable: inventoryItems.isBillable })
+            .from(inventoryItems)
+            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
+            .limit(1);
+          if (!item?.isBillable) continue;
           const [bi] = await db
             .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
             .from(billingItems)
@@ -446,6 +453,45 @@ router.post(
         } catch (autoBillingErr) {
           console.error("[auto-billing] Failed to insert billing ledger row for dispense, continuing:", autoBillingErr);
         }
+      }
+
+      // Fire billing webhooks for auto-billed entries
+      try {
+        const webhookConfig = await pool.query(
+          "SELECT value FROM vt_server_config WHERE key = $1",
+          [`${clinicId}:billing_webhook_url`],
+        );
+        if (webhookConfig.rows[0]?.value) {
+          const secretRow = await pool.query(
+            "SELECT value FROM vt_server_config WHERE key = $1",
+            [`${clinicId}:billing_webhook_secret`],
+          );
+          const webhookUrl: string = webhookConfig.rows[0].value;
+          const secret: string = secretRow.rows[0]?.value ?? "";
+          for (const billingId of billingIds) {
+            const [entry] = await db.select().from(billingLedger).where(eq(billingLedger.id, billingId)).limit(1);
+            if (entry) {
+              await enqueueBillingWebhookJob({
+                clinicId,
+                webhookUrl,
+                secret,
+                entry: {
+                  id: entry.id,
+                  animalId: entry.animalId,
+                  itemType: entry.itemType,
+                  itemId: entry.itemId,
+                  quantity: entry.quantity,
+                  unitPriceCents: entry.unitPriceCents,
+                  totalAmountCents: entry.totalAmountCents,
+                  status: entry.status,
+                  createdAt: entry.createdAt,
+                },
+              });
+            }
+          }
+        }
+      } catch (webhookErr) {
+        console.error("[billing-webhook] Failed to enqueue webhook for dispense, continuing:", webhookErr);
       }
 
       return res.json({
@@ -499,7 +545,7 @@ router.patch(
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
       // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number }> = [];
+      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
 
       await db.transaction(async (tx) => {
         // Find the emergency event log
@@ -611,7 +657,7 @@ router.patch(
 
           // Queue auto-billing candidate for post-transaction insert
           if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity });
+            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
           }
         }
 
@@ -628,6 +674,12 @@ router.patch(
       // Failures must NOT fail the dispense — log and continue
       for (const candidate of autoBillingCandidates) {
         try {
+          const [item] = await db
+            .select({ isBillable: inventoryItems.isBillable })
+            .from(inventoryItems)
+            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
+            .limit(1);
+          if (!item?.isBillable) continue;
           const [bi] = await db
             .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
             .from(billingItems)
@@ -652,6 +704,45 @@ router.patch(
         } catch (autoBillingErr) {
           console.error("[auto-billing] Failed to insert billing ledger row for emergency dispense, continuing:", autoBillingErr);
         }
+      }
+
+      // Fire billing webhooks for auto-billed entries
+      try {
+        const webhookConfig = await pool.query(
+          "SELECT value FROM vt_server_config WHERE key = $1",
+          [`${clinicId}:billing_webhook_url`],
+        );
+        if (webhookConfig.rows[0]?.value) {
+          const secretRow = await pool.query(
+            "SELECT value FROM vt_server_config WHERE key = $1",
+            [`${clinicId}:billing_webhook_secret`],
+          );
+          const webhookUrl: string = webhookConfig.rows[0].value;
+          const secret: string = secretRow.rows[0]?.value ?? "";
+          for (const billingId of billingIds) {
+            const [entry] = await db.select().from(billingLedger).where(eq(billingLedger.id, billingId)).limit(1);
+            if (entry) {
+              await enqueueBillingWebhookJob({
+                clinicId,
+                webhookUrl,
+                secret,
+                entry: {
+                  id: entry.id,
+                  animalId: entry.animalId,
+                  itemType: entry.itemType,
+                  itemId: entry.itemId,
+                  quantity: entry.quantity,
+                  unitPriceCents: entry.unitPriceCents,
+                  totalAmountCents: entry.totalAmountCents,
+                  status: entry.status,
+                  createdAt: entry.createdAt,
+                },
+              });
+            }
+          }
+        }
+      } catch (webhookErr) {
+        console.error("[billing-webhook] Failed to enqueue webhook for emergency dispense, continuing:", webhookErr);
       }
 
       return res.json({

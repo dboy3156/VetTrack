@@ -5,6 +5,8 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { billingLedger, db, pool } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
+import { enqueueBillingWebhookJob } from "../lib/queue.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -173,11 +175,13 @@ router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (r
         FROM vt_inventory_logs il
         JOIN vt_containers c ON c.id = il.container_id
         JOIN vt_billing_items bi ON bi.id = c.billing_item_id
+        LEFT JOIN vt_items vi ON vi.id = (il.metadata->>'itemId')
         WHERE il.clinic_id = $1
           AND il.quantity_added < 0
           AND il.created_at >= $2
           AND il.created_at <= $3
           AND c.billing_item_id IS NOT NULL
+          AND (vi.is_billable IS NULL OR vi.is_billable = true)
         GROUP BY bi.id, bi.description, bi.unit_price_cents
       ),
       billed AS (
@@ -331,6 +335,35 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
     });
 
     const [row] = await db.select().from(billingLedger).where(eq(billingLedger.id, id)).limit(1);
+
+    // Fire webhook if configured
+    const webhookConfig = await pool.query(
+      "SELECT value FROM vt_server_config WHERE key = $1",
+      [`${clinicId}:billing_webhook_url`],
+    );
+    if (webhookConfig.rows[0]?.value) {
+      const secretRow = await pool.query(
+        "SELECT value FROM vt_server_config WHERE key = $1",
+        [`${clinicId}:billing_webhook_secret`],
+      );
+      await enqueueBillingWebhookJob({
+        clinicId,
+        webhookUrl: webhookConfig.rows[0].value,
+        secret: secretRow.rows[0]?.value ?? "",
+        entry: {
+          id: row.id,
+          animalId: row.animalId,
+          itemType: row.itemType,
+          itemId: row.itemId,
+          quantity: row.quantity,
+          unitPriceCents: row.unitPriceCents,
+          totalAmountCents: row.totalAmountCents,
+          status: row.status,
+          createdAt: row.createdAt,
+        },
+      });
+    }
+
     res.status(201).json(row);
   } catch (err) {
     console.error(err);
@@ -358,6 +391,23 @@ router.patch("/:id/void", requireAuth, requireAdmin, validateUuid("id"), async (
       .where(eq(billingLedger.id, req.params.id));
 
     const [updated] = await db.select().from(billingLedger).where(eq(billingLedger.id, req.params.id)).limit(1);
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "billing_voided",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "billing_ledger",
+      metadata: {
+        previousStatus: existing.status,
+        itemType: existing.itemType,
+        itemId: existing.itemId,
+        totalAmountCents: existing.totalAmountCents,
+      },
+    });
+
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -379,6 +429,17 @@ router.patch("/bulk-sync", requireAuth, requireAdmin, validateBody(bulkSyncSchem
       "UPDATE vt_billing_ledger SET status = 'synced' WHERE id = ANY($1) AND clinic_id = $2",
       [ids, clinicId],
     );
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "billing_bulk_synced",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetType: "billing_ledger",
+      metadata: { ids, updatedCount: result.rowCount ?? 0 },
+    });
+
     res.json({ updated: result.rowCount ?? 0 });
   } catch (err) {
     console.error(err);

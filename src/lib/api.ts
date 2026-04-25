@@ -1181,7 +1181,7 @@ export const api = {
     list: () => request<InventoryItem[]>("/api/inventory-items"),
     create: (data: { code: string; label: string; category?: string; nfcTagId?: string | null }) =>
       request<InventoryItem>("/api/inventory-items", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: string, data: { label?: string; category?: string | null; nfcTagId?: string | null }) =>
+    update: (id: string, data: { label?: string; category?: string | null; nfcTagId?: string | null; isBillable?: boolean; minimumDispenseToCapture?: number }) =>
       request<InventoryItem>(`/api/inventory-items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/api/inventory-items/${id}`, { method: "DELETE" }),
   },
