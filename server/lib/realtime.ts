@@ -18,7 +18,8 @@ export type RealtimeEvent = {
 
 const clientsByClinic = new Map<string, Set<Response>>();
 const heartbeats = new Map<Response, NodeJS.Timeout>();
-const MAX_CLIENTS_PER_CLINIC = 200;
+// 150 concurrent SSE connections per clinic — accounts for service workers + tabs
+const MAX_CLIENTS_PER_CLINIC = 150;
 
 function toSse(event: RealtimeEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
@@ -51,12 +52,18 @@ export function subscribe(clinicId: string, res: Response): void {
     if (current.size >= MAX_CLIENTS_PER_CLINIC) {
       const oldest = current.values().next().value as Response | undefined;
       if (oldest) {
+        try {
+          oldest.write('event: CONNECTION_EVICTED\ndata: {"reason":"cap_exceeded"}\n\n');
+        } catch {
+          // Ignore write errors on stale connection.
+        }
         unsubscribe(oldest);
         try {
           oldest.end();
         } catch {
           // Ignore close errors.
         }
+        console.warn('[sse] client evicted', { clinicId: normalizedClinicId, remaining: current.size });
       }
     }
     current.add(res);

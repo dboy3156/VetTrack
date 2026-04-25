@@ -53,12 +53,8 @@ export default function InventoryPage() {
   const { userId } = useAuth();
   const [sessionState, dispatch] = useReducer(restockSessionReducer, initialRestockSessionState);
 
-  // Runtime devmode check — reads URL at mount time, works in production with ?devmode=1
-  const [isDevMode] = useState(() =>
-    typeof window !== "undefined" &&
-    window.location.search.includes("devmode=1"),
-  );
-  const [devDispenseContainerId, setDevDispenseContainerId] = useState<string | null>(null);
+  const [dispenseOpen, setDispenseOpen] = useState(false);
+  const [dispenseContainerId, setDispenseContainerId] = useState<string | null>(null);
 
   // ── data ──────────────────────────────────────────────────────────────────
 
@@ -144,6 +140,7 @@ export default function InventoryPage() {
 
   const sessionIdRef = useRef<string | null>(null);
   const activeContainerIdRef = useRef<string | null>(null);
+  const startSessionPromiseRef = useRef<Promise<string | null> | null>(null);
   const overlayClearRef = useRef<number | undefined>(undefined);
   const nfcActiveRef = useRef(false);
 
@@ -265,15 +262,20 @@ export default function InventoryPage() {
     if (!selectedId) return null;
     const existingId = sessionIdRef.current;
     if (existingId && activeContainerIdRef.current === selectedId) return existingId;
+    // Coalesce: if a start-session request is already in-flight, reuse it
+    // to prevent duplicate DB inserts when multiple taps fire before the first
+    // request completes (causes unique constraint violations in vt_restock_sessions).
+    if (startSessionPromiseRef.current) return startSessionPromiseRef.current;
     dispatch({ type: "start-request" });
-    try {
-      const session = await startSessionMut.mutateAsync(selectedId);
+    const promise = startSessionMut.mutateAsync(selectedId).then((session) => {
       sessionIdRef.current = session.id;
       activeContainerIdRef.current = selectedId;
-      return session.id;
-    } catch {
-      return null;
-    }
+      return session.id as string | null;
+    }).catch(() => null as string | null).finally(() => {
+      startSessionPromiseRef.current = null;
+    });
+    startSessionPromiseRef.current = promise;
+    return promise;
   }, [selectedId, startSessionMut]);
 
   // ── scan line ─────────────────────────────────────────────────────────────
@@ -422,6 +424,7 @@ export default function InventoryPage() {
     }
     setEditingCode(null);
     setScanOverlay(null);
+    startSessionPromiseRef.current = null;
     setSelectedId(id);
   };
 
@@ -489,6 +492,21 @@ export default function InventoryPage() {
       setIsNfcStarting(false);
     }
   };
+
+  const handleOpenDispense = useCallback(() => {
+    const containers = containersQ.data;
+    if (!containers || containers.length === 0) {
+      toast.error("אין עגלות במערכת");
+      return;
+    }
+    setDispenseContainerId(containers[0].id);
+    setDispenseOpen(true);
+  }, [containersQ.data]);
+
+  const handleCloseDispense = useCallback(() => {
+    setDispenseOpen(false);
+    setDispenseContainerId(null);
+  }, []);
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -796,7 +814,7 @@ export default function InventoryPage() {
                                 disabled={otherUserHasSession || optimisticActual >= line.expected}
                                 onClick={() => scanLine(line.itemId, line.code, line.label, line.expected - optimisticActual)}
                                 aria-label={`Full restock ${line.label}`}
-                            >
+                              >
                                 <CheckCircle2 className="w-4 h-4" />
                               </Button>
                             )}
@@ -882,33 +900,22 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Devmode dispense trigger — visible at runtime when ?devmode=1 is in URL */}
-      {isDevMode && (
-        <div className="max-w-2xl mx-auto px-4 pb-20" data-testid="dev-dispense-trigger-section">
-          <div className="border border-dashed border-gray-300 rounded-xl p-3 mt-2">
-            <button
-              data-testid="dev-dispense-trigger"
-              onClick={() => {
-                const containers = containersQ.data;
-                if (!containers || containers.length === 0) {
-                  toast.error("אין עגלות במערכת — צור עגלה תחילה");
-                  return;
-                }
-                setDevDispenseContainerId(containers[0].id);
-              }}
-              className="w-full text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 min-h-[48px] hover:bg-gray-50 active:bg-gray-100 transition-colors"
-            >
-              🧪 בדיקת לקיחת מתכלים
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Fixed floating dispense button — always visible for authenticated users */}
+      <div className="fixed bottom-20 left-0 right-0 flex justify-center px-4 z-40 pointer-events-none">
+        <button
+          onClick={handleOpenDispense}
+          className="pointer-events-auto flex items-center gap-2 bg-primary text-primary-foreground font-bold rounded-full px-6 py-3 shadow-lg min-h-[52px] active:scale-95 transition-transform"
+        >
+          <span className="text-lg">📦</span>
+          לקיחת מתכלים
+        </button>
+      </div>
 
-      {devDispenseContainerId && (
+      {dispenseContainerId && (
         <DispenseSheet
-          containerId={devDispenseContainerId}
-          isOpen={Boolean(devDispenseContainerId)}
-          onClose={() => setDevDispenseContainerId(null)}
+          containerId={dispenseContainerId}
+          isOpen={dispenseOpen}
+          onClose={handleCloseDispense}
         />
       )}
 

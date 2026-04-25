@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { pool } from "../db.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { getSyncMetrics } from "../lib/sync-metrics.js";
 import { getMetricsSnapshot } from "../lib/metrics.js";
@@ -44,16 +43,6 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
     const uptimeSeconds = Math.floor(process.uptime());
     const memUsage = process.memoryUsage();
 
-    let activeSessions = 0;
-    try {
-      const sessionResult = await pool.query(
-        `SELECT COUNT(*) as count FROM vt_sessions WHERE expire > NOW()`
-      );
-      activeSessions = parseInt(sessionResult.rows[0]?.count ?? "0", 10);
-    } catch {
-      // vt_sessions table may not exist yet in dev; ignore
-    }
-
     const syncMetrics = getSyncMetrics();
     const runtimeMetrics = getMetricsSnapshot();
     const accessDeniedMetrics = getAccessDeniedMetricsSnapshot();
@@ -67,7 +56,6 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
       uptime: uptimeSeconds,
       memoryMb: Math.round(memUsage.heapUsed / 1024 / 1024),
       memoryTotalMb: Math.round(memUsage.heapTotal / 1024 / 1024),
-      activeSessions,
       syncMetrics,
       accessDeniedMetrics,
       accessDeniedWindow,

@@ -332,9 +332,9 @@ export const patientRoomAssignments = pgTable("vt_patient_room_assignments", {
 export const billingLedger = pgTable("vt_billing_ledger", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),
+  /** Nullable: capture is allowed before a patient is linked (e.g. code-blue). */
   animalId: text("animal_id")
-    .notNull()
-    .references(() => animals.id, { onDelete: "restrict" }),
+    .references(() => animals.id, { onDelete: "set null" }),
   itemType: billingLedgerItemTypeEnum("item_type").notNull(),
   itemId: text("item_id").notNull(),
   quantity: integer("quantity").notNull().default(1),
@@ -382,6 +382,8 @@ export const inventoryItems = pgTable(
     label: text("label").notNull(),
     nfcTagId: text("nfc_tag_id").unique(),
     category: text("category"),
+    isBillable: boolean("is_billable").notNull().default(true),
+    minimumDispenseToCapture: integer("minimum_dispense_to_capture").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

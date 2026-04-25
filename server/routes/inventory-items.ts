@@ -5,6 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { inventoryItems, db } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -41,6 +42,8 @@ const updateItemSchema = z.object({
   label: z.string().min(1).max(200).optional(),
   category: z.string().max(100).optional().nullable(),
   nfcTagId: z.string().max(200).optional().nullable(),
+  isBillable: z.boolean().optional(),
+  minimumDispenseToCapture: z.number().int().min(1).optional(),
 });
 
 // GET /api/inventory-items — list all items for the clinic
@@ -80,6 +83,18 @@ router.post("/", requireAuth, requireAdmin, validateBody(createItemSchema), asyn
     });
 
     const [row] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id)).limit(1);
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "inventory_item_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: id,
+      targetType: "inventory_item",
+      metadata: { code: b.code.trim().toUpperCase(), label: b.label.trim(), category: b.category?.trim() || null },
+    });
+
     res.status(201).json(row);
   } catch (err: unknown) {
     const pgErr = err as { code?: string };
@@ -114,10 +129,24 @@ router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody
     if (b.label !== undefined) updates.label = b.label.trim();
     if (b.category !== undefined) updates.category = b.category?.trim() || null;
     if (b.nfcTagId !== undefined) updates.nfcTagId = b.nfcTagId?.trim() || null;
+    if (b.isBillable !== undefined) updates.isBillable = b.isBillable;
+    if (b.minimumDispenseToCapture !== undefined) updates.minimumDispenseToCapture = b.minimumDispenseToCapture;
 
     await db.update(inventoryItems).set(updates).where(eq(inventoryItems.id, req.params.id));
 
     const [updated] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, req.params.id)).limit(1);
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "inventory_item_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "inventory_item",
+      metadata: { changes: updates as Record<string, unknown>, code: existing.code },
+    });
+
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -142,6 +171,18 @@ router.delete("/:id", requireAuth, requireAdmin, validateUuid("id"), async (req,
     if (!existing) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "ITEM_NOT_FOUND", message: "Inventory item not found", requestId }));
 
     await db.delete(inventoryItems).where(eq(inventoryItems.id, req.params.id));
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "inventory_item_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "inventory_item",
+      metadata: { code: existing.code, label: existing.label, category: existing.category },
+    });
+
     res.status(204).send();
   } catch (err: unknown) {
     const pgErr = err as { code?: string };

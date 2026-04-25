@@ -1184,7 +1184,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       </nav>
 
       {!onScan && scannerUIOpen && (
-        <QrScanner onClose={() => setInternalScannerOpen(false)} />
+        <QrScanner
+          onClose={() => setInternalScannerOpen(false)}
+          onDispense={(containerId) => {
+            setInternalScannerOpen(false);
+            setDispenseContainerId(containerId);
+          }}
+        />
       )}
 
       <ReportIssueDialog

@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
 import { type InventoryItem, INVENTORY_ITEM_CATEGORIES } from "@/types";
@@ -40,17 +41,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { Archive, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type FormState = { code: string; label: string; category: string; nfcTagId: string };
-const BLANK: FormState = { code: "", label: "", category: "", nfcTagId: "" };
+type FormState = { code: string; label: string; category: string; nfcTagId: string; isBillable: boolean; minimumDispenseToCapture: number };
+const BLANK: FormState = { code: "", label: "", category: "", nfcTagId: "", isBillable: true, minimumDispenseToCapture: 1 };
 
 export default function InventoryItemsPage() {
   const qc = useQueryClient();
   const p = t.inventoryItemsPage;
   const { userId, role } = useAuth();
-  const [isDevMode] = useState(() =>
-    typeof window !== "undefined" &&
-    window.location.search.includes("devmode=1"),
-  );
   const isAdmin = role === "admin";
 
   const [search, setSearch] = useState("");
@@ -112,7 +109,7 @@ export default function InventoryItemsPage() {
 
   function openEdit(item: InventoryItem) {
     setEditTarget(item);
-    setForm({ code: item.code, label: item.label, category: item.category ?? "", nfcTagId: item.nfcTagId ?? "" });
+    setForm({ code: item.code, label: item.label, category: item.category ?? "", nfcTagId: item.nfcTagId ?? "", isBillable: item.isBillable, minimumDispenseToCapture: item.minimumDispenseToCapture });
     setFormOpen(true);
   }
 
@@ -142,6 +139,8 @@ export default function InventoryItemsPage() {
         label: form.label.trim(),
         category: form.category || null,
         nfcTagId: form.nfcTagId.trim() || null,
+        isBillable: form.isBillable,
+        minimumDispenseToCapture: form.minimumDispenseToCapture,
       }),
     onSuccess: () => {
       toast.success(p.itemUpdated);
@@ -189,15 +188,6 @@ export default function InventoryItemsPage() {
             </Button>
           )}
         </div>
-
-        {isDevMode && (
-          <div
-            className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 font-medium mb-4"
-            dir="rtl"
-          >
-            ⚠️ לפיילוט: וודא שכל שמות הפריטים בעברית — לדוגמה &quot;מזרק 5מ״ל&quot; במקום &quot;Syringe 5ml&quot;
-          </div>
-        )}
 
         <Input
           placeholder={p.searchPlaceholder}
@@ -329,6 +319,25 @@ export default function InventoryItemsPage() {
                 placeholder={p.fieldNfcPlaceholder}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="isBillable"
+                checked={form.isBillable}
+                onCheckedChange={(checked) => setForm((f) => ({ ...f, isBillable: !!checked }))}
+              />
+              <Label htmlFor="isBillable" className="cursor-pointer">{p.fieldIsBillable}</Label>
+            </div>
+            {form.isBillable && (
+              <div className="space-y-1">
+                <Label>{p.fieldMinimumDispenseToCapture}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.minimumDispenseToCapture}
+                  onChange={(e) => setForm((f) => ({ ...f, minimumDispenseToCapture: Math.max(1, parseInt(e.target.value) || 1) }))}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>{p.cancel}</Button>

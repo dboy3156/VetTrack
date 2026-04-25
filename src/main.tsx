@@ -15,6 +15,7 @@ import { queryClient } from "@/lib/queryClient";
 import { Toaster } from "sonner";
 import { HelmetProvider } from "react-helmet-async";
 import { AppErrorBoundary } from "@/components/ui/app-error-boundary";
+import { SyncStatusBanner } from "@/components/sync-status-banner";
 import {
   getServiceWorkerRegistrationsSafe,
   isServiceWorkerSupported,
@@ -85,7 +86,9 @@ if (!rootEl) {
         <ClerkAuthProviderInner>
           <AppErrorBoundary>
             <SyncProvider>
+              <SyncStatusBanner />
               <AppBootstrap />
+              <SyncStatusBanner />
               <Toaster
                 position="top-center"
                 richColors
