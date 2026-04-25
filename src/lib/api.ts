@@ -1177,6 +1177,12 @@ export const api = {
       return request<import("@/types").LeakageReport>(`/api/billing/leakage-report${query ? `?${query}` : ""}`);
     },
     shiftTotal: () => request<{ totalCents: number; count: number; shiftActive: boolean }>("/api/billing/shift-total"),
+    inventoryJobs: (params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : "";
+      return request<import("@/types").InventoryJob[]>(`/api/billing/inventory-jobs${qs}`);
+    },
+    retryInventoryJob: (id: string) =>
+      request<{ ok: boolean; id: string }>(`/api/billing/inventory-jobs/${id}/retry`, { method: "POST" }),
   },
   inventoryItems: {
     list: () => request<InventoryItem[]>("/api/inventory-items"),
