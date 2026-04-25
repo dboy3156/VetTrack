@@ -1,3 +1,7 @@
+// TODO(adr-002): Split into scheduling.service.ts, task-lifecycle.service.ts,
+// medication-execution.service.ts. See docs/architecture/adr-002-appointments-service-split.md
+// Boundaries are marked with === SECTION === comments below.
+
 import { randomUUID } from "crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
@@ -819,6 +823,8 @@ function serializeAppointmentRowsSkippingMalformed(rows: AppointmentRecord[], co
   return out;
 }
 
+// === SCHEDULING (→ scheduling.service.ts) ====================================
+
 export async function createAppointment(clinicIdInput: string, payload: AppointmentInput, actor?: TaskAuditActor) {
   const clinicId = assertClinicId(clinicIdInput);
   const startTime = toUtcDate(payload.startTime, "startTime");
@@ -1198,6 +1204,8 @@ export async function cancelAppointment(clinicIdInput: string, appointmentId: st
   broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
+
+// === TASK LIFECYCLE (→ task-lifecycle.service.ts) ============================
 
 export async function startTask(clinicIdInput: string, taskId: string, actor: TaskAuditActor) {
   const clinicId = assertClinicId(clinicIdInput);
@@ -1589,6 +1597,8 @@ export async function getActiveTasks(clinicIdInput: string) {
 
   return serializeAppointmentRowsSkippingMalformed(rows, "getActiveTasks");
 }
+
+// === MEDICATION EXECUTION QUERIES (→ medication-execution.service.ts) ========
 
 export async function getActiveMedicationTasks(clinicIdInput: string): Promise<MedicationExecutionTask[]> {
   const clinicId = assertClinicId(clinicIdInput);
