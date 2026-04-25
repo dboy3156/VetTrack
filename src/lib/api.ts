@@ -1158,6 +1158,8 @@ export const api = {
       note?: string;
     }) => request<BillingLedgerEntry>("/api/billing", { method: "POST", body: JSON.stringify(data) }),
     void: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}/void`, { method: "PATCH" }),
+    bulkSync: (ids: string[]) => request<{ updated: number }>("/api/billing/bulk-sync", { method: "PATCH", body: JSON.stringify({ ids }) }),
+    exportCsvUrl: () => "/api/billing/export.csv",
     summary: (params?: { from?: string; to?: string }) => {
       const qs = new URLSearchParams();
       if (params?.from) qs.set("from", params.from);
