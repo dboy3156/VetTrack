@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { isPostgresqlConfigured } from "../lib/postgresql.js";
 import https from "https";
+import { getRedis } from "../lib/redis.js";
 
 const router = Router();
 
@@ -139,6 +140,7 @@ router.get("/", async (_req, res) => {
     db: "fail",
     clerk: "fail",
     vapid: "fail",
+    worker: "skip",
   };
 
   let allOk = true;
@@ -169,6 +171,25 @@ router.get("/", async (_req, res) => {
   } else {
     checks.vapid = "fail";
     allOk = false;
+  }
+
+  const redis = await getRedis();
+  if (redis) {
+    try {
+      const heartbeat = await redis.get("vettrack:worker:heartbeat");
+      if (heartbeat) {
+        const age = Date.now() - Number(heartbeat);
+        checks.worker = age < 120_000 ? "ok" : "stale";
+        if (checks.worker !== "ok") allOk = false;
+      } else {
+        checks.worker = "fail";
+        allOk = false;
+      }
+    } catch {
+      checks.worker = "skip";
+    }
+  } else {
+    checks.worker = "skip";
   }
 
   const status = allOk ? "ok" : "degraded";
