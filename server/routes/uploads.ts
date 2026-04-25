@@ -6,6 +6,25 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
+function resolveRequestId(res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void }, incoming: unknown): string {
+  const incomingStr = typeof incoming === "string" ? incoming.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incomingStr || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") res.setHeader("x-request-id", requestId);
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
@@ -31,9 +50,10 @@ router.post(
   requireAuth,
   upload.single("image"),
   async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
     try {
       if (!req.file) {
-        return res.status(400).json({ error: "No image uploaded" });
+        return res.status(400).json(apiError({ code: "NO_FILE", reason: "NO_FILE", message: "No image uploaded", requestId }));
       }
 
       // Safe filename — no path traversal, no user-controlled strings
@@ -62,10 +82,10 @@ router.post(
         error instanceof Error &&
         error.message === "Images only"
       ) {
-        return res.status(400).json({ error: "Only image files are allowed" });
+        return res.status(400).json(apiError({ code: "INVALID_FILE_TYPE", reason: "INVALID_FILE_TYPE", message: "Only image files are allowed", requestId }));
       }
       console.error("[storage/fault-image]", error);
-      res.status(500).json({ error: "Upload failed" });
+      res.status(500).json(apiError({ code: "UPLOAD_FAILED", reason: "UPLOAD_FAILED", message: "Upload failed", requestId }));
     }
   }
 );
