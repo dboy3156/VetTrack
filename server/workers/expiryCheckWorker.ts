@@ -3,6 +3,8 @@ import { Queue, Worker } from "bullmq";
 import { db, equipment } from "../db.js";
 import { sendPushToAll } from "../lib/push.js";
 import { createRedisConnection } from "../lib/redis.js";
+import { loadLocale } from "../../lib/i18n/loader.js";
+import { translate } from "../../lib/i18n/index.js";
 
 const EXPIRY_CHECK_QUEUE_NAME = "expiry-check";
 const EXPIRY_CHECK_JOB_NAME = "check-expiry";
@@ -15,12 +17,21 @@ type ExpiringEquipmentRow = {
   expiryDate: string;
 };
 
-function formatExpiryDate(value: string): string {
+function formatExpiryDate(value: string, locale = "en"): string {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-  return parsed.toLocaleDateString("he-IL");
+  return parsed.toLocaleDateString(locale === "he" ? "he-IL" : "en-US");
+}
+
+// sendPushToAll does not carry per-user locale; use the en dict as the
+// broadcast default. Hebrew clinics can override by setting a per-clinic
+// locale config in a future iteration.
+const DEFAULT_PUSH_LOCALE = "en";
+function tExpiry(key: string, params?: Record<string, string | number | boolean>): string {
+  const dict = loadLocale(DEFAULT_PUSH_LOCALE as "en" | "he");
+  return translate(dict, key, params);
 }
 
 async function fetchExpiringEquipmentForClinic(clinicId: string): Promise<ExpiringEquipmentRow[]> {
@@ -81,8 +92,8 @@ export async function runExpiryCheckWorkerForClinic(clinicId: string): Promise<n
 
   for (const item of clinicRows) {
     await sendPushToAll(clinicId, {
-      title: "⚠️ תוקף ציוד פג בקרוב",
-      body: `${item.name} — תוקף ב-${formatExpiryDate(item.expiryDate)}`,
+      title: tExpiry("push.expiry.title"),
+      body: tExpiry("push.expiry.body", { name: item.name, date: formatExpiryDate(item.expiryDate) }),
       tag: `expiry:${item.id}`,
       url: `/equipment/${item.id}`,
     });

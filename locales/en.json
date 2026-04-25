@@ -1363,6 +1363,10 @@
       "title": "Overdue tasks",
       "body": "You have {count} overdue task",
       "bodyPlural": "You have {count} overdue tasks"
+    },
+    "expiry": {
+      "title": "Equipment expiring soon",
+      "body": "{name} — expires {date}"
     }
   }
 }

@@ -29,7 +29,7 @@ export const pool = new Pool({
   connectionString: DB_URL,
   ssl:
     process.env.NODE_ENV === "production" || URL_REQUIRES_SSL
-      ? { rejectUnauthorized: false }
+      ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === "true" }
       : false,
   max: 10,
   idleTimeoutMillis: 30000,

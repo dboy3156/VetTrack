@@ -241,7 +241,7 @@ self.addEventListener("fetch", (event) => {
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? { title: 'VetTrack', body: 'התראה חדשה' };
+  const data = event.data?.json() ?? { title: 'VetTrack', body: 'New notification' };
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
