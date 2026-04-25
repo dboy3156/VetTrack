@@ -14,6 +14,7 @@ import {
   timedRedisOp,
 } from "./redis.js";
 import { pool } from "../db.js";
+import { decryptConfigValue } from "./config-crypto.js";
 
 export const NOTIFICATION_QUEUE_NAME = "notifications";
 export const NOTIFICATION_DLQ_NAME = "notifications_dlq";
@@ -364,7 +365,7 @@ export async function enqueueBillingWebhookJob(payload: {
       "SELECT value FROM vt_server_config WHERE key = $1",
       [`${payload.clinicId}:billing_webhook_secret`],
     );
-    secret = secretRow.rows[0]?.value ?? "";
+    secret = decryptConfigValue(secretRow.rows[0]?.value ?? "");
   } catch (cfgErr) {
     console.error("[queue] billing_webhook config lookup failed:", (cfgErr as Error).message);
     return;

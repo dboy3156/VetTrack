@@ -28,6 +28,7 @@ import { isCircuitOpen } from "../lib/circuit-breaker.js";
 import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/push.js";
 import { withTimeout } from "../lib/timeout.js";
 import { safeRedisSetex } from "../lib/redis.js";
+import { decryptConfigValue } from "../lib/config-crypto.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
 import { db, billingLedger, inventoryLogs, serverConfig, shiftSessions, users } from "../db.js";
@@ -190,7 +191,7 @@ async function getSmtpConfig(clinicId: string): Promise<{
     host: pick(`${clinicId}:smtp_host`, "smtp_host", process.env.SMTP_HOST, "localhost"),
     port: parseInt(pick(`${clinicId}:smtp_port`, "smtp_port", process.env.SMTP_PORT, "587"), 10),
     user: pick(`${clinicId}:smtp_user`, "smtp_user", process.env.SMTP_USER, ""),
-    pass: pick(`${clinicId}:smtp_pass`, "smtp_pass", process.env.SMTP_PASS, ""),
+    pass: decryptConfigValue(pick(`${clinicId}:smtp_pass`, "smtp_pass", process.env.SMTP_PASS, "")),
     from: pick(`${clinicId}:smtp_from`, "smtp_from", process.env.SMTP_FROM, "noreply@vettrack.app"),
   };
 }
