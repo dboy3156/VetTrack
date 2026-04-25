@@ -48,6 +48,7 @@ export const users = pgTable("vt_users", {
   role: varchar("role", { length: 20 }).notNull().default("technician"),
   secondaryRole: varchar("secondary_role", { length: 20 }),
   status: varchar("status", { length: 20 }).notNull().default("active"),
+  preferredLocale: varchar("preferred_locale", { length: 10 }).notNull().default("he"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
