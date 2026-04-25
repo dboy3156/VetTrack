@@ -44,7 +44,15 @@ export type AuditActionType =
   | "medication_task_taken"
   | "medication_task_completed"
   | "medication_task_released_stale"
-  | "users_backfilled_from_clerk";
+  | "users_backfilled_from_clerk"
+  | "billing_voided"
+  | "billing_bulk_synced"
+  | "inventory_item_created"
+  | "inventory_item_updated"
+  | "inventory_item_deleted"
+  | "clinic_pharmacy_email_updated"
+  | "forecast_exclusion_created"
+  | "forecast_exclusion_deleted";
 
 export interface LogAuditParams {
   clinicId: string;

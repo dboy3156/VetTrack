@@ -884,6 +884,18 @@ router.patch("/clinic/pharmacy-email", requireAuth, ensureUserClinicMembership, 
           updatedAt: new Date(),
         },
       });
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "clinic_pharmacy_email_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: clinicId,
+      targetType: "clinic",
+      metadata: { pharmacyEmail: email, forecastPdfSourceFormat: forecastPdfSourceFormat ?? "smartflow" },
+    });
+
     return res.json({ pharmacyEmail: email, forecastPdfSourceFormat: forecastPdfSourceFormat ?? "smartflow" });
   } catch (err) {
     console.error("[forecast/clinic-email]", err);
@@ -967,6 +979,18 @@ router.post("/clinic/pharmacy-forecast-exclusions", requireAuth, ensureUserClini
     await db
       .delete(pharmacyForecastParses)
       .where(eq(pharmacyForecastParses.clinicId, clinicId));
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "forecast_exclusion_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: String(row.id),
+      targetType: "forecast_exclusion",
+      metadata: { matchSubstring, note: parsed.data.note?.trim() || null },
+    });
+
     return res.json({ exclusion: row });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1008,6 +1032,17 @@ router.delete("/clinic/pharmacy-forecast-exclusions/:id", requireAuth, ensureUse
     await db
       .delete(pharmacyForecastParses)
       .where(eq(pharmacyForecastParses.clinicId, clinicId));
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "forecast_exclusion_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: id.data,
+      targetType: "forecast_exclusion",
+    });
+
     return res.json({ ok: true });
   } catch (err) {
     console.error("[forecast/exclusions delete]", err);
