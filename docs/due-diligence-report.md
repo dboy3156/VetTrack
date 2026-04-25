@@ -10,10 +10,10 @@
 
 ```
 Security & Legal    [██████████]  100%  Gate: CLOSED ✅
-Architecture        [█████████░]  93%   Gate: ALMOST
+Architecture        [██████████]  100%  Gate: CLOSED ✅
 Commercial          [███░░░░░░░]  33%   Gate: OPEN
 
-Overall Raise Readiness:  85 / 100  ◄ "Serious Seed Candidate — Gate 3 is the final unlock"
+Overall Raise Readiness:  87 / 100  ◄ "Serious Seed Candidate — sign one clinic to close"
 ```
 
 **To reach "Write a check" (≥90):** Close Gate 3 (commercial) — one signed pilot clinic.
@@ -46,12 +46,12 @@ Overall Raise Readiness:  85 / 100  ◄ "Serious Seed Candidate — Gate 3 is th
 
 > A competent technical investor will probe these. Each open item is a conversation stopper or a valuation haircut.
 
-**Current gate score: 28 / 30**
+**Current gate score: 30 / 30** ✅ Gate closed
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
 | 2.1 | `vt_rooms.name` uniqueness fixed to per-clinic | XS | 🟠 High | ✅ Done — migration 063 + `db.ts` updated to `UNIQUE (clinic_id, name)` |
-| 2.2 | FK constraints from all tenant tables to `vt_clinics` | L | 🔴 Critical | ✅ Partial — migration 065 adds `ON DELETE RESTRICT` FKs for 6 core tables (users, equipment, appointments, billing_ledger, inventory_jobs, rooms). ~34 secondary tables still open. |
+| 2.2 | FK constraints from all tenant tables to `vt_clinics` | L | 🔴 Critical | ✅ Done — migrations 065 + 066 add `ON DELETE RESTRICT` FKs for all ~38 tenant tables. `db.ts` updated with `.references(() => clinics.id, { onDelete: "restrict" })` on every `clinicId` column. |
 | 2.3 | Dual migration systems consolidated | M | 🟠 High | ✅ Done — `pnpm db:migrate` and `pnpm migrate` both run `tsx scripts/run-migrations.ts`. Drizzle Kit retained for `generate` only. Documented in `docs/migrations.md`. |
 | 2.4 | Two parallel medication-task models resolved | M | 🟠 High | ✅ Done — `adr-001-medication-task-models.md`: models serve distinct layers (scheduling vs pharmacy dispensing), not duplicates. Decision documented; no deprecation needed. |
 | 2.5 | `appointments.service.ts` split (currently 62K) | M | 🟡 Medium | ✅ Done — `adr-002-appointments-service-split.md`: three target files identified with split plan. Section markers added to source file. Implementation is one focused engineer-day. |
@@ -98,11 +98,11 @@ Overall Raise Readiness:  85 / 100  ◄ "Serious Seed Candidate — Gate 3 is th
 
 ### "Is the multi-tenancy safe? Can Clinic A see Clinic B's data?"
 
-**Current answer:** Application-layer enforcement on all queries (`WHERE clinic_id = ?`), now backed by DB-level `ON DELETE RESTRICT` FK constraints on the 6 core tables (users, equipment, appointments, billing_ledger, inventory_jobs, rooms). ~34 secondary tables still application-layer only.
+**Current answer:** Application-layer enforcement on all queries (`WHERE clinic_id = ?`), backed by DB-level `ON DELETE RESTRICT` FK constraints on all ~38 tenant tables (migrations 065 + 066). No tenant row can exist without a valid `vt_clinics` row at the database level.
 
-**What closes it:** Remaining FK migrations for secondary tables (containers, inventory_items, shifts, etc.). Each is low-risk given the orphan-safety DO blocks pattern established in migration 065.
+**What closes it:** Already closed. Nothing more needed for investor DD.
 
-**Status:** 🟡 Partial — 6/~40 tables FK'd
+**Status:** 🟢 Closed — all ~38 tenant tables FK'd to `vt_clinics`
 
 ---
 
@@ -128,11 +128,11 @@ Overall Raise Readiness:  85 / 100  ◄ "Serious Seed Candidate — Gate 3 is th
 
 ### "How do you scale to multiple hospitals?"
 
-**Current answer:** Schema is multi-tenant from day one. Every table has `clinic_id`. Auth re-resolves clinic membership per request. Room names are now correctly scoped per-clinic (fixed 2026-04-25). Pharmacy formulary, forecast pipeline, and medication tasks are already per-clinic. No FK at DB level yet.
+**Current answer:** Schema is multi-tenant from day one. Every table has `clinic_id`. Auth re-resolves clinic membership per request. Room names are correctly scoped per-clinic. All ~38 tenant tables have `ON DELETE RESTRICT` FK constraints to `vt_clinics` at the DB level (migrations 065 + 066). Single migration system via `tsx scripts/run-migrations.ts`. Medication-task models are declared distinct in ADR-001 (scheduling vs pharmacy dispensing layers).
 
-**What closes it:** Item 2.2 (FK constraints), item 2.3 (single migration system), item 2.4 (single medication-task model).
+**What closes it:** Already closed.
 
-**Status:** 🟡 Partial
+**Status:** 🟢 Closed
 
 ---
 
@@ -158,7 +158,7 @@ Overall Raise Readiness:  85 / 100  ◄ "Serious Seed Candidate — Gate 3 is th
 
 ### Days 8–30: Close structural gaps
 
-- [x] 2.2 — FK constraints added for 6 core tables (migration 065). Remaining ~34 tables still open.
+- [x] 2.2 — All ~38 tenant tables FK'd to `vt_clinics` (migrations 065 + 066). Architecture gate closed.
 - [x] 2.4 — Models declared distinct in ADR-001. No migration needed.
 - [x] 2.6 — `/billing/inventory-jobs` operator UI shipped.
 - [x] 2.7 — All workers localised. `sw.js` fallback English. `expiryCheckWorker` uses i18n keys.
@@ -226,6 +226,7 @@ Don't invent a number. "We're in active pilot conversations. The product is depl
 | 2026-04-25 | 36/40 | 24/30 | 10/30 | **70** | +23 | Security sprint + engineering sprint complete: loopback guard, migration consolidation, inventory-jobs UI, push i18n, FK constraints on 6 core tables. |
 | 2026-04-25 | 38/40 | 25/30 | 12/30 | **75** | +5 | Items 1.7 (SSL env var) and 2.7 (worker i18n fully complete — sw.js + expiryCheckWorker). |
 | 2026-04-25 | 40/40 | 28/30 | 17/30 | **85** | +10 | Gate 1 closed. 1.4 runbook written, 1.5 placeholder fixed. Gate 2: ADR-001 (models), ADR-002 (split plan), 2.8 AES-256-GCM encryption. Gate 3: 3.4 fully done. |
+| 2026-04-25 | 40/40 | 30/30 | 17/30 | **87** | +2 | Gate 2 closed. 2.2 fully done — migration 066 adds FKs for remaining 32 tenant tables. All ~38 tenant tables now FK'd to `vt_clinics` at DB level. Both Security and Architecture gates 100%. |
 
 ---
 
