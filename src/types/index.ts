@@ -999,6 +999,7 @@ export interface ConsumablesReport {
   unlinkedCount: number;
   unlinkedPct: number;
   pendingEmergencies: number;
+  unBilledCount: number;
   byItem: Array<{ itemId: string; label: string; totalQuantity: number }>;
   byAnimal: Array<{ animalId: string | null; animalName: string | null; totalEvents: number }>;
   byUser: Array<{ userId: string; displayName: string; totalEvents: number }>;
@@ -1020,4 +1021,25 @@ export interface ActivePatient {
   animalName: string;
   species: string | null;
   breed: string | null;
+}
+
+export interface LeakageReportItem {
+  itemId: string;
+  itemName: string;
+  unitPriceCents: number;
+  dispensedQty: number;
+  billedQty: number;
+  gapQty: number;
+  gapValueCents: number;
+}
+
+export interface LeakageReport {
+  items: LeakageReportItem[];
+  summary: {
+    totalDispensedQty: number;
+    totalBilledQty: number;
+    totalGapQty: number;
+    totalGapValueCents: number;
+    gapRatePercent: number;
+  };
 }

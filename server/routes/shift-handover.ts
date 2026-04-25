@@ -379,12 +379,14 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
         takenByDisplayName: users.displayName,
         createdAt: inventoryLogs.createdAt,
         metadata: inventoryLogs.metadata,
+        billingLedgerId: billingLedger.id,
       })
       .from(inventoryLogs)
       .leftJoin(containers, eq(inventoryLogs.containerId, containers.id))
       .leftJoin(inventoryItems, sql`${inventoryLogs.metadata}->>'itemId' = ${inventoryItems.id}`)
       .leftJoin(animals, eq(inventoryLogs.animalId, animals.id))
       .leftJoin(users, eq(inventoryLogs.createdByUserId, users.id))
+      .leftJoin(billingLedger, sql`${billingLedger.idempotencyKey} = 'adjustment_' || ${inventoryLogs.id}`)
       .where(
         and(
           eq(inventoryLogs.clinicId, clinicId),
@@ -399,6 +401,7 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
     const totalEvents = rows.length;
     const unlinkedCount = rows.filter((r) => !r.animalId).length;
     const unlinkedPct = totalEvents > 0 ? Math.round((unlinkedCount / totalEvents) * 100) : 0;
+    const unBilledCount = rows.filter((r) => !r.billingLedgerId).length;
 
     // Count pending emergencies
     const pendingEmergencies = rows.filter((r) => {
@@ -464,6 +467,7 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
       unlinkedCount,
       unlinkedPct,
       pendingEmergencies,
+      unBilledCount,
       byItem: [...itemTotals.values()].sort((a, b) => b.totalQuantity - a.totalQuantity),
       byAnimal: [...animalTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),
       byUser: [...userTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),

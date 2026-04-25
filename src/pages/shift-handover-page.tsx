@@ -362,7 +362,7 @@ export default function ShiftHandoverPage() {
             )}
 
             {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               <div className="rounded-xl border p-3 text-center">
                 <p className="text-2xl font-bold tabular-nums">{consumablesQ.data.totalEvents}</p>
                 <p className="text-xs text-muted-foreground mt-1">סה"כ לקיחות</p>
@@ -379,6 +379,13 @@ export default function ShiftHandoverPage() {
                 <p className="text-2xl font-bold tabular-nums">{consumablesQ.data.pendingEmergencies}</p>
                 <p className="text-xs text-muted-foreground mt-1">חירום ממתין</p>
                 {consumablesQ.data.pendingEmergencies > 0 && (
+                  <span className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </div>
+              <div className={cn("rounded-xl border p-3 text-center relative", consumablesQ.data.unBilledCount > 0 ? "border-red-400 bg-red-50 dark:bg-red-950/25" : "")}>
+                <p className="text-2xl font-bold tabular-nums">{consumablesQ.data.unBilledCount}</p>
+                <p className="text-xs text-muted-foreground mt-1">ללא חיוב</p>
+                {consumablesQ.data.unBilledCount > 0 && (
                   <span className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                 )}
               </div>
