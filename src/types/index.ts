@@ -1059,3 +1059,18 @@ export interface ActivePatient {
   breed: string | null;
 }
 
+export interface InventoryJob {
+  id: string;
+  clinicId: string;
+  taskId: string;
+  containerId: string;
+  requiredVolumeMl: string;
+  animalId: string | null;
+  status: "pending" | "processing" | "resolved" | "failed";
+  retryCount: number;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+}
+
