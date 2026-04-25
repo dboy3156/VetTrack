@@ -97,7 +97,7 @@ const PAGE_SIZE = 50;
 export default function BillingLedgerPage() {
   const qc = useQueryClient();
   const p = t.billingLedger;
-  const { userId, isAdmin } = useAuth();
+  const { userId, isAdmin, role } = useAuth();
 
   const [dateRange, setDateRange] = useState<DateRange>("month");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -267,12 +267,14 @@ export default function BillingLedgerPage() {
                 Leakage Report
               </Button>
             </Link>
-            <Link href="/billing/inventory-jobs">
-              <Button variant="outline" size="sm" className="gap-1.5 rounded-xl text-xs">
-                <PackageX className="h-3.5 w-3.5 text-orange-500" />
-                Inventory Jobs
-              </Button>
-            </Link>
+            {role === "admin" && (
+              <Link href="/billing/inventory-jobs">
+                <Button variant="outline" size="sm" className="gap-1.5 rounded-xl text-xs">
+                  <PackageX className="h-3.5 w-3.5 text-orange-500" />
+                  Inventory Jobs
+                </Button>
+              </Link>
+            )}
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
               {rangeButtons.map(({ key, label }) => (
                 <button

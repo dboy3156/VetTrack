@@ -39,12 +39,17 @@ const OVERDUE_SCAN_MS = 5 * 60 * 1000;
 const AUTOMATION_TICK_MS = 90 * 1000;
 
 async function getUserLocale(userId: string): Promise<string> {
-  const [row] = await db
-    .select({ preferredLocale: users.preferredLocale })
-    .from(users)
-    .where(eq(users.clerkId, userId))
-    .limit(1);
-  return row?.preferredLocale ?? "he";
+  try {
+    const [row] = await db
+      .select({ preferredLocale: users.preferredLocale })
+      .from(users)
+      .where(eq(users.clerkId, userId))
+      .limit(1);
+    return row?.preferredLocale ?? "en";
+  } catch (err) {
+    console.warn("[worker] getUserLocale failed, falling back to 'en':", (err as Error).message);
+    return "en";
+  }
 }
 
 function tPush(locale: string, key: string, params?: Record<string, string | number | boolean>): string {
