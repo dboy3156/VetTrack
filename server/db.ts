@@ -333,8 +333,7 @@ export const billingLedger = pgTable("vt_billing_ledger", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),
   animalId: text("animal_id")
-    .notNull()
-    .references(() => animals.id, { onDelete: "restrict" }),
+    .references(() => animals.id, { onDelete: "set null" }),
   itemType: billingLedgerItemTypeEnum("item_type").notNull(),
   itemId: text("item_id").notNull(),
   quantity: integer("quantity").notNull().default(1),
