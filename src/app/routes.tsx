@@ -1,7 +1,9 @@
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import { lazy } from "react";
+import { Loader2 } from "lucide-react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
+import { useAuth } from "@/hooks/use-auth";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -40,11 +42,25 @@ const InventoryItemsPage = lazy(() => import("@/pages/inventory-items"));
 const ProcurementPage = lazy(() => import("@/pages/procurement"));
 const PendingEmergenciesPage = lazy(() => import("@/pages/pending-emergencies"));
 
+// Guards the root path: renders nothing while auth resolves (prevents flicker),
+// redirects authenticated users to /home, shows LandingPage otherwise.
+function RootRoute() {
+  const { isLoaded, isSignedIn, isOfflineSession } = useAuth();
+  const authKnown = isLoaded || isOfflineSession;
+  if (!authKnown) return (
+    <div className="flex h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+  if (isSignedIn) return <Redirect to="/home" replace />;
+  return <LandingPage />;
+}
+
 export function AppRoutes() {
   return (
     <PageErrorBoundary fallbackLabel="Page rendering failed">
       <Switch>
-        <Route path="/" component={LandingPage} />
+        <Route path="/" component={RootRoute} />
         <Route path="/landing" component={LandingPage} />
         {/* `/*?` so Clerk path-routed sign-in/up substeps (e.g. /signin/factor-one) still match */}
         <Route path="/signin/*?" component={SignInPage} />

@@ -152,12 +152,14 @@ export default function HomePage() {
     },
     {
       id: "charges-today",
-      title: "Charges Today",
-      value: "—",
-      subtitle: "Open billing for totals",
+      title: "Captured This Shift",
+      value: shiftSummary
+        ? `₪${(shiftSummary.revenueCents / 100).toLocaleString("he-IL", { maximumFractionDigits: 0 })}`
+        : null,
+      subtitle: shiftSummary ? "Billing entries this shift" : "No open shift",
       icon: DollarSign,
       href: "/billing",
-      loading: false,
+      loading: shiftLoading,
     },
   ];
 

@@ -228,12 +228,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
-  const clerkEnabled = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
-  if (!clerkEnabled) {
-    return <DevAuthProviderInner>{children}</DevAuthProviderInner>;
-  }
-
+function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { getToken, signOut: clerkSignOut } = useClerkAuth();
   const queryClient = useQueryClient();
@@ -485,6 +480,13 @@ export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ ...state, signOut, refreshAuth }), [state, signOut, refreshAuth]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function ClerkAuthProviderInner({ children }: { children: ReactNode }) {
+  if (Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY)) {
+    return <ClerkModeAuthProvider>{children}</ClerkModeAuthProvider>;
+  }
+  return <DevAuthProviderInner>{children}</DevAuthProviderInner>;
 }
 
 export const useAuth = () => useContext(AuthContext);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { billingLedger, db, pool } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
@@ -155,7 +155,7 @@ router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (r
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
       return res.status(400).json(
         apiError({
-          code: "INVALID_DATE_RANGE",
+          code: "VALIDATION_FAILED",
           reason: "INVALID_DATE_RANGE",
           message: "Invalid from or to date",
           requestId,
@@ -163,80 +163,95 @@ router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (r
       );
     }
 
-    // Query dispenses (quantity_added < 0) joined to billing items via containers
-    // and left-joined to billing ledger CONSUMABLE entries for the same window
-    const result = await pool.query(
-      `WITH dispenses AS (
-        SELECT
-          bi.id            AS item_id,
-          bi.description   AS item_name,
-          bi.unit_price_cents,
-          SUM(ABS(il.quantity_added)) AS dispensed_qty
-        FROM vt_inventory_logs il
-        JOIN vt_containers c ON c.id = il.container_id
-        JOIN vt_billing_items bi ON bi.id = c.billing_item_id
-        LEFT JOIN vt_items vi ON vi.id = (il.metadata->>'itemId')
-        WHERE il.clinic_id = $1
-          AND il.quantity_added < 0
-          AND il.created_at >= $2
-          AND il.created_at <= $3
-          AND c.billing_item_id IS NOT NULL
-          AND (vi.is_billable IS NULL OR vi.is_billable = true)
-        GROUP BY bi.id, bi.description, bi.unit_price_cents
-      ),
-      billed AS (
-        SELECT
-          item_id,
-          SUM(quantity) AS billed_qty
-        FROM vt_billing_ledger
-        WHERE clinic_id = $1
-          AND item_type = 'CONSUMABLE'
-          AND status != 'voided'
-          AND created_at >= $2
-          AND created_at <= $3
-        GROUP BY item_id
-      )
-      SELECT
-        d.item_id,
-        d.item_name,
-        d.unit_price_cents,
-        d.dispensed_qty,
-        COALESCE(b.billed_qty, 0) AS billed_qty,
-        d.dispensed_qty - COALESCE(b.billed_qty, 0) AS gap_qty,
-        (d.dispensed_qty - COALESCE(b.billed_qty, 0)) * d.unit_price_cents AS gap_value_cents
-      FROM dispenses d
-      LEFT JOIN billed b ON b.item_id = d.item_id
-      ORDER BY gap_value_cents DESC`,
+    // All dispensed quantities grouped by container in the window.
+    // inventory_logs.quantity_added < 0 means a deduction (dispense).
+    const dispenseResult = await pool.query<{
+      container_id: string;
+      container_name: string;
+      unit_price_cents: number;
+      dispensed_qty: number;
+    }>(
+      `SELECT
+         c.id                              AS container_id,
+         c.name                            AS container_name,
+         COALESCE(bi.unit_price_cents, 0)  AS unit_price_cents,
+         SUM(ABS(il.quantity_added))::int  AS dispensed_qty
+       FROM vt_inventory_logs il
+       JOIN vt_containers c ON c.id = il.container_id
+       LEFT JOIN vt_billing_items bi
+         ON bi.id = c.billing_item_id AND bi.clinic_id = $1
+       WHERE il.clinic_id = $1
+         AND il.log_type  = 'adjustment'
+         AND il.quantity_added < 0
+         AND il.created_at >= $2
+         AND il.created_at <= $3
+       GROUP BY c.id, c.name, bi.unit_price_cents
+       HAVING SUM(ABS(il.quantity_added)) > 0`,
       [clinicId, fromDate, toDate],
     );
 
-    const items = result.rows.map((r) => ({
-      itemId: r.item_id as string,
-      itemName: r.item_name as string,
-      unitPriceCents: Number(r.unit_price_cents),
-      dispensedQty: Number(r.dispensed_qty),
-      billedQty: Number(r.billed_qty),
-      gapQty: Number(r.gap_qty),
-      gapValueCents: Number(r.gap_value_cents),
-    }));
+    // All billing entries for CONSUMABLE items grouped by itemId (= containerId).
+    const billedResult = await pool.query<{
+      item_id: string;
+      billed_qty: number;
+    }>(
+      `SELECT
+         item_id,
+         SUM(quantity)::int AS billed_qty
+       FROM vt_billing_ledger
+       WHERE clinic_id  = $1
+         AND item_type  = 'CONSUMABLE'
+         AND status    != 'voided'
+         AND created_at >= $2
+         AND created_at <= $3
+       GROUP BY item_id`,
+      [clinicId, fromDate, toDate],
+    );
+
+    const billedMap = new Map<string, number>();
+    for (const r of billedResult.rows) {
+      billedMap.set(r.item_id, r.billed_qty);
+    }
+
+    const items = dispenseResult.rows
+      .map((r) => {
+        const billedQty = billedMap.get(r.container_id) ?? 0;
+        const gapQty = Math.max(0, r.dispensed_qty - billedQty);
+        const gapValueCents = gapQty * r.unit_price_cents;
+        return {
+          containerId: r.container_id,
+          containerName: r.container_name,
+          unitPriceCents: r.unit_price_cents,
+          dispensedQty: r.dispensed_qty,
+          billedQty,
+          gapQty,
+          gapValueCents,
+          leakagePct: r.dispensed_qty > 0
+            ? Math.round((gapQty / r.dispensed_qty) * 100)
+            : 0,
+        };
+      })
+      .sort((a, b) => b.gapValueCents - a.gapValueCents);
 
     const totalDispensedQty = items.reduce((s, i) => s + i.dispensedQty, 0);
-    const totalBilledQty = items.reduce((s, i) => s + i.billedQty, 0);
-    const totalGapQty = items.reduce((s, i) => s + i.gapQty, 0);
+    const totalBilledQty    = items.reduce((s, i) => s + i.billedQty, 0);
+    const totalGapQty       = items.reduce((s, i) => s + i.gapQty, 0);
     const totalGapValueCents = items.reduce((s, i) => s + i.gapValueCents, 0);
-    const gapRatePercent = totalDispensedQty > 0
-      ? Math.round((totalGapQty / totalDispensedQty) * 10000) / 100
+    const overallLeakagePct = totalDispensedQty > 0
+      ? Math.round((totalGapQty / totalDispensedQty) * 100)
       : 0;
 
     res.json({
-      items,
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
       summary: {
         totalDispensedQty,
         totalBilledQty,
         totalGapQty,
         totalGapValueCents,
-        gapRatePercent,
+        overallLeakagePct,
       },
+      items,
     });
   } catch (err) {
     console.error(err);
@@ -292,6 +307,8 @@ router.get("/shift-total", requireAuth, async (req, res) => {
   }
 });
 
+
+
 // GET /api/billing/:id — fetch single entry
 router.get("/:id", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
@@ -311,7 +328,7 @@ router.get("/:id", requireAuth, requireEffectiveRole("vet"), validateUuid("id"),
   }
 });
 
-// POST /api/billing — create a manual charge
+// POST /api/billing — create a manual charge (animalId optional for unlinked captures)
 router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createChargeSchema), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
@@ -324,7 +341,7 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
     await db.insert(billingLedger).values({
       id,
       clinicId,
-      animalId: b.animalId,
+      animalId: b.animalId ?? null,
       itemType: b.itemType,
       itemId: b.itemId,
       quantity: b.quantity,

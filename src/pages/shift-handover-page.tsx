@@ -388,8 +388,10 @@ export default function ShiftHandoverPage() {
                   <span className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                 )}
               </div>
-              <div className={cn("rounded-xl border p-3 text-center relative", consumablesQ.data.unBilledCount > 0 ? "border-red-400 bg-red-50 dark:bg-red-950/25" : "")}>
-                <p className="text-2xl font-bold tabular-nums">{consumablesQ.data.unBilledCount}</p>
+              <div className={cn("rounded-xl border p-3 text-center relative", consumablesQ.data.unBilledCount > 0 ? "border-red-500 bg-red-50 dark:bg-red-950/25" : "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20")}>
+                <p className={cn("text-2xl font-bold tabular-nums", consumablesQ.data.unBilledCount > 0 ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300")}>
+                  {consumablesQ.data.unBilledCount}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">ללא חיוב</p>
                 {consumablesQ.data.unBilledCount > 0 && (
                   <span className="absolute top-1 left-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />

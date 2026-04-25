@@ -332,6 +332,7 @@ export const patientRoomAssignments = pgTable("vt_patient_room_assignments", {
 export const billingLedger = pgTable("vt_billing_ledger", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),
+  /** Nullable: capture is allowed before a patient is linked (e.g. code-blue). */
   animalId: text("animal_id")
     .references(() => animals.id, { onDelete: "set null" }),
   itemType: billingLedgerItemTypeEnum("item_type").notNull(),

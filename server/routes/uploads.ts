@@ -6,12 +6,17 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-function resolveRequestId(res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void }, incoming: unknown): string {
-  const incomingStr = typeof incoming === "string" ? incoming.trim() : "";
+function resolveRequestId(
+  res: { getHeader: (name: string) => unknown; setHeader?: (name: string, value: string) => void },
+  incomingHeader: unknown,
+): string {
+  const incoming = typeof incomingHeader === "string" ? incomingHeader.trim() : "";
   const existing = res.getHeader("x-request-id");
   const fromRes = typeof existing === "string" ? existing.trim() : "";
-  const requestId = incomingStr || fromRes || randomUUID();
-  if (typeof res.setHeader === "function") res.setHeader("x-request-id", requestId);
+  const requestId = incoming || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
   return requestId;
 }
 
@@ -53,7 +58,7 @@ router.post(
     const requestId = resolveRequestId(res, req.headers["x-request-id"]);
     try {
       if (!req.file) {
-        return res.status(400).json(apiError({ code: "NO_FILE", reason: "NO_FILE", message: "No image uploaded", requestId }));
+        return res.status(400).json(apiError({ code: "VALIDATION_FAILED", reason: "NO_IMAGE_UPLOADED", message: "No image uploaded", requestId }));
       }
 
       // Safe filename — no path traversal, no user-controlled strings
@@ -82,10 +87,10 @@ router.post(
         error instanceof Error &&
         error.message === "Images only"
       ) {
-        return res.status(400).json(apiError({ code: "INVALID_FILE_TYPE", reason: "INVALID_FILE_TYPE", message: "Only image files are allowed", requestId }));
+        return res.status(400).json(apiError({ code: "VALIDATION_FAILED", reason: "INVALID_FILE_TYPE", message: "Only image files are allowed", requestId }));
       }
       console.error("[storage/fault-image]", error);
-      res.status(500).json(apiError({ code: "UPLOAD_FAILED", reason: "UPLOAD_FAILED", message: "Upload failed", requestId }));
+      res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "UPLOAD_FAILED", message: "Upload failed", requestId }));
     }
   }
 );

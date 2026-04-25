@@ -28,7 +28,7 @@ function getDefaultDates(): { from: string; to: string } {
 function downloadLeakageCsv(items: LeakageReportItem[]) {
   const header = "Item,Dispensed Qty,Billed Qty,Gap Qty,Gap Value (₪)";
   const rows = items.map(i =>
-    `"${i.itemName}",${i.dispensedQty},${i.billedQty},${i.gapQty},${(i.gapValueCents / 100).toFixed(2)}`
+    `"${i.containerName}",${i.dispensedQty},${i.billedQty},${i.gapQty},${(i.gapValueCents / 100).toFixed(2)}`
   );
   const csv = [header, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -175,7 +175,7 @@ export default function LeakageReportPage() {
                   {summary?.totalGapQty ?? 0}
                 </p>
                 <p className="mt-1 text-xs text-amber-700">
-                  {summary?.gapRatePercent ?? 0}% gap rate
+                  {summary?.overallLeakagePct ?? 0}% gap rate
                 </p>
               </div>
 
@@ -206,21 +206,22 @@ export default function LeakageReportPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        <th className="text-left px-4 py-3 font-semibold">Item</th>
+                        <th className="text-left px-4 py-3 font-semibold">Container</th>
                         <th className="text-right px-4 py-3 font-semibold">Unit Price</th>
                         <th className="text-right px-4 py-3 font-semibold">Dispensed</th>
                         <th className="text-right px-4 py-3 font-semibold">Billed</th>
                         <th className="text-right px-4 py-3 font-semibold">Gap Qty</th>
                         <th className="text-right px-4 py-3 font-semibold">Gap Value</th>
+                        <th className="text-right px-4 py-3 font-semibold">Leakage %</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {items.map((item) => (
                         <tr
-                          key={item.itemId}
+                          key={item.containerId}
                           className={item.gapQty > 0 ? "bg-destructive/5" : ""}
                         >
-                          <td className="px-4 py-3 font-medium">{item.itemName}</td>
+                          <td className="px-4 py-3 font-medium">{item.containerName}</td>
                           <td className="px-4 py-3 text-right text-muted-foreground">
                             {formatCents(item.unitPriceCents)}
                           </td>
@@ -246,6 +247,11 @@ export default function LeakageReportPage() {
                               }
                             >
                               {formatCents(item.gapValueCents)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={item.gapQty > 0 ? "font-semibold text-destructive" : "text-emerald-700"}>
+                              {item.leakagePct}%
                             </span>
                           </td>
                         </tr>

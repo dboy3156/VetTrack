@@ -55,6 +55,7 @@ import type {
   RestockFinishSummary,
   BillingLedgerEntry,
   BillingSummary,
+  LeakageReport,
   InventoryItem,
   PurchaseOrder,
   ForecastParseResponse,
@@ -1151,7 +1152,7 @@ export const api = {
     },
     get: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}`),
     create: (data: {
-      animalId: string;
+      animalId?: string;
       itemType: "EQUIPMENT" | "CONSUMABLE";
       itemId: string;
       quantity: number;

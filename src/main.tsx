@@ -88,6 +88,7 @@ if (!rootEl) {
             <SyncProvider>
               <SyncStatusBanner />
               <AppBootstrap />
+              <SyncStatusBanner />
               <Toaster
                 position="top-center"
                 richColors

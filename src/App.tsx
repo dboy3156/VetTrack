@@ -5,9 +5,10 @@ import { startLeaderHeartbeat } from "@/lib/leader";
 import { t } from "@/lib/i18n";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 
+const CLERK_ENABLED = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+
 function AutoSelectOrg() {
   useAutoSelectOrg();
-
   return null;
 }
 
@@ -18,7 +19,7 @@ export default function App() {
 
   return (
     <>
-      <AutoSelectOrg />
+      {CLERK_ENABLED && <AutoSelectOrg />}
       <Suspense fallback={<div className="p-10 text-center">{t.auth.guard.loadingApp}</div>}>
         <PageErrorBoundary fallbackLabel={t.errorCard.defaultMessage}>
           <AppRoutes />

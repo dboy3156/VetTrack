@@ -1009,12 +1009,37 @@ export interface ConsumablesReport {
   unlinkedCount: number;
   unlinkedPct: number;
   pendingEmergencies: number;
+  /** Containers with dispenses in the window that have no matching billing entry. */
   unBilledCount: number;
   byItem: Array<{ itemId: string; label: string; totalQuantity: number }>;
   byAnimal: Array<{ animalId: string | null; animalName: string | null; totalEvents: number }>;
   byUser: Array<{ userId: string; displayName: string; totalEvents: number }>;
   userActivity: UserActivityEntry[];
   events: ConsumablesReportEvent[];
+}
+
+export interface LeakageReportItem {
+  containerId: string;
+  containerName: string;
+  unitPriceCents: number;
+  dispensedQty: number;
+  billedQty: number;
+  gapQty: number;
+  gapValueCents: number;
+  leakagePct: number;
+}
+
+export interface LeakageReport {
+  from: string;
+  to: string;
+  summary: {
+    totalDispensedQty: number;
+    totalBilledQty: number;
+    totalGapQty: number;
+    totalGapValueCents: number;
+    overallLeakagePct: number;
+  };
+  items: LeakageReportItem[];
 }
 
 export interface InventoryContainerWithItems extends InventoryContainer {
@@ -1034,23 +1059,3 @@ export interface ActivePatient {
   breed: string | null;
 }
 
-export interface LeakageReportItem {
-  itemId: string;
-  itemName: string;
-  unitPriceCents: number;
-  dispensedQty: number;
-  billedQty: number;
-  gapQty: number;
-  gapValueCents: number;
-}
-
-export interface LeakageReport {
-  items: LeakageReportItem[];
-  summary: {
-    totalDispensedQty: number;
-    totalBilledQty: number;
-    totalGapQty: number;
-    totalGapValueCents: number;
-    gapRatePercent: number;
-  };
-}

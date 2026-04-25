@@ -2,8 +2,8 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { pool } from "../db.js";
 import { isPostgresqlConfigured } from "../lib/postgresql.js";
+import { safeRedisGet, getRedisUrl } from "../lib/redis.js";
 import https from "https";
-import { getRedis } from "../lib/redis.js";
 
 const router = Router();
 
@@ -173,20 +173,17 @@ router.get("/", async (_req, res) => {
     allOk = false;
   }
 
-  const redis = await getRedis();
-  if (redis) {
-    try {
-      const heartbeat = await redis.get("vettrack:worker:heartbeat");
-      if (heartbeat) {
-        const age = Date.now() - Number(heartbeat);
-        checks.worker = age < 120_000 ? "ok" : "stale";
-        if (checks.worker !== "ok") allOk = false;
-      } else {
-        checks.worker = "fail";
-        allOk = false;
-      }
-    } catch {
-      checks.worker = "skip";
+  // Worker heartbeat: notification.worker.ts writes vettrack:worker:heartbeat
+  // every 30s with a 120s TTL. A missing key means the worker process is dead.
+  if (getRedisUrl()) {
+    const beat = await safeRedisGet("vettrack:worker:heartbeat");
+    if (beat) {
+      const age = Date.now() - Number(beat);
+      checks.worker = age < 120_000 ? "ok" : "stale";
+      if (checks.worker !== "ok") allOk = false;
+    } else {
+      checks.worker = "fail";
+      allOk = false;
     }
   } else {
     checks.worker = "skip";
