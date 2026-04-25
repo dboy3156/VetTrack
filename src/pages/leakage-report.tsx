@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import type { LeakageReportItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -22,6 +23,21 @@ function getDefaultDates(): { from: string; to: string } {
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
   };
+}
+
+function downloadLeakageCsv(items: LeakageReportItem[]) {
+  const header = "Item,Dispensed Qty,Billed Qty,Gap Qty,Gap Value (₪)";
+  const rows = items.map(i =>
+    `"${i.itemName}",${i.dispensedQty},${i.billedQty},${i.gapQty},${(i.gapValueCents / 100).toFixed(2)}`
+  );
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "leakage-report.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function LeakageReportPage() {
@@ -66,12 +82,10 @@ export default function LeakageReportPage() {
                 Back to Billing
               </Button>
             </Link>
-            <a href={api.billing.exportCsvUrl()} download>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-1" />
-                Export CSV
-              </Button>
-            </a>
+            <Button variant="outline" size="sm" onClick={() => downloadLeakageCsv(items)} disabled={items.length === 0}>
+              <Download className="h-4 w-4 mr-1" />
+              Export CSV
+            </Button>
           </div>
         </div>
 

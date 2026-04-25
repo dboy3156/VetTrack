@@ -150,6 +150,17 @@ router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (r
     const fromDate = fromParam ? new Date(fromParam) : thirtyDaysAgo;
     const toDate = toParam ? new Date(toParam) : now;
 
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return res.status(400).json(
+        apiError({
+          code: "INVALID_DATE_RANGE",
+          reason: "INVALID_DATE_RANGE",
+          message: "Invalid from or to date",
+          requestId,
+        }),
+      );
+    }
+
     // Query dispenses (quantity_added < 0) joined to billing items via containers
     // and left-joined to billing ledger CONSUMABLE entries for the same window
     const result = await pool.query(
