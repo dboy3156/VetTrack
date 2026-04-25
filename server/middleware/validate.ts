@@ -25,11 +25,13 @@ export function validateBody<T>(schema: ZodSchema<T>) {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function validateUuid(paramName: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const val = req.params[paramName];
-    if (!val || typeof val !== "string" || val.trim() === "") {
-      res.status(400).json({ error: `Invalid ${paramName}: must be a non-empty string` });
+    if (!val || typeof val !== "string" || !UUID_RE.test(val.trim())) {
+      res.status(400).json({ error: `Invalid ${paramName}: must be a valid UUID` });
       return;
     }
     next();

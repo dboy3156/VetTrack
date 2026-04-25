@@ -124,17 +124,23 @@ export const folders = pgTable("vt_folders", {
   deletedBy: text("deleted_by"),
 });
 
-export const rooms = pgTable("vt_rooms", {
-  id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
-  name: text("name").notNull().unique(),
-  floor: text("floor"),
-  masterNfcTagId: text("master_nfc_tag_id").unique(),
-  syncStatus: varchar("sync_status", { length: 20 }).notNull().default("stale"),
-  lastAuditAt: timestamp("last_audit_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const rooms = pgTable(
+  "vt_rooms",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull(),
+    name: text("name").notNull(),
+    floor: text("floor"),
+    masterNfcTagId: text("master_nfc_tag_id").unique(),
+    syncStatus: varchar("sync_status", { length: 20 }).notNull().default("stale"),
+    lastAuditAt: timestamp("last_audit_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicNameUnique: uniqueIndex("vt_rooms_clinic_name_unique").on(table.clinicId, table.name),
+  }),
+);
 
 export const occupancySourceEnum = pgEnum("vt_occupancy_source", ["manual"]);
 export const billingChargeKindEnum = pgEnum("vt_billing_charge_kind", ["per_scan_hour", "per_unit"]);
