@@ -1076,6 +1076,7 @@ export const api = {
         takenBy: { userId: string; displayName: string };
         takenAt: string;
         billingIds?: string[];
+        autoBilledCents?: number;
       }>(`/api/containers/${containerId}/dispense`, {
         method: "POST",
         body: JSON.stringify(data),

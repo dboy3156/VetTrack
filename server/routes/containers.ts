@@ -417,6 +417,7 @@ router.post(
 
       // Auto-billing: insert billing ledger rows after the transaction commits
       // Failures must NOT fail the dispense — log and continue
+      let autoBilledCents = 0;
       for (const candidate of autoBillingCandidates) {
         try {
           const [bi] = await db
@@ -426,6 +427,7 @@ router.post(
             .limit(1);
           if (bi && bi.unitPriceCents > 0) {
             const autoBillingId = randomUUID();
+            const rowTotal = bi.unitPriceCents * candidate.quantity;
             await db.insert(billingLedger).values({
               id: autoBillingId,
               clinicId,
@@ -434,11 +436,12 @@ router.post(
               itemId: bi.id,
               quantity: candidate.quantity,
               unitPriceCents: bi.unitPriceCents,
-              totalAmountCents: bi.unitPriceCents * candidate.quantity,
+              totalAmountCents: rowTotal,
               idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
               status: "pending",
             }).onConflictDoNothing();
             billingIds.push(autoBillingId);
+            autoBilledCents += rowTotal;
           }
         } catch (autoBillingErr) {
           console.error("[auto-billing] Failed to insert billing ledger row for dispense, continuing:", autoBillingErr);
@@ -451,6 +454,7 @@ router.post(
         takenBy: { userId: actorUserId, displayName: actorDisplayName },
         takenAt: takenAt.toISOString(),
         billingIds,
+        autoBilledCents,
       });
     } catch (err: unknown) {
       const e = err as Record<string, unknown>;
