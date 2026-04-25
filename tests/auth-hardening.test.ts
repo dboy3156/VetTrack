@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import type { Request, Response, NextFunction } from "express";
+import { STABILITY_TOKEN } from "../server/lib/stability-token.js";
 
 type JsonBody = Record<string, unknown>;
 
@@ -37,6 +38,7 @@ const nextFactory = () => {
 
 let createRequireAuth: (resolver: () => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
 let createRequireAuthAny: (resolver: () => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+let resolveAuthUser: (req: Request) => Promise<unknown>;
 
 beforeAll(async () => {
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? "postgres://user:pass@localhost:5432/vettrack_test";
@@ -44,7 +46,8 @@ beforeAll(async () => {
   const mod = await import("../server/middleware/auth.js");
   createRequireAuth = mod.createRequireAuth;
   createRequireAuthAny = mod.createRequireAuthAny;
-});
+  resolveAuthUser = mod.resolveAuthUser;
+}, 30000);
 
 describe("requireAuth success", () => {
   it("requireAuth calls next on success", async () => {
@@ -219,5 +222,39 @@ describe("requireAuthAny behavior", () => {
     const tracker = nextFactory();
     await middleware(req, res, tracker.next);
     expect(state.statusCode === 200).toBeTruthy();
+  });
+});
+
+describe("x-stability-token loopback guard", () => {
+  it("rejects x-stability-token from non-loopback IP in production", async () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const req = {
+        headers: { "x-stability-token": STABILITY_TOKEN },
+        socket: { remoteAddress: "203.0.113.42" },
+      } as unknown as Request;
+      const result = await resolveAuthUser(req);
+      expect(result.ok).toBe(false);
+      expect((result as { status: number }).status).toBe(403);
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+
+  it("allows x-stability-token from 127.0.0.1 in production when token matches", async () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const req = {
+        headers: { "x-stability-token": STABILITY_TOKEN },
+        socket: { remoteAddress: "127.0.0.1" },
+      } as unknown as Request;
+      const result = await resolveAuthUser(req);
+      expect(result.ok).toBe(true);
+      expect((result as { user: unknown }).user).toBeDefined();
+    } finally {
+      process.env.NODE_ENV = original;
+    }
   });
 });

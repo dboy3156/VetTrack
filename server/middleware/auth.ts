@@ -197,8 +197,20 @@ function isLikelyInvalidTokenError(err: unknown): boolean {
   return msg.includes("token") || msg.includes("jwt") || msg.includes("session");
 }
 
+const LOOPBACK_ADDRS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
 export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   if (req.headers["x-stability-token"] === STABILITY_TOKEN) {
+    if (process.env.NODE_ENV === "production") {
+      const remote = req.socket?.remoteAddress ?? req.ip ?? "";
+      if (!LOOPBACK_ADDRS.has(remote)) {
+        return {
+          ok: false,
+          status: 403,
+          body: { error: "FORBIDDEN", reason: "STABILITY_TOKEN_EXTERNAL_ORIGIN", message: "Forbidden" },
+        };
+      }
+    }
     return { ok: true, user: { ...DEV_USER, role: "admin" } };
   }
 
