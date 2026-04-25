@@ -296,6 +296,57 @@ export async function enqueueAutomationExecuteJob(payload: AutomationExecutePayl
   }
 }
 
+export type BillingWebhookPayload = {
+  clinicId: string;
+  webhookUrl: string;
+  secret: string;
+  entry: {
+    id: string;
+    animalId: string | null | undefined;
+    itemType: string;
+    itemId: string;
+    quantity: number;
+    unitPriceCents: number;
+    totalAmountCents: number;
+    status: string;
+    createdAt: Date | string;
+  };
+};
+
+/**
+ * Enqueue a billing webhook job. Never throws — webhook failure must not affect billing response.
+ */
+export async function enqueueBillingWebhookJob(payload: BillingWebhookPayload): Promise<void> {
+  if (isCircuitOpen("queue")) {
+    incrementMetric("circuit_breaker_opened");
+    console.warn("[queue] circuit open; billing_webhook enqueue skipped");
+    return;
+  }
+  if (!getRedisUrl()) {
+    recordRedisFallback("queue.enqueueBillingWebhookJob");
+    console.warn("QUEUE_DISABLED_NO_REDIS — billing_webhook not enqueued");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  const q = await getNotificationsQueue();
+  if (!q) {
+    recordRedisFallback("queue.enqueueBillingWebhookJob.queueUnavailable");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  try {
+    await timedRedisOp("queue.add.billing_webhook", () =>
+      q.add("billing_webhook", payload, defaultJobOptions()),
+    );
+    queueMetrics.enqueued++;
+    incrementMetric("queue_jobs_enqueued");
+    console.log("QUEUE_JOB_ENQUEUED", "billing_webhook", { clinicId: payload.clinicId, entryId: payload.entry.id });
+  } catch (err) {
+    markQueueFailure();
+    console.error("[queue] billing_webhook add failed:", (err as Error).message);
+  }
+}
+
 export type AutomationNotifyArgs =
   | {
       clinicId: string;

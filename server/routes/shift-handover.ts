@@ -644,7 +644,7 @@ router.patch(
       const [existing] = await db
         .select({ id: billingLedger.id })
         .from(billingLedger)
-        .where(eq(billingLedger.idempotencyKey, idempotencyKey))
+        .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.idempotencyKey, idempotencyKey)))
         .limit(1);
 
       if (existing) {

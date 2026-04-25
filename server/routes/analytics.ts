@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { db, equipment, scanLogs } from "../db.js";
+import { db, pool, equipment, scanLogs } from "../db.js";
 import { gte, desc, eq, and, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { subDays } from "date-fns";
@@ -11,7 +11,8 @@ import { INACTIVE_THRESHOLD_DAYS } from "../../shared/constants.js";
 /*
  * PERMISSIONS MATRIX — /api/analytics
  * ─────────────────────────────────────────────────────
- * GET  /   student+  Aggregate dashboard statistics
+ * GET  /         student+  Aggregate dashboard statistics
+ * GET  /billing  student+  Billing analytics dashboard
  * ─────────────────────────────────────────────────────
  * Viewer read access is intentional — dashboard stats are informational
  * and do not expose any PII or mutation capability.
@@ -161,6 +162,193 @@ router.get("/", requireAuth, async (req, res) => {
         code: "INTERNAL_ERROR",
         reason: "ANALYTICS_FETCH_FAILED",
         message: "Failed to get analytics",
+        requestId,
+      }),
+    );
+  }
+});
+
+// GET /api/analytics/billing — billing analytics for the dashboard
+router.get("/billing", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const cacheKey = `billing:${clinicId}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      res.setHeader("X-Analytics-Cache", "HIT");
+      return res.json(cached);
+    }
+
+    // rolling30dayTrend: daily totals (non-voided) for last 30 days
+    const trendResult = await pool.query(
+      `SELECT
+         DATE(created_at)::text AS date,
+         SUM(total_amount_cents)::int AS "totalCents",
+         COUNT(*)::int AS "entryCount"
+       FROM vt_billing_ledger
+       WHERE clinic_id = $1
+         AND status != 'voided'
+         AND created_at >= NOW() - INTERVAL '30 days'
+       GROUP BY DATE(created_at)
+       ORDER BY DATE(created_at)`,
+      [clinicId],
+    );
+    const rolling30dayTrend: Array<{ date: string; totalCents: number; entryCount: number }> =
+      trendResult.rows.map((r) => ({
+        date: r.date as string,
+        totalCents: Number(r.totalCents),
+        entryCount: Number(r.entryCount),
+      }));
+
+    // top10ItemsByVolume: join billing_ledger with billing_items for names,
+    // compute dispensed (from inventory_logs) vs billed gap
+    const top10Result = await pool.query(
+      `WITH billed AS (
+         SELECT
+           bl.item_id,
+           bi.description   AS item_name,
+           COUNT(*)::int    AS total_billed,
+           SUM(bl.quantity) AS total_billed_qty
+         FROM vt_billing_ledger bl
+         JOIN vt_billing_items bi ON bi.id = bl.item_id
+         WHERE bl.clinic_id = $1
+           AND bl.status != 'voided'
+           AND bl.created_at >= NOW() - INTERVAL '30 days'
+         GROUP BY bl.item_id, bi.description
+         ORDER BY COUNT(*) DESC
+         LIMIT 10
+       ),
+       dispensed AS (
+         SELECT
+           c.billing_item_id AS item_id,
+           SUM(ABS(il.quantity_added)) AS total_dispensed
+         FROM vt_inventory_logs il
+         JOIN vt_containers c ON c.id = il.container_id
+         WHERE il.clinic_id = $1
+           AND il.quantity_added < 0
+           AND il.created_at >= NOW() - INTERVAL '30 days'
+           AND c.billing_item_id IS NOT NULL
+         GROUP BY c.billing_item_id
+       )
+       SELECT
+         b.item_id AS "itemId",
+         b.item_name AS "itemName",
+         COALESCE(d.total_dispensed, 0)::int AS "totalDispensed",
+         b.total_billed AS "totalBilled",
+         CASE WHEN COALESCE(d.total_dispensed, 0) > 0
+              THEN ROUND((COALESCE(d.total_dispensed, 0) - b.total_billed)::numeric
+                         / COALESCE(d.total_dispensed, 0) * 100, 1)
+              ELSE 0
+         END AS "gapRatePercent"
+       FROM billed b
+       LEFT JOIN dispensed d ON d.item_id = b.item_id
+       ORDER BY b.total_billed DESC`,
+      [clinicId],
+    );
+    const top10ItemsByVolume = top10Result.rows.map((r) => ({
+      itemId: r.itemId as string,
+      itemName: r.itemName as string,
+      totalDispensed: Number(r.totalDispensed),
+      totalBilled: Number(r.totalBilled),
+      gapRatePercent: Number(r.gapRatePercent),
+    }));
+
+    // leakageRateTrend: last 12 weeks, gap between dispensed and billed per week
+    const leakageResult = await pool.query(
+      `WITH weeks AS (
+         SELECT generate_series(0, 11) AS week_offset
+       ),
+       week_starts AS (
+         SELECT DATE_TRUNC('week', NOW()) - (week_offset * INTERVAL '1 week') AS week_start
+         FROM weeks
+       ),
+       dispensed AS (
+         SELECT
+           DATE_TRUNC('week', il.created_at) AS week_start,
+           SUM(ABS(il.quantity_added)) AS total_dispensed
+         FROM vt_inventory_logs il
+         JOIN vt_containers c ON c.id = il.container_id
+         WHERE il.clinic_id = $1
+           AND il.quantity_added < 0
+           AND il.created_at >= NOW() - INTERVAL '12 weeks'
+           AND c.billing_item_id IS NOT NULL
+         GROUP BY DATE_TRUNC('week', il.created_at)
+       ),
+       billed AS (
+         SELECT
+           DATE_TRUNC('week', created_at) AS week_start,
+           SUM(quantity) AS total_billed
+         FROM vt_billing_ledger
+         WHERE clinic_id = $1
+           AND item_type = 'CONSUMABLE'
+           AND status != 'voided'
+           AND created_at >= NOW() - INTERVAL '12 weeks'
+         GROUP BY DATE_TRUNC('week', created_at)
+       )
+       SELECT
+         ws.week_start::date::text AS "weekStart",
+         CASE WHEN COALESCE(d.total_dispensed, 0) > 0
+              THEN ROUND((COALESCE(d.total_dispensed, 0) - COALESCE(b.total_billed, 0))::numeric
+                         / COALESCE(d.total_dispensed, 0) * 100, 1)
+              ELSE 0
+         END AS "gapRatePercent"
+       FROM week_starts ws
+       LEFT JOIN dispensed d ON d.week_start = ws.week_start
+       LEFT JOIN billed b ON b.week_start = ws.week_start
+       ORDER BY ws.week_start`,
+      [clinicId],
+    );
+    const leakageRateTrend = leakageResult.rows.map((r) => ({
+      weekStart: r.weekStart as string,
+      gapRatePercent: Number(r.gapRatePercent),
+    }));
+
+    // avgEntriesPerShift: COUNT(billing entries) / COUNT(shift sessions) for last 30 days
+    const avgResult = await pool.query(
+      `WITH billing_count AS (
+         SELECT COUNT(*) AS entry_count
+         FROM vt_billing_ledger
+         WHERE clinic_id = $1
+           AND status != 'voided'
+           AND created_at >= NOW() - INTERVAL '30 days'
+       ),
+       shift_count AS (
+         SELECT COUNT(*) AS session_count
+         FROM vt_shift_sessions
+         WHERE clinic_id = $1
+           AND started_at >= NOW() - INTERVAL '30 days'
+       )
+       SELECT
+         bc.entry_count,
+         sc.session_count,
+         CASE WHEN sc.session_count > 0
+              THEN ROUND(bc.entry_count::numeric / sc.session_count, 1)
+              ELSE 0
+         END AS avg_entries
+       FROM billing_count bc, shift_count sc`,
+      [clinicId],
+    );
+    const avgEntriesPerShift =
+      avgResult.rows.length > 0 ? Number(avgResult.rows[0].avg_entries) : 0;
+
+    const payload = {
+      rolling30dayTrend,
+      top10ItemsByVolume,
+      leakageRateTrend,
+      avgEntriesPerShift,
+    };
+
+    analyticsCache.set(cacheKey, payload);
+    res.setHeader("X-Analytics-Cache", "MISS");
+    res.json(payload);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "BILLING_ANALYTICS_FAILED",
+        message: "Failed to get billing analytics",
         requestId,
       }),
     );

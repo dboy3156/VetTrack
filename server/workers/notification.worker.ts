@@ -4,7 +4,9 @@
  */
 import "dotenv/config";
 
+import crypto from "crypto";
 import { Worker } from "bullmq";
+import nodemailer from "nodemailer";
 import { dispatchTaskNotificationSync } from "../lib/task-notification.js";
 import {
   NOTIFICATION_DLQ_NAME,
@@ -15,7 +17,9 @@ import {
   getNotificationsQueue,
   queueMetrics,
   type AutomationExecutePayload,
+  type BillingWebhookPayload,
   type NotificationJobData,
+  type ShiftReportEmailPayload,
 } from "../lib/queue.js";
 import { createRedisConnection, getRedis } from "../lib/redis.js";
 import { incrementMetric } from "../lib/metrics.js";
@@ -25,6 +29,8 @@ import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/p
 import { withTimeout } from "../lib/timeout.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
+import { db, billingLedger, inventoryLogs, serverConfig, shiftSessions } from "../db.js";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 
 const OVERDUE_SCAN_MS = 5 * 60 * 1000;
 const AUTOMATION_TICK_MS = 90 * 1000;
@@ -68,23 +74,260 @@ async function processSendNotification(data: NotificationJobData): Promise<void>
     return;
   }
   if (data.type === "automation_push_user") {
-    await withTimeout(sendPushToUser(data.clinicId, data.userId, {
-      title: data.title,
-      body: data.body,
-      tag: data.tag,
-      url: "/appointments",
-    }), 5000, "automation push user");
+    await withTimeout(
+      sendPushToUser(data.clinicId, data.userId, {
+        title: data.title,
+        body: data.body,
+        tag: data.tag,
+        url: "/appointments",
+      }),
+      5000,
+      "automation push user",
+    );
     return;
   }
   if (data.type === "automation_push_role") {
-    await withTimeout(sendPushToRole(data.clinicId, data.role, {
-      title: data.title,
-      body: data.body,
-      tag: data.tag,
-      url: "/appointments",
-    }), 5000, "automation push role");
+    await withTimeout(
+      sendPushToRole(data.clinicId, data.role, {
+        title: data.title,
+        body: data.body,
+        tag: data.tag,
+        url: "/appointments",
+      }),
+      5000,
+      "automation push role",
+    );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Billing webhook processor
+// ---------------------------------------------------------------------------
+
+async function processBillingWebhook(payload: BillingWebhookPayload): Promise<void> {
+  const { webhookUrl, secret, entry } = payload;
+  const bodyStr = JSON.stringify(entry);
+  const hmac = crypto.createHmac("sha256", secret).update(bodyStr).digest("hex");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-VetTrack-Signature": `sha256=${hmac}`,
+      },
+      body: bodyStr,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      throw new Error(`billing_webhook HTTP ${response.status} from ${webhookUrl}`);
+    }
+    console.log("BILLING_WEBHOOK_SENT", { clinicId: payload.clinicId, entryId: entry.id, status: response.status });
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shift report email helpers
+// ---------------------------------------------------------------------------
+
+async function getSmtpConfig(clinicId: string): Promise<{
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+}> {
+  const clinicKeys = [
+    `${clinicId}:smtp_host`,
+    `${clinicId}:smtp_port`,
+    `${clinicId}:smtp_user`,
+    `${clinicId}:smtp_pass`,
+    `${clinicId}:smtp_from`,
+  ];
+  const globalKeys = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from"];
+  const allKeys = [...clinicKeys, ...globalKeys];
+
+  const rows = await db
+    .select()
+    .from(serverConfig)
+    .where(sql`${serverConfig.key} = ANY(ARRAY[${sql.join(
+      allKeys.map((k) => sql`${k}`),
+      sql`, `,
+    )}])`);
+
+  const cfg = new Map<string, string>(rows.map((r) => [r.key, r.value]));
+
+  const pick = (clinicKey: string, globalKey: string, envVar: string | undefined, fallback: string): string =>
+    cfg.get(clinicKey) ?? cfg.get(globalKey) ?? envVar ?? fallback;
+
+  return {
+    host: pick(`${clinicId}:smtp_host`, "smtp_host", process.env.SMTP_HOST, "localhost"),
+    port: parseInt(pick(`${clinicId}:smtp_port`, "smtp_port", process.env.SMTP_PORT, "587"), 10),
+    user: pick(`${clinicId}:smtp_user`, "smtp_user", process.env.SMTP_USER, ""),
+    pass: pick(`${clinicId}:smtp_pass`, "smtp_pass", process.env.SMTP_PASS, ""),
+    from: pick(`${clinicId}:smtp_from`, "smtp_from", process.env.SMTP_FROM, "noreply@vettrack.app"),
+  };
+}
+
+async function handleShiftReportEmail(payload: ShiftReportEmailPayload): Promise<void> {
+  const { clinicId, shiftSessionId, managerEmail } = payload;
+
+  // Fetch the shift session to determine the time window
+  const [session] = await db
+    .select()
+    .from(shiftSessions)
+    .where(and(eq(shiftSessions.id, shiftSessionId), eq(shiftSessions.clinicId, clinicId)))
+    .limit(1);
+
+  const windowStart = session ? new Date(session.startedAt) : new Date(Date.now() - 12 * 60 * 60 * 1000);
+  const windowEnd = session?.endedAt ? new Date(session.endedAt) : new Date();
+
+  // Billing summary
+  const [billingRow] = await db
+    .select({
+      totalAmountCents: sql<number>`coalesce(sum(${billingLedger.totalAmountCents}), 0)::int`,
+      entryCount: sql<number>`count(*)::int`,
+    })
+    .from(billingLedger)
+    .where(
+      and(
+        eq(billingLedger.clinicId, clinicId),
+        gte(billingLedger.createdAt, windowStart),
+        lte(billingLedger.createdAt, windowEnd),
+      ),
+    );
+
+  const totalAmountCents = billingRow?.totalAmountCents ?? 0;
+  const entryCount = billingRow?.entryCount ?? 0;
+  const totalAmountDollars = (totalAmountCents / 100).toFixed(2);
+
+  // Consumables summary — unBilledCount + pendingEmergencies
+  const consumableRows = await db
+    .select({
+      metadata: inventoryLogs.metadata,
+      billedCheck: sql<string | null>`(
+        SELECT id FROM vt_billing_ledger bl
+        WHERE bl.idempotency_key = 'adjustment_' || ${inventoryLogs.id}
+        LIMIT 1
+      )`,
+    })
+    .from(inventoryLogs)
+    .where(
+      and(
+        eq(inventoryLogs.clinicId, clinicId),
+        eq(inventoryLogs.logType, "adjustment"),
+        gte(inventoryLogs.createdAt, windowStart),
+        lte(inventoryLogs.createdAt, windowEnd),
+        lte(inventoryLogs.quantityAdded, sql`0`),
+      ),
+    );
+
+  const unBilledCount = consumableRows.filter((r) => !r.billedCheck).length;
+  const pendingEmergencies = consumableRows.filter((r) => {
+    const meta = r.metadata as Record<string, unknown> | null;
+    return meta?.isEmergency === true && meta?.pendingCompletion === true;
+  }).length;
+
+  // Format timestamps
+  const shiftDate = windowStart.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const fmt = (d: Date) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+  // Build HTML email body (jsPDF targets browsers; HTML email is the reliable server-side approach)
+  const billingGapsHtml =
+    unBilledCount > 0
+      ? `<div class="alert">${unBilledCount} consumable dispense${unBilledCount === 1 ? "" : "s"} without a linked billing entry.</div>`
+      : `<p style="color:#388e3c;font-size:14px;">&#10003; All consumable dispenses are billed.</p>`;
+
+  const emergencyHtml =
+    pendingEmergencies > 0
+      ? `<div class="alert danger">${pendingEmergencies} emergency dispense${pendingEmergencies === 1 ? "" : "s"} marked pending completion — review required.</div>`
+      : "";
+
+  const htmlBody = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: Arial, sans-serif; color: #1a1a2e; margin: 0; padding: 0; background: #f5f5f5; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    .header { background: #1a73e8; color: #fff; padding: 24px 32px; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .header p { margin: 4px 0 0; opacity: .85; font-size: 14px; }
+    .body { padding: 24px 32px; }
+    .metric-row { display: flex; gap: 16px; margin-bottom: 20px; }
+    .metric { flex: 1; background: #f0f4ff; border-radius: 8px; padding: 16px; text-align: center; }
+    .metric .label { font-size: 12px; color: #555; text-transform: uppercase; letter-spacing: .5px; }
+    .metric .value { font-size: 28px; font-weight: bold; color: #1a73e8; margin-top: 4px; }
+    .alert { background: #fff3cd; border-left: 4px solid #f0ad00; border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px; }
+    .alert.danger { background: #fdecea; border-color: #d32f2f; }
+    .footer { padding: 16px 32px; background: #f5f5f5; font-size: 12px; color: #888; text-align: center; }
+    h2 { font-size: 16px; margin: 24px 0 8px; color: #333; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>VetTrack &mdash; Shift Handover Report</h1>
+    <p>${shiftDate} &bull; ${fmt(windowStart)} &ndash; ${fmt(windowEnd)}</p>
+  </div>
+  <div class="body">
+    <h2>Revenue Summary</h2>
+    <div class="metric-row">
+      <div class="metric">
+        <div class="label">Revenue Captured</div>
+        <div class="value">$${totalAmountDollars}</div>
+      </div>
+      <div class="metric">
+        <div class="label">Billing Entries</div>
+        <div class="value">${entryCount}</div>
+      </div>
+    </div>
+    <h2>Billing Gaps</h2>
+    ${billingGapsHtml}
+    ${emergencyHtml}
+    <h2>Shift Window</h2>
+    <p style="font-size:14px;color:#555;">
+      Session ID: <code>${shiftSessionId}</code><br />
+      Start: ${windowStart.toISOString()}<br />
+      End: ${windowEnd.toISOString()}
+    </p>
+  </div>
+  <div class="footer">Generated by VetTrack &bull; Clinic ${clinicId}</div>
+</div>
+</body>
+</html>`;
+
+  const smtp = await getSmtpConfig(clinicId);
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.port === 465,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to: managerEmail,
+    subject: `VetTrack Shift Report \u2014 ${shiftDate}`,
+    html: htmlBody,
+  });
+
+  console.log("SHIFT_REPORT_EMAIL_SENT", { clinicId, shiftSessionId, managerEmail });
+}
+
+// ---------------------------------------------------------------------------
+// Worker main
+// ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   if (!process.env.REDIS_URL?.trim()) {
@@ -152,6 +395,8 @@ async function main(): Promise<void> {
           await scanAndEnqueueAutomationJobs();
         } else if (job.name === "automation_execute") {
           await executeAutomationJob(job.data as AutomationExecutePayload);
+        } else if (job.name === "billing_webhook") {
+          await withTimeout(processBillingWebhook(job.data as BillingWebhookPayload), 10_000, "billing_webhook");
         } else if (job.name === "send_notification") {
           const key = `notif:${jid}`;
           if (await checkIdempotentAsync(key)) {
@@ -160,6 +405,12 @@ async function main(): Promise<void> {
           }
           await processSendNotification(job.data as NotificationJobData);
           await markIdempotentAsync(key);
+        } else if (job.name === "shift_report_email") {
+          await withTimeout(
+            handleShiftReportEmail(job.data as ShiftReportEmailPayload),
+            30_000,
+            "shift report email",
+          );
         }
         queueMetrics.completed++;
         incrementMetric("queue_jobs_completed");
@@ -229,8 +480,12 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-  process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
-  process.on("SIGINT", () => { void shutdown("SIGINT"); });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
 
   setInterval(async () => {
     const r = await getRedis();
