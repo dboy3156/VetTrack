@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
-import { billingLedger, db, pool } from "../db.js";
+import { billingLedger, db, pool, inventoryJobs } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { enqueueBillingWebhookJob } from "../lib/queue.js";
@@ -500,6 +500,87 @@ router.patch("/bulk-sync", requireAuth, requireAdmin, validateBody(bulkSyncSchem
   } catch (err) {
     console.error(err);
     res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_BULK_SYNC_FAILED", message: "Failed to bulk sync billing entries", requestId }));
+  }
+});
+
+// GET /api/billing/inventory-jobs — list pending/processing/failed inventory deduction jobs (admin only)
+router.get("/inventory-jobs", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const { status } = req.query as Record<string, string>;
+    const validStatuses = ["pending", "processing", "resolved", "failed"] as const;
+    const statusFilter =
+      status && validStatuses.includes(status as (typeof validStatuses)[number])
+        ? [status as (typeof validStatuses)[number]]
+        : ["pending", "processing", "failed"];
+
+    const jobs = await db
+      .select()
+      .from(inventoryJobs)
+      .where(and(eq(inventoryJobs.clinicId, clinicId), inArray(inventoryJobs.status, statusFilter)))
+      .orderBy(desc(inventoryJobs.createdAt))
+      .limit(200);
+
+    return res.json(
+      jobs.map((j) => ({
+        id: j.id,
+        clinicId: j.clinicId,
+        taskId: j.taskId,
+        containerId: j.containerId,
+        requiredVolumeMl: j.requiredVolumeMl,
+        animalId: j.animalId,
+        status: j.status,
+        retryCount: j.retryCount,
+        failureReason: j.failureReason,
+        createdAt: j.createdAt.toISOString(),
+        updatedAt: j.updatedAt.toISOString(),
+        resolvedAt: j.resolvedAt?.toISOString() ?? null,
+      })),
+    );
+  } catch (err) {
+    console.error("[billing] inventory-jobs list error", err);
+    return res
+      .status(500)
+      .json(apiError({ code: "INTERNAL_ERROR", reason: "INTERNAL_ERROR", message: "Internal error", requestId }));
+  }
+});
+
+// POST /api/billing/inventory-jobs/:id/retry — reset a failed job to pending (admin only)
+router.post("/inventory-jobs/:id/retry", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const { id } = req.params;
+  const clinicId = req.clinicId!;
+  try {
+    const [existing] = await db
+      .select()
+      .from(inventoryJobs)
+      .where(and(eq(inventoryJobs.id, id), eq(inventoryJobs.clinicId, clinicId)))
+      .limit(1);
+
+    if (!existing) {
+      return res
+        .status(404)
+        .json(apiError({ code: "NOT_FOUND", reason: "NOT_FOUND", message: "Job not found", requestId }));
+    }
+
+    if (existing.status !== "failed") {
+      return res
+        .status(409)
+        .json(apiError({ code: "CONFLICT", reason: "NOT_FAILED", message: "Only failed jobs can be retried", requestId }));
+    }
+
+    await db
+      .update(inventoryJobs)
+      .set({ status: "pending", failureReason: null, updatedAt: new Date() })
+      .where(and(eq(inventoryJobs.id, id), eq(inventoryJobs.clinicId, clinicId)));
+
+    return res.json({ ok: true, id });
+  } catch (err) {
+    console.error("[billing] inventory-jobs retry error", err);
+    return res
+      .status(500)
+      .json(apiError({ code: "INTERNAL_ERROR", reason: "INTERNAL_ERROR", message: "Internal error", requestId }));
   }
 });
 
