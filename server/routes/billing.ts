@@ -220,7 +220,7 @@ const bulkSyncSchema = z.object({
 });
 
 // PATCH /api/billing/bulk-sync — mark billing entries as synced
-router.patch("/bulk-sync", requireAuth, requireEffectiveRole("vet"), validateBody(bulkSyncSchema), async (req, res) => {
+router.patch("/bulk-sync", requireAuth, requireAdmin, validateBody(bulkSyncSchema), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
