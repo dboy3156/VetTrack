@@ -23,6 +23,7 @@ import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js
 import { isCircuitOpen } from "../lib/circuit-breaker.js";
 import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/push.js";
 import { withTimeout } from "../lib/timeout.js";
+import { safeRedisSetex } from "../lib/redis.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
 
@@ -133,6 +134,19 @@ async function main(): Promise<void> {
 
   void scanOverdueAndEnqueue().catch((err) => console.error("[worker] initial overdue scan failed:", err));
   void scanAndEnqueueAutomationJobs().catch((err) => console.error("[worker] initial automation scan failed:", err));
+
+  // Heartbeat: health checks read this key to confirm the worker is alive.
+  // TTL is 120s; we write every 30s, so two missed writes = dead worker alert.
+  const HEARTBEAT_KEY = "vettrack:worker:heartbeat";
+  const HEARTBEAT_TTL_SEC = 120;
+  const HEARTBEAT_INTERVAL_MS = 30_000;
+  async function writeHeartbeat() {
+    await safeRedisSetex(HEARTBEAT_KEY, HEARTBEAT_TTL_SEC, String(Date.now()));
+  }
+  void writeHeartbeat().catch((err) => console.error("[worker] initial heartbeat failed:", err));
+  setInterval(() => {
+    void writeHeartbeat().catch((err) => console.error("[worker] heartbeat failed:", err));
+  }, HEARTBEAT_INTERVAL_MS);
 
   const worker = new Worker(
     NOTIFICATION_QUEUE_NAME,

@@ -55,6 +55,7 @@ import type {
   RestockFinishSummary,
   BillingLedgerEntry,
   BillingSummary,
+  LeakageReport,
   InventoryItem,
   PurchaseOrder,
   ForecastParseResponse,
@@ -1150,7 +1151,7 @@ export const api = {
     },
     get: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}`),
     create: (data: {
-      animalId: string;
+      animalId?: string;
       itemType: "EQUIPMENT" | "CONSUMABLE";
       itemId: string;
       quantity: number;
@@ -1158,12 +1159,32 @@ export const api = {
       note?: string;
     }) => request<BillingLedgerEntry>("/api/billing", { method: "POST", body: JSON.stringify(data) }),
     void: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}/void`, { method: "PATCH" }),
+    bulkSync: (ids: string[]) =>
+      request<{ synced: number }>("/api/billing/bulk-sync", {
+        method: "PATCH",
+        body: JSON.stringify({ ids }),
+      }),
     summary: (params?: { from?: string; to?: string }) => {
       const qs = new URLSearchParams();
       if (params?.from) qs.set("from", params.from);
       if (params?.to) qs.set("to", params.to);
       const query = qs.toString();
       return request<BillingSummary>(`/api/billing/summary${query ? `?${query}` : ""}`);
+    },
+    leakageReport: (params?: { from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      const query = qs.toString();
+      return request<LeakageReport>(`/api/billing/leakage-report${query ? `?${query}` : ""}`);
+    },
+    exportCsvUrl: (params?: { status?: string; from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set("status", params.status);
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      const query = qs.toString();
+      return `/api/billing/export.csv${query ? `?${query}` : ""}`;
     },
   },
   inventoryItems: {
