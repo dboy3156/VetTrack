@@ -69,10 +69,20 @@
     <!-- Mobile / PWA -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- black-translucent lets the status bar overlay the app in standalone
+         mode, honouring viewport-fit=cover so notch/Dynamic Island are covered
+         correctly. "default" ignores viewport-fit on iOS PWAs. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="VetTrack" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
     <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
+    <!-- Prevent iOS from auto-linking phone numbers / addresses -->
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+    <!-- Windows tile color -->
+    <meta name="msapplication-TileColor" content="#2563eb" />
+    <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
