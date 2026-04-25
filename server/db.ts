@@ -56,7 +56,7 @@ export const users = pgTable("vt_users", {
 
 export const owners = pgTable("vt_owners", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   fullName: text("full_name").notNull().default(""),
   phone: text("phone"),
   nationalId: text("national_id"),
@@ -73,7 +73,7 @@ export const clinics = pgTable("vt_clinics", {
 
 export const animals = pgTable("vt_animals", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   ownerId: text("owner_id").references(() => owners.id, { onDelete: "set null" }),
   name: text("name").notNull().default(""),
   species: text("species"),
@@ -116,7 +116,7 @@ export const appointments = pgTable("vt_appointments", {
 
 export const folders = pgTable("vt_folders", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   type: varchar("type", { length: 20 }).notNull().default("manual"),
   color: text("color"),
@@ -152,7 +152,7 @@ export const inventoryLogTypeEnum = pgEnum("vt_inventory_log_type", ["restock", 
 
 export const billingItems = pgTable("vt_billing_items", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   code: text("code").notNull(),
   description: text("description").notNull(),
   unitPriceCents: integer("unit_price_cents").notNull(),
@@ -165,7 +165,7 @@ export const drugFormulary = pgTable(
   "vt_drug_formulary",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     genericName: text("generic_name").notNull(),
     brandNames: jsonb("brand_names").notNull().default(sql`'[]'::jsonb`),
@@ -200,7 +200,7 @@ export const pharmacyOrders = pgTable(
   "vt_pharmacy_orders",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     approvedBy: text("approved_by").notNull(),
     windowHours: integer("window_hours").notNull(),
@@ -217,7 +217,7 @@ export const pharmacyForecastParses = pgTable(
   "vt_pharmacy_forecast_parses",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     createdBy: text("created_by").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     result: jsonb("result").notNull(),
@@ -260,7 +260,7 @@ export const medicationTasks = pgTable(
   "vt_medication_tasks",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     animalId: text("animal_id").notNull(),
     drugId: text("drug_id").notNull(),
     route: text("route").notNull(),
@@ -326,7 +326,7 @@ export const equipment = pgTable("vt_equipment", {
 
 export const patientRoomAssignments = pgTable("vt_patient_room_assignments", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   animalId: text("animal_id")
     .notNull()
     .references(() => animals.id, { onDelete: "cascade" }),
@@ -354,7 +354,7 @@ export const billingLedger = pgTable("vt_billing_ledger", {
 
 export const usageSessions = pgTable("vt_usage_sessions", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   animalId: text("animal_id")
     .notNull()
     .references(() => animals.id, { onDelete: "cascade" }),
@@ -370,7 +370,7 @@ export const usageSessions = pgTable("vt_usage_sessions", {
 
 export const containers = pgTable("vt_containers", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   department: text("department").notNull().default(""),
   targetQuantity: integer("target_quantity").notNull().default(0),
@@ -384,7 +384,7 @@ export const inventoryItems = pgTable(
   "vt_items",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     code: text("code").notNull(),
     label: text("label").notNull(),
     nfcTagId: text("nfc_tag_id").unique(),
@@ -403,7 +403,7 @@ export const containerItems = pgTable(
   "vt_container_items",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     containerId: text("container_id")
       .notNull()
       .references(() => containers.id, { onDelete: "cascade" }),
@@ -423,7 +423,7 @@ export const restockSessions = pgTable(
   "vt_restock_sessions",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     containerId: text("container_id")
       .notNull()
       .references(() => containers.id, { onDelete: "cascade" }),
@@ -444,7 +444,7 @@ export const restockEvents = pgTable(
   "vt_restock_events",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     sessionId: text("session_id")
       .notNull()
       .references(() => restockSessions.id, { onDelete: "cascade" }),
@@ -467,7 +467,7 @@ export const inventoryLogs = pgTable(
   "vt_inventory_logs",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     containerId: text("container_id")
       .notNull()
       .references(() => containers.id, { onDelete: "cascade" }),
@@ -520,7 +520,7 @@ export const inventoryJobs = pgTable(
 
 export const shiftSessions = pgTable("vt_shift_sessions", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
   startedByUserId: text("started_by_user_id")
@@ -532,7 +532,7 @@ export const shiftSessions = pgTable("vt_shift_sessions", {
 
 export const equipmentReturns = pgTable("vt_equipment_returns", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   equipmentId: text("equipment_id").notNull().references(() => equipment.id, { onDelete: "cascade" }),
   returnedById: text("returned_by_id").notNull(),
   returnedByEmail: text("returned_by_email").notNull(),
@@ -549,7 +549,7 @@ export const shiftRole = pgEnum("vt_shift_role", ["technician", "senior_technici
 
 export const shifts = pgTable("vt_shifts", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   date: date("date", { mode: "string" }).notNull(),
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
@@ -559,7 +559,7 @@ export const shifts = pgTable("vt_shifts", {
 
 export const shiftImports = pgTable("vt_shift_imports", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   importedAt: timestamp("imported_at").defaultNow().notNull(),
   importedBy: text("imported_by").notNull().references(() => users.id, { onDelete: "restrict" }),
   filename: text("filename").notNull(),
@@ -568,7 +568,7 @@ export const shiftImports = pgTable("vt_shift_imports", {
 
 export const scanLogs = pgTable("vt_scan_logs", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   equipmentId: text("equipment_id"),
   userId: text("user_id").notNull(),
   userEmail: text("user_email").notNull(),
@@ -580,7 +580,7 @@ export const scanLogs = pgTable("vt_scan_logs", {
 
 export const transferLogs = pgTable("vt_transfer_logs", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   equipmentId: text("equipment_id"),
   fromFolderId: text("from_folder_id"),
   fromFolderName: text("from_folder_name"),
@@ -593,7 +593,7 @@ export const transferLogs = pgTable("vt_transfer_logs", {
 
 export const whatsappAlerts = pgTable("vt_whatsapp_alerts", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   equipmentId: text("equipment_id").notNull(),
   equipmentName: text("equipment_name").notNull(),
   status: varchar("status", { length: 20 }).notNull(),
@@ -606,7 +606,7 @@ export const whatsappAlerts = pgTable("vt_whatsapp_alerts", {
 
 export const alertAcks = pgTable("vt_alert_acks", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   equipmentId: text("equipment_id").notNull(),
   alertType: varchar("alert_type", { length: 30 }).notNull(),
   acknowledgedById: text("acknowledged_by_id").notNull(),
@@ -618,7 +618,7 @@ export const alertAcks = pgTable("vt_alert_acks", {
 
 export const undoTokens = pgTable("vt_undo_tokens", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   equipmentId: text("equipment_id").notNull(),
   actorId: text("actor_id").notNull(),
   scanLogId: text("scan_log_id").notNull(),
@@ -635,7 +635,7 @@ export const serverConfig = pgTable("vt_server_config", {
 
 export const pushSubscriptions = pgTable("vt_push_subscriptions", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   userId: text("user_id").notNull(),
   endpoint: text("endpoint").notNull().unique(),
   p256dh: text("p256dh").notNull(),
@@ -651,7 +651,7 @@ export const pushSubscriptions = pgTable("vt_push_subscriptions", {
 
 export const scheduledNotifications = pgTable("vt_scheduled_notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   type: text("type").notNull(),
   userId: text("user_id").notNull(),
   equipmentId: text("equipment_id"),
@@ -662,7 +662,7 @@ export const scheduledNotifications = pgTable("vt_scheduled_notifications", {
 
 export const supportTickets = pgTable("vt_support_tickets", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   severity: varchar("severity", { length: 10 }).notNull().default("medium"),
@@ -679,7 +679,7 @@ export const supportTickets = pgTable("vt_support_tickets", {
 
 export const bulkAuditLog = pgTable("vt_bulk_audit_log", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   eventType: varchar("event_type", { length: 30 }).notNull(),
   equipmentId: text("equipment_id").notNull(),
   equipmentName: text("equipment_name").notNull(),
@@ -692,7 +692,7 @@ export const bulkAuditLog = pgTable("vt_bulk_audit_log", {
 
 export const auditLogs = pgTable("vt_audit_logs", {
   id: text("id").primaryKey(),
-  clinicId: text("clinic_id").notNull(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
   actionType: varchar("action_type", { length: 50 }).notNull(),
   performedBy: text("performed_by").notNull(),
   performedByEmail: text("performed_by_email").notNull(),
@@ -708,7 +708,7 @@ export const purchaseOrders = pgTable(
   "vt_purchase_orders",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     supplierName: text("supplier_name").notNull(),
     status: poStatusEnum("status").notNull().default("draft"),
     orderedAt: timestamp("ordered_at"),
@@ -727,7 +727,7 @@ export const poLines = pgTable(
   "vt_po_lines",
   {
     id: text("id").primaryKey(),
-    clinicId: text("clinic_id").notNull(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
     purchaseOrderId: text("purchase_order_id")
       .notNull()
       .references(() => purchaseOrders.id, { onDelete: "cascade" }),
