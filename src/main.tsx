@@ -55,16 +55,52 @@ function AppBootstrap() {
       return;
     }
     // Cache-busting version param + updateViaCache:'none' so browsers NEVER
-    // serve a stale /sw.js from HTTP cache. We were previously stuck in a
-    // reload loop because clients had the broken v6 script cached at /sw.js
-    // for max-age=14400 and kept re-installing it instead of picking up v7.
+    // serve a stale /sw.js from HTTP cache.
     // Bump SW_VERSION whenever sw.js changes in a breaking way.
-    const SW_VERSION = "20260422b";
+    const SW_VERSION = "20260425a";
     registerServiceWorkerSafe(`/sw.js?v=${SW_VERSION}`, { updateViaCache: "none" })
       .then((registration) => {
         if (!registration) {
           console.warn("VetTrack: service worker registration unavailable.");
+          return;
         }
+
+        // Wire SW_UPDATED messages from the service worker to the window event
+        // that SwUpdateBanner listens for.
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          if (event.data?.type === "SW_UPDATED") {
+            window.dispatchEvent(
+              new CustomEvent("sw-update-available", {
+                detail: { worker: registration.active },
+              })
+            );
+          }
+        });
+
+        // Also handle the waiting worker case: if a new SW is already waiting
+        // when the page loads (e.g. the user had an old tab open), surface the
+        // update banner immediately.
+        function notifyIfWaiting(reg: ServiceWorkerRegistration) {
+          if (reg.waiting) {
+            window.dispatchEvent(
+              new CustomEvent("sw-update-available", {
+                detail: { worker: reg.waiting },
+              })
+            );
+          }
+        }
+
+        notifyIfWaiting(registration);
+
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed") {
+              notifyIfWaiting(registration);
+            }
+          });
+        });
       })
       .catch(() => {});
   }, []);

@@ -7,18 +7,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Bump this version whenever you need to invalidate ALL existing caches
-// across ALL user devices. v7 replaces the v6 "self-destruct" build that
-// caused a reload loop in production (activate unregistered the SW and
-// forced every tab to navigate, which re-registered the SW again).
-const CACHE_VERSION = "v7";
+// across ALL user devices.
+const CACHE_VERSION = "v8";
 const CACHE_NAME = `vettrack-${CACHE_VERSION}`;
 
-// Cached independently so one 404 never poisons the whole install.
+// Shell URLs that are precached during install so the app works offline
+// immediately — even before the user visits a route for the first time.
+// Each URL is cached independently so one 404 never poisons the whole install.
 const PRECACHE_URLS = [
   "/",
   "/index.html",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/manifest.json",
 ];
 
 const STATIC_EXTENSIONS = [
@@ -41,15 +42,32 @@ function isMutatingRequest(method) {
 }
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
-// Install   → skipWaiting so the newest SW takes over as soon as possible.
-// Activate  → delete only STALE cache versions (keep the current one), then
-//             claim clients. We never call registration.unregister() here:
-//             doing so while the page still registers /sw.js on load causes
-//             an infinite install → unregister → re-register loop that
-//             presents to the user as a flickering / reloading app.
+// Install   → Precache the app shell so offline works from first install.
+//             skipWaiting so the newest SW takes over without waiting for tabs
+//             to close.
+// Activate  → Delete only STALE cache versions (keep the current one), then
+//             claim clients so the new SW controls all open tabs immediately.
+//             Post SW_UPDATED to all clients so the app can show an update
+//             confirmation rather than a silent reload.
+//             We never call registration.unregister() here: doing so while the
+//             page still registers /sw.js on load causes an infinite
+//             install → unregister → re-register loop.
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // Cache each URL individually — a missing icon won't block the shell.
+      await Promise.allSettled(
+        PRECACHE_URLS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn(`[SW] precache miss for ${url}:`, err);
+          })
+        )
+      );
+      await self.skipWaiting();
+    })()
+  );
 });
 
 self.addEventListener("activate", (event) => {
@@ -62,6 +80,17 @@ self.addEventListener("activate", (event) => {
           .map((key) => caches.delete(key))
       );
       await self.clients.claim();
+
+      // Notify all controlled clients that a new SW version is active.
+      // The app's SwUpdateBanner listens for "sw-update-available" on window,
+      // but since we skipWaiting immediately the toast is informational only.
+      const allClients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      for (const client of allClients) {
+        client.postMessage({ type: "SW_UPDATED", version: CACHE_VERSION });
+      }
     })()
   );
 });
@@ -138,11 +167,13 @@ self.addEventListener("fetch", (event) => {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>VetTrack — Offline</title>
   <style>
     body{font-family:system-ui,sans-serif;display:flex;align-items:center;
-         justify-content:center;min-height:100vh;margin:0;background:#f8fafc}
+         justify-content:center;min-height:100dvh;margin:0;background:#f8fafc;
+         padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0)
+                env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
     .card{text-align:center;padding:2rem;max-width:320px}
     h1{font-size:1.25rem;font-weight:700;color:#1e293b;margin-bottom:.5rem}
     p{color:#64748b;font-size:.9rem;line-height:1.5}
@@ -246,6 +277,9 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: data.tag ?? 'vettrack-notification',
+      data: { url: data.url ?? '/' },
     })
   );
 });

@@ -4,6 +4,7 @@ import { useAutoSelectOrg } from "@/features/auth/hooks/useAutoSelectOrg";
 import { startLeaderHeartbeat } from "@/lib/leader";
 import { t } from "@/lib/i18n";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 
 const CLERK_ENABLED = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
@@ -25,6 +26,7 @@ export default function App() {
           <AppRoutes />
         </PageErrorBoundary>
       </Suspense>
+      <PwaInstallPrompt />
     </>
   );
 }
