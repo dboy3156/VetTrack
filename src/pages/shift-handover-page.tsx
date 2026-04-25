@@ -2,7 +2,7 @@
 import { t } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
-import { useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -358,6 +358,12 @@ export default function ShiftHandoverPage() {
                 <p className="text-sm font-bold text-red-800 dark:text-red-300 flex-1">
                   {consumablesQ.data.pendingEmergencies} אירועי חירום ממתינים להשלמה
                 </p>
+                <Link
+                  href="/pending-emergencies"
+                  className="shrink-0 text-sm font-bold text-red-700 dark:text-red-300 underline underline-offset-2 hover:text-red-900 dark:hover:text-red-100 whitespace-nowrap"
+                >
+                  יחס {consumablesQ.data.pendingEmergencies} פריטים ←
+                </Link>
               </div>
             )}
 

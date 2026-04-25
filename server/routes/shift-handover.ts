@@ -551,7 +551,10 @@ router.get("/pending-emergencies", requireAuth, requireEffectiveRole("technician
       .leftJoin(inventoryItems, sql`${inventoryLogs.metadata}->>'itemId' = ${inventoryItems.id}`)
       .leftJoin(
         billingLedger,
-        sql`${billingLedger.idempotencyKey} = 'emergency_reconcile_' || ${inventoryLogs.id}`,
+        and(
+          sql`${billingLedger.idempotencyKey} = 'emergency_reconcile_' || ${inventoryLogs.id}`,
+          eq(billingLedger.clinicId, clinicId),
+        ),
       )
       .where(
         and(

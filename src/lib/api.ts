@@ -1228,6 +1228,22 @@ export const api = {
       request<ConsumablesReport>(
         `/api/shift-handover/consumables-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       ),
+    getPendingEmergencies: () =>
+      request<{
+        items: Array<{
+          id: string;
+          containerId: string;
+          itemName: string;
+          quantity: number;
+          dispensedAt: string;
+          unitPriceCents: number;
+        }>;
+      }>("/api/shift-handover/pending-emergencies"),
+    reconcileEmergency: (logId: string, data: { animalId: string; quantity?: number }) =>
+      request<{ success: boolean; ledgerId: string; alreadyReconciled: boolean }>(
+        `/api/shift-handover/emergency/${encodeURIComponent(logId)}/reconcile`,
+        { method: "PATCH", body: JSON.stringify(data) },
+      ),
   },
   forecast: {
     parseJson: (body: { text: string; windowHours?: 24 | 72; weekendMode?: boolean }) =>
