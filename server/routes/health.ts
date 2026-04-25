@@ -139,7 +139,6 @@ router.get("/", async (_req, res) => {
     db: "fail",
     clerk: "fail",
     vapid: "fail",
-    session: "fail",
   };
 
   let allOk = true;
@@ -169,23 +168,6 @@ router.get("/", async (_req, res) => {
     checks.vapid = "ok";
   } else {
     checks.vapid = "fail";
-    allOk = false;
-  }
-
-  try {
-    const sessionTableResult = await pool.query(
-      "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'vt_sessions') AS exists"
-    );
-    const tableExists = sessionTableResult.rows[0]?.exists === true;
-    if (tableExists) {
-      await pool.query("SELECT 1 FROM vt_sessions LIMIT 1");
-      checks.session = "ok";
-    } else {
-      checks.session = "fail";
-      allOk = false;
-    }
-  } catch {
-    checks.session = "fail";
     allOk = false;
   }
 
