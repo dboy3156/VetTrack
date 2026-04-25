@@ -19,9 +19,8 @@
     "auth:preflight": "tsx scripts/auth-preflight.ts",
     "auth:user-status": "tsx scripts/dev-user-status.ts",
     "test": "vitest run",
-    "test:vitest": "vitest run",
     "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/run-migrations.ts",
     "migrate": "tsx scripts/run-migrations.ts"
   },
   "dependencies": {
