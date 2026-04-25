@@ -1,6 +1,17 @@
 {
     "sqltools.connections": [
       {
+        "name": "VetTrack Local",
+        "driver": "PostgreSQL",
+        "server": "127.0.0.1",
+        "port": 5432,
+        "database": "vettrack",
+        "username": "postgres",
+        "password": "postgres",
+        "ssl": false,
+        "previewLimit": 50
+      },
+      {
         "name": "VetTrack Railway",
         "driver": "PostgreSQL",
         "server": "mainline.proxy.rlwy.net",

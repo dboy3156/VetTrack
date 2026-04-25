@@ -390,24 +390,8 @@ router.post(
             newStock: newQty,
           });
 
-          // Billing — create entry whenever animalId is known; price from containerItem.
-          if (animalId) {
-            const billingId = randomUUID();
-            const idempotencyKey = `dispense_${clinicId}_${containerId}_${lineItem.itemId}_${takenAt.getTime()}`;
-            await tx.insert(billingLedger).values({
-              id: billingId,
-              clinicId,
-              animalId,
-              itemType: "CONSUMABLE",
-              itemId: lineItem.itemId,
-              quantity: lineItem.quantity,
-              unitPriceCents: ci.unitPriceCents,
-              totalAmountCents: ci.unitPriceCents * lineItem.quantity,
-              idempotencyKey,
-              status: "pending",
-            });
-            billingIds.push(billingId);
-          }
+          // Billing is handled by the auto-billing block below via billingItems.
+          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
 
           // Queue auto-billing candidate for post-transaction insert
           if (container.billingItemId) {
@@ -624,23 +608,8 @@ router.patch(
             newStock: newQty,
           });
 
-          if (animalId) {
-            const billingId = randomUUID();
-            const idempotencyKey = `dispense_${clinicId}_${containerId}_${lineItem.itemId}_${takenAt.getTime()}_em_${eventId}`;
-            await tx.insert(billingLedger).values({
-              id: billingId,
-              clinicId,
-              animalId,
-              itemType: "CONSUMABLE",
-              itemId: lineItem.itemId,
-              quantity: lineItem.quantity,
-              unitPriceCents: ci.unitPriceCents,
-              totalAmountCents: ci.unitPriceCents * lineItem.quantity,
-              idempotencyKey,
-              status: "pending",
-            });
-            billingIds.push(billingId);
-          }
+          // Billing is handled by the auto-billing block below via billingItems.
+          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
 
           // Queue auto-billing candidate for post-transaction insert
           if (container.billingItemId) {

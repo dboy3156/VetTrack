@@ -320,6 +320,42 @@ router.get("/shift-total", requireAuth, async (req, res) => {
 
 
 
+// GET /api/billing/export.csv — export pending billing entries as CSV
+// MUST be registered before /:id or Express will swallow it as id="export.csv"
+router.get("/export.csv", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const result = await pool.query(
+      `SELECT bl.id, bl.created_at, bl.item_id, bl.quantity, bl.unit_price_cents, bl.total_amount_cents,
+              a.name AS animal_name
+       FROM vt_billing_ledger bl
+       LEFT JOIN vt_animals a ON a.id = bl.animal_id
+       WHERE bl.clinic_id = $1 AND bl.status = 'pending'
+       ORDER BY bl.created_at ASC`,
+      [clinicId],
+    );
+
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ["date", "patient", "item", "qty", "price", "total"].map(escape).join(",");
+    const rows = result.rows.map((r) => {
+      const date = new Date(r.created_at).toISOString().slice(0, 10);
+      const patient = r.animal_name ?? "Unlinked";
+      const price = (r.unit_price_cents / 100).toFixed(2);
+      const total = (r.total_amount_cents / 100).toFixed(2);
+      return [date, patient, r.item_id, String(r.quantity), price, total].map(escape).join(",");
+    });
+    const csv = [header, ...rows].join("\r\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", 'attachment; filename="billing-export.csv"');
+    res.send(csv);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_EXPORT_FAILED", message: "Failed to export billing CSV", requestId }));
+  }
+});
+
 // GET /api/billing/:id — fetch single entry
 router.get("/:id", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
@@ -464,41 +500,6 @@ router.patch("/bulk-sync", requireAuth, requireAdmin, validateBody(bulkSyncSchem
   } catch (err) {
     console.error(err);
     res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_BULK_SYNC_FAILED", message: "Failed to bulk sync billing entries", requestId }));
-  }
-});
-
-// GET /api/billing/export.csv — export pending billing entries as CSV
-router.get("/export.csv", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
-  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-  try {
-    const clinicId = req.clinicId!;
-    const result = await pool.query(
-      `SELECT bl.id, bl.created_at, bl.item_id, bl.quantity, bl.unit_price_cents, bl.total_amount_cents,
-              a.name AS animal_name
-       FROM vt_billing_ledger bl
-       LEFT JOIN vt_animals a ON a.id = bl.animal_id
-       WHERE bl.clinic_id = $1 AND bl.status = 'pending'
-       ORDER BY bl.created_at ASC`,
-      [clinicId],
-    );
-
-    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-    const header = ["date", "patient", "item", "qty", "price", "total"].map(escape).join(",");
-    const rows = result.rows.map((r) => {
-      const date = new Date(r.created_at).toISOString().slice(0, 10);
-      const patient = r.animal_name ?? "Unlinked";
-      const price = (r.unit_price_cents / 100).toFixed(2);
-      const total = (r.total_amount_cents / 100).toFixed(2);
-      return [date, patient, r.item_id, String(r.quantity), price, total].map(escape).join(",");
-    });
-    const csv = [header, ...rows].join("\r\n");
-
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", 'attachment; filename="billing-export.csv"');
-    res.send(csv);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_EXPORT_FAILED", message: "Failed to export billing CSV", requestId }));
   }
 });
 

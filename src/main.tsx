@@ -86,7 +86,6 @@ if (!rootEl) {
         <ClerkAuthProviderInner>
           <AppErrorBoundary>
             <SyncProvider>
-              <SyncStatusBanner />
               <AppBootstrap />
               <SyncStatusBanner />
               <Toaster
