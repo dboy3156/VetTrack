@@ -92,7 +92,7 @@ export default function HomePage() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: shiftTotal } = useQuery({
+  const { data: shiftTotal, isLoading: shiftLoading } = useQuery({
     queryKey: ["/api/billing/shift-total"],
     queryFn: () => api.billing.shiftTotal(),
     enabled: !!userId,
@@ -153,10 +153,10 @@ export default function HomePage() {
     {
       id: "charges-today",
       title: "Captured This Shift",
-      value: shiftSummary
-        ? `₪${(shiftSummary.revenueCents / 100).toLocaleString("he-IL", { maximumFractionDigits: 0 })}`
+      value: shiftTotal?.shiftActive
+        ? `₪${(shiftTotal.totalCents / 100).toLocaleString("he-IL", { maximumFractionDigits: 0 })}`
         : null,
-      subtitle: shiftSummary ? "Billing entries this shift" : "No open shift",
+      subtitle: shiftTotal?.shiftActive ? "Billing entries this shift" : "No open shift",
       icon: DollarSign,
       href: "/billing",
       loading: shiftLoading,
