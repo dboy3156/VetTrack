@@ -317,7 +317,7 @@ export default function BillingLedgerPage() {
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-emerald-700">Auto Captured Charges</p>
+              <p className="text-xs font-medium text-emerald-700">Pending Sync</p>
               <Sparkles className="h-4 w-4 text-emerald-700" />
             </div>
             <p className="mt-2 text-2xl font-semibold tracking-tight text-emerald-800">
