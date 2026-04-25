@@ -894,7 +894,7 @@ export default function InventoryPage() {
       )}
 
       {/* Fixed floating dispense button — always visible for authenticated users */}
-      <div className="fixed bottom-20 left-0 right-0 flex justify-center px-4 z-40 pointer-events-none">
+      <div className="fixed bottom-32 left-0 right-0 flex justify-center px-4 z-40 pointer-events-none">
         <button
           onClick={handleOpenDispense}
           className="pointer-events-auto flex items-center gap-2 bg-primary text-primary-foreground font-bold rounded-full px-6 py-3 shadow-lg min-h-[52px] active:scale-95 transition-transform"
