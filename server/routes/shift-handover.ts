@@ -406,6 +406,27 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
       return meta?.isEmergency === true && meta?.pendingCompletion === true;
     }).length;
 
+    // Containers that had at least one dispense in this window but have NO
+    // corresponding CONSUMABLE billing entry — the billing gap at shift level.
+    const dispensedContainerIds = [...new Set(rows.map((r) => r.containerId).filter(Boolean))];
+    let unBilledCount = 0;
+    if (dispensedContainerIds.length > 0) {
+      const billedContainerIds = await db
+        .select({ itemId: billingLedger.itemId })
+        .from(billingLedger)
+        .where(
+          and(
+            eq(billingLedger.clinicId, clinicId),
+            eq(billingLedger.itemType, "CONSUMABLE"),
+            sql`${billingLedger.status} != 'voided'`,
+            gte(billingLedger.createdAt, fromDate),
+            lte(billingLedger.createdAt, toDate),
+          ),
+        );
+      const billedSet = new Set(billedContainerIds.map((r) => r.itemId));
+      unBilledCount = dispensedContainerIds.filter((id) => !billedSet.has(id)).length;
+    }
+
     // Aggregate by item
     const itemTotals = new Map<string, { itemId: string; label: string; totalQuantity: number }>();
     for (const r of rows) {
@@ -464,6 +485,7 @@ router.get("/consumables-report", requireAuth, requireEffectiveRole("technician"
       unlinkedCount,
       unlinkedPct,
       pendingEmergencies,
+      unBilledCount,
       byItem: [...itemTotals.values()].sort((a, b) => b.totalQuantity - a.totalQuantity),
       byAnimal: [...animalTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),
       byUser: [...userTotals.values()].sort((a, b) => b.totalEvents - a.totalEvents),

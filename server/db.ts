@@ -332,8 +332,8 @@ export const patientRoomAssignments = pgTable("vt_patient_room_assignments", {
 export const billingLedger = pgTable("vt_billing_ledger", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull(),
+  /** Nullable: capture is allowed before a patient is linked (e.g. code-blue). */
   animalId: text("animal_id")
-    .notNull()
     .references(() => animals.id, { onDelete: "restrict" }),
   itemType: billingLedgerItemTypeEnum("item_type").notNull(),
   itemId: text("item_id").notNull(),
@@ -382,6 +382,10 @@ export const inventoryItems = pgTable(
     label: text("label").notNull(),
     nfcTagId: text("nfc_tag_id").unique(),
     category: text("category"),
+    /** Flag high-value items that require scan-to-bill tracking. */
+    isBillable: boolean("is_billable").notNull().default(false),
+    /** Only surface in leakage report when dispense qty >= this threshold. */
+    minimumDispenseToCapture: integer("minimum_dispense_to_capture").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

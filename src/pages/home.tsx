@@ -92,6 +92,15 @@ export default function HomePage() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: shiftSummary, isLoading: shiftLoading } = useQuery({
+    queryKey: ["/api/shift-handover/summary"],
+    queryFn: () => api.shiftHandover.getSummary(),
+    enabled: !!userId,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
   const totalCount = equipment?.length ?? 0;
@@ -143,12 +152,14 @@ export default function HomePage() {
     },
     {
       id: "charges-today",
-      title: "Charges Today",
-      value: "—",
-      subtitle: "Open billing for totals",
+      title: "Captured This Shift",
+      value: shiftSummary
+        ? `₪${(shiftSummary.revenueCents / 100).toLocaleString("he-IL", { maximumFractionDigits: 0 })}`
+        : null,
+      subtitle: shiftSummary ? "Billing entries this shift" : "No open shift",
       icon: DollarSign,
       href: "/billing",
-      loading: false,
+      loading: shiftLoading,
     },
   ];
 
