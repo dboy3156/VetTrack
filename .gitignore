@@ -20,6 +20,20 @@ awesome-cursor-skills-main/
 # Dev / debug scratch files (never commit)
 .tmp-*
 *.tmp
+.pr-body-*
+.pr-phase*.md
+.vettrack-metrics.json
+
+# Stale one-off maintenance scripts
+fix-journal.js
+
+# Typo/duplicate node version files
+node-version_
+.nvrmc
+
+# Empty pnpm install artifacts
+tsx
+vettrack@*
 
 # Extracted third-party bundles (not part of this repo)
 superpowers-main/

@@ -1,7 +1,0 @@
-## Summary
-- Send `credentials: "include"` on Clerk session sync fetches and default API `fetch` so cookies are sent when needed.
-- Extend `AUTH_DEBUG` with safe cookie metadata and Bearer presence (no cookie values).
-- Fix `ALLOWED_ORIGIN` naming in `.env.example`; replace `.env.production` with a structured template; gitignore `.env.production.local`.
-
-## Notes
-- Same commits as `fix/auth-db-fallback` (PR #47) at branch creation; this PR uses branch `fix/auth-credentials-and-env` as requested.
