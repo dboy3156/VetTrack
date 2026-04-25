@@ -1357,5 +1357,12 @@
       "failedToGetAuditLogs": "Failed to get audit logs",
       "failedToSeedDemo": "Failed to seed demo data"
     }
+  },
+  "push": {
+    "overdue": {
+      "title": "Overdue tasks",
+      "body": "You have {{count}} overdue task",
+      "bodyPlural": "You have {{count}} overdue tasks"
+    }
   }
 }
