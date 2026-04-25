@@ -225,10 +225,12 @@ router.get("/billing", requireAuth, async (req, res) => {
            SUM(ABS(il.quantity_added)) AS total_dispensed
          FROM vt_inventory_logs il
          JOIN vt_containers c ON c.id = il.container_id
+         LEFT JOIN vt_items vi ON vi.id = (il.metadata->>'itemId')
          WHERE il.clinic_id = $1
            AND il.quantity_added < 0
            AND il.created_at >= NOW() - INTERVAL '30 days'
            AND c.billing_item_id IS NOT NULL
+           AND (vi.is_billable IS NULL OR vi.is_billable = true)
          GROUP BY c.billing_item_id
        )
        SELECT

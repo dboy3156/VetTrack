@@ -422,11 +422,12 @@ router.post(
       for (const candidate of autoBillingCandidates) {
         try {
           const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable })
+            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
             .from(inventoryItems)
             .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
             .limit(1);
           if (!item?.isBillable) continue;
+          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
           const [bi] = await db
             .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
             .from(billingItems)
@@ -661,11 +662,12 @@ router.patch(
       for (const candidate of autoBillingCandidates) {
         try {
           const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable })
+            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
             .from(inventoryItems)
             .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
             .limit(1);
           if (!item?.isBillable) continue;
+          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
           const [bi] = await db
             .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
             .from(billingItems)
