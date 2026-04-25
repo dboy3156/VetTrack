@@ -336,20 +336,10 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
 
     const [row] = await db.select().from(billingLedger).where(eq(billingLedger.id, id)).limit(1);
 
-    // Fire webhook if configured
-    const webhookConfig = await pool.query(
-      "SELECT value FROM vt_server_config WHERE key = $1",
-      [`${clinicId}:billing_webhook_url`],
-    );
-    if (webhookConfig.rows[0]?.value) {
-      const secretRow = await pool.query(
-        "SELECT value FROM vt_server_config WHERE key = $1",
-        [`${clinicId}:billing_webhook_secret`],
-      );
+    // Fire webhook if configured (config lookup handled inside enqueueBillingWebhookJob)
+    try {
       await enqueueBillingWebhookJob({
         clinicId,
-        webhookUrl: webhookConfig.rows[0].value,
-        secret: secretRow.rows[0]?.value ?? "",
         entry: {
           id: row.id,
           animalId: row.animalId,
@@ -362,6 +352,8 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
           createdAt: row.createdAt,
         },
       });
+    } catch (webhookErr) {
+      console.error("[billing-webhook] Failed to enqueue webhook for manual charge, continuing:", webhookErr);
     }
 
     res.status(201).json(row);

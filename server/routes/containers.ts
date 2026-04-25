@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, pool, users } from "../db.js";
+import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
@@ -455,39 +455,25 @@ router.post(
         }
       }
 
-      // Fire billing webhooks for auto-billed entries
+      // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
-        const webhookConfig = await pool.query(
-          "SELECT value FROM vt_server_config WHERE key = $1",
-          [`${clinicId}:billing_webhook_url`],
-        );
-        if (webhookConfig.rows[0]?.value) {
-          const secretRow = await pool.query(
-            "SELECT value FROM vt_server_config WHERE key = $1",
-            [`${clinicId}:billing_webhook_secret`],
-          );
-          const webhookUrl: string = webhookConfig.rows[0].value;
-          const secret: string = secretRow.rows[0]?.value ?? "";
-          for (const billingId of billingIds) {
-            const [entry] = await db.select().from(billingLedger).where(eq(billingLedger.id, billingId)).limit(1);
-            if (entry) {
-              await enqueueBillingWebhookJob({
-                clinicId,
-                webhookUrl,
-                secret,
-                entry: {
-                  id: entry.id,
-                  animalId: entry.animalId,
-                  itemType: entry.itemType,
-                  itemId: entry.itemId,
-                  quantity: entry.quantity,
-                  unitPriceCents: entry.unitPriceCents,
-                  totalAmountCents: entry.totalAmountCents,
-                  status: entry.status,
-                  createdAt: entry.createdAt,
-                },
-              });
-            }
+        for (const billingId of billingIds) {
+          const [entry] = await db.select().from(billingLedger).where(eq(billingLedger.id, billingId)).limit(1);
+          if (entry) {
+            await enqueueBillingWebhookJob({
+              clinicId,
+              entry: {
+                id: entry.id,
+                animalId: entry.animalId,
+                itemType: entry.itemType,
+                itemId: entry.itemId,
+                quantity: entry.quantity,
+                unitPriceCents: entry.unitPriceCents,
+                totalAmountCents: entry.totalAmountCents,
+                status: entry.status,
+                createdAt: entry.createdAt,
+              },
+            });
           }
         }
       } catch (webhookErr) {
@@ -706,39 +692,25 @@ router.patch(
         }
       }
 
-      // Fire billing webhooks for auto-billed entries
+      // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
-        const webhookConfig = await pool.query(
-          "SELECT value FROM vt_server_config WHERE key = $1",
-          [`${clinicId}:billing_webhook_url`],
-        );
-        if (webhookConfig.rows[0]?.value) {
-          const secretRow = await pool.query(
-            "SELECT value FROM vt_server_config WHERE key = $1",
-            [`${clinicId}:billing_webhook_secret`],
-          );
-          const webhookUrl: string = webhookConfig.rows[0].value;
-          const secret: string = secretRow.rows[0]?.value ?? "";
-          for (const billingId of billingIds) {
-            const [entry] = await db.select().from(billingLedger).where(eq(billingLedger.id, billingId)).limit(1);
-            if (entry) {
-              await enqueueBillingWebhookJob({
-                clinicId,
-                webhookUrl,
-                secret,
-                entry: {
-                  id: entry.id,
-                  animalId: entry.animalId,
-                  itemType: entry.itemType,
-                  itemId: entry.itemId,
-                  quantity: entry.quantity,
-                  unitPriceCents: entry.unitPriceCents,
-                  totalAmountCents: entry.totalAmountCents,
-                  status: entry.status,
-                  createdAt: entry.createdAt,
-                },
-              });
-            }
+        for (const billingId of billingIds) {
+          const [entry] = await db.select().from(billingLedger).where(eq(billingLedger.id, billingId)).limit(1);
+          if (entry) {
+            await enqueueBillingWebhookJob({
+              clinicId,
+              entry: {
+                id: entry.id,
+                animalId: entry.animalId,
+                itemType: entry.itemType,
+                itemId: entry.itemId,
+                quantity: entry.quantity,
+                unitPriceCents: entry.unitPriceCents,
+                totalAmountCents: entry.totalAmountCents,
+                status: entry.status,
+                createdAt: entry.createdAt,
+              },
+            });
           }
         }
       } catch (webhookErr) {

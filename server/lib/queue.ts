@@ -13,6 +13,7 @@ import {
   redisKey,
   timedRedisOp,
 } from "./redis.js";
+import { pool } from "../db.js";
 
 export const NOTIFICATION_QUEUE_NAME = "notifications";
 export const NOTIFICATION_DLQ_NAME = "notifications_dlq";
@@ -308,27 +309,36 @@ export async function enqueueAutomationExecuteJob(payload: AutomationExecutePayl
   }
 }
 
+export type BillingWebhookEntry = {
+  id: string;
+  animalId: string | null | undefined;
+  itemType: string;
+  itemId: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalAmountCents: number;
+  status: string;
+  createdAt: Date | string;
+};
+
+/** Internal BullMQ job data — includes resolved webhookUrl and secret. */
 export type BillingWebhookPayload = {
+  type: "billing_webhook";
   clinicId: string;
   webhookUrl: string;
   secret: string;
-  entry: {
-    id: string;
-    animalId: string | null | undefined;
-    itemType: string;
-    itemId: string;
-    quantity: number;
-    unitPriceCents: number;
-    totalAmountCents: number;
-    status: string;
-    createdAt: Date | string;
-  };
+  entry: BillingWebhookEntry;
 };
 
 /**
- * Enqueue a billing webhook job. Never throws — webhook failure must not affect billing response.
+ * Enqueue a billing webhook job. Reads billing_webhook_url and billing_webhook_secret
+ * from vt_server_config for the clinicId; no-ops silently if URL is not configured.
+ * Never throws — webhook failure must not affect the billing API response.
  */
-export async function enqueueBillingWebhookJob(payload: BillingWebhookPayload): Promise<void> {
+export async function enqueueBillingWebhookJob(payload: {
+  clinicId: string;
+  entry: BillingWebhookEntry;
+}): Promise<void> {
   if (isCircuitOpen("queue")) {
     incrementMetric("circuit_breaker_opened");
     console.warn("[queue] circuit open; billing_webhook enqueue skipped");
@@ -340,15 +350,41 @@ export async function enqueueBillingWebhookJob(payload: BillingWebhookPayload): 
     queueMetrics.droppedNoRedis++;
     return;
   }
+  // Read webhook config from vt_server_config; skip if not set
+  let webhookUrl: string;
+  let secret: string;
+  try {
+    const urlRow = await pool.query<{ value: string }>(
+      "SELECT value FROM vt_server_config WHERE key = $1",
+      [`${payload.clinicId}:billing_webhook_url`],
+    );
+    if (!urlRow.rows[0]?.value) return;
+    webhookUrl = urlRow.rows[0].value;
+    const secretRow = await pool.query<{ value: string }>(
+      "SELECT value FROM vt_server_config WHERE key = $1",
+      [`${payload.clinicId}:billing_webhook_secret`],
+    );
+    secret = secretRow.rows[0]?.value ?? "";
+  } catch (cfgErr) {
+    console.error("[queue] billing_webhook config lookup failed:", (cfgErr as Error).message);
+    return;
+  }
   const q = await getNotificationsQueue();
   if (!q) {
     recordRedisFallback("queue.enqueueBillingWebhookJob.queueUnavailable");
     queueMetrics.droppedNoRedis++;
     return;
   }
+  const jobData: BillingWebhookPayload = {
+    type: "billing_webhook",
+    clinicId: payload.clinicId,
+    webhookUrl,
+    secret,
+    entry: payload.entry,
+  };
   try {
     await timedRedisOp("queue.add.billing_webhook", () =>
-      q.add("billing_webhook", payload, defaultJobOptions()),
+      q.add("billing_webhook", jobData, defaultJobOptions()),
     );
     queueMetrics.enqueued++;
     incrementMetric("queue_jobs_enqueued");
