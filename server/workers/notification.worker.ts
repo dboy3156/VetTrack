@@ -31,7 +31,7 @@ import { safeRedisSetex } from "../lib/redis.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
 import { db, billingLedger, inventoryLogs, serverConfig, shiftSessions } from "../db.js";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 
 const OVERDUE_SCAN_MS = 5 * 60 * 1000;
 const AUTOMATION_TICK_MS = 90 * 1000;
@@ -156,10 +156,7 @@ async function getSmtpConfig(clinicId: string): Promise<{
   const rows = await db
     .select()
     .from(serverConfig)
-    .where(sql`${serverConfig.key} = ANY(ARRAY[${sql.join(
-      allKeys.map((k) => sql`${k}`),
-      sql`, `,
-    )}])`);
+    .where(inArray(serverConfig.key, allKeys));
 
   const cfg = new Map<string, string>(rows.map((r) => [r.key, r.value]));
 
