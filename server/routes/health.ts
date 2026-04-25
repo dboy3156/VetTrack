@@ -140,7 +140,7 @@ router.get("/", async (_req, res) => {
     db: "fail",
     clerk: "fail",
     vapid: "fail",
-    worker: "fail",
+    worker: "skip",
   };
 
   let allOk = true;
@@ -178,7 +178,9 @@ router.get("/", async (_req, res) => {
   if (getRedisUrl()) {
     const beat = await safeRedisGet("vettrack:worker:heartbeat");
     if (beat) {
-      checks.worker = "ok";
+      const age = Date.now() - Number(beat);
+      checks.worker = age < 120_000 ? "ok" : "stale";
+      if (checks.worker !== "ok") allOk = false;
     } else {
       checks.worker = "fail";
       allOk = false;

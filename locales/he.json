@@ -1175,6 +1175,8 @@
     "fieldCategoryPlaceholder": "לדוגמה: צנתרים",
     "fieldNfc": "מזהה תג NFC",
     "fieldNfcPlaceholder": "אופציונלי",
+    "fieldIsBillable": "עקוב אחר חיוב עבור פריט זה",
+    "fieldMinimumDispenseToCapture": "כמות מינימום למעקב",
     "deleteTitle": "למחוק פריט?",
     "deleteDescription": "האם למחוק",
     "deleteConfirm": "מחק",

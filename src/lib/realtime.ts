@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+
 export type RealtimeEventType =
   | "TASK_CREATED"
   | "TASK_STARTED"
@@ -31,6 +33,12 @@ export function connectRealtime(onEvent: (event: RealtimeEvent) => void): void {
     source.onerror = () => {
       // Browser EventSource handles reconnect automatically.
     };
+    source.addEventListener('CONNECTION_EVICTED', () => {
+      source?.close();
+      source = null;
+      toast.info("Reconnecting real-time updates...");
+      setTimeout(() => connectRealtime(onEvent), 2000);
+    });
   } catch {
     // Realtime is best-effort only.
   }

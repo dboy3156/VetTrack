@@ -596,6 +596,8 @@ export interface InventoryItem {
   label: string;
   nfcTagId: string | null;
   category: string | null;
+  isBillable: boolean;
+  minimumDispenseToCapture: number;
   createdAt: string;
 }
 
@@ -994,6 +996,14 @@ export interface ConsumablesReportEvent {
   pendingCompletion: boolean;
 }
 
+export interface UserActivityEntry {
+  userId: string;
+  userName: string;
+  dispensedCount: number;
+  billedCount: number;
+  captureRatePercent: number;
+}
+
 export interface ConsumablesReport {
   totalEvents: number;
   unlinkedCount: number;
@@ -1004,6 +1014,7 @@ export interface ConsumablesReport {
   byItem: Array<{ itemId: string; label: string; totalQuantity: number }>;
   byAnimal: Array<{ animalId: string | null; animalName: string | null; totalEvents: number }>;
   byUser: Array<{ userId: string; displayName: string; totalEvents: number }>;
+  userActivity: UserActivityEntry[];
   events: ConsumablesReportEvent[];
 }
 
@@ -1047,3 +1058,4 @@ export interface ActivePatient {
   species: string | null;
   breed: string | null;
 }
+

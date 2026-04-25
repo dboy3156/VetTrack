@@ -40,6 +40,7 @@ const LeakageReportPage = lazy(() => import("@/pages/leakage-report"));
 const PatientDetailPage = lazy(() => import("@/pages/patient-detail"));
 const InventoryItemsPage = lazy(() => import("@/pages/inventory-items"));
 const ProcurementPage = lazy(() => import("@/pages/procurement"));
+const PendingEmergenciesPage = lazy(() => import("@/pages/pending-emergencies"));
 
 // Guards the root path: renders nothing while auth resolves (prevents flicker),
 // redirects authenticated users to /home, shows LandingPage otherwise.
@@ -97,6 +98,7 @@ export function AppRoutes() {
         <Route path="/patients/:id"><AuthGuard><PatientDetailPage /></AuthGuard></Route>
         <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
         <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
+        <Route path="/pending-emergencies"><AuthGuard><PendingEmergenciesPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
     </PageErrorBoundary>

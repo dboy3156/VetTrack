@@ -38,7 +38,7 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, TrendingDown } from "lucide-react";
+import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, ShieldAlert, TrendingDown } from "lucide-react";
 import { Link } from "wouter";
 import {
   BarChart,
@@ -141,7 +141,7 @@ export default function BillingLedgerPage() {
   const createMut = useMutation({
     mutationFn: () =>
       api.billing.create({
-        animalId: form.animalId.trim(),
+        animalId: form.animalId.trim() || undefined,
         itemType: form.itemType,
         itemId: form.itemId.trim(),
         quantity: form.quantity,
@@ -221,7 +221,7 @@ export default function BillingLedgerPage() {
       if (normalizedSearch) {
         const createdDate = new Date(e.createdAt).toLocaleDateString().toLowerCase();
         return (
-          e.animalId.toLowerCase().includes(normalizedSearch) ||
+          (e.animalId ?? "").toLowerCase().includes(normalizedSearch) ||
           e.itemId.toLowerCase().includes(normalizedSearch) ||
           e.itemType.toLowerCase().includes(normalizedSearch) ||
           e.status.toLowerCase().includes(normalizedSearch) ||
@@ -283,6 +283,12 @@ export default function BillingLedgerPage() {
                 </button>
               ))}
             </div>
+            <Link href="/billing/leakage">
+              <Button variant="outline" size="sm" className="min-h-[40px] shrink-0">
+                <ShieldAlert className="h-4 w-4 mr-1" />
+                Leakage Report
+              </Button>
+            </Link>
             {isAdmin && (
               <Button size="sm" className="min-h-[40px] shrink-0" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" />
@@ -623,7 +629,7 @@ export default function BillingLedgerPage() {
             <Button variant="outline" onClick={() => setAddOpen(false)}>{p.cancel}</Button>
             <Button
               onClick={() => createMut.mutate()}
-              disabled={createMut.isPending || !form.animalId || !form.itemId}
+              disabled={createMut.isPending || !form.itemId}
             >
               {createMut.isPending ? p.saving : p.save}
             </Button>

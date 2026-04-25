@@ -1174,6 +1174,8 @@
     "fieldCategoryPlaceholder": "e.g. Catheters",
     "fieldNfc": "NFC tag ID",
     "fieldNfcPlaceholder": "Optional",
+    "fieldIsBillable": "Track billing for this item",
+    "fieldMinimumDispenseToCapture": "Minimum qty to track",
     "deleteTitle": "Delete item?",
     "deleteDescription": "Are you sure you want to delete",
     "deleteConfirm": "Delete",

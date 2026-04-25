@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { billingLedger, db, pool } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
+import { enqueueBillingWebhookJob } from "../lib/queue.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -138,22 +140,26 @@ router.get("/summary", requireAuth, requireEffectiveRole("vet"), async (req, res
   }
 });
 
-// GET /api/billing/leakage-report?from=<ISO>&to=<ISO>
-// The commercial unlock: compares dispensed inventory against billing entries
-// to surface the ₪ gap that makes hospital owners say "I'll pay tomorrow."
+// GET /api/billing/leakage-report — dispense vs. billing gap analysis
 router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const now = new Date();
-    const fromDate = req.query.from
-      ? new Date(req.query.from as string)
-      : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const toDate = req.query.to ? new Date(req.query.to as string) : now;
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const { from: fromParam, to: toParam } = req.query as Record<string, string>;
+    const fromDate = fromParam ? new Date(fromParam) : thirtyDaysAgo;
+    const toDate = toParam ? new Date(toParam) : now;
 
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
       return res.status(400).json(
-        apiError({ code: "VALIDATION_FAILED", reason: "INVALID_DATE", message: "Invalid from/to date", requestId }),
+        apiError({
+          code: "VALIDATION_FAILED",
+          reason: "INVALID_DATE_RANGE",
+          message: "Invalid from or to date",
+          requestId,
+        }),
       );
     }
 
@@ -250,92 +256,58 @@ router.get("/leakage-report", requireAuth, requireEffectiveRole("vet"), async (r
   } catch (err) {
     console.error(err);
     res.status(500).json(
-      apiError({ code: "INTERNAL_ERROR", reason: "LEAKAGE_REPORT_FAILED", message: "Failed to compute leakage report", requestId }),
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "LEAKAGE_REPORT_FAILED",
+        message: "Failed to compute leakage report",
+        requestId,
+      }),
     );
   }
 });
 
-// GET /api/billing/export.csv?status=pending&from=<ISO>&to=<ISO>
-// Exports billing entries as CSV for manual import into Camillion / ezyVet.
-router.get("/export.csv", requireAuth, requireAdmin, async (req, res) => {
+// GET /api/billing/shift-total — total billing captured since current open shift started
+router.get("/shift-total", requireAuth, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
-    const { status, from, to } = req.query as Record<string, string>;
 
-    const conditions = [eq(billingLedger.clinicId, clinicId)];
-    if (status) conditions.push(eq(billingLedger.status, status as "pending" | "synced" | "voided"));
-    if (from) conditions.push(gte(billingLedger.createdAt, new Date(from)));
-    if (to) conditions.push(lte(billingLedger.createdAt, new Date(to)));
-
-    const rows = await db
-      .select()
-      .from(billingLedger)
-      .where(and(...conditions))
-      .orderBy(desc(billingLedger.createdAt))
-      .limit(5000);
-
-    const header = "id,date,animal_id,item_type,item_id,quantity,unit_price,total,status";
-    const csvLines = rows.map((r) =>
-      [
-        r.id,
-        new Date(r.createdAt).toISOString(),
-        r.animalId ?? "",
-        r.itemType,
-        r.itemId,
-        r.quantity,
-        (r.unitPriceCents / 100).toFixed(2),
-        (r.totalAmountCents / 100).toFixed(2),
-        r.status,
-      ].join(","),
+    // Find the open shift session
+    const shiftResult = await pool.query(
+      "SELECT started_at FROM vt_shift_sessions WHERE clinic_id = $1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+      [clinicId],
     );
 
-    const csv = [header, ...csvLines].join("\n");
-    const filename = `billing_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    if (shiftResult.rows.length === 0) {
+      return res.json({ totalCents: 0, count: 0, shiftActive: false });
+    }
 
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(csv);
+    const startedAt: Date = shiftResult.rows[0].started_at;
+
+    // Count billing entries since shift start
+    const billingResult = await pool.query(
+      "SELECT COUNT(*) AS count, COALESCE(SUM(total_amount_cents), 0) AS total FROM vt_billing_ledger WHERE clinic_id = $1 AND created_at >= $2",
+      [clinicId, startedAt],
+    );
+
+    const count = parseInt(billingResult.rows[0].count, 10);
+    const totalCents = parseInt(billingResult.rows[0].total, 10);
+
+    res.json({ totalCents, count, shiftActive: true });
   } catch (err) {
     console.error(err);
     res.status(500).json(
-      apiError({ code: "INTERNAL_ERROR", reason: "EXPORT_FAILED", message: "Failed to export billing data", requestId }),
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "SHIFT_TOTAL_FAILED",
+        message: "Failed to compute shift billing total",
+        requestId,
+      }),
     );
   }
 });
 
-// PATCH /api/billing/bulk-sync — mark a batch of entries as synced
-// Used after manually importing the CSV into Camillion / ezyVet.
-router.patch(
-  "/bulk-sync",
-  requireAuth,
-  requireAdmin,
-  validateBody(z.object({ ids: z.array(z.string()).min(1).max(500) })),
-  async (req, res) => {
-    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-    try {
-      const clinicId = req.clinicId!;
-      const { ids } = req.body as { ids: string[] };
 
-      await db
-        .update(billingLedger)
-        .set({ status: "synced" })
-        .where(
-          and(
-            eq(billingLedger.clinicId, clinicId),
-            inArray(billingLedger.id, ids),
-          ),
-        );
-
-      res.json({ synced: ids.length });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json(
-        apiError({ code: "INTERNAL_ERROR", reason: "BULK_SYNC_FAILED", message: "Failed to bulk sync billing entries", requestId }),
-      );
-    }
-  },
-);
 
 // GET /api/billing/:id — fetch single entry
 router.get("/:id", requireAuth, requireEffectiveRole("vet"), validateUuid("id"), async (req, res) => {
@@ -380,6 +352,27 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
     });
 
     const [row] = await db.select().from(billingLedger).where(eq(billingLedger.id, id)).limit(1);
+
+    // Fire webhook if configured (config lookup handled inside enqueueBillingWebhookJob)
+    try {
+      await enqueueBillingWebhookJob({
+        clinicId,
+        entry: {
+          id: row.id,
+          animalId: row.animalId,
+          itemType: row.itemType,
+          itemId: row.itemId,
+          quantity: row.quantity,
+          unitPriceCents: row.unitPriceCents,
+          totalAmountCents: row.totalAmountCents,
+          status: row.status,
+          createdAt: row.createdAt,
+        },
+      });
+    } catch (webhookErr) {
+      console.error("[billing-webhook] Failed to enqueue webhook for manual charge, continuing:", webhookErr);
+    }
+
     res.status(201).json(row);
   } catch (err) {
     console.error(err);
@@ -407,10 +400,94 @@ router.patch("/:id/void", requireAuth, requireAdmin, validateUuid("id"), async (
       .where(eq(billingLedger.id, req.params.id));
 
     const [updated] = await db.select().from(billingLedger).where(eq(billingLedger.id, req.params.id)).limit(1);
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "billing_voided",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetId: req.params.id,
+      targetType: "billing_ledger",
+      metadata: {
+        previousStatus: existing.status,
+        itemType: existing.itemType,
+        itemId: existing.itemId,
+        totalAmountCents: existing.totalAmountCents,
+      },
+    });
+
     res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_VOID_FAILED", message: "Failed to void billing entry", requestId }));
+  }
+});
+
+const bulkSyncSchema = z.object({
+  ids: z.array(z.string()).min(1),
+});
+
+// PATCH /api/billing/bulk-sync — mark billing entries as synced
+router.patch("/bulk-sync", requireAuth, requireAdmin, validateBody(bulkSyncSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const { ids } = req.body as z.infer<typeof bulkSyncSchema>;
+    const result = await pool.query(
+      "UPDATE vt_billing_ledger SET status = 'synced' WHERE id = ANY($1) AND clinic_id = $2",
+      [ids, clinicId],
+    );
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "billing_bulk_synced",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email,
+      targetType: "billing_ledger",
+      metadata: { ids, updatedCount: result.rowCount ?? 0 },
+    });
+
+    res.json({ updated: result.rowCount ?? 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_BULK_SYNC_FAILED", message: "Failed to bulk sync billing entries", requestId }));
+  }
+});
+
+// GET /api/billing/export.csv — export pending billing entries as CSV
+router.get("/export.csv", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const result = await pool.query(
+      `SELECT bl.id, bl.created_at, bl.item_id, bl.quantity, bl.unit_price_cents, bl.total_amount_cents,
+              a.name AS animal_name
+       FROM vt_billing_ledger bl
+       LEFT JOIN vt_animals a ON a.id = bl.animal_id
+       WHERE bl.clinic_id = $1 AND bl.status = 'pending'
+       ORDER BY bl.created_at ASC`,
+      [clinicId],
+    );
+
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ["date", "patient", "item", "qty", "price", "total"].map(escape).join(",");
+    const rows = result.rows.map((r) => {
+      const date = new Date(r.created_at).toISOString().slice(0, 10);
+      const patient = r.animal_name ?? "Unlinked";
+      const price = (r.unit_price_cents / 100).toFixed(2);
+      const total = (r.total_amount_cents / 100).toFixed(2);
+      return [date, patient, r.item_id, String(r.quantity), price, total].map(escape).join(",");
+    });
+    const csv = [header, ...rows].join("\r\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", 'attachment; filename="billing-export.csv"');
+    res.send(csv);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "BILLING_EXPORT_FAILED", message: "Failed to export billing CSV", requestId }));
   }
 });
 

@@ -131,6 +131,12 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
         isEmergency: Boolean(result.emergencyEventId),
       });
       setSheetState(result.emergencyEventId ? "emergency-success" : "success");
+      const autoBilledCents = result.autoBilledCents ?? 0;
+      if (autoBilledCents > 0) {
+        toast.success(`✓ Dispense recorded — ₪${(autoBilledCents / 100).toFixed(2)} captured`);
+      } else {
+        toast.success("✓ Dispense recorded");
+      }
     },
     onError: (err: unknown) => {
       const e = err as { message?: string };

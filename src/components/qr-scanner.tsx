@@ -34,6 +34,8 @@ import { isOnline } from "@/lib/safe-browser";
 
 interface QrScannerProps {
   onClose: () => void;
+  /** Called when the scanned code resolves to an inventory container. Caller should open DispenseSheet for the returned containerId. */
+  onDispense?: (containerId: string) => void;
 }
 
 type ScannerPhase =
@@ -106,7 +108,7 @@ const killAllCameras = () => {
   }
 };
 
-export function QrScanner({ onClose }: QrScannerProps) {
+export function QrScanner({ onClose, onDispense }: QrScannerProps) {
   const [, navigate] = useLocation();
   const { userId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -186,6 +188,24 @@ export function QrScanner({ onClose }: QrScannerProps) {
     [getEquipmentFromCache, queryClient]
   );
 
+  /**
+   * resolveAsContainer — called as a fallback when the scanned code does not
+   * match any equipment record.  Tries the containers API by NFC tag ID.
+   * Returns the container id if found, null otherwise.
+   */
+  const resolveAsContainer = useCallback(
+    async (tagId: string): Promise<string | null> => {
+      if (!isOnline()) return null;
+      try {
+        const container = await api.containers.getByNfcTag(tagId);
+        return container?.id ?? null;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
   const handleScanResult = useCallback(
     async (rawValue: string) => {
       const now = Date.now();
@@ -206,6 +226,18 @@ export function QrScanner({ onClose }: QrScannerProps) {
       setPhase("resolving");
       const eq = await resolveEquipmentId(equipmentId);
       if (!eq) {
+        // Equipment not found — try resolving as an inventory container.
+        // If successful, hand off to the dispense flow immediately (zero extra taps).
+        if (onDispense) {
+          const containerId = await resolveAsContainer(equipmentId);
+          if (containerId) {
+            await stopScannerRef.current();
+            haptics.scanSuccess();
+            onClose();
+            onDispense(containerId);
+            return;
+          }
+        }
         setNotFoundId(equipmentId);
         await stopScannerRef.current();
         setPhase("not_found");
@@ -219,7 +251,7 @@ export function QrScanner({ onClose }: QrScannerProps) {
       setScannedEquipment(eq);
       setPhase("result");
     },
-    [resolveEquipmentId]
+    [resolveEquipmentId, resolveAsContainer, onDispense, onClose]
   );
 
   const stopScanner = useCallback(async () => {
@@ -392,6 +424,16 @@ export function QrScanner({ onClose }: QrScannerProps) {
     setPhase("resolving");
     const eq = await resolveEquipmentId(equipmentId);
     if (!eq) {
+      // Equipment not found — try resolving as an inventory container.
+      if (onDispense) {
+        const containerId = await resolveAsContainer(equipmentId);
+        if (containerId) {
+          haptics.scanSuccess();
+          onClose();
+          onDispense(containerId);
+          return;
+        }
+      }
       setNotFoundId(equipmentId);
       setPhase("not_found");
       return;

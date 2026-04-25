@@ -13,6 +13,7 @@ import {
   redisKey,
   timedRedisOp,
 } from "./redis.js";
+import { pool } from "../db.js";
 
 export const NOTIFICATION_QUEUE_NAME = "notifications";
 export const NOTIFICATION_DLQ_NAME = "notifications_dlq";
@@ -132,6 +133,12 @@ export type AutomationExecutePayload =
   | { kind: "stuck_recovery"; taskId: string; clinicId: string }
   | { kind: "prestart_reminder"; taskId: string; clinicId: string };
 
+export type ShiftReportEmailPayload = {
+  clinicId: string;
+  shiftSessionId: string;
+  managerEmail: string;
+};
+
 export type NotificationJobData =
   | {
       type: "task_notification";
@@ -170,6 +177,12 @@ export type NotificationJobData =
       title: string;
       body: string;
       tag: string;
+    }
+  | {
+      type: "shift_report_email";
+      clinicId: string;
+      shiftSessionId: string;
+      managerEmail: string;
     };
 
 /**
@@ -296,6 +309,92 @@ export async function enqueueAutomationExecuteJob(payload: AutomationExecutePayl
   }
 }
 
+export type BillingWebhookEntry = {
+  id: string;
+  animalId: string | null | undefined;
+  itemType: string;
+  itemId: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalAmountCents: number;
+  status: string;
+  createdAt: Date | string;
+};
+
+/** Internal BullMQ job data — includes resolved webhookUrl and secret. */
+export type BillingWebhookPayload = {
+  type: "billing_webhook";
+  clinicId: string;
+  webhookUrl: string;
+  secret: string;
+  entry: BillingWebhookEntry;
+};
+
+/**
+ * Enqueue a billing webhook job. Reads billing_webhook_url and billing_webhook_secret
+ * from vt_server_config for the clinicId; no-ops silently if URL is not configured.
+ * Never throws — webhook failure must not affect the billing API response.
+ */
+export async function enqueueBillingWebhookJob(payload: {
+  clinicId: string;
+  entry: BillingWebhookEntry;
+}): Promise<void> {
+  if (isCircuitOpen("queue")) {
+    incrementMetric("circuit_breaker_opened");
+    console.warn("[queue] circuit open; billing_webhook enqueue skipped");
+    return;
+  }
+  if (!getRedisUrl()) {
+    recordRedisFallback("queue.enqueueBillingWebhookJob");
+    console.warn("QUEUE_DISABLED_NO_REDIS — billing_webhook not enqueued");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  // Read webhook config from vt_server_config; skip if not set
+  let webhookUrl: string;
+  let secret: string;
+  try {
+    const urlRow = await pool.query<{ value: string }>(
+      "SELECT value FROM vt_server_config WHERE key = $1",
+      [`${payload.clinicId}:billing_webhook_url`],
+    );
+    if (!urlRow.rows[0]?.value) return;
+    webhookUrl = urlRow.rows[0].value;
+    const secretRow = await pool.query<{ value: string }>(
+      "SELECT value FROM vt_server_config WHERE key = $1",
+      [`${payload.clinicId}:billing_webhook_secret`],
+    );
+    secret = secretRow.rows[0]?.value ?? "";
+  } catch (cfgErr) {
+    console.error("[queue] billing_webhook config lookup failed:", (cfgErr as Error).message);
+    return;
+  }
+  const q = await getNotificationsQueue();
+  if (!q) {
+    recordRedisFallback("queue.enqueueBillingWebhookJob.queueUnavailable");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  const jobData: BillingWebhookPayload = {
+    type: "billing_webhook",
+    clinicId: payload.clinicId,
+    webhookUrl,
+    secret,
+    entry: payload.entry,
+  };
+  try {
+    await timedRedisOp("queue.add.billing_webhook", () =>
+      q.add("billing_webhook", jobData, defaultJobOptions()),
+    );
+    queueMetrics.enqueued++;
+    incrementMetric("queue_jobs_enqueued");
+    console.log("QUEUE_JOB_ENQUEUED", "billing_webhook", { clinicId: payload.clinicId, entryId: payload.entry.id });
+  } catch (err) {
+    markQueueFailure();
+    console.error("[queue] billing_webhook add failed:", (err as Error).message);
+  }
+}
+
 export type AutomationNotifyArgs =
   | {
       clinicId: string;
@@ -340,6 +439,40 @@ export async function enqueueAutomationNotificationJobs(args: AutomationNotifyAr
       body: args.body,
       tag: args.tag,
     });
+  }
+}
+
+/**
+ * Enqueue a shift report email job. Never throws — email failure must not affect shift-end response.
+ */
+export async function enqueueShiftReportEmailJob(payload: ShiftReportEmailPayload): Promise<void> {
+  if (isCircuitOpen("queue")) {
+    incrementMetric("circuit_breaker_opened");
+    console.warn("[queue] circuit open; shift_report_email enqueue skipped");
+    return;
+  }
+  if (!getRedisUrl()) {
+    recordRedisFallback("queue.enqueueShiftReportEmailJob");
+    console.warn("QUEUE_DISABLED_NO_REDIS — shift_report_email not enqueued");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  const q = await getNotificationsQueue();
+  if (!q) {
+    recordRedisFallback("queue.enqueueShiftReportEmailJob.queueUnavailable");
+    queueMetrics.droppedNoRedis++;
+    return;
+  }
+  try {
+    await timedRedisOp("queue.add.shift_report_email", () =>
+      q.add("shift_report_email", payload, defaultJobOptions()),
+    );
+    queueMetrics.enqueued++;
+    incrementMetric("queue_jobs_enqueued");
+    console.log("QUEUE_JOB_ENQUEUED", "shift_report_email", { clinicId: payload.clinicId, shiftSessionId: payload.shiftSessionId });
+  } catch (err) {
+    markQueueFailure();
+    console.error("[queue] shift_report_email add failed:", (err as Error).message);
   }
 }
 

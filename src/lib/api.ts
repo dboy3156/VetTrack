@@ -1077,6 +1077,7 @@ export const api = {
         takenBy: { userId: string; displayName: string };
         takenAt: string;
         billingIds?: string[];
+        autoBilledCents?: number;
       }>(`/api/containers/${containerId}/dispense`, {
         method: "POST",
         body: JSON.stringify(data),
@@ -1159,11 +1160,8 @@ export const api = {
       note?: string;
     }) => request<BillingLedgerEntry>("/api/billing", { method: "POST", body: JSON.stringify(data) }),
     void: (id: string) => request<BillingLedgerEntry>(`/api/billing/${id}/void`, { method: "PATCH" }),
-    bulkSync: (ids: string[]) =>
-      request<{ synced: number }>("/api/billing/bulk-sync", {
-        method: "PATCH",
-        body: JSON.stringify({ ids }),
-      }),
+    bulkSync: (ids: string[]) => request<{ updated: number }>("/api/billing/bulk-sync", { method: "PATCH", body: JSON.stringify({ ids }) }),
+    exportCsvUrl: () => "/api/billing/export.csv",
     summary: (params?: { from?: string; to?: string }) => {
       const qs = new URLSearchParams();
       if (params?.from) qs.set("from", params.from);
@@ -1176,22 +1174,15 @@ export const api = {
       if (params?.from) qs.set("from", params.from);
       if (params?.to) qs.set("to", params.to);
       const query = qs.toString();
-      return request<LeakageReport>(`/api/billing/leakage-report${query ? `?${query}` : ""}`);
+      return request<import("@/types").LeakageReport>(`/api/billing/leakage-report${query ? `?${query}` : ""}`);
     },
-    exportCsvUrl: (params?: { status?: string; from?: string; to?: string }) => {
-      const qs = new URLSearchParams();
-      if (params?.status) qs.set("status", params.status);
-      if (params?.from) qs.set("from", params.from);
-      if (params?.to) qs.set("to", params.to);
-      const query = qs.toString();
-      return `/api/billing/export.csv${query ? `?${query}` : ""}`;
-    },
+    shiftTotal: () => request<{ totalCents: number; count: number; shiftActive: boolean }>("/api/billing/shift-total"),
   },
   inventoryItems: {
     list: () => request<InventoryItem[]>("/api/inventory-items"),
     create: (data: { code: string; label: string; category?: string; nfcTagId?: string | null }) =>
       request<InventoryItem>("/api/inventory-items", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: string, data: { label?: string; category?: string | null; nfcTagId?: string | null }) =>
+    update: (id: string, data: { label?: string; category?: string | null; nfcTagId?: string | null; isBillable?: boolean; minimumDispenseToCapture?: number }) =>
       request<InventoryItem>(`/api/inventory-items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/api/inventory-items/${id}`, { method: "DELETE" }),
   },
@@ -1237,6 +1228,22 @@ export const api = {
     consumablesReport: (from: string, to: string) =>
       request<ConsumablesReport>(
         `/api/shift-handover/consumables-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      ),
+    getPendingEmergencies: () =>
+      request<{
+        items: Array<{
+          id: string;
+          containerId: string;
+          itemName: string;
+          quantity: number;
+          dispensedAt: string;
+          unitPriceCents: number;
+        }>;
+      }>("/api/shift-handover/pending-emergencies"),
+    reconcileEmergency: (logId: string, data: { animalId: string; quantity?: number }) =>
+      request<{ success: boolean; ledgerId: string; alreadyReconciled: boolean }>(
+        `/api/shift-handover/emergency/${encodeURIComponent(logId)}/reconcile`,
+        { method: "PATCH", body: JSON.stringify(data) },
       ),
   },
   forecast: {

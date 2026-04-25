@@ -1,278 +1,268 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
-import { useState } from "react";
-import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
-import { Card, CardContent } from "@/components/ui/card";
+import type { LeakageReportItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorCard } from "@/components/ui/error-card";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  Cell,
-} from "recharts";
-import {
-  TrendingDown,
-  Download,
-  AlertTriangle,
-  CheckCircle2,
-  ChevronLeft,
-} from "lucide-react";
+import { ShieldAlert, Download, TrendingDown, PackageOpen, ReceiptText, AlertCircle } from "lucide-react";
+import { Link } from "wouter";
 
-function formatIls(cents: number) {
-  return (cents / 100).toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function formatCents(cents: number): string {
+  return `\u20aa${(cents / 100).toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function defaultFrom() {
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
+function getDefaultDates(): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
 }
 
-function defaultTo() {
-  return new Date().toISOString().slice(0, 10);
+function downloadLeakageCsv(items: LeakageReportItem[]) {
+  const header = "Item,Dispensed Qty,Billed Qty,Gap Qty,Gap Value (₪)";
+  const rows = items.map(i =>
+    `"${i.containerName}",${i.dispensedQty},${i.billedQty},${i.gapQty},${(i.gapValueCents / 100).toFixed(2)}`
+  );
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "leakage-report.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function LeakageReportPage() {
   const { userId } = useAuth();
-  const [from, setFrom] = useState(defaultFrom);
-  const [to, setTo] = useState(defaultTo);
+  const defaults = useMemo(() => getDefaultDates(), []);
+  const [fromDate, setFromDate] = useState(defaults.from);
+  const [toDate, setToDate] = useState(defaults.to);
+  const [queryParams, setQueryParams] = useState<{ from: string; to: string }>(defaults);
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["/api/billing/leakage-report", from, to],
-    queryFn: () => api.billing.leakageReport({ from, to }),
+  const reportQ = useQuery({
+    queryKey: ["/api/billing/leakage-report", queryParams],
+    queryFn: () => api.billing.leakageReport({ from: queryParams.from, to: queryParams.to }),
     enabled: !!userId,
     retry: false,
     refetchOnWindowFocus: false,
   });
 
-  const exportUrl = api.billing.exportCsvUrl({ status: "pending", from, to });
+  function handleRunReport() {
+    setQueryParams({ from: fromDate, to: toDate });
+  }
 
-  const hasGap = (data?.summary.totalGapValueCents ?? 0) > 0;
+  const report = reportQ.data;
+  const summary = report?.summary;
+  const items = report?.items ?? [];
 
   return (
-    <Layout title="Leakage Report">
+    <Layout>
       <Helmet>
-        <title>Leakage Report — VetTrack</title>
+        <title>Leakage Audit Report — VetTrack</title>
       </Helmet>
 
-      <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24">
+      <div className="w-full space-y-6 motion-safe:animate-page-enter">
         {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <Link href="/billing" className="mb-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <ChevronLeft className="h-3.5 w-3.5" />
-              Back to Billing
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <ShieldAlert className="h-7 w-7 shrink-0 text-destructive" aria-hidden />
+            <h1 className="truncate text-2xl font-bold tracking-tight">Leakage Audit Report</h1>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href="/billing">
+              <Button variant="outline" size="sm">
+                Back to Billing
+              </Button>
             </Link>
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-              <TrendingDown className="h-6 w-6 text-destructive shrink-0" />
-              Billing Leakage Report
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Dispensed consumables vs. billing entries — shows the ₪ gap.
-            </p>
+            <Button variant="outline" size="sm" onClick={() => downloadLeakageCsv(items)} disabled={items.length === 0}>
+              <Download className="h-4 w-4 mr-1" />
+              Export CSV
+            </Button>
           </div>
-
-          <a
-            href={exportUrl}
-            download
-            className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-muted/50 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export Pending CSV
-          </a>
         </div>
 
-        {/* Date range */}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-card p-4">
-          <div className="flex items-center gap-2">
-            <label htmlFor="from-date" className="text-xs font-medium text-muted-foreground">From</label>
-            <input
-              id="from-date"
-              type="date"
-              value={from}
-              max={to}
-              onChange={(e) => setFrom(e.target.value)}
-              className="rounded-lg border border-border/70 bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+        {/* Date range picker */}
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="from-date">
+                From
+              </label>
+              <input
+                id="from-date"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="to-date">
+                To
+              </label>
+              <input
+                id="to-date"
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <Button onClick={handleRunReport} disabled={reportQ.isFetching}>
+              {reportQ.isFetching ? "Running..." : "Run Report"}
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="to-date" className="text-xs font-medium text-muted-foreground">To</label>
-            <input
-              id="to-date"
-              type="date"
-              value={to}
-              min={from}
-              max={defaultTo()}
-              onChange={(e) => setTo(e.target.value)}
-              className="rounded-lg border border-border/70 bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isLoading}>
-            Apply
-          </Button>
         </div>
 
-        {isError && (
-          <Card className="border-destructive/40">
-            <CardContent className="pt-5 text-sm text-destructive">Failed to load report. Retry above.</CardContent>
-          </Card>
+        {/* Loading state */}
+        {reportQ.isPending && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-24 rounded-xl" />
+              ))}
+            </div>
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
         )}
 
-        {/* Summary KPI cards */}
-        {isLoading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
-          </div>
-        ) : data ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Card className={hasGap ? "border-destructive/40 bg-destructive/5" : "border-emerald-300/60 bg-emerald-50/60 dark:bg-emerald-950/20"}>
-              <CardContent className="flex flex-col items-center justify-center py-5 text-center">
-                <p className={`text-3xl font-bold tabular-nums ${hasGap ? "text-destructive" : "text-emerald-700 dark:text-emerald-300"}`}>
-                  ₪{formatIls(data.summary.totalGapValueCents)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">Total Gap Value</p>
-              </CardContent>
-            </Card>
-            <Card className={data.summary.overallLeakagePct > 15 ? "border-destructive/40 bg-destructive/5" : ""}>
-              <CardContent className="flex flex-col items-center justify-center py-5 text-center">
-                <p className={`text-3xl font-bold tabular-nums ${data.summary.overallLeakagePct > 15 ? "text-destructive" : "text-foreground"}`}>
-                  {data.summary.overallLeakagePct}%
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">Leakage Rate</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-5 text-center">
-                <p className="text-3xl font-bold tabular-nums">{data.summary.totalDispensedQty}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Units Dispensed</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-5 text-center">
-                <p className="text-3xl font-bold tabular-nums">{data.summary.totalBilledQty}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Units Billed</p>
-              </CardContent>
-            </Card>
-          </div>
-        ) : null}
-
-        {/* Bar chart: dispensed vs billed top 10 containers */}
-        {data && data.items.length > 0 && (
-          <Card className="border-border/60">
-            <CardContent className="pt-5">
-              <p className="mb-4 text-sm font-semibold">Top containers by gap value</p>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={data.items.slice(0, 10).map((i) => ({
-                    name: i.containerName.length > 18 ? `${i.containerName.slice(0, 16)}…` : i.containerName,
-                    Dispensed: i.dispensedQty,
-                    Billed: i.billedQty,
-                    Gap: i.gapQty,
-                  }))}
-                  margin={{ top: 0, right: 8, left: -16, bottom: 0 }}
-                >
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip
-                    formatter={(value: number, name: string) => [value, name]}
-                    contentStyle={{ fontSize: 12 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="Dispensed" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Billed" fill="#34d399" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Gap" radius={[4, 4, 0, 0]}>
-                    {data.items.slice(0, 10).map((item, idx) => (
-                      <Cell key={idx} fill={item.gapQty > 0 ? "#f87171" : "#34d399"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+        {/* Error state */}
+        {reportQ.isError && !reportQ.isPending && (
+          <ErrorCard message="Failed to load leakage report" onRetry={() => reportQ.refetch()} />
         )}
 
-        {/* Itemised table */}
-        {isLoading ? (
-          <Skeleton className="h-64 w-full rounded-xl" />
-        ) : data && data.items.length > 0 ? (
-          <Card className="border-border/60">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto rounded-xl">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/40">
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Container</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Unit ₪</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Dispensed</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Billed</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Gap</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Gap ₪</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Leakage %</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {data.items.map((item) => (
-                      <tr
-                        key={item.containerId}
-                        className={item.gapQty > 0 ? "bg-destructive/5 hover:bg-destructive/10" : "hover:bg-muted/30"}
-                      >
-                        <td className="px-4 py-3 font-medium">
-                          <div className="flex items-center gap-2">
-                            {item.gapQty > 0 ? (
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                            ) : (
-                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                            )}
-                            {item.containerName}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">
-                          ₪{formatIls(item.unitPriceCents)}
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums">{item.dispensedQty}</td>
-                        <td className="px-4 py-3 text-right tabular-nums">{item.billedQty}</td>
-                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${item.gapQty > 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
-                          {item.gapQty > 0 ? `+${item.gapQty}` : "0"}
-                        </td>
-                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${item.gapQty > 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
-                          {item.gapQty > 0 ? `₪${formatIls(item.gapValueCents)}` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {item.gapQty > 0 ? (
-                            <Badge className="bg-destructive/15 text-destructive border-destructive/30 text-xs">
-                              {item.leakagePct}%
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 text-xs">
-                              0%
-                            </Badge>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* Results */}
+        {report && !reportQ.isPending && (
+          <>
+            {/* KPI cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">Dispensed Qty</p>
+                  <PackageOpen className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight">
+                  {summary?.totalDispensedQty ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">units dispensed</p>
               </div>
-            </CardContent>
-          </Card>
-        ) : data && data.items.length === 0 ? (
-          <Card className="border-border/60">
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-              <CheckCircle2 className="mb-3 h-8 w-8 text-emerald-500" />
-              <p className="font-medium">No dispenses in this period</p>
-              <p className="text-sm">No inventory adjustments were recorded between these dates.</p>
-            </CardContent>
-          </Card>
-        ) : null}
+
+              <div className="rounded-xl border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">Billed Qty</p>
+                  <ReceiptText className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight">
+                  {summary?.totalBilledQty ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">units billed</p>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-amber-700">Gap Qty</p>
+                  <AlertCircle className="h-4 w-4 text-amber-700" />
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-amber-800">
+                  {summary?.totalGapQty ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-amber-700">
+                  {summary?.overallLeakagePct ?? 0}% gap rate
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-destructive">Gap Value</p>
+                  <TrendingDown className="h-4 w-4 text-destructive" />
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-destructive">
+                  {formatCents(summary?.totalGapValueCents ?? 0)}
+                </p>
+                <p className="mt-1 text-xs text-destructive/70">estimated revenue lost</p>
+              </div>
+            </div>
+
+            {/* Table */}
+            {items.length === 0 ? (
+              <EmptyState
+                icon={ShieldAlert}
+                message="No leakage detected"
+                subMessage="All dispensed items appear to be billed within the selected date range."
+                iconBg="bg-emerald-50 ring-1 ring-emerald-200/60"
+                iconColor="text-emerald-600"
+              />
+            ) : (
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold">Container</th>
+                        <th className="text-right px-4 py-3 font-semibold">Unit Price</th>
+                        <th className="text-right px-4 py-3 font-semibold">Dispensed</th>
+                        <th className="text-right px-4 py-3 font-semibold">Billed</th>
+                        <th className="text-right px-4 py-3 font-semibold">Gap Qty</th>
+                        <th className="text-right px-4 py-3 font-semibold">Gap Value</th>
+                        <th className="text-right px-4 py-3 font-semibold">Leakage %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {items.map((item) => (
+                        <tr
+                          key={item.containerId}
+                          className={item.gapQty > 0 ? "bg-destructive/5" : ""}
+                        >
+                          <td className="px-4 py-3 font-medium">{item.containerName}</td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {formatCents(item.unitPriceCents)}
+                          </td>
+                          <td className="px-4 py-3 text-right">{item.dispensedQty}</td>
+                          <td className="px-4 py-3 text-right">{item.billedQty}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span
+                              className={
+                                item.gapQty > 0
+                                  ? "font-semibold text-amber-700"
+                                  : "text-emerald-700"
+                              }
+                            >
+                              {item.gapQty}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span
+                              className={
+                                item.gapValueCents > 0
+                                  ? "font-semibold text-destructive"
+                                  : "text-emerald-700"
+                              }
+                            >
+                              {formatCents(item.gapValueCents)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={item.gapQty > 0 ? "font-semibold text-destructive" : "text-emerald-700"}>
+                              {item.leakagePct}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </Layout>
   );

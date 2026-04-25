@@ -130,6 +130,20 @@
       "when": 1776531417255,
       "tag": "0020_abnormal_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1745539200000,
+      "tag": "061_billing_ledger_nullable_animal_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1745798400000,
+      "tag": "062_inventory_items_billable_flags",
+      "breakpoints": true
     }
   ]
 }

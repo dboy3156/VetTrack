@@ -38,3 +38,4 @@ __pycache__/
 *.egg-info/
 desktop/cleaner/build/
 desktop/cleaner/dist/
+.worktrees/

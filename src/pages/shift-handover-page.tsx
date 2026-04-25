@@ -2,7 +2,7 @@
 import { t } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
-import { useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
@@ -358,6 +358,12 @@ export default function ShiftHandoverPage() {
                 <p className="text-sm font-bold text-red-800 dark:text-red-300 flex-1">
                   {consumablesQ.data.pendingEmergencies} אירועי חירום ממתינים להשלמה
                 </p>
+                <Link
+                  href="/pending-emergencies"
+                  className="shrink-0 text-sm font-bold text-red-700 dark:text-red-300 underline underline-offset-2 hover:text-red-900 dark:hover:text-red-100 whitespace-nowrap"
+                >
+                  יחס {consumablesQ.data.pendingEmergencies} פריטים ←
+                </Link>
               </div>
             )}
 
@@ -392,6 +398,48 @@ export default function ShiftHandoverPage() {
                 )}
               </div>
             </div>
+
+            {/* Staff Activity */}
+            {consumablesQ.data.userActivity.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border">
+                <h3 className="text-sm font-semibold px-3 py-2 border-b bg-muted/50">פעילות צוות</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-3 py-2 text-right font-medium">שם</th>
+                      <th className="px-3 py-2 text-right font-medium">לקיחות</th>
+                      <th className="px-3 py-2 text-right font-medium">חויב</th>
+                      <th className="px-3 py-2 text-right font-medium">שיעור לכידה</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consumablesQ.data.userActivity.map((ua) => {
+                      const isMissing = ua.dispensedCount > 0 && ua.billedCount === 0;
+                      const isLow = !isMissing && ua.captureRatePercent < 50;
+                      return (
+                        <tr
+                          key={ua.userId}
+                          className={cn(
+                            "border-b last:border-0",
+                            isMissing ? "bg-red-50/70 dark:bg-red-950/20" : isLow ? "bg-amber-50/70 dark:bg-amber-950/20" : "",
+                          )}
+                        >
+                          <td className="px-3 py-2 font-medium">{ua.userName}</td>
+                          <td className="px-3 py-2 tabular-nums">{ua.dispensedCount}</td>
+                          <td className="px-3 py-2 tabular-nums">{ua.billedCount}</td>
+                          <td className={cn(
+                            "px-3 py-2 tabular-nums font-semibold",
+                            isMissing ? "text-red-700 dark:text-red-400" : isLow ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400",
+                          )}>
+                            {ua.captureRatePercent}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Events table */}
             {consumablesQ.data.events.length > 0 && (
