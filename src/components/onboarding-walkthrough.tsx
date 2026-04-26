@@ -77,10 +77,25 @@ export function OnboardingWalkthrough() {
       >
         {/* Progress dots + close */}
         <div className="flex items-center justify-between px-5 pt-5 pb-0">
-          <div className="flex gap-1.5">
+          <div
+            className="flex gap-1.5"
+            role="tablist"
+            aria-label="Walkthrough steps"
+            onKeyDown={(e) => {
+              if (e.key === "ArrowRight") {
+                e.preventDefault();
+                setStep((s) => Math.min(s + 1, STEPS.length - 1));
+              } else if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                setStep((s) => Math.max(s - 1, 0));
+              }
+            }}
+          >
             {STEPS.map((_, i) => (
               <button
                 key={i}
+                role="tab"
+                aria-selected={i === step}
                 onClick={() => setStep(i)}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   i === step
@@ -89,7 +104,7 @@ export function OnboardingWalkthrough() {
                     ? "w-3 bg-primary/40"
                     : "w-3 bg-muted-foreground/20"
                 }`}
-                aria-label={`Go to step ${i + 1}`}
+                aria-label={`Go to step ${i + 1} of ${STEPS.length}`}
               />
             ))}
           </div>

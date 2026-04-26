@@ -723,8 +723,9 @@ export default function EquipmentDetailPage() {
               size="icon-sm"
               onClick={() => navigate("/equipment")}
               data-testid="btn-back"
+              aria-label="Back to equipment list"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5" aria-hidden />
             </Button>
             <div>
               <h1 className="text-2xl font-bold leading-tight">{equipment.name}</h1>
@@ -743,9 +744,10 @@ export default function EquipmentDetailPage() {
                 size="icon-sm"
                 onClick={handleDuplicate}
                 title={t.equipmentDetail.toast.duplicateEquipment}
+                aria-label="Duplicate equipment"
                 data-testid="btn-duplicate"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="w-4 h-4" aria-hidden />
               </Button>
             )}
             {isAdmin && (
@@ -753,9 +755,10 @@ export default function EquipmentDetailPage() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => navigate(`/equipment/${id}/edit`)}
+                aria-label="Edit equipment"
                 data-testid="btn-edit"
               >
-                <Pencil className="w-4 h-4" />
+                <Pencil className="w-4 h-4" aria-hidden />
               </Button>
             )}
             {isAdmin && (
@@ -765,9 +768,10 @@ export default function EquipmentDetailPage() {
                     variant="ghost"
                     size="icon-sm"
                     className="text-destructive hover:text-destructive"
+                    aria-label="Delete equipment"
                     data-testid="btn-delete"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" aria-hidden />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>

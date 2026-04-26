@@ -91,13 +91,19 @@ export function PhoneSignIn() {
         </p>
         <form onSubmit={handlePhoneSubmit} className="flex flex-col gap-3">
           <div>
+            <label htmlFor="phone-sign-in-input" className="sr-only">
+              Phone number
+            </label>
             <input
+              id="phone-sign-in-input"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+972501234567 or 0501234567"
               autoComplete="tel"
               required
+              aria-required="true"
+              aria-describedby={errorMsg ? "phone-sign-in-error" : undefined}
               className="w-full border border-input rounded-xl px-4 py-3 text-sm bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:border-transparent"
             />
             {isILLocal && e164Preview && (
@@ -108,15 +114,15 @@ export function PhoneSignIn() {
           </div>
           {errorMsg && (
             <p
-              className="text-xs text-destructive bg-destructive/10 border border-destructive/25 rounded-lg px-3 py-2"
+              id="phone-sign-in-error"
+              className="text-sm text-destructive bg-destructive/10 border border-destructive/25 rounded-lg px-3 py-2"
               role="alert"
             >
-              {errorMsg}
-              {errorMsg.toLowerCase().includes("not supported") && (
-                <span className="block mt-1 text-muted-foreground">
-                  Israel (+972) SMS must be enabled in the Clerk Dashboard (Configure → User &amp; Authentication → Phone numbers → SMS sending → Allowed countries).
-                </span>
-              )}
+              {errorMsg.toLowerCase().includes("not supported") || errorMsg.toLowerCase().includes("phone sign-in is not available")
+                ? "Phone sign-in is not available for this account. Try another sign-in method, or contact your administrator."
+                : errorMsg.toLowerCase().includes("clerk") || errorMsg.length > 120
+                ? "Something went wrong. Please try again or use another sign-in method."
+                : errorMsg}
             </p>
           )}
           <button
@@ -138,7 +144,11 @@ export function PhoneSignIn() {
         A code was sent to <span className="font-mono font-medium">{normalizePhoneE164(phone)}</span>
       </p>
       <form onSubmit={handleCodeSubmit} className="flex flex-col gap-3">
+        <label htmlFor="verification-code-input" className="sr-only">
+          6-digit verification code
+        </label>
         <input
+          id="verification-code-input"
           type="text"
           inputMode="numeric"
           value={code}
@@ -147,6 +157,7 @@ export function PhoneSignIn() {
           maxLength={6}
           autoComplete="one-time-code"
           required
+          aria-required="true"
           className="w-full border border-input rounded-xl px-4 py-3 text-sm text-center tracking-widest bg-background text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus:border-transparent"
         />
         {errorMsg && (

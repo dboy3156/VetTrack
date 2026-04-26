@@ -289,10 +289,10 @@ export function CsvImportDialog({ open, onOpenChange }: Props) {
                       className={row.error ? "bg-red-50" : "hover:bg-muted/30"}
                     >
                       <td className="px-2 py-1.5 text-muted-foreground">{row.rowNum}</td>
-                      <td className="px-2 py-1.5 font-medium truncate max-w-[140px]">{row.name || <span className="text-muted-foreground italic">empty</span>}</td>
+                      <td className="px-2 py-1.5 font-medium truncate max-w-[140px]" title={row.name || undefined}>{row.name || <span className="text-muted-foreground italic">empty</span>}</td>
                       <td className="px-2 py-1.5 text-muted-foreground">{row.serial}</td>
                       <td className="px-2 py-1.5">{row.status}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[100px]">{row.location}</td>
+                      <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[100px]" title={row.location || undefined}>{row.location}</td>
                       <td className="px-2 py-1.5 text-red-600">{row.error}</td>
                     </tr>
                   ))}
