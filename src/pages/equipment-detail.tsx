@@ -93,7 +93,7 @@ const STATUS_CONFIG = {
   sterilized: { icon: Droplets, color: "text-teal-500", iconBg: "bg-teal-50" },
 };
 
-const UNDO_WINDOW_MS = 8_000;
+const UNDO_WINDOW_MS = 15_000;
 
 interface UndoState {
   actionLabel: string;
@@ -374,16 +374,13 @@ export default function EquipmentDetailPage() {
         setTimeout(() => {
           if (isOffline) {
             toast.warning(t.equipmentDetail.toast.issueReportedOffline);
-          } else if (isStudentEquipmentRole) {
-            toast.success(t.equipmentDetail.toast.issueReported);
           } else {
             const waUrl = buildWhatsAppUrl(undefined, updated.name, capturedStatus, scanLog?.note || "");
-            window.open(waUrl, "_blank");
-            toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
+            toast.success(t.equipmentDetail.toast.issueReported, {
               duration: 10000,
-              action: {
-                label: t.equipmentDetail.toast.dismiss,
-                onClick: () => {},
+              action: isStudentEquipmentRole ? undefined : {
+                label: "Send WhatsApp",
+                onClick: () => window.open(waUrl, "_blank"),
               },
             });
           }
@@ -470,7 +467,7 @@ export default function EquipmentDetailPage() {
 
       invalidateAll();
       if (!usedPluggedIn) {
-        toast.warning(`התראה תישלח לאחר ${usedDeadline} דקות אם לא יחובר`);
+        toast.warning(`An alert will be sent after ${usedDeadline} minute${usedDeadline !== 1 ? "s" : ""} if not plugged in.`);
       }
 
       if (prev && !isStudentEquipmentRole) {
@@ -561,12 +558,11 @@ export default function EquipmentDetailPage() {
           toast.success(t.equipmentDetail.toast.issueReported);
         } else {
           const waUrl = buildWhatsAppUrl(undefined, updated.name, "issue", scanLog?.note || capturedNote || "");
-          window.open(waUrl, "_blank");
-          toast(t.equipmentDetail.toast.issueReportedWhatsApp, {
+          toast.success(t.equipmentDetail.toast.issueReported, {
             duration: 10000,
             action: {
-              label: t.equipmentDetail.toast.dismiss,
-              onClick: () => {},
+              label: "Send WhatsApp",
+              onClick: () => window.open(waUrl, "_blank"),
             },
           });
         }
@@ -627,10 +623,6 @@ export default function EquipmentDetailPage() {
   }
 
   function handleReportIssueSubmit() {
-    if (!reportIssueNote.trim()) {
-      setReportIssueNoteError("A note is required when reporting an issue.");
-      return;
-    }
     setReportIssueNoteError("");
     reportIssueMut.mutate();
   }
@@ -982,7 +974,7 @@ export default function EquipmentDetailPage() {
                   { icon: Package, label: t.equipmentDetail.model, value: equipment.model },
                   { icon: Package, label: t.equipmentDetail.manufacturer, value: equipment.manufacturer },
                   { icon: Calendar, label: t.equipmentDetail.purchaseDate, value: formatDate(equipment.purchaseDate) },
-                  { icon: Calendar, label: "תאריך תפוגה", value: formatDate(equipment.expiryDate) },
+                  { icon: Calendar, label: "Expiry Date", value: formatDate(equipment.expiryDate) },
                   { icon: MapPin, label: t.equipmentDetail.location, value: equipment.location },
                   {
                     icon: Clock,
@@ -1019,7 +1011,7 @@ export default function EquipmentDetailPage() {
                     return (
                       <Badge variant="issue" className="mt-1 text-xs font-medium">
                         <CalendarX className="w-3.5 h-3.5" />
-                        פג תוקף
+                        Expired
                       </Badge>
                     );
                   }
@@ -1027,14 +1019,14 @@ export default function EquipmentDetailPage() {
                     return (
                       <Badge variant="maintenance" className="mt-1 text-xs font-medium">
                         <CalendarClock className="w-3.5 h-3.5" />
-                        פג בקרוב (עד 7 ימים)
+                        Expiring Soon (≤7 days)
                       </Badge>
                     );
                   }
                   return (
                     <Badge variant="ok" className="mt-1 text-xs font-medium">
                       <CalendarCheck className="w-3.5 h-3.5" />
-                      בתוקף
+                      Valid
                     </Badge>
                   );
                 })()}

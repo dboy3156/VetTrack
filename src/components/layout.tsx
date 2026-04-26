@@ -1051,7 +1051,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
             data-testid="bottom-nav-equipment"
           >
-            <Search
+            <Package
               className={cn(
                 "w-6 h-6 transition-all duration-200",
                 bottomNavActive.equipment ? "text-primary scale-110" : "text-muted-foreground scale-100"
