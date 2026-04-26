@@ -49,7 +49,7 @@ type ScannerPhase =
   | "manual"
   | "result";
 
-const DEBOUNCE_MS = 2000;
+const DEBOUNCE_MS = 800;
 
 function errorToString(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -314,7 +314,7 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
       }
       setManualCode("");
       setPhase("manual");
-    }, 10000);
+    }, 4000);
 
     try {
       const scanner = new Html5Qrcode(containerId, { verbose: false });
@@ -323,7 +323,7 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
       await scanner.start(
         { facingMode: "environment" },
         {
-          fps: 10,
+          fps: 15,
           qrbox: { width: 250, height: 250 },
           disableFlip: false,
         },
@@ -343,7 +343,7 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
 
       fallbackTimerRef.current = setTimeout(() => {
         setShowFallbackHint(true);
-      }, 8000);
+      }, 2000);
 
       try {
         const track = getFirstVideoTrack(scanner);
@@ -377,9 +377,8 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
   }, [handleScanResult]);
 
   useEffect(() => {
-    const t = setTimeout(() => startScanner(), 100);
+    startScanner();
     return () => {
-      clearTimeout(t);
       stopScanner();
     };
   }, []);

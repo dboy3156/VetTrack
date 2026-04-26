@@ -34,7 +34,7 @@ export function ReturnPlugDialog({
   onConfirm,
 }: ReturnPlugDialogProps) {
   const isBusy = pending || isSubmitting;
-  const [isPluggedIn, setIsPluggedIn] = useState(false);
+  const [isPluggedIn, setIsPluggedIn] = useState(true);
   const [deadlineMinutes, setDeadlineMinutes] = useState(defaultDeadlineMinutes);
 
   function handleConfirm() {
@@ -50,7 +50,7 @@ export function ReturnPlugDialog({
 
   function resetState(nextOpen: boolean) {
     if (!nextOpen) {
-      setIsPluggedIn(false);
+      setIsPluggedIn(true);
       setDeadlineMinutes(defaultDeadlineMinutes);
     }
     onOpenChange(nextOpen);
@@ -60,9 +60,11 @@ export function ReturnPlugDialog({
     <Dialog open={open} onOpenChange={resetState}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>החזרת ציוד</DialogTitle>
+          <DialogTitle>Return Equipment</DialogTitle>
           <DialogDescription>
-            {equipmentName ? `האם "${equipmentName}" חובר לחשמל לאחר ההחזרה?` : "האם הציוד חובר לחשמל לאחר ההחזרה?"}
+            {equipmentName
+              ? `Was "${equipmentName}" plugged in after returning?`
+              : "Was the equipment plugged in after returning?"}
           </DialogDescription>
         </DialogHeader>
 
@@ -76,8 +78,8 @@ export function ReturnPlugDialog({
               disabled={isBusy}
               data-testid="btn-plugged-yes"
             >
-              <Plug className="h-4 w-4" />
-              חובר לחשמל
+              <Plug className="h-4 w-4" aria-hidden />
+              Plugged In
             </Button>
             <Button
               type="button"
@@ -87,19 +89,19 @@ export function ReturnPlugDialog({
               disabled={isBusy}
               data-testid="btn-plugged-no"
             >
-              <BatteryWarning className="h-4 w-4" />
-              לא חובר
+              <BatteryWarning className="h-4 w-4" aria-hidden />
+              Not Plugged In
             </Button>
           </div>
 
           {!isPluggedIn && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800" data-testid="return-plug-warning">
-              התראה תישלח לאחר {deadlineMinutes} דקות אם לא יחובר
+              An alert will be sent after {deadlineMinutes} minute{deadlineMinutes !== 1 ? "s" : ""} if not plugged in.
             </div>
           )}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="plugInDeadlineMinutes">דדליין התראה (בדקות)</Label>
+            <Label htmlFor="plugInDeadlineMinutes">Alert deadline (minutes)</Label>
             <Input
               id="plugInDeadlineMinutes"
               type="number"
@@ -117,10 +119,10 @@ export function ReturnPlugDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => resetState(false)} disabled={isBusy}>
-            ביטול
+            Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={isBusy} data-testid="btn-confirm-return-plug">
-            אישור החזרה
+            Confirm Return
           </Button>
         </DialogFooter>
       </DialogContent>

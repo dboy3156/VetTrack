@@ -94,8 +94,8 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 // 9 cards per page — DOM never holds more than 9 <div>s regardless of dataset size.
 const PAGE_SIZE = 9;
 
-// Minimum skeleton visibility duration (ms) — ensures the shimmer is always seen.
-const SKELETON_MIN_MS = 1200;
+// Minimum skeleton visibility duration (ms) — just enough to prevent flash on cache hits.
+const SKELETON_MIN_MS = 400;
 
 export default function EquipmentListPage() {
   const { settings } = useSettings();
