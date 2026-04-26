@@ -197,8 +197,8 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
     <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold">Manage Formulary</span>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <X className="h-4 w-4" />
+        <button type="button" onClick={onClose} aria-label="Close formulary manager" className="text-muted-foreground hover:text-foreground">
+          <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
 
@@ -272,7 +272,8 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                     <button
                       type="button" disabled={busy}
                       onClick={() => submitEdit(entry.id)}
-                      className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                      className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={busy ? "Saving…" : undefined}
                     >
                       Save
                     </button>
@@ -381,7 +382,8 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
           <div className="flex gap-2">
             <button
               type="button" disabled={busy} onClick={submitAdd}
-              className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+              className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              title={busy ? "Adding…" : undefined}
             >
               Add
             </button>
@@ -430,11 +432,29 @@ export function MedicationCalculator({
 
   const rbac = evaluateMedicationRbac({ id: userId ?? undefined, role, effectiveRole });
 
-  const [selectedDrugName, setSelectedDrugName] = useState(initialDrugName);
-  const [weightKgRaw, setWeightKgRaw] = useState(
-    defaultWeightKg != null ? String(defaultWeightKg) : "",
-  );
-  const [desiredMgRaw, setDesiredMgRaw] = useState("");
+  const storageKeyRef = useRef(`vt_med_calc_${animalId ?? "global"}`);
+
+  const [selectedDrugName, setSelectedDrugName] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(storageKeyRef.current);
+      if (saved) return (JSON.parse(saved) as { drugName?: string }).drugName ?? initialDrugName;
+    } catch { /* ignore */ }
+    return initialDrugName;
+  });
+  const [weightKgRaw, setWeightKgRaw] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(storageKeyRef.current);
+      if (saved) return (JSON.parse(saved) as { weightKgRaw?: string }).weightKgRaw ?? (defaultWeightKg != null ? String(defaultWeightKg) : "");
+    } catch { /* ignore */ }
+    return defaultWeightKg != null ? String(defaultWeightKg) : "";
+  });
+  const [desiredMgRaw, setDesiredMgRaw] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(storageKeyRef.current);
+      if (saved) return (JSON.parse(saved) as { desiredMgRaw?: string }).desiredMgRaw ?? "";
+    } catch { /* ignore */ }
+    return "";
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -517,6 +537,15 @@ export function MedicationCalculator({
     );
   }, [desiredMg, resolved, weightKg]);
 
+  // Persist calculator inputs to sessionStorage so navigating away doesn't lose work
+  useEffect(() => {
+    try {
+      if (selectedDrugName || weightKgRaw || desiredMgRaw) {
+        sessionStorage.setItem(storageKeyRef.current, JSON.stringify({ drugName: selectedDrugName, weightKgRaw, desiredMgRaw }));
+      }
+    } catch { /* ignore */ }
+  }, [selectedDrugName, weightKgRaw, desiredMgRaw]);
+
   // Reset dose and messages when drug changes
   useEffect(() => {
     if (!selectedDrugName) return;
@@ -595,6 +624,7 @@ export function MedicationCalculator({
       return appointment;
     },
     onSuccess: (appointment) => {
+      try { sessionStorage.removeItem(storageKeyRef.current); } catch { /* ignore */ }
       setSuccessMessage(`Medication task created — ${calc.volumeMl.toFixed(2)} mL assigned to technician.`);
       if (appointment) {
         onSuccess?.(appointment.id);

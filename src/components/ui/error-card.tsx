@@ -59,28 +59,38 @@ export function ErrorCard({
         <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
         <p className="text-sm text-destructive flex-1">{displayMessage}</p>
         {exhausted ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
-            onClick={() => {
-              safeReloadPage();
-            }}
-          >
-            {t.errorCard.refreshPage}
-          </Button>
-        ) : (
-          onRetry && (
+          <div className="flex flex-col items-end gap-1 shrink-0">
             <Button
               size="sm"
               variant="outline"
-              className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0 h-11 px-2.5 gap-1 text-xs"
-              onClick={handleRetry}
-              disabled={isRetrying}
+              className="border-destructive/50 text-destructive hover:bg-destructive/10 h-11 px-2.5 gap-1 text-xs"
+              onClick={() => {
+                safeReloadPage();
+              }}
             >
-              <RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />
-              {isRetrying ? t.errorCard.retrying : t.errorCard.retry}
+              {t.errorCard.refreshPage}
             </Button>
+            <span className="text-[10px] text-muted-foreground">Failed after {MAX_RETRIES} attempts</span>
+          </div>
+        ) : (
+          onRetry && (
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-destructive/50 text-destructive hover:bg-destructive/10 h-11 px-2.5 gap-1 text-xs"
+                onClick={handleRetry}
+                disabled={isRetrying}
+              >
+                <RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />
+                {isRetrying ? t.errorCard.retrying : t.errorCard.retry}
+              </Button>
+              {retryCount > 0 && (
+                <span className="text-[10px] text-muted-foreground">
+                  {MAX_RETRIES - retryCount} attempt{MAX_RETRIES - retryCount !== 1 ? "s" : ""} left
+                </span>
+              )}
+            </div>
           )
         )}
       </CardContent>
