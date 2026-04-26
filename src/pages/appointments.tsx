@@ -84,7 +84,7 @@ const TASK_CARD_STYLES = {
   normal: "border-border/70 bg-background/80",
 };
 
-const ACTION_BUTTON_BASE = "h-8 px-3 text-xs";
+const ACTION_BUTTON_BASE = "h-9 px-3 text-sm";
 
 type MedicationMetadata = {
   createdBy?: string;
@@ -361,6 +361,8 @@ function isVetOrAdmin(role: string | null | undefined, effectiveRole: string | n
   return r === "vet" || r === "admin";
 }
 
+const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export default function AppointmentsPage() {
   const { userId, role, effectiveRole, isLoaded } = useAuth();
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
@@ -368,6 +370,7 @@ export default function AppointmentsPage() {
   const queryClient = useQueryClient();
   const urgentRef = useRef<HTMLDivElement>(null);
   const myTasksRef = useRef<HTMLDivElement>(null);
+  const bookingFormId = useId();
   const [day, setDay] = useState<string>(todayIsoDate());
   const [selectedVetId, setSelectedVetId] = useState<string>("");
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -1232,12 +1235,13 @@ export default function AppointmentsPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
             <div>
-              <label className="text-xs text-muted-foreground block text-right">Day</label>
-              <Input dir="ltr" className="text-left" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+              <label htmlFor={`${bookingFormId}-filter-day`} className="text-xs text-muted-foreground block text-right">Day</label>
+              <Input id={`${bookingFormId}-filter-day`} dir="ltr" className="text-left" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground block text-right">Technician</label>
+              <label htmlFor={`${bookingFormId}-filter-tech`} className="text-xs text-muted-foreground block text-right">Technician</label>
               <select
+                id={`${bookingFormId}-filter-tech`}
                 dir="ltr"
                 value={selectedVetId}
                 onChange={(e) => setSelectedVetId(e.target.value)}
@@ -1523,11 +1527,16 @@ export default function AppointmentsPage() {
 ) : (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Technician (required)</label>
+      <label htmlFor={`${bookingFormId}-vet`} className="text-xs text-muted-foreground block text-right">
+        Technician <span className="text-destructive" aria-hidden>*</span>
+      </label>
       <select
+        id={`${bookingFormId}-vet`}
         dir="ltr"
         value={formVetId}
         onChange={(e) => setFormVetId(e.target.value)}
+        required
+        aria-required="true"
         className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left"
       >
         <option value="">Select technician</option>
@@ -1540,19 +1549,27 @@ export default function AppointmentsPage() {
     </div>
 
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Device / Asset (required)</label>
+      <label htmlFor={`${bookingFormId}-asset`} className="text-xs text-muted-foreground block text-right">
+        Device / Asset <span className="text-destructive" aria-hidden>*</span>
+      </label>
       <Input
+        id={`${bookingFormId}-asset`}
         dir="ltr"
         className="text-left"
         value={formAnimalId}
         onChange={(e) => setFormAnimalId(e.target.value)}
         placeholder="e.g. Ventilator, Autoclave"
+        required
+        aria-required="true"
       />
     </div>
 
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Location / Department (optional)</label>
+      <label htmlFor={`${bookingFormId}-location`} className="text-xs text-muted-foreground block text-right">
+        Location / Department
+      </label>
       <Input
+        id={`${bookingFormId}-location`}
         dir="ltr"
         className="text-left"
         value={formOwnerId}
@@ -1562,8 +1579,9 @@ export default function AppointmentsPage() {
     </div>
 
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Task type</label>
+      <label htmlFor={`${bookingFormId}-tasktype`} className="text-xs text-muted-foreground block text-right">Task type</label>
       <select
+        id={`${bookingFormId}-tasktype`}
         dir="ltr"
         value={formTaskType ?? "maintenance"}
         onChange={(e) => {
@@ -1581,8 +1599,9 @@ export default function AppointmentsPage() {
     </div>
 
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Duration preset</label>
+      <label htmlFor={`${bookingFormId}-duration`} className="text-xs text-muted-foreground block text-right">Duration preset</label>
       <select
+        id={`${bookingFormId}-duration`}
         dir="ltr"
         value={String(selectedDuration)}
         onChange={(e) => {
@@ -1600,8 +1619,11 @@ export default function AppointmentsPage() {
     </div>
 
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Scheduled time</label>
+      <label htmlFor={`${bookingFormId}-start`} className="text-xs text-muted-foreground block text-right">
+        Scheduled time <span className="text-muted-foreground/70">({USER_TIMEZONE})</span>
+      </label>
       <Input
+        id={`${bookingFormId}-start`}
         dir="ltr"
         className="text-left"
         type="datetime-local"
@@ -1611,8 +1633,9 @@ export default function AppointmentsPage() {
     </div>
 
     <div>
-      <label className="text-xs text-muted-foreground block text-right">Expected end</label>
+      <label htmlFor={`${bookingFormId}-end`} className="text-xs text-muted-foreground block text-right">Expected end</label>
       <Input
+        id={`${bookingFormId}-end`}
         dir="ltr"
         className="text-left"
         type="datetime-local"
@@ -1625,8 +1648,9 @@ export default function AppointmentsPage() {
     </div>
 
     <div className="md:col-span-2">
-      <label className="text-xs text-muted-foreground block text-right">Notes</label>
+      <label htmlFor={`${bookingFormId}-notes`} className="text-xs text-muted-foreground block text-right">Notes</label>
       <Textarea
+        id={`${bookingFormId}-notes`}
         dir="ltr"
         className="text-left"
         value={formNotes}

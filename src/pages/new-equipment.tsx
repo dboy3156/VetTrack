@@ -122,6 +122,7 @@ export default function NewEquipmentPage() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    mode: "onBlur",
     defaultValues: {
       name: prefill.name,
       model: prefill.model || undefined,
@@ -319,11 +320,15 @@ export default function NewEquipmentPage() {
               </h2>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="name" className="text-sm font-medium">Name *</Label>
+                <Label htmlFor="name" className="text-sm font-medium">
+                  Name <span className="text-destructive" aria-hidden>*</span>
+                </Label>
                 <Input
                   id="name"
                   placeholder={t.newEquipment.fields.name.placeholder}
                   className="h-12 rounded-xl border-border/60 bg-background text-base"
+                  required
+                  aria-required="true"
                   {...register("name")}
                   data-testid="input-name"
                 />
@@ -482,11 +487,13 @@ export default function NewEquipmentPage() {
             data-testid="btn-save"
           >
             {isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden />
             ) : (
-              <Save className="w-4 h-4 mr-2" />
+              <Save className="w-4 h-4 mr-2" aria-hidden />
             )}
-            {isEditing ? t.newEquipment.saveChanges : t.newEquipment.saveEquipment}
+            {isPending
+              ? isEditing ? "Saving changes…" : "Saving equipment…"
+              : isEditing ? t.newEquipment.saveChanges : t.newEquipment.saveEquipment}
           </Button>
         </form>
       </div>
