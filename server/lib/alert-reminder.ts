@@ -1,6 +1,7 @@
 import { db, alertAcks, equipment } from "../db.js";
 import { eq, isNull, and } from "drizzle-orm";
 import { sendPushToUser } from "./push.js";
+import { postSystemMessage } from "./shift-chat-presence.js";
 
 const ALERT_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const REMINDER_DELAY_MS = Number(process.env.ALERT_REMINDER_DELAY_MS) || 30 * 60 * 1000;
@@ -89,6 +90,14 @@ async function checkAndSendReminders(): Promise<void> {
         } catch (pushErr) {
           console.error(`Push failed for ack ${ack.id}, will retry next cycle:`, pushErr);
           continue;
+        }
+
+        if (ack.alertType === "overdue") {
+          postSystemMessage(ack.clinicId, "equipment_overdue", {
+            equipmentId: ack.equipmentId,
+            equipmentName: eqRow.name,
+            minutesOverdue: 60,
+          }).catch(() => {});
         }
       }
 
