@@ -292,7 +292,7 @@ router.get("/sessions/active", requireAuth, async (req, res) => {
       const [animal] = await db
         .select({ name: animals.name, weight: animals.weightKg })
         .from(animals)
-        .where(eq(animals.id, session.patientId))
+        .where(and(eq(animals.id, session.patientId), eq(animals.clinicId, clinicId)))
         .limit(1);
       if (animal) {
         patientName = animal.name;
@@ -339,7 +339,10 @@ router.post("/sessions/:id/logs", requireAuth, validateUuid("id"), validateBody(
     const [existing] = await db
       .select({ id: codeBlueLogEntries.id })
       .from(codeBlueLogEntries)
-      .where(eq(codeBlueLogEntries.idempotencyKey, body.idempotencyKey))
+      .where(and(
+        eq(codeBlueLogEntries.sessionId, sessionId),
+        eq(codeBlueLogEntries.idempotencyKey, body.idempotencyKey),
+      ))
       .limit(1);
 
     if (existing) {
@@ -386,9 +389,23 @@ router.post("/sessions/:id/logs", requireAuth, validateUuid("id"), validateBody(
 router.patch("/sessions/:id/presence", requireAuth, validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
+    const clinicId = req.clinicId!;
     const { id: sessionId } = req.params;
     const userId = req.authUser!.id;
     const userName = req.authUser!.name;
+
+    // Verify session belongs to this clinic
+    const [session] = await db
+      .select({ id: codeBlueSessions.id })
+      .from(codeBlueSessions)
+      .where(and(eq(codeBlueSessions.id, sessionId), eq(codeBlueSessions.clinicId, clinicId)))
+      .limit(1);
+
+    if (!session) {
+      return res.status(404).json(
+        apiError({ code: "NOT_FOUND", reason: "SESSION_NOT_FOUND", message: "Session not found", requestId }),
+      );
+    }
 
     await db
       .insert(codeBluePresence)
@@ -470,7 +487,7 @@ router.patch("/sessions/:id/end", requireAuth, validateUuid("id"), validateBody(
     await db
       .update(codeBlueSessions)
       .set({ status: "ended", outcome, endedAt })
-      .where(eq(codeBlueSessions.id, sessionId));
+      .where(and(eq(codeBlueSessions.id, sessionId), eq(codeBlueSessions.clinicId, clinicId)));
 
     // Archive to vt_code_blue_events (backward compat)
     await db.insert(codeBlueEvents).values({
