@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Heebo:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,6 +36,23 @@
     --status-sterilized: 221 83% 53%;
     --sat: env(safe-area-inset-top);
     --sab: env(safe-area-inset-bottom);
+
+    /* ── Ivory design system tokens ── */
+    --ivory-bg:       #f3f1eb;
+    --ivory-surface:  #ffffff;
+    --ivory-border:   #d4d0c8;
+    --ivory-borderMd: #b8b4aa;
+    --ivory-text:     #111a12;
+    --ivory-text2:    #354838;
+    --ivory-text3:    #7a8a7e;
+    --ivory-navy:     #0f1f11;
+    --ivory-green:    #1e4a25;
+    --ivory-greenMid: #1e7a32;
+    --ivory-greenBg:  #e6f2e7;
+    --ivory-ok:       #16a34a;
+    --ivory-warn:     #d97706;
+    --ivory-err:      #dc2626;
+    --ivory-info:     #2563eb;
   }
 
   .dark {

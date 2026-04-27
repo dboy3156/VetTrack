@@ -57,6 +57,12 @@ import {
   CalendarClock,
   CalendarCheck,
   PawPrint,
+  CheckCircle2,
+  Clock,
+  LayoutGrid,
+  Home,
+  ScanLine,
+  Wrench,
 } from "lucide-react";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import {
@@ -79,6 +85,99 @@ import {
 import { exportEquipmentToExcel } from "@/lib/export-excel";
 import { ReturnPlugDialog } from "@/components/return-plug-dialog";
 import { haptics } from "@/lib/haptics";
+import { PageShell } from "@/components/layout/PageShell";
+import { StatCard } from "@/components/stats/StatCard";
+import { EquipmentTable } from "@/components/equipment/EquipmentTable";
+import { EquipmentFilters } from "@/components/equipment/EquipmentFilters";
+import { AlertCard } from "@/components/alerts/AlertCard";
+import type { SidebarItem } from "@/components/layout/IconSidebar";
+
+const EQUIPMENT_SIDEBAR: SidebarItem[] = [
+  { href: "/equipment",             icon: LayoutGrid, label: "All Equipment" },
+  { href: "/rooms",                 icon: Home,       label: "Rooms" },
+  { href: "/equipment/scan",        icon: ScanLine,   label: "Scan Log" },
+  { href: "/equipment/maintenance", icon: Wrench,     label: "Maintenance", alertDot: false },
+];
+
+function DesktopEquipmentView({
+  equipment,
+  isLoading,
+}: {
+  equipment: Equipment[] | undefined;
+  isLoading: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
+
+  const rows = (equipment ?? [])
+    .filter(
+      (eq) =>
+        eq.name.toLowerCase().includes(search.toLowerCase()) ||
+        eq.id.toLowerCase().includes(search.toLowerCase())
+    )
+    .map((eq) => ({
+      id:       eq.id,
+      name:     eq.name,
+      location: eq.location ?? "—",
+      lastScan: eq.lastSeen
+        ? new Date(eq.lastSeen).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })
+        : "Never",
+      status:
+        eq.status === "ok"          ? "Operational"
+        : eq.status === "issue"     ? "Review Needed"
+        : eq.status === "critical"  ? "Review Needed"
+        : eq.status === "needs_attention" ? "Due Check"
+        : eq.status === "maintenance" ? "Maintenance"
+        : eq.status === "sterilized"  ? "Sterilized"
+        : "Operational",
+    }));
+
+  const total       = equipment?.length ?? 0;
+  const operational = equipment?.filter((e) => e.status === "ok").length ?? 0;
+  const maintenance = equipment?.filter((e) => e.status === "maintenance").length ?? 0;
+  const review      = equipment?.filter((e) => e.status === "issue" || e.status === "critical").length ?? 0;
+
+  const alerts = [
+    review > 0      && { tone: "err"  as const, icon: AlertTriangle, title: `${review} overdue check${review > 1 ? "s" : ""}` },
+    maintenance > 0 && { tone: "warn" as const, icon: Clock,         title: `${maintenance} device${maintenance > 1 ? "s" : ""} in maintenance` },
+    operational > 0 && { tone: "ok"   as const, icon: CheckCircle2,  title: `${operational} device${operational > 1 ? "s" : ""} healthy` },
+  ].filter(Boolean) as { tone: "err" | "warn" | "ok"; icon: typeof AlertTriangle; title: string }[];
+
+  return (
+    <div className="flex flex-col gap-5">
+      <h1 className="text-[19px] font-bold tracking-[-0.02em] text-ivory-text leading-none">
+        Equipment Overview
+      </h1>
+
+      <div className="grid grid-cols-4 gap-3">
+        <StatCard title="Total"        value={String(total)}       sub="items tracked"   tone="info" />
+        <StatCard title="Operational"  value={String(operational)} sub={`${total > 0 ? ((operational / total) * 100).toFixed(1) : 0}% uptime`} tone="ok" />
+        <StatCard title="Maintenance"  value={String(maintenance)} sub="scheduled"       tone="warn" />
+        <StatCard title="Needs Review" value={String(review)}      sub="action required" tone="err" delta={review > 0 ? "overdue" : undefined} deltaDir="down" />
+      </div>
+
+      <EquipmentFilters
+        search={search}
+        onSearchChange={setSearch}
+        onAdd={() => navigate("/equipment/new")}
+      />
+
+      {isLoading ? (
+        <div className="text-[13px] text-ivory-text3 py-8 text-center">Loading…</div>
+      ) : (
+        <EquipmentTable rows={rows} />
+      )}
+
+      {alerts.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {alerts.map((a) => (
+            <AlertCard key={a.title} icon={a.icon} title={a.title} tone={a.tone} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const VIRTUALIZATION_THRESHOLD = 100;
 const SERVER_PAGE_SIZE = 100;
@@ -336,6 +435,17 @@ export default function EquipmentListPage() {
   ), []);
 
   const manualFolders = folders?.filter((f) => f.type !== "smart") || [];
+
+  // Desktop render — all hooks already called above this point.
+  // Note: for production, replace with a proper useMediaQuery hook.
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  if (isDesktop) {
+    return (
+      <PageShell sidebarItems={EQUIPMENT_SIDEBAR}>
+        <DesktopEquipmentView equipment={equipment} isLoading={isLoading} />
+      </PageShell>
+    );
+  }
 
   return (
     <Layout>

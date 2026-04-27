@@ -1,0 +1,35 @@
+// src/components/layout/PageShell.tsx
+// Desktop page wrapper. Renders Topbar + optional IconSidebar + content area.
+// Does NOT replace the existing mobile Layout — that stays for mobile views.
+// Use this for desktop-first pages.
+
+import { Topbar } from "@/components/layout/Topbar";
+import { IconSidebar, SidebarDivider } from "@/components/layout/IconSidebar";
+import { useDirection } from "@/hooks/useDirection";
+import type { SidebarItem } from "@/components/layout/IconSidebar";
+
+interface PageShellProps {
+  /** Sidebar items for the current section. Omit to hide the sidebar (e.g. on Home). */
+  sidebarItems?: SidebarItem[];
+  children: React.ReactNode;
+}
+
+export function PageShell({ sidebarItems, children }: PageShellProps) {
+  const dir = useDirection();
+
+  return (
+    <div dir={dir} className="min-h-screen bg-ivory-bg text-ivory-text flex flex-col">
+      <Topbar />
+      <div className="flex flex-1 overflow-hidden">
+        {sidebarItems && sidebarItems.length > 0 && (
+          <IconSidebar items={sidebarItems} />
+        )}
+        <section className="flex-1 px-7 pt-[14px] pb-6 overflow-y-auto">
+          {children}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export { SidebarDivider };
