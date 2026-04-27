@@ -364,25 +364,27 @@ END $$;
 
 DO $$
 DECLARE
-  orphan_count INTEGER;
+  orphan_count INTEGER := 0;
 BEGIN
-  SELECT COUNT(*) INTO orphan_count
-  FROM vt_purchase_orders po
-  WHERE NOT EXISTS (SELECT 1 FROM vt_clinics c WHERE c.id = po.clinic_id);
-  IF orphan_count > 0 THEN
-    RAISE EXCEPTION 'vt_purchase_orders: % orphan rows reference non-existent clinic_id', orphan_count;
+  -- Guard: skip entirely if vt_purchase_orders was not created (table may not exist).
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vt_purchase_orders') THEN
+    EXECUTE 'SELECT COUNT(*) FROM vt_purchase_orders po WHERE NOT EXISTS (SELECT 1 FROM vt_clinics c WHERE c.id = po.clinic_id)' INTO orphan_count;
+    IF orphan_count > 0 THEN
+      RAISE EXCEPTION 'vt_purchase_orders: % orphan rows reference non-existent clinic_id', orphan_count;
+    END IF;
   END IF;
 END $$;
 
 DO $$
 DECLARE
-  orphan_count INTEGER;
+  orphan_count INTEGER := 0;
 BEGIN
-  SELECT COUNT(*) INTO orphan_count
-  FROM vt_po_lines pl
-  WHERE NOT EXISTS (SELECT 1 FROM vt_clinics c WHERE c.id = pl.clinic_id);
-  IF orphan_count > 0 THEN
-    RAISE EXCEPTION 'vt_po_lines: % orphan rows reference non-existent clinic_id', orphan_count;
+  -- Guard: skip entirely if vt_po_lines was not created (table may not exist).
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vt_po_lines') THEN
+    EXECUTE 'SELECT COUNT(*) FROM vt_po_lines pl WHERE NOT EXISTS (SELECT 1 FROM vt_clinics c WHERE c.id = pl.clinic_id)' INTO orphan_count;
+    IF orphan_count > 0 THEN
+      RAISE EXCEPTION 'vt_po_lines: % orphan rows reference non-existent clinic_id', orphan_count;
+    END IF;
   END IF;
 END $$;
 
@@ -750,24 +752,28 @@ END $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE table_name = 'vt_purchase_orders' AND constraint_name = 'vt_purchase_orders_clinic_id_fk'
-  ) THEN
-    ALTER TABLE vt_purchase_orders
-      ADD CONSTRAINT vt_purchase_orders_clinic_id_fk
-      FOREIGN KEY (clinic_id) REFERENCES vt_clinics(id) ON DELETE RESTRICT;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vt_purchase_orders') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.table_constraints
+      WHERE table_name = 'vt_purchase_orders' AND constraint_name = 'vt_purchase_orders_clinic_id_fk'
+    ) THEN
+      ALTER TABLE vt_purchase_orders
+        ADD CONSTRAINT vt_purchase_orders_clinic_id_fk
+        FOREIGN KEY (clinic_id) REFERENCES vt_clinics(id) ON DELETE RESTRICT;
+    END IF;
   END IF;
 END $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE table_name = 'vt_po_lines' AND constraint_name = 'vt_po_lines_clinic_id_fk'
-  ) THEN
-    ALTER TABLE vt_po_lines
-      ADD CONSTRAINT vt_po_lines_clinic_id_fk
-      FOREIGN KEY (clinic_id) REFERENCES vt_clinics(id) ON DELETE RESTRICT;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vt_po_lines') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.table_constraints
+      WHERE table_name = 'vt_po_lines' AND constraint_name = 'vt_po_lines_clinic_id_fk'
+    ) THEN
+      ALTER TABLE vt_po_lines
+        ADD CONSTRAINT vt_po_lines_clinic_id_fk
+        FOREIGN KEY (clinic_id) REFERENCES vt_clinics(id) ON DELETE RESTRICT;
+    END IF;
   END IF;
 END $$;
