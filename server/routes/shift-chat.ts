@@ -298,4 +298,138 @@ router.post(
   },
 );
 
+// ─── POST /api/shift-chat/messages/:id/pin ───────────────────────────────────
+// Allowed: doctor (vet, level 30), senior_technician (level 25), admin (level 40)
+// requireEffectiveRole("senior_technician") covers all three since vet (30) >= senior_tech (25)
+
+router.post(
+  "/messages/:id/pin",
+  requireAuth,
+  requireEffectiveRole("senior_technician"),
+  async (req, res) => {
+    const clinicId  = req.clinicId!;
+    const userId    = req.authUser!.id;
+    const messageId = req.params.id;
+
+    try {
+      const shift = await getOpenShift(clinicId);
+      if (!shift) {
+        return res.status(409).json({ error: "CONFLICT", reason: "NO_OPEN_SHIFT", message: "No active shift" });
+      }
+
+      // Unpin all current pinned messages for this shift
+      await db
+        .update(shiftMessages)
+        .set({ pinnedAt: null, pinnedByUserId: null })
+        .where(
+          and(
+            eq(shiftMessages.shiftSessionId, shift.id),
+            eq(shiftMessages.clinicId, clinicId),
+          ),
+        );
+
+      // Pin the target message
+      const now = new Date();
+      const [updated] = await db
+        .update(shiftMessages)
+        .set({ pinnedAt: now, pinnedByUserId: userId })
+        .where(and(eq(shiftMessages.id, messageId), eq(shiftMessages.clinicId, clinicId)))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ error: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" });
+      }
+
+      return res.json({ ok: true, pinnedAt: now });
+    } catch (err) {
+      console.error("[shift-chat] POST /messages/:id/pin error:", err);
+      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+    }
+  },
+);
+
+// ─── POST /api/shift-chat/reactions ──────────────────────────────────────────
+
+const reactionSchema = z.object({
+  messageId: z.string(),
+  emoji: z.enum(["👍", "✅", "👀"]),
+});
+
+router.post(
+  "/reactions",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  writeLimiter,
+  validateBody(reactionSchema),
+  async (req, res) => {
+    const clinicId = req.clinicId!;
+    const userId   = req.authUser!.id;
+    const { messageId, emoji } = req.body as z.infer<typeof reactionSchema>;
+
+    try {
+      // Verify message belongs to clinic
+      const [message] = await db
+        .select({ id: shiftMessages.id })
+        .from(shiftMessages)
+        .where(and(eq(shiftMessages.id, messageId), eq(shiftMessages.clinicId, clinicId)))
+        .limit(1);
+
+      if (!message) {
+        return res.status(404).json({ error: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" });
+      }
+
+      // Toggle: delete if exists, insert if not
+      const existing = await db
+        .select()
+        .from(shiftMessageReactions)
+        .where(
+          and(
+            eq(shiftMessageReactions.messageId, messageId),
+            eq(shiftMessageReactions.userId, userId),
+            eq(shiftMessageReactions.emoji, emoji),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db
+          .delete(shiftMessageReactions)
+          .where(
+            and(
+              eq(shiftMessageReactions.messageId, messageId),
+              eq(shiftMessageReactions.userId, userId),
+              eq(shiftMessageReactions.emoji, emoji),
+            ),
+          );
+        return res.json({ action: "removed" });
+      }
+
+      await db
+        .insert(shiftMessageReactions)
+        .values({ messageId, userId, emoji });
+
+      return res.json({ action: "added" });
+    } catch (err) {
+      console.error("[shift-chat] POST /reactions error:", err);
+      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+    }
+  },
+);
+
+// ─── POST /api/shift-chat/typing ─────────────────────────────────────────────
+// Lightweight — no DB write. Updates in-memory presence map only.
+
+router.post(
+  "/typing",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  async (req, res) => {
+    const clinicId = req.clinicId!;
+    const userId   = req.authUser!.id;
+    const name     = req.authUser!.name ?? "Unknown";
+    touchPresence(clinicId, userId, name, true);
+    return res.json({ ok: true });
+  },
+);
+
 export default router;
