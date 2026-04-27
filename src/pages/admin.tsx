@@ -965,20 +965,39 @@ function UsersSection() {
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <div className="flex gap-1.5 justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 px-2 text-xs"
-                      data-testid={`btn-soft-delete-user-${user.id}`}
-                      disabled={deleteUserMut.isPending || Boolean(user.deletedAt)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!confirm("למחוק את המשתמש?")) return;
-                        deleteUserMut.mutate(user.id);
-                      }}
-                    >
-                      מחק
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2 text-xs"
+                          data-testid={`btn-soft-delete-user-${user.id}`}
+                          disabled={deleteUserMut.isPending || Boolean(user.deletedAt)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          מחק
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            מחיקת {user.displayName || user.name || user.email}?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            המשתמש יסומן כמחוק. ניתן לשחזר אותו מאוחר יותר.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>ביטול</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteUserMut.mutate(user.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            כן, מחק
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                     {user.deletedAt ? (
                       <Button
                         size="sm"
