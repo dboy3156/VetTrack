@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link, Redirect, useParams } from "wouter";
+import { Link, Redirect, useLocation, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  AlertTriangle,
   ArrowLeft,
   ArrowUpRight,
   ClipboardList,
@@ -117,6 +118,7 @@ function SectionTitle({
 export default function PatientDetailPage() {
   const { id: animalId } = useParams<{ id: string }>();
   const p = t.patientDetail;
+  const [, navigate] = useLocation();
   const { userId, effectiveRole, role } = useAuth();
   const { settings } = useSettings();
   const dir = getDirection(settings.locale);
@@ -430,6 +432,12 @@ export default function PatientDetailPage() {
                   <Stethoscope className="h-4 w-4 text-foreground/70" />
                   <span className="text-sm font-semibold text-foreground">{statusLabel}</span>
                 </span>
+                {hosp.status === "critical" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-900/60 border border-red-700/50 text-red-300 text-xs px-2 py-0.5 font-semibold">
+                    <AlertTriangle className="h-3 w-3" />
+                    סיכון CPR
+                  </span>
+                )}
                 {(hosp.ward || hosp.bay) ? (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -451,6 +459,16 @@ export default function PatientDetailPage() {
                 >
                   מטופלים פעילים ←
                 </Link>
+                {(role === "vet" || role === "admin" || role === "technician" || role === "senior_technician") && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/code-blue?patientId=${hosp.animalId}&hospitalizationId=${hosp.id}`)}
+                    className="flex items-center gap-1 rounded border border-red-800/60 bg-red-950/50 text-red-400 hover:bg-red-900/50 px-3 py-1.5 text-xs font-semibold transition-colors shrink-0"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    CODE BLUE
+                  </button>
+                )}
               </div>
             );
           })() : null}
