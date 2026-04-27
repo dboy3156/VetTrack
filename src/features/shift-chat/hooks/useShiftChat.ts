@@ -18,7 +18,7 @@ export function useShiftChat(isOpen: boolean) {
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => shiftChatApi.getMessages(afterRef.current),
-    enabled: !!userId && isOpen,
+    enabled: !!userId,
     refetchInterval: isOpen ? POLL_INTERVAL_MS : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
@@ -28,7 +28,10 @@ export function useShiftChat(isOpen: boolean) {
   // Track the latest message timestamp for incremental polling
   useEffect(() => {
     if (data?.messages?.length) {
-      afterRef.current = data.messages[data.messages.length - 1]!.createdAt;
+      const candidate = data.messages[data.messages.length - 1]!.createdAt;
+      if (!afterRef.current || candidate > afterRef.current) {
+        afterRef.current = candidate;
+      }
     }
   }, [data?.messages]);
 
@@ -92,6 +95,12 @@ export function useShiftChat(isOpen: boolean) {
     typingTimer.current = setTimeout(() => {
       typingTimer.current = null;
     }, TYPING_DEBOUNCE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+    };
   }, []);
 
   // ── React ──────────────────────────────────────────────────────────────────
