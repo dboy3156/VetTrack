@@ -459,7 +459,7 @@ export default function PatientDetailPage() {
                 >
                   מטופלים פעילים ←
                 </Link>
-                {(role === "vet" || role === "admin" || role === "technician" || role === "senior_technician") && (
+                {(resolvedRole === "vet" || resolvedRole === "admin" || resolvedRole === "technician" || resolvedRole === "senior_technician") && (
                   <button
                     type="button"
                     onClick={() => navigate(`/code-blue?patientId=${hosp.animalId}&hospitalizationId=${hosp.id}`)}
