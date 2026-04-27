@@ -1,0 +1,118 @@
+// src/pages/code-blue-history.tsx
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { authFetch } from "@/lib/auth-fetch";
+import { useAuth } from "@/hooks/use-auth";
+import type { CodeBlueSession } from "@/hooks/useCodeBlueSession";
+
+const OUTCOME_LABELS: Record<string, string> = {
+  rosc: "ROSC",
+  died: "נפטר",
+  transferred: "הועבר",
+  ongoing: "ממשיך",
+};
+
+const OUTCOME_COLORS: Record<string, string> = {
+  rosc: "text-green-400",
+  died: "text-red-400",
+  transferred: "text-blue-400",
+  ongoing: "text-amber-400",
+};
+
+export default function CodeBlueHistoryPage() {
+  const { userId, role } = useAuth();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const historyQ = useQuery<CodeBlueSession[]>({
+    queryKey: ["/api/code-blue/history"],
+    queryFn: async () => {
+      const res = await authFetch("/api/code-blue/history");
+      if (!res.ok) throw new Error("failed");
+      return res.json();
+    },
+    enabled: !!userId && (role === "admin"),
+  });
+
+  if (role !== "admin") {
+    return (
+      <div className="p-8 text-center text-zinc-500">גישה לאדמין בלבד</div>
+    );
+  }
+
+  const sessions = historyQ.data ?? [];
+
+  return (
+    <div className="min-h-screen bg-background p-4 max-w-4xl mx-auto" dir="rtl">
+      <h1 className="text-xl font-bold mb-6 flex items-center gap-2">
+        <Clock className="h-5 w-5 text-red-400" />
+        היסטוריית CODE BLUE
+      </h1>
+
+      {historyQ.isPending && <p className="text-zinc-500">טוען...</p>}
+
+      {sessions.length === 0 && !historyQ.isPending && (
+        <p className="text-zinc-500">אין אירועים בהיסטוריה</p>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {sessions.map((s) => {
+          const expanded = expandedId === s.id;
+          const duration = s.endedAt
+            ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 60000)
+            : null;
+
+          return (
+            <div key={s.id} className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <button
+                type="button"
+                className="w-full p-4 flex items-center gap-4 text-right hover:bg-zinc-800/50 transition-colors"
+                onClick={() => setExpandedId(expanded ? null : s.id)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-semibold text-white">
+                      {new Date(s.startedAt).toLocaleDateString("he-IL", {
+                        day: "2-digit", month: "2-digit", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                    {s.outcome && (
+                      <span className={`text-sm font-bold ${OUTCOME_COLORS[s.outcome] ?? "text-zinc-400"}`}>
+                        {OUTCOME_LABELS[s.outcome] ?? s.outcome}
+                      </span>
+                    )}
+                    {duration !== null && (
+                      <span className="text-xs text-zinc-500">{duration} דק׳</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-0.5">
+                    מנהל: {s.managerUserName} · פתח: {s.startedByName}
+                  </div>
+                </div>
+                {expanded ? <ChevronUp className="h-4 w-4 text-zinc-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />}
+              </button>
+
+              {expanded && (
+                <div className="border-t border-zinc-800 px-4 py-3 text-sm text-zinc-400">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                    <span className="text-zinc-500">תחילת אירוע</span>
+                    <span>{new Date(s.startedAt).toLocaleTimeString("he-IL")}</span>
+                    {s.endedAt && (
+                      <>
+                        <span className="text-zinc-500">סיום אירוע</span>
+                        <span>{new Date(s.endedAt).toLocaleTimeString("he-IL")}</span>
+                      </>
+                    )}
+                    <span className="text-zinc-500">בדיקת עגלה</span>
+                    <span>{s.preCheckPassed === true ? "עברה ✓" : s.preCheckPassed === false ? "לא עברה ✗" : "לא בוצעה"}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
