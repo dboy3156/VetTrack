@@ -1229,7 +1229,7 @@ export interface DisplaySnapshotCodeBlueSession {
   ward: string | null;
   bay: string | null;
   preCheckPassed: boolean | null;
-  pushSentAt: string;
+  pushSentAt: string | null;
   logEntries: Array<{
     elapsedMs: number;
     label: string;

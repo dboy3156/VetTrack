@@ -429,8 +429,8 @@ function CodeBlueOverlay({
               <div className="text-[10px] font-bold tracking-[.08em] uppercase text-red-700/60 mb-2">
                 ציוד מחובר
               </div>
-              {attachedEquipment.map((e, i) => (
-                <div key={i} className="text-[12px] text-red-200 mb-1">
+              {attachedEquipment.map((e) => (
+                <div key={e.label} className="text-[12px] text-red-200 mb-1">
                   {e.label}
                 </div>
               ))}
@@ -444,12 +444,12 @@ function CodeBlueOverlay({
             יומן אירוע
           </div>
           <div className="space-y-2">
-            {displayedLogs.map((entry, i) => {
+            {displayedLogs.map((entry) => {
               const em = Math.floor(entry.elapsedMs / 60_000);
               const es = Math.floor((entry.elapsedMs % 60_000) / 1_000);
               const entryTime = `${String(em).padStart(2, "0")}:${String(es).padStart(2, "0")}`;
               return (
-                <div key={i} className="flex gap-2 text-[12px]">
+                <div key={`${entry.elapsedMs}-${entry.label}`} className="flex gap-2 text-[12px]">
                   <span className="text-red-500 tabular-nums min-w-[42px] text-[11px] shrink-0">
                     {entryTime}
                   </span>
@@ -488,7 +488,9 @@ function CodeBlueOverlay({
           <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-2">
             עגלת חירום
           </div>
-          <div className="text-[12px] text-green-400 mb-4">✓ זמינה</div>
+          <div className={`text-[12px] mb-4 ${session.preCheckPassed === false ? "text-red-400" : "text-green-400"}`}>
+            {session.preCheckPassed === false ? "⚠ לא נבדקה" : "✓ זמינה"}
+          </div>
 
           {minutesSincePush !== null && (
             <>
