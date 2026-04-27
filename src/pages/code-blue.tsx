@@ -8,6 +8,7 @@ import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/hooks/use-auth";
 import { useCodeBlueSession } from "@/hooks/useCodeBlueSession";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -231,7 +232,7 @@ function OutcomeModal({ onClose }: { onClose: (outcome: string) => void }) {
             </button>
           ))}
         </div>
-        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={() => onClose("")}>ביטול</button>
+        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={() => onClose("")}>{t.common.cancel}</button>
       </div>
     </div>
   );
@@ -270,7 +271,7 @@ function EquipmentPicker({ onSelect, onClose }: { onSelect: (item: EquipmentItem
           ))}
           {equipQ.data?.length === 0 && <p className="text-zinc-500 text-sm">אין ציוד זמין</p>}
         </div>
-        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={onClose}>ביטול</button>
+        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={onClose}>{t.common.cancel}</button>
       </div>
     </div>
   );
