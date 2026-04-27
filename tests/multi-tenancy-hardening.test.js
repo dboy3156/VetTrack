@@ -20,7 +20,14 @@ const routeFiles = fs
 
 const dbRouteFiles = routeFiles.filter((filePath) => {
   const src = fs.readFileSync(filePath, "utf8");
-  return src.includes("from(equipment)") || src.includes("from(users)") || src.includes("from(folders)") || src.includes("from(rooms)");
+  return (
+    src.includes("from(equipment)") ||
+    src.includes("from(users)") ||
+    src.includes("from(folders)") ||
+    src.includes("from(rooms)") ||
+    src.includes("from(hospitalizations)") ||
+    src.includes("from(animals)")
+  );
 });
 
 describe("Multi-Tenancy Hardening Smoke Test", () => {

@@ -55,8 +55,11 @@ jobs:
       - name: 📥 Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: 🔷 TypeScript
+      - name: 🔷 TypeScript (frontend)
         run: pnpm exec tsc --noEmit
+
+      - name: 🔷 TypeScript (server)
+        run: pnpm exec tsc --noEmit --project tsconfig.server-check.json
 
       - name: 🏗️ Frontend build
         run: |
