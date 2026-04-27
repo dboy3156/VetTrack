@@ -447,7 +447,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
   const operationMenuItems = useMemo(
     () =>
-      ["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/patients", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
+      ["/", "/equipment", "/alerts", "/code-blue", "/crash-cart", "/my-equipment", "/appointments", "/patients", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
