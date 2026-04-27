@@ -31,12 +31,13 @@ import { safeRedisSetex } from "../lib/redis.js";
 import { decryptConfigValue } from "../lib/config-crypto.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
-import { db, billingLedger, inventoryLogs, serverConfig, shiftSessions, users } from "../db.js";
-import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { db, appointments, animals, billingLedger, inventoryLogs, serverConfig, shiftSessions, users } from "../db.js";
+import { and, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { getLocaleDictionaries } from "../../lib/i18n/loader.js";
 import { translate } from "../../lib/i18n/index.js";
 
 const OVERDUE_SCAN_MS = 5 * 60 * 1000;
+const OVERDUE_MED_SCAN_MS = 60_000;
 const AUTOMATION_TICK_MS = 90 * 1000;
 
 async function getUserLocale(userId: string): Promise<string> {
@@ -84,6 +85,62 @@ async function scanOverdueAndEnqueue(): Promise<void> {
   if (process.env.NODE_ENV !== "production") console.log("OVERDUE_SCAN_ENQUEUED", { users: rows.length });
 }
 
+async function scanOverdueMedications(): Promise<void> {
+  const now = new Date();
+
+  // Find medication tasks that are overdue and not yet notified
+  const overdueAppts = await db
+    .select({
+      id: appointments.id,
+      clinicId: appointments.clinicId,
+      animalId: appointments.animalId,
+      animalName: animals.name,
+      notes: appointments.notes,
+      startTime: appointments.startTime,
+      vetId: appointments.vetId,
+    })
+    .from(appointments)
+    .innerJoin(animals, eq(appointments.animalId, animals.id))
+    .where(
+      and(
+        eq(appointments.taskType, "medication"),
+        inArray(appointments.status, ["pending", "assigned"]),
+        lt(appointments.startTime, now),
+        isNull(appointments.overdueNotifiedAt),
+        sql`${appointments.animalId} is not null`,
+      ),
+    );
+
+  for (const appt of overdueAppts) {
+    if (!appt.animalId || !appt.clinicId) continue;
+
+    const minutesLate = Math.floor((now.getTime() - appt.startTime.getTime()) / 60_000);
+    const drugName = appt.notes ?? "תרופה";
+
+    if (appt.vetId) {
+      await enqueueNotificationJob({
+        type: "overdue_medication_alert",
+        clinicId: appt.clinicId,
+        userId: appt.vetId,
+        animalName: appt.animalName,
+        drugName,
+        minutesLate,
+        animalId: appt.animalId,
+      });
+    }
+
+    // Mark as notified to prevent re-firing on next scan
+    await db
+      .update(appointments)
+      .set({ overdueNotifiedAt: now })
+      .where(eq(appointments.id, appt.id));
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("OVERDUE_MED_SCAN", { count: overdueAppts.length });
+  }
+}
+
 async function processSendNotification(data: NotificationJobData): Promise<void> {
   if (isCircuitOpen("push")) {
     incrementMetric("circuit_breaker_opened");
@@ -122,6 +179,20 @@ async function processSendNotification(data: NotificationJobData): Promise<void>
       5000,
       "automation push role",
     );
+    return;
+  }
+  if (data.type === "overdue_medication_alert") {
+    await withTimeout(
+      sendPushToUser(data.clinicId, data.userId, {
+        title: "💊 תרופה באיחור",
+        body: `${data.animalName} — ${data.drugName} · ${data.minutesLate} דק׳ באיחור`,
+        tag: `overdue-med-${data.animalId}`,
+        url: `/patients/${data.animalId}`,
+      }),
+      5_000,
+      "overdue medication alert",
+    );
+    return;
   }
 }
 
@@ -387,6 +458,16 @@ async function main(): Promise<void> {
   );
 
   await queue.add(
+    "scan_overdue_medications",
+    {},
+    {
+      jobId: "repeat-overdue-medications",
+      repeat: { every: OVERDUE_MED_SCAN_MS },
+      removeOnComplete: 100,
+    },
+  );
+
+  await queue.add(
     "automation_tick",
     {},
     {
@@ -397,6 +478,7 @@ async function main(): Promise<void> {
   );
 
   void scanOverdueAndEnqueue().catch((err) => console.error("[worker] initial overdue scan failed:", err));
+  void scanOverdueMedications().catch((err) => console.error("[worker] initial overdue med scan failed:", err));
   void scanAndEnqueueAutomationJobs().catch((err) => console.error("[worker] initial automation scan failed:", err));
 
   // Heartbeat: health checks read this key to confirm the worker is alive.
@@ -426,6 +508,8 @@ async function main(): Promise<void> {
       try {
         if (job.name === "scan_overdue_reminders") {
           await scanOverdueAndEnqueue();
+        } else if (job.name === "scan_overdue_medications") {
+          await scanOverdueMedications();
         } else if (job.name === "automation_tick") {
           await scanAndEnqueueAutomationJobs();
         } else if (job.name === "automation_execute") {

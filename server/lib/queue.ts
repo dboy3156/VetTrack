@@ -184,6 +184,15 @@ export type NotificationJobData =
       clinicId: string;
       shiftSessionId: string;
       managerEmail: string;
+    }
+  | {
+      type: "overdue_medication_alert";
+      clinicId: string;
+      userId: string;
+      animalName: string;
+      drugName: string;
+      minutesLate: number;
+      animalId: string;
     };
 
 /**
