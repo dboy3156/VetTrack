@@ -744,6 +744,26 @@ export const poLines = pgTable(
   }),
 );
 
+export const codeBlueOutcomeEnum = pgEnum("vt_code_blue_outcome", ["rosc", "died", "transferred", "ongoing"]);
+
+export const codeBlueEvents = pgTable(
+  "vt_code_blue_events",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    startedByUserId: text("started_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    outcome: codeBlueOutcomeEnum("outcome"),
+    notes: text("notes"),
+    timeline: jsonb("timeline").$type<Array<{ elapsed: number; label: string }>>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    clinicStartedIdx: index("idx_vt_code_blue_events_clinic_started").on(table.clinicId, table.startedAt),
+  }),
+);
+
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
   // This function is kept as a thin wrapper for backwards compatibility.
