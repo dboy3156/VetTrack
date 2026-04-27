@@ -212,7 +212,10 @@ export function usePushNotifications() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to save subscription");
+      if (!res.ok) {
+        const errData = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(errData.message || "Failed to save subscription");
+      }
 
       safeStorageSetItem("push_subscription_endpoint", subJson.endpoint || "");
       setState((s) => ({ ...s, subscribed: true, loading: false }));
@@ -294,10 +297,10 @@ export function usePushNotifications() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; success?: boolean };
+      const data = (await res.json().catch(() => ({}))) as { message?: string; success?: boolean };
       if (!res.ok) {
         const msg =
-          data.error ||
+          data.message ||
           (res.status === 503
             ? "Push not configured on server"
             : res.status === 409
