@@ -420,6 +420,42 @@ router.post(
   },
 );
 
+// ─── GET /api/shift-chat/archive/:shiftId ────────────────────────────────────
+// Read-only history for a completed shift. Accessible to senior_technician + admin.
+
+router.get(
+  "/archive/:shiftId",
+  requireAuth,
+  requireEffectiveRole("senior_technician"),
+  async (req, res) => {
+    const clinicId = req.clinicId!;
+    const shiftId  = req.params.shiftId;
+
+    try {
+      const [shift] = await db
+        .select()
+        .from(shiftSessions)
+        .where(and(eq(shiftSessions.id, shiftId), eq(shiftSessions.clinicId, clinicId)))
+        .limit(1);
+
+      if (!shift) {
+        return res.status(404).json({ error: "NOT_FOUND", reason: "SHIFT_NOT_FOUND", message: "Shift not found" });
+      }
+
+      const messages = await db
+        .select()
+        .from(shiftMessages)
+        .where(eq(shiftMessages.shiftSessionId, shiftId))
+        .orderBy(asc(shiftMessages.createdAt));
+
+      return res.json({ messages, shift });
+    } catch (err) {
+      console.error("[shift-chat] GET /archive/:shiftId error:", err);
+      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+    }
+  },
+);
+
 // ─── POST /api/shift-chat/typing ─────────────────────────────────────────────
 // Lightweight — no DB write. Updates in-memory presence map only.
 
