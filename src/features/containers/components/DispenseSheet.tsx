@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { t } from "@/lib/i18n";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -314,7 +315,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                     אשר פירוט חירום
                   </Button>
                   <button onClick={onClose} className="w-full text-sm text-muted-foreground py-2 min-h-[44px]">
-                    ביטול
+                    {t.common.cancel}
                   </button>
                 </div>
               </>
@@ -590,7 +591,7 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
               onClick={onClose}
               className="w-full text-sm text-muted-foreground py-2 min-h-[44px]"
             >
-              ביטול
+              {t.common.cancel}
             </button>
           </div>
         </div>

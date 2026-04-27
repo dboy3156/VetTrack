@@ -825,10 +825,10 @@ export default function PharmacyForecastPage() {
                     data-testid="btn-save-pharmacy-email"
                   >
                     {saveEmailMutation.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                    שמור
+                    {t.common.save}
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingEmail(false)}>
-                    ביטול
+                    {t.common.cancel}
                   </Button>
                   </div>
                 </div>

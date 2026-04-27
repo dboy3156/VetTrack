@@ -1,4 +1,4 @@
-import { t } from "@/lib/i18n";
+import { t, formatDateTimeByLocale } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -198,7 +198,7 @@ export function ShiftSummarySheet({ open, onClose }: ShiftSummarySheetProps) {
     y += 8;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    doc.text(`Generated: ${formatDateTimeByLocale(new Date())}`, margin, y);
     y += 8;
     doc.setDrawColor(200, 200, 200);
     doc.line(margin, y, 196, y);

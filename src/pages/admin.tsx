@@ -73,7 +73,7 @@ import type {
   DeletedEquipment,
 } from "@/types";
 import { SharedAuditLogsPanel } from "./audit-log";
-import { t } from "@/lib/i18n";
+import { t, formatDateByLocale } from "@/lib/i18n";
 import { haptics } from "@/lib/haptics";
 
 export default function AdminPage() {
@@ -278,7 +278,7 @@ export default function AdminPage() {
             )}
           >
             <Trash2 className="w-4 h-4" />
-            Deleted
+            {t.adminPage.tabDeleted}
           </button>
           <button
             onClick={() => setActiveTab("formulary")}
@@ -591,7 +591,7 @@ function PendingUsersSection() {
                     {user.email}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Signed up {new Date(user.createdAt).toLocaleDateString()}
+                    {t.adminPage.signedUp(formatDateByLocale(user.createdAt))}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -605,21 +605,20 @@ function PendingUsersSection() {
                         data-testid={`btn-reject-user-${user.id}`}
                       >
                         <XCircle className="w-3.5 h-3.5 mr-1" />
-                        Reject
+                        {t.adminPage.reject}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>
-                          Reject {user.displayName || user.name || user.email}?
+                          {t.adminPage.rejectUserTitle(user.displayName || user.name || user.email || "")}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This user will be blocked from accessing VetTrack.
-                          They will not be notified.
+                          {t.adminPage.rejectUserBody}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
                             updateStatusMut.mutate({
@@ -629,7 +628,7 @@ function PendingUsersSection() {
                           }
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          Yes, reject user
+                          {t.adminPage.rejectUserConfirm}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -644,7 +643,7 @@ function PendingUsersSection() {
                     data-testid={`btn-approve-user-${user.id}`}
                   >
                     <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                    Approve
+                    {t.adminPage.approve}
                   </Button>
                 </div>
               </div>
@@ -805,9 +804,9 @@ function UsersSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users/pending"] });
-      toast.success("User deleted");
+      toast.success(t.adminPage.userDeleted);
     },
-    onError: () => toast.error("Failed to delete user"),
+    onError: () => toast.error(t.adminPage.userRestoreFailed),
   });
 
   const restoreUserMut = useMutation({
@@ -902,7 +901,7 @@ function UsersSection() {
                     {user.email}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Joined {new Date(user.createdAt).toLocaleDateString()}
+                    {t.adminPage.joined(formatDateByLocale(user.createdAt))}
                   </p>
                   {user.status === "pending" && (
                     <div className="flex gap-2 mt-2">
@@ -916,21 +915,20 @@ function UsersSection() {
                             data-testid={`btn-reject-user-${user.id}`}
                           >
                             <XCircle className="w-3 h-3 mr-1" />
-                            Reject
+                            {t.adminPage.reject}
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
-                              Reject {user.displayName || user.name || user.email}?
+                              {t.adminPage.rejectUserTitle(user.displayName || user.name || user.email || "")}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              This user will be blocked from accessing VetTrack.
-                              This action can be reversed later.
+                              {t.adminPage.rejectUserBody}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() =>
                                 updateStatusMut.mutate({
@@ -940,7 +938,7 @@ function UsersSection() {
                               }
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              Yes, reject
+                              {t.adminPage.rejectUserConfirm}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -958,7 +956,7 @@ function UsersSection() {
                         data-testid={`btn-approve-user-${user.id}`}
                       >
                         <CheckCircle className="w-3 h-3 mr-1" />
-                        Approve
+                        {t.adminPage.approve}
                       </Button>
                     </div>
                   )}
@@ -975,25 +973,25 @@ function UsersSection() {
                           disabled={deleteUserMut.isPending || Boolean(user.deletedAt)}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          מחק
+                          {t.adminPage.deleteUser}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>
-                            מחיקת {user.displayName || user.name || user.email}?
+                            {t.adminPage.deleteUserTitle(user.displayName || user.name || user.email || "")}
                           </AlertDialogTitle>
                           <AlertDialogDescription>
-                            המשתמש יסומן כמחוק. ניתן לשחזר אותו מאוחר יותר.
+                            {t.adminPage.deleteUserBody}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>ביטול</AlertDialogCancel>
+                          <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => deleteUserMut.mutate(user.id)}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
-                            כן, מחק
+                            {t.adminPage.deleteUserConfirm}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -1010,7 +1008,7 @@ function UsersSection() {
                           restoreUserMut.mutate(user.id);
                         }}
                       >
-                        שחזר
+                        {t.adminPage.restoreUser}
                       </Button>
                     ) : null}
                   </div>
@@ -1124,31 +1122,21 @@ function UsersSection() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Change role to{" "}
+              {t.adminPage.changeRoleTo}{" "}
               {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ??
                 pendingRoleChange?.newRole}
               ?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will change{" "}
-              <strong>
-                {pendingRoleChange?.user.displayName || pendingRoleChange?.user.name || pendingRoleChange?.user.email}
-              </strong>
-              's role from{" "}
-              <strong>
-                {ROLE_LABELS[pendingRoleChange?.user.role as UserRole] ??
-                  pendingRoleChange?.user.role}
-              </strong>{" "}
-              to{" "}
-              <strong>
-                {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ??
-                  pendingRoleChange?.newRole}
-              </strong>
-              . This affects what actions they can perform across VetTrack.
+              {pendingRoleChange?.user.displayName || pendingRoleChange?.user.name || pendingRoleChange?.user.email}
+              {" · "}
+              {ROLE_LABELS[pendingRoleChange?.user.role as UserRole] ?? pendingRoleChange?.user.role}
+              {" → "}
+              {ROLE_LABELS[pendingRoleChange?.newRole as UserRole] ?? pendingRoleChange?.newRole}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingRoleChange) {
@@ -1163,7 +1151,7 @@ function UsersSection() {
               {updateRoleMut.isPending ? (
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
               ) : null}
-              Yes, change role
+              {t.adminPage.changeRoleConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1179,25 +1167,18 @@ function UsersSection() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Block{" "}
-              {pendingStatusChange?.user.displayName ||
+              {t.adminPage.blockUserTitle(
+                pendingStatusChange?.user.displayName ||
                 pendingStatusChange?.user.name ||
-                pendingStatusChange?.user.email}
-              ?
+                pendingStatusChange?.user.email || ""
+              )}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will immediately revoke{" "}
-              <strong>
-                {pendingStatusChange?.user.displayName ||
-                  pendingStatusChange?.user.name ||
-                  pendingStatusChange?.user.email}
-              </strong>
-              's access to VetTrack. They will not be able to log in until their
-              status is changed back to Active.
+              {t.adminPage.blockUserBody}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingStatusChange) {
@@ -1214,7 +1195,7 @@ function UsersSection() {
               {updateStatusMut.isPending ? (
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
               ) : null}
-              Yes, block user
+              {t.adminPage.blockUserConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1267,12 +1248,11 @@ function DeletedItemsSection() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Deleted Equipment */}
       <Card className="bg-card border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Wrench className="w-4 h-4 text-muted-foreground" />
-            Deleted Equipment
+            {t.adminPage.deletedEquipmentTitle}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1284,7 +1264,7 @@ function DeletedItemsSection() {
             </div>
           ) : !deletedEquipment || deletedEquipment.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No deleted equipment.
+              {t.adminPage.noDeletedEquipment}
             </p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -1304,7 +1284,7 @@ function DeletedItemsSection() {
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Deleted {new Date(item.deletedAt).toLocaleDateString()}
+                      {t.adminPage.deletedOn(formatDateByLocale(item.deletedAt))}
                     </p>
                   </div>
                   <Button
@@ -1316,7 +1296,7 @@ function DeletedItemsSection() {
                     onClick={() => restoreEquipMut.mutate(item.id)}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    Restore
+                    {t.adminPage.restore}
                   </Button>
                 </div>
               ))}
@@ -1342,7 +1322,7 @@ function DeletedItemsSection() {
             </div>
           ) : !deletedUsers || deletedUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No deleted users.
+              {t.adminPage.noDeletedUsers}
             </p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -1360,9 +1340,8 @@ function DeletedItemsSection() {
                       {user.email}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Deleted{" "}
                       {user.deletedAt
-                        ? new Date(user.deletedAt).toLocaleDateString()
+                        ? t.adminPage.deletedOn(formatDateByLocale(user.deletedAt))
                         : "—"}
                     </p>
                   </div>
@@ -1375,7 +1354,7 @@ function DeletedItemsSection() {
                     onClick={() => restoreUserMut.mutate(user.id)}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    Restore
+                    {t.adminPage.restore}
                   </Button>
                 </div>
               ))}
@@ -1490,7 +1469,7 @@ function SupportSection() {
                     {ticket.userEmail}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(ticket.createdAt).toLocaleDateString()}
+                    {formatDateByLocale(ticket.createdAt)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1784,9 +1763,9 @@ function FormularySection() {
     mutationFn: (id: string) => api.formulary.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/formulary"] });
-      toast.success("Entry deleted");
+      toast.success(t.adminPage.folderDeleted);
     },
-    onError: () => toast.error("Failed to delete"),
+    onError: () => toast.error(t.adminPage.folderDeleteFailed),
   });
 
   const addExclusionMut = useMutation({
@@ -1939,8 +1918,8 @@ function FormularySection() {
                             variant="ghost"
                             className="h-7 w-7 p-0"
                             onClick={() => openEdit(entry)}
-                            title="Edit"
-                            aria-label={`Edit ${entry.name}`}
+                            title={t.common.edit}
+                            aria-label={`${t.common.edit} ${entry.name}`}
                             data-testid={`btn-edit-formulary-${entry.id}`}
                           >
                             <Pencil className="w-3.5 h-3.5" />
@@ -1952,8 +1931,8 @@ function FormularySection() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                 disabled={deleteMut.isPending}
-                                title="Delete"
-                                aria-label={`Delete ${entry.name}`}
+                                title={t.common.delete}
+                                aria-label={`${t.common.delete} ${entry.name}`}
                                 data-testid={`btn-delete-formulary-${entry.id}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1961,18 +1940,18 @@ function FormularySection() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete "{entry.name}"?</AlertDialogTitle>
+                                <AlertDialogTitle>{t.adminPage.formularyDeleteTitle(entry.name)}</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will remove the drug from your clinic's formulary. You can always re-add it later.
+                                  {t.adminPage.formularyDeleteBody}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>{t.adminPage.cancel}</AlertDialogCancel>
                                 <AlertDialogAction
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   onClick={() => deleteMut.mutate(entry.id)}
                                 >
-                                  Delete
+                                  {t.common.delete}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -2162,7 +2141,7 @@ function FormularySection() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setShowCreate(false); setEditEntry(null); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setShowCreate(false); setEditEntry(null); }}>{t.adminPage.cancel}</Button>
             <Button onClick={handleSubmit} disabled={upsertMut.isPending} data-testid="btn-save-formulary">
               {upsertMut.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
               {editEntry ? "Update" : "Add"}
@@ -2265,7 +2244,7 @@ function ClinicSettingsSection() {
                   {saveMut.isPending && (
                     <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                   )}
-                  שמור
+                  {t.common.save}
                 </Button>
                 <Button
                   size="sm"
@@ -2273,7 +2252,7 @@ function ClinicSettingsSection() {
                   onClick={() => setEditingEmail(false)}
                   disabled={saveMut.isPending}
                 >
-                  ביטול
+                  {t.adminPage.cancel}
                 </Button>
               </div>
             </div>
