@@ -14,6 +14,29 @@ import { touchPresence, getPresence } from "../lib/shift-chat-presence.js";
 
 const router = Router();
 
+function resolveRequestId(
+  res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void },
+  incoming: unknown,
+): string {
+  const incomingStr = typeof incoming === "string" ? incoming.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incomingStr || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") res.setHeader("x-request-id", requestId);
+  return requestId;
+}
+
+function apiError(params: { code: string; reason?: string; message: string; requestId?: string }) {
+  const requestId = params.requestId ?? randomUUID();
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason ?? params.code,
+    message: params.message,
+    requestId,
+  };
+}
+
 /** Returns the open shift session for a clinic, or null. */
 async function getOpenShift(clinicId: string) {
   const [row] = await db
@@ -47,7 +70,7 @@ router.get(
 
       const afterDate = after ? new Date(after) : undefined;
       if (afterDate && Number.isNaN(afterDate.getTime())) {
-        return res.status(400).json({ error: "VALIDATION_FAILED", reason: "INVALID_AFTER", message: "Invalid after timestamp" });
+        return res.status(400).json(apiError({ code: "VALIDATION_FAILED", reason: "INVALID_AFTER", message: "Invalid after timestamp" }));
       }
 
       const rows = await db
@@ -126,7 +149,7 @@ router.get(
       });
     } catch (err) {
       console.error("[shift-chat] GET /messages error:", err);
-      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", message: "Internal server error" }));
     }
   },
 );
@@ -162,17 +185,17 @@ router.post(
     if (type === "broadcast") {
       const role = req.effectiveRole ?? user.role;
       if (role !== "senior_technician" && role !== "admin") {
-        return res.status(403).json({ error: "FORBIDDEN", reason: "BROADCAST_FORBIDDEN", message: "Only senior technicians can send broadcasts" });
+        return res.status(403).json(apiError({ code: "FORBIDDEN", reason: "BROADCAST_FORBIDDEN", message: "Only senior technicians can send broadcasts" }));
       }
       if (!broadcastKey || !BROADCAST_TEMPLATES[broadcastKey]) {
-        return res.status(400).json({ error: "BAD_REQUEST", reason: "INVALID_BROADCAST_KEY", message: "Unknown broadcast key" });
+        return res.status(400).json(apiError({ code: "BAD_REQUEST", reason: "INVALID_BROADCAST_KEY", message: "Unknown broadcast key" }));
       }
     }
 
     try {
       const shift = await getOpenShift(clinicId);
       if (!shift) {
-        return res.status(409).json({ error: "CONFLICT", reason: "NO_OPEN_SHIFT", message: "No active shift for this clinic" });
+        return res.status(409).json(apiError({ code: "CONFLICT", reason: "NO_OPEN_SHIFT", message: "No active shift for this clinic" }));
       }
 
       const [message] = await db
@@ -240,7 +263,7 @@ router.post(
       return res.status(201).json({ message });
     } catch (err) {
       console.error("[shift-chat] POST /messages error:", err);
-      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", message: "Internal server error" }));
     }
   },
 );
@@ -272,10 +295,10 @@ router.post(
         .limit(1);
 
       if (!message) {
-        return res.status(404).json({ error: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" });
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" }));
       }
       if (message.type !== "broadcast") {
-        return res.status(400).json({ error: "BAD_REQUEST", reason: "NOT_BROADCAST", message: "Only broadcast messages can be acknowledged" });
+        return res.status(400).json(apiError({ code: "BAD_REQUEST", reason: "NOT_BROADCAST", message: "Only broadcast messages can be acknowledged" }));
       }
 
       // Upsert the ack record
@@ -304,7 +327,7 @@ router.post(
       return res.json({ ok: true });
     } catch (err) {
       console.error("[shift-chat] POST /messages/:id/ack error:", err);
-      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", message: "Internal server error" }));
     }
   },
 );
@@ -325,7 +348,7 @@ router.post(
     try {
       const shift = await getOpenShift(clinicId);
       if (!shift) {
-        return res.status(409).json({ error: "CONFLICT", reason: "NO_OPEN_SHIFT", message: "No active shift" });
+        return res.status(409).json(apiError({ code: "CONFLICT", reason: "NO_OPEN_SHIFT", message: "No active shift" }));
       }
 
       // Unpin all current pinned messages for this shift
@@ -352,13 +375,13 @@ router.post(
         .returning();
 
       if (!updated) {
-        return res.status(404).json({ error: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" });
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" }));
       }
 
       return res.json({ ok: true, pinnedAt: now });
     } catch (err) {
       console.error("[shift-chat] POST /messages/:id/pin error:", err);
-      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", message: "Internal server error" }));
     }
   },
 );
@@ -390,7 +413,7 @@ router.post(
         .limit(1);
 
       if (!message) {
-        return res.status(404).json({ error: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" });
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" }));
       }
 
       // Toggle: delete if exists, insert if not
@@ -426,7 +449,7 @@ router.post(
       return res.json({ action: "added" });
     } catch (err) {
       console.error("[shift-chat] POST /reactions error:", err);
-      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", message: "Internal server error" }));
     }
   },
 );
@@ -450,7 +473,7 @@ router.get(
         .limit(1);
 
       if (!shift) {
-        return res.status(404).json({ error: "NOT_FOUND", reason: "SHIFT_NOT_FOUND", message: "Shift not found" });
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "SHIFT_NOT_FOUND", message: "Shift not found" }));
       }
 
       const messages = await db
@@ -462,7 +485,7 @@ router.get(
       return res.json({ messages, shift });
     } catch (err) {
       console.error("[shift-chat] GET /archive/:shiftId error:", err);
-      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", message: "Internal server error" }));
     }
   },
 );

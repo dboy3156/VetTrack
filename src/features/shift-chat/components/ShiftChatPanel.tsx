@@ -7,6 +7,7 @@ import { BroadcastCard } from "./BroadcastCard";
 import { SystemCard } from "./SystemCard";
 import { BROADCAST_TEMPLATES, type BroadcastKey } from "../types";
 import { useAuth } from "@/hooks/use-auth";
+import { t } from "@/lib/i18n";
 
 type ChatState = ReturnType<typeof useShiftChat>;
 
@@ -204,7 +205,7 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
                 <div className="text-[10px] text-indigo-300">{t.subtitle}</div>
               </button>
             ))}
-            <button onClick={() => setShowBroadcast(false)} className="text-[10px] text-muted-foreground mt-1">ביטול</button>
+            <button onClick={() => setShowBroadcast(false)} className="text-[10px] text-muted-foreground mt-1">{t.common.cancel}</button>
           </div>
         )}
 
