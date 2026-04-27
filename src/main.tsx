@@ -17,6 +17,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { AppErrorBoundary } from "@/components/ui/app-error-boundary";
 import { SyncStatusBanner } from "@/components/sync-status-banner";
 import { SwUpdateBanner } from "@/components/sw-update-banner";
+import { ShiftChatFab } from "@/features/shift-chat/components/ShiftChatFab";
 import {
   getServiceWorkerRegistrationsSafe,
   isServiceWorkerSupported,
@@ -126,6 +127,7 @@ if (!rootEl) {
               <AppBootstrap />
               <SwUpdateBanner />
               <SyncStatusBanner />
+              <ShiftChatFab />
               <Toaster
                 position="top-center"
                 richColors

@@ -120,6 +120,7 @@ function PreCheckGate({ onStart }: { onStart: (passed: boolean, manager: { id: s
   const [managerId, setManagerId] = useState(isEligibleManager ? (userId ?? "") : "");
   const [managerName, setManagerName] = useState(isEligibleManager ? (name ?? "") : "");
 
+
   const allChecked = QUICK_CHECK_ITEMS.every((i) => checked[i.key]);
 
   const toggle = (key: string) => setChecked((p) => ({ ...p, [key]: !p[key] }));

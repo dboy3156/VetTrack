@@ -4,6 +4,7 @@ import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { animals, db, hospitalizations, owners, users, type HospitalizationStatus } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { postSystemMessage } from "../lib/shift-chat-presence.js";
 
 const router = Router();
 router.use(requireAuth, requireEffectiveRole("technician"));
@@ -337,6 +338,20 @@ router.patch("/:id/status", async (req, res) => {
       .returning({ id: hospitalizations.id });
 
     if (!updated.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
+
+    const newStatus = parse.data.status;
+    if (newStatus === "critical" || newStatus === "discharged" || newStatus === "deceased") {
+      const eventType =
+        newStatus === "critical"  ? "hosp_critical"  :
+        newStatus === "deceased"  ? "hosp_deceased"  :
+        "hosp_discharged";
+      postSystemMessage(clinicId, eventType, {
+        hospitalizationId: id,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
+
     res.json({ id: updated[0]!.id, status: parse.data.status });
   } catch (err) {
     console.error("[patients] status update failed", err);

@@ -1,7 +1,7 @@
 // server/routes/display.ts
 import { randomUUID } from "crypto";
 import { Router } from "express";
-import { and, desc, eq, gte, inArray, isNull, lt, lte, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, sql } from "drizzle-orm";
 import {
   db,
   animals,
@@ -13,6 +13,7 @@ import {
   equipment,
   hospitalizations,
   shifts,
+  users,
 } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -43,9 +44,10 @@ router.get("/snapshot", requireAuth, async (req, res) => {
 
     // ── 1. Active hospitalizations ─────────────────────────────────────────
     const hospRows = await db
-      .select({ hosp: hospitalizations, animal: animals })
+      .select({ hosp: hospitalizations, animal: animals, vetName: users.name })
       .from(hospitalizations)
       .innerJoin(animals, eq(hospitalizations.animalId, animals.id))
+      .leftJoin(users, eq(hospitalizations.admittingVetId, users.id))
       .where(
         and(
           eq(hospitalizations.clinicId, clinicId),
@@ -68,7 +70,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
           eq(appointments.clinicId, clinicId),
           inArray(appointments.status, ["pending", "assigned"]),
           lt(appointments.startTime, now),
-          sql`${appointments.animalId} is not null`,
+          isNotNull(appointments.animalId),
         ),
       )
       .orderBy(appointments.startTime);
@@ -117,7 +119,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
       .from(equipment)
       .where(and(eq(equipment.clinicId, clinicId), isNull(equipment.deletedAt)));
 
-    // ── 5. Active alert count ──────────────────────────────────────────────
+    // ── 5. Active alert count (equipment with critical/issue/needs_attention) ─
     const [alertCountRow] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(equipment)
@@ -130,8 +132,9 @@ router.get("/snapshot", requireAuth, async (req, res) => {
       );
 
     // ── 6. Current shift ───────────────────────────────────────────────────
-    const todayDate = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
-    const nowTimeStr = now.toTimeString().slice(0, 5); // "HH:MM"
+    // Use UTC consistently for both date and time to avoid mixed-timezone issues
+    const todayDate = now.toISOString().slice(0, 10); // "YYYY-MM-DD" UTC
+    const nowTimeStr = now.toISOString().slice(11, 16); // "HH:MM" UTC
     const shiftRows = await db
       .select()
       .from(shifts)
@@ -165,7 +168,12 @@ router.get("/snapshot", requireAuth, async (req, res) => {
       const logEntries = await db
         .select()
         .from(codeBlueLogEntries)
-        .where(eq(codeBlueLogEntries.sessionId, activeSession.id))
+        .where(
+          and(
+            eq(codeBlueLogEntries.sessionId, activeSession.id),
+            eq(codeBlueLogEntries.clinicId, clinicId),
+          ),
+        )
         .orderBy(codeBlueLogEntries.elapsedMs);
 
       const presence = await db
@@ -183,17 +191,18 @@ router.get("/snapshot", requireAuth, async (req, res) => {
         const [animal] = await db
           .select()
           .from(animals)
-          .where(eq(animals.id, activeSession.patientId));
+          .where(and(eq(animals.id, activeSession.patientId), eq(animals.clinicId, clinicId)));
         if (animal) {
           patientName = animal.name;
-          patientWeight = animal.weightKg;
-          patientSpecies = animal.species;
+          patientWeight = animal.weightKg ? Number(animal.weightKg) : null;
+          patientSpecies = animal.species ?? null;
         }
         const [cbHosp] = await db
           .select()
           .from(hospitalizations)
           .where(
             and(
+              eq(hospitalizations.clinicId, clinicId),
               eq(hospitalizations.animalId, activeSession.patientId),
               notInArray(hospitalizations.status, ["discharged", "deceased"]),
             ),
@@ -231,7 +240,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
     }
 
     // ── Build response ─────────────────────────────────────────────────────
-    const hospData = hospRows.map(({ hosp, animal }) => {
+    const hospData = hospRows.map(({ hosp, animal, vetName }) => {
       const overdueList = overdueByAnimal.get(hosp.animalId) ?? [];
       let overdueLabel: string | null = null;
       if (overdueList.length > 0) {
@@ -241,6 +250,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
         const timeStr = first.startTime.toLocaleTimeString("he-IL", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Asia/Jerusalem",
         });
         overdueLabel = `${drugName} — ${timeStr} (${minutesLate} דק׳ באיחור)`;
       }
@@ -249,13 +259,13 @@ router.get("/snapshot", requireAuth, async (req, res) => {
         status: hosp.status,
         ward: hosp.ward,
         bay: hosp.bay,
-        admittingVetName: hosp.admittingVetName,
+        admittingVetName: vetName ?? null,
         admittedAt: hosp.admittedAt.toISOString(),
         animal: {
           name: animal.name,
           species: animal.species,
           breed: animal.breed,
-          weightKg: animal.weightKg,
+          weightKg: animal.weightKg ? Number(animal.weightKg) : null,
         },
         overdueTaskCount: overdueList.length,
         overdueTaskLabel: overdueLabel,

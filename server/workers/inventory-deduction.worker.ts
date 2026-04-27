@@ -3,6 +3,7 @@ import { Worker } from "bullmq";
 import { appointments, db, inventoryJobs } from "../db.js";
 import { MAX_INVENTORY_JOB_RETRIES } from "../lib/inventory-constants.js";
 import { createRedisConnection } from "../lib/redis.js";
+import { postSystemMessage } from "../lib/shift-chat-presence.js";
 import {
   INVENTORY_DEDUCTION_JOB_NAME,
   INVENTORY_DEDUCTION_QUEUE_NAME,
@@ -161,6 +162,12 @@ export async function startInventoryDeductionWorker(): Promise<void> {
             },
           );
           return;
+        }
+
+        if ("ok" in deductionResult && deductionResult.quantityAfter === 0) {
+          postSystemMessage(claimed.clinicId, "low_stock", {
+            itemId: deductionResult.containerId,
+          }).catch(() => {});
         }
 
         await markResolved(claimed.id, claimed.clinicId);

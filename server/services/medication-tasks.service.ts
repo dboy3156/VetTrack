@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 import { animals, db, medicationTasks, type MedicationTask } from "../db.js";
 import { logAudit } from "../lib/audit.js";
+import { postSystemMessage } from "../lib/shift-chat-presence.js";
 import {
   calculateMedication,
   MedicationCalculationError,
@@ -221,6 +222,13 @@ async function createMedicationTaskInner(input: CreateMedicationTaskInput): Prom
       overrideReason: row.overrideReason,
     },
   });
+
+  if (row.safetyLevel === "critical") {
+    postSystemMessage(input.clinicId, "med_critical", {
+      animalId: input.animalId,
+      drugId: input.drugId,
+    }).catch(() => {});
+  }
 
   return row;
 }

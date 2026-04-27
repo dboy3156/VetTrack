@@ -33,7 +33,6 @@ const MedicationHubPage = lazy(() => import("@/pages/meds"));
 const PharmacyForecastPage = lazy(() => import("@/pages/pharmacy-forecast"));
 const CodeBluePage = lazy(() => import("@/pages/code-blue"));
 const CodeBlueDisplay = lazy(() => import("@/pages/code-blue-display"));
-const WardDisplayPage = lazy(() => import("@/pages/display"));
 const CrashCartCheckPage = lazy(() => import("@/pages/crash-cart"));
 const CodeBlueHistoryPage = lazy(() => import("@/pages/code-blue-history"));
 const AppTourPage = lazy(() => import("@/pages/app-tour"));
@@ -47,6 +46,10 @@ const PatientDetailPage = lazy(() => import("@/pages/patient-detail"));
 const InventoryItemsPage = lazy(() => import("@/pages/inventory-items"));
 const ProcurementPage = lazy(() => import("@/pages/procurement"));
 const PendingEmergenciesPage = lazy(() => import("@/pages/pending-emergencies"));
+const WardDisplayPage = lazy(() => import("@/pages/display"));
+const ShiftChatArchive = lazy(() =>
+  import("@/features/shift-chat/components/ShiftChatArchive").then((m) => ({ default: m.ShiftChatArchive }))
+);
 
 // Guards the root path: renders nothing while auth resolves (prevents flicker),
 // redirects authenticated users to /home, shows LandingPage otherwise.
@@ -93,8 +96,8 @@ export function AppRoutes() {
         <Route path="/meds"><AuthGuard><MedicationHubPage /></AuthGuard></Route>
         <Route path="/pharmacy-forecast"><AuthGuard><PharmacyForecastPage /></AuthGuard></Route>
         <Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>
-        <Route path="/code-blue/display"><AuthGuard><CodeBlueDisplay /></AuthGuard></Route>
         <Route path="/display"><AuthGuard><WardDisplayPage /></AuthGuard></Route>
+        <Route path="/code-blue/display"><AuthGuard><CodeBlueDisplay /></AuthGuard></Route>
         <Route path="/crash-cart"><AuthGuard><CrashCartCheckPage /></AuthGuard></Route>
         <Route path="/admin/code-blue-history"><AuthGuard><CodeBlueHistoryPage /></AuthGuard></Route>
         <Route path="/app-tour"><AuthGuard><AppTourPage /></AuthGuard></Route>
@@ -111,6 +114,7 @@ export function AppRoutes() {
         <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
         <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
         <Route path="/pending-emergencies"><AuthGuard><PendingEmergenciesPage /></AuthGuard></Route>
+        <Route path="/shift-chat/:shiftId"><AuthGuard><ShiftChatArchive /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
     </PageErrorBoundary>

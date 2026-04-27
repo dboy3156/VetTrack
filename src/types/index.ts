@@ -1182,6 +1182,8 @@ export interface InventoryJob {
 
 // ─── Ward Display Snapshot ────────────────────────────────────────────────────
 
+export type CodeBlueLogCategory = "drug" | "shock" | "cpr" | "note" | "equipment";
+
 export interface DisplaySnapshotHospitalization {
   id: string;
   status: HospitalizationStatus;
@@ -1210,10 +1212,10 @@ export interface DisplaySnapshotEquipment {
 export interface DisplaySnapshotTask {
   id: string;
   startTime: string;
-  taskType: string | null;
+  taskType: TaskType | null;
   notes: string | null;
   animalName: string;
-  status: string;
+  status: AppointmentStatus;
 }
 
 export interface DisplaySnapshotCodeBlueSession {
@@ -1227,11 +1229,11 @@ export interface DisplaySnapshotCodeBlueSession {
   ward: string | null;
   bay: string | null;
   preCheckPassed: boolean | null;
-  pushSentAt: string;
+  pushSentAt: string | null;
   logEntries: Array<{
     elapsedMs: number;
     label: string;
-    category: string;
+    category: CodeBlueLogCategory;
     loggedByName: string;
   }>;
   presence: Array<{
@@ -1243,7 +1245,7 @@ export interface DisplaySnapshotCodeBlueSession {
 
 export interface DisplaySnapshot {
   currentTime: string;
-  currentShift: Array<{ employeeName: string; role: string }>;
+  currentShift: Array<{ employeeName: string; role: ShiftRole }>;
   hospitalizations: DisplaySnapshotHospitalization[];
   equipment: DisplaySnapshotEquipment[];
   upcomingTasks: DisplaySnapshotTask[];

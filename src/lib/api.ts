@@ -61,6 +61,7 @@ import type {
   ForecastParseResponse,
   ForecastApproveResponse,
   ForecastKeepaliveResponse,
+  DisplaySnapshot,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -85,6 +86,7 @@ import {
 import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
 import { isOnline } from "./safe-browser";
+import { shiftChatApi } from "@/features/shift-chat/api";
 
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -1359,7 +1361,8 @@ export const api = {
       }),
   },
   display: {
-    snapshot: (): Promise<import("@/types").DisplaySnapshot> =>
-      request<import("@/types").DisplaySnapshot>("/api/display/snapshot"),
+    snapshot: (): Promise<DisplaySnapshot> =>
+      request<DisplaySnapshot>("/api/display/snapshot"),
   },
+  shiftChat: shiftChatApi,
 };

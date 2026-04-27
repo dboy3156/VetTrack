@@ -6,6 +6,7 @@ import { animals, appointments, billingItems, billingLedger, containerItems, con
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { enqueueShiftReportEmailJob } from "../lib/queue.js";
+import { postSystemMessage } from "../lib/shift-chat-presence.js";
 
 const router = Router();
 
@@ -323,6 +324,12 @@ router.post(
       const endedAt = new Date();
       const mergedNote =
         note?.trim() ? [open.note, note.trim()].filter(Boolean).join(" | ") : open.note;
+
+      postSystemMessage(clinicId, "shift_summary", {
+        endedAt: endedAt.toISOString(),
+        note: mergedNote ?? null,
+      }).catch(() => {});
+
       await db
         .update(shiftSessions)
         .set({ endedAt, note: mergedNote })

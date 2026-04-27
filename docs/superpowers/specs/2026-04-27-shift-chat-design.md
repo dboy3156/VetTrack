@@ -22,7 +22,7 @@ A third category of **system cards** is auto-posted by the server on specific ev
 
 | Role | Send messages | Send broadcast | See broadcast acks | Pin message | Post system cards |
 |---|---|---|---|---|---|
-| `doctor` | ✅ | ❌ | read-only | ❌ | auto only |
+| `doctor` | ✅ | ❌ | read-only | ✅ | auto only |
 | `technician` | ✅ | ❌ | own response only | ❌ | — |
 | `senior_technician` | ✅ | ✅ | full progress view | ✅ | — |
 | `admin` | ✅ | ✅ | full progress view | ✅ | auto only |
@@ -135,7 +135,7 @@ Respond to a broadcast card.
 ### `POST /api/shift-chat/messages/:id/pin`
 Pin a message. Unpins any previously pinned message for this shift.
 
-**Auth:** `senior_technician` or `admin`
+**Auth:** `doctor`, `senior_technician`, or `admin`
 
 ---
 

@@ -186,6 +186,13 @@ export type NotificationJobData =
       managerEmail: string;
     }
   | {
+      type: "shift_chat_snooze";
+      clinicId: string;
+      userId: string;
+      messageId: string;
+      broadcastKey: string;
+    }
+  | {
       type: "overdue_medication_alert";
       clinicId: string;
       userId: string;
@@ -198,7 +205,7 @@ export type NotificationJobData =
 /**
  * Enqueue a notification job. Never throws — API stays safe if Redis/queue down.
  */
-export async function enqueueNotificationJob(data: NotificationJobData): Promise<void> {
+export async function enqueueNotificationJob(data: NotificationJobData, opts?: { delay?: number }): Promise<void> {
   if (isCircuitOpen("queue")) {
     incrementMetric("circuit_breaker_opened");
     console.warn("[queue] circuit open; enqueue skipped");
@@ -254,7 +261,7 @@ export async function enqueueNotificationJob(data: NotificationJobData): Promise
   try {
     console.log("QUEUE_JOB_ENQUEUED", data.type);
     await timedRedisOp("queue.add.send_notification", () =>
-      q.add("send_notification", data, defaultJobOptions()),
+      q.add("send_notification", data, { ...defaultJobOptions(), ...(opts?.delay ? { delay: opts.delay } : {}) }),
     );
     queueMetrics.enqueued++;
     incrementMetric("queue_jobs_enqueued");

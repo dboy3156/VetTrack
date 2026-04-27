@@ -35,8 +35,9 @@ import patientsRoutes from "../routes/patients.js";
 import uploadsRoutes from "../routes/uploads.js";
 import codeBlueRoutes from "../routes/code-blue.js";
 import crashCartRoutes from "../routes/crash-cart.js";
-import displayRoutes from "../routes/display.js";
 import integrationsRoutes from "../routes/integrations.js";
+import shiftChatRoutes from "../routes/shift-chat.js";
+import displayRoutes from "../routes/display.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -73,8 +74,9 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/uploads", uploadsRoutes);
   app.use("/api/code-blue", codeBlueRoutes);
   app.use("/api/crash-cart", crashCartRoutes);
-  app.use("/api/display", displayRoutes);
   app.use("/api/integrations", integrationsRoutes);
+  app.use("/api/shift-chat", shiftChatRoutes);
+  app.use("/api/display", displayRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);
   app.use("/api/health/ready", healthRoutes);

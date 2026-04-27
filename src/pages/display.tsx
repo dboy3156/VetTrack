@@ -75,7 +75,7 @@ function AwarenessBar({ snapshot }: { snapshot: DisplaySnapshot }) {
 
   const cart = snapshot.crashCartStatus;
   const cartAgeHours = cart
-    ? Math.round((Date.now() - new Date(cart.lastCheckedAt).getTime()) / 3_600_000)
+    ? Math.round((now.getTime() - new Date(cart.lastCheckedAt).getTime()) / 3_600_000)
     : null;
   const cartOk = cart !== null && cartAgeHours !== null && cartAgeHours < 24;
 
@@ -92,7 +92,7 @@ function AwarenessBar({ snapshot }: { snapshot: DisplaySnapshot }) {
       <div className="flex gap-2 flex-wrap">
         {snapshot.currentShift.map((s) => (
           <div
-            key={s.employeeName}
+            key={`${s.employeeName}-${s.role}`}
             className="flex items-center gap-1.5 bg-[#1e2740] border border-[#2d3d5c] rounded-full px-3 py-0.5 text-[11px] text-blue-300"
           >
             <span>{s.employeeName}</span>
@@ -128,7 +128,7 @@ function AwarenessBar({ snapshot }: { snapshot: DisplaySnapshot }) {
         </span>
       )}
 
-      <span className="mr-auto flex items-center bg-white/5 border border-white/10 text-gray-400 rounded px-2.5 py-1 text-[11px] whitespace-nowrap">
+      <span className="ms-auto flex items-center bg-white/5 border border-white/10 text-gray-400 rounded px-2.5 py-1 text-[11px] whitespace-nowrap">
         {snapshot.hospitalizations.length} מאושפזים
       </span>
     </div>
@@ -165,7 +165,7 @@ function PatientCard({ hosp }: { hosp: DisplaySnapshotHospitalization }) {
         <div className="text-[11px] text-gray-500 mt-0.5">{hosp.admittingVetName}</div>
       )}
       {hosp.overdueTaskCount > 0 && hosp.overdueTaskLabel && (
-        <div className="mt-2 rounded px-2 py-1.5 text-[10px] font-semibold text-red-300 border border-red-600/60 bg-red-950/30 animate-pulse">
+        <div className="overdue-alert mt-2 rounded px-2 py-1.5 text-[10px] font-semibold text-red-300 border border-red-600/60 bg-red-950/30 animate-pulse">
           💊 {hosp.overdueTaskLabel}
         </div>
       )}
@@ -242,7 +242,7 @@ function EquipmentPane({ equipment }: { equipment: DisplaySnapshotEquipment[] })
             key={eq.id}
             className="flex items-start justify-between py-1.5 border-b border-[#1a1f2b] last:border-0"
           >
-            <div className="min-w-0 ml-2">
+            <div className="min-w-0 me-2">
               <div className="text-[12px] text-gray-300 truncate">{eq.name}</div>
               <div className="text-[10px] text-gray-500 truncate">
                 {eq.location ?? "—"}
@@ -377,7 +377,7 @@ function CodeBlueOverlay({
         <span className="font-mono text-[22px] font-bold text-white bg-black/25 px-3 py-1 rounded tabular-nums">
           {timerStr}
         </span>
-        <span className="text-[14px] text-white/85 mr-auto">
+        <span className="text-[14px] text-white/85 ms-auto">
           מנהל הפצה: {session.managerUserName}
         </span>
         <div className="flex flex-wrap gap-1.5">
@@ -429,8 +429,8 @@ function CodeBlueOverlay({
               <div className="text-[10px] font-bold tracking-[.08em] uppercase text-red-700/60 mb-2">
                 ציוד מחובר
               </div>
-              {attachedEquipment.map((e, i) => (
-                <div key={i} className="text-[12px] text-red-200 mb-1">
+              {attachedEquipment.map((e) => (
+                <div key={e.label} className="text-[12px] text-red-200 mb-1">
                   {e.label}
                 </div>
               ))}
@@ -444,12 +444,12 @@ function CodeBlueOverlay({
             יומן אירוע
           </div>
           <div className="space-y-2">
-            {displayedLogs.map((entry, i) => {
+            {displayedLogs.map((entry) => {
               const em = Math.floor(entry.elapsedMs / 60_000);
               const es = Math.floor((entry.elapsedMs % 60_000) / 1_000);
               const entryTime = `${String(em).padStart(2, "0")}:${String(es).padStart(2, "0")}`;
               return (
-                <div key={i} className="flex gap-2 text-[12px]">
+                <div key={`${entry.elapsedMs}-${entry.label}`} className="flex gap-2 text-[12px]">
                   <span className="text-red-500 tabular-nums min-w-[42px] text-[11px] shrink-0">
                     {entryTime}
                   </span>
@@ -488,7 +488,9 @@ function CodeBlueOverlay({
           <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-2">
             עגלת חירום
           </div>
-          <div className="text-[12px] text-green-400 mb-4">✓ זמינה</div>
+          <div className={`text-[12px] mb-4 ${session.preCheckPassed === false ? "text-red-400" : "text-green-400"}`}>
+            {session.preCheckPassed === false ? "⚠ לא נבדקה" : "✓ זמינה"}
+          </div>
 
           {minutesSincePush !== null && (
             <>
