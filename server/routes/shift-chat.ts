@@ -6,6 +6,7 @@ import {
   db, shiftMessages, shiftMessageAcks, shiftMessageReactions, shiftSessions,
 } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { writeLimiter } from "../middleware/rate-limiters.js";
 import { validateBody } from "../middleware/validate.js";
 import { sendPushToUser, sendPushToRole } from "../lib/push.js";
 import { touchPresence, getPresence } from "../lib/shift-chat-presence.js";
@@ -137,6 +138,7 @@ router.post(
   "/messages",
   requireAuth,
   requireEffectiveRole("technician"),
+  writeLimiter,
   validateBody(postMessageSchema),
   async (req, res) => {
     const clinicId = req.clinicId!;
@@ -147,7 +149,7 @@ router.post(
     // Broadcast requires senior_technician or admin
     if (type === "broadcast") {
       const role = req.effectiveRole ?? user.role;
-      if (role !== "senior_technician" && role !== "admin" && user.role !== "admin") {
+      if (role !== "senior_technician" && role !== "admin") {
         return res.status(403).json({ error: "FORBIDDEN", reason: "BROADCAST_FORBIDDEN", message: "Only senior technicians can send broadcasts" });
       }
       if (!broadcastKey || !BROADCAST_TEMPLATES[broadcastKey]) {
