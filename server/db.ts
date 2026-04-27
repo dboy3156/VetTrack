@@ -113,6 +113,7 @@ export const appointments = pgTable("vt_appointments", {
   escalatedTo: text("escalated_to").references(() => users.id, { onDelete: "set null" }),
   escalatedAt: timestamp("escalated_at", { withTimezone: true }),
   stuckNotifiedAt: timestamp("stuck_notified_at", { withTimezone: true }),
+  overdueNotifiedAt: timestamp("overdue_notified_at", { withTimezone: true }),
   prestartReminderAt: timestamp("prestart_reminder_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -924,6 +925,76 @@ export type CodeBlueSession = typeof codeBlueSessions.$inferSelect;
 export type CodeBlueLogEntry = typeof codeBlueLogEntries.$inferSelect;
 export type CodeBluePresence = typeof codeBluePresence.$inferSelect;
 export type CrashCartCheck = typeof crashCartChecks.$inferSelect;
+
+export const shiftMessages = pgTable(
+  "vt_shift_messages",
+  {
+    id: text("id").primaryKey(),
+    shiftSessionId: text("shift_session_id")
+      .notNull()
+      .references(() => shiftSessions.id, { onDelete: "cascade" }),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    senderId: text("sender_id").references(() => users.id, { onDelete: "set null" }),
+    senderName: text("sender_name"),
+    senderRole: text("sender_role"),
+    body: text("body").notNull().default(""),
+    type: text("type").notNull().default("regular"), // regular | broadcast | system
+    broadcastKey: text("broadcast_key"),
+    systemEventType: text("system_event_type"),
+    systemEventPayload: jsonb("system_event_payload"),
+    roomTag: text("room_tag"),
+    isUrgent: boolean("is_urgent").notNull().default(false),
+    mentionedUserIds: jsonb("mentioned_user_ids").notNull().default(sql`'[]'::jsonb`),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    pinnedByUserId: text("pinned_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    shiftIdx: index("vt_shift_messages_shift_idx").on(table.shiftSessionId),
+    clinicIdx: index("vt_shift_messages_clinic_idx").on(table.clinicId),
+    createdIdx: index("vt_shift_messages_created_idx").on(table.createdAt),
+  }),
+);
+
+export const shiftMessageAcks = pgTable(
+  "vt_shift_message_acks",
+  {
+    messageId: text("message_id")
+      .notNull()
+      .references(() => shiftMessages.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").notNull(), // acknowledged | snoozed
+    respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.messageId, table.userId] }),
+  }),
+);
+
+export const shiftMessageReactions = pgTable(
+  "vt_shift_message_reactions",
+  {
+    messageId: text("message_id")
+      .notNull()
+      .references(() => shiftMessages.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(), // 👍 | ✅ | 👀
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.messageId, table.userId, table.emoji] }),
+  }),
+);
+
+export type ShiftMessage = typeof shiftMessages.$inferSelect;
+export type ShiftMessageAck = typeof shiftMessageAcks.$inferSelect;
+export type ShiftMessageReaction = typeof shiftMessageReactions.$inferSelect;
 
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
