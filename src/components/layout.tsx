@@ -22,6 +22,7 @@ import {
   XCircle,
   RefreshCw,
   CheckCircle,
+  CheckCircle2,
   LayoutDashboard,
   ReceiptText,
   Globe,
@@ -393,6 +394,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           href: "/code-blue",
           label: "Code Blue",
           icon: <Siren className="w-5 h-5 text-red-500" />,
+        } satisfies NavItem]
+      : []),
+    ...(canAccessCodeBlue
+      ? [{
+          href: "/crash-cart",
+          label: "עגלת החייאה",
+          icon: <CheckCircle2 className="w-5 h-5" />,
         } satisfies NavItem]
       : []),
     {
