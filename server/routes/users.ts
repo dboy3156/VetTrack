@@ -916,6 +916,41 @@ router.post("/purge-deleted", requireAuth, requireAdmin, authSensitiveLimiter, a
   }
 });
 
+/**
+ * GET /api/users/managers
+ * Returns active vets and admins in the clinic — used by Code Blue manager picker.
+ * Accessible to all authenticated users (any role).
+ */
+router.get("/managers", requireAuth, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const managers = await db
+      .select({ id: users.id, name: users.name, role: users.role })
+      .from(users)
+      .where(
+        and(
+          eq(users.clinicId, clinicId),
+          eq(users.status, "active"),
+          isNull(users.deletedAt),
+          sql`${users.role} IN ('vet', 'admin')`,
+        ),
+      )
+      .orderBy(users.name);
+    res.json({ managers });
+  } catch (err) {
+    console.error("users:managers", err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "USERS_MANAGERS_FAILED",
+        message: "Failed to list eligible managers",
+        requestId,
+      }),
+    );
+  }
+});
+
 router.post("/backfill-clerk", requireAuth, requireAdmin, authSensitiveLimiter, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
