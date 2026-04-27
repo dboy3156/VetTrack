@@ -59,6 +59,44 @@ async function testGetMessagesReturnsShape() {
   }
 }
 
+async function testPostMessageRequiresAuth() {
+  console.log("\n[Test] POST /api/shift-chat/messages — requires auth");
+  const res = await post("/api/shift-chat/messages", { body: "hello", type: "regular" });
+  if (res.status === 401) {
+    ok("Unauthenticated returns 401");
+  } else {
+    fail(`Expected 401, got ${res.status}`);
+  }
+}
+
+async function testBroadcastForbiddenForTechnician() {
+  console.log("\n[Test] POST broadcast — technician gets 403");
+  const res = await post(
+    "/api/shift-chat/messages",
+    { body: "", type: "broadcast", broadcastKey: "department_close" },
+    { headers: { "x-dev-role-override": "technician" } },
+  );
+  if (res.status === 403) {
+    ok("Technician cannot send broadcast");
+  } else {
+    fail(`Expected 403, got ${res.status}`);
+  }
+}
+
+async function testMessageBodyMaxLength() {
+  console.log("\n[Test] POST /api/shift-chat/messages — body > 1000 chars rejected");
+  const res = await post(
+    "/api/shift-chat/messages",
+    { body: "x".repeat(1001), type: "regular" },
+    { headers: { "x-dev-role-override": "technician" } },
+  );
+  if (res.status === 400) {
+    ok("Body > 1000 chars rejected");
+  } else {
+    fail(`Expected 400, got ${res.status}`);
+  }
+}
+
 async function run() {
   console.log("=== Shift Chat Tests ===");
   try {
@@ -73,6 +111,9 @@ async function run() {
   await testGetMessagesRequiresAuth();
   await testGetMessagesStudentDenied();
   await testGetMessagesReturnsShape();
+  await testPostMessageRequiresAuth();
+  await testBroadcastForbiddenForTechnician();
+  await testMessageBodyMaxLength();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);

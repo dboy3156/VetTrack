@@ -1,9 +1,13 @@
 import { Router } from "express";
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { z } from "zod";
+import { randomUUID } from "crypto";
 import {
   db, shiftMessages, shiftMessageAcks, shiftMessageReactions, shiftSessions,
 } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
+import { sendPushToUser, sendPushToRole } from "../lib/push.js";
 import { touchPresence, getPresence } from "../lib/shift-chat-presence.js";
 
 const router = Router();
@@ -109,6 +113,119 @@ router.get(
       });
     } catch (err) {
       console.error("[shift-chat] GET /messages error:", err);
+      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+    }
+  },
+);
+
+// ─── POST /api/shift-chat/messages ───────────────────────────────────────────
+
+export const BROADCAST_TEMPLATES: Record<string, { label: string; subtitle: string }> = {
+  department_close: { label: "סגירת מחלקה", subtitle: "כל הטכנאים — לנקות ולסדר את המחלקה" },
+};
+
+const postMessageSchema = z.object({
+  body: z.string().max(1000),
+  type: z.enum(["regular", "broadcast"]),
+  broadcastKey: z.string().optional(),
+  roomTag: z.string().max(50).optional(),
+  isUrgent: z.boolean().optional().default(false),
+  mentionedUserIds: z.array(z.string()).optional().default([]),
+});
+
+router.post(
+  "/messages",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  validateBody(postMessageSchema),
+  async (req, res) => {
+    const clinicId = req.clinicId!;
+    const user = req.authUser!;
+    const { body, type, broadcastKey, roomTag, isUrgent, mentionedUserIds } =
+      req.body as z.infer<typeof postMessageSchema>;
+
+    // Broadcast requires senior_technician or admin
+    if (type === "broadcast") {
+      const role = req.effectiveRole ?? user.role;
+      if (role !== "senior_technician" && role !== "admin" && user.role !== "admin") {
+        return res.status(403).json({ error: "FORBIDDEN", reason: "BROADCAST_FORBIDDEN", message: "Only senior technicians can send broadcasts" });
+      }
+      if (!broadcastKey || !BROADCAST_TEMPLATES[broadcastKey]) {
+        return res.status(400).json({ error: "BAD_REQUEST", reason: "INVALID_BROADCAST_KEY", message: "Unknown broadcast key" });
+      }
+    }
+
+    try {
+      const shift = await getOpenShift(clinicId);
+      if (!shift) {
+        return res.status(409).json({ error: "CONFLICT", reason: "NO_OPEN_SHIFT", message: "No active shift for this clinic" });
+      }
+
+      const [message] = await db
+        .insert(shiftMessages)
+        .values({
+          id: randomUUID(),
+          shiftSessionId: shift.id,
+          clinicId,
+          senderId: user.id,
+          senderName: user.name ?? null,
+          senderRole: req.effectiveRole ?? user.role,
+          body,
+          type,
+          broadcastKey: broadcastKey ?? null,
+          systemEventType: null,
+          systemEventPayload: null,
+          roomTag: roomTag ?? null,
+          isUrgent,
+          mentionedUserIds,
+          pinnedAt: null,
+          pinnedByUserId: null,
+        })
+        .returning();
+
+      // ── Push notifications ──────────────────────────────────────────────────
+
+      // @mentions → push to each mentioned user
+      for (const mentionedUserId of mentionedUserIds) {
+        sendPushToUser(clinicId, mentionedUserId, {
+          title: `${user.name ?? "מישהו"} אזכר אותך`,
+          body: body.slice(0, 80),
+          tag: `shift-chat-mention-${message!.id}`,
+        }).catch(() => {});
+      }
+
+      // URGENT flag → push to all shift members
+      if (isUrgent) {
+        sendPushToRole(clinicId, "technician", {
+          title: "⚡ הודעה דחופה במשמרת",
+          body: body.slice(0, 80),
+          tag: `shift-chat-urgent-${message!.id}`,
+        }).catch(() => {});
+        sendPushToRole(clinicId, "vet", {
+          title: "⚡ הודעה דחופה במשמרת",
+          body: body.slice(0, 80),
+          tag: `shift-chat-urgent-${message!.id}`,
+        }).catch(() => {});
+      }
+
+      // Broadcast → push to all technicians
+      if (type === "broadcast" && broadcastKey) {
+        const template = BROADCAST_TEMPLATES[broadcastKey]!;
+        sendPushToRole(clinicId, "technician", {
+          title: `📢 ${template.label}`,
+          body: template.subtitle,
+          tag: `shift-chat-broadcast-${message!.id}`,
+        }).catch(() => {});
+        sendPushToRole(clinicId, "senior_technician", {
+          title: `📢 ${template.label}`,
+          body: template.subtitle,
+          tag: `shift-chat-broadcast-${message!.id}`,
+        }).catch(() => {});
+      }
+
+      return res.status(201).json({ message });
+    } catch (err) {
+      console.error("[shift-chat] POST /messages error:", err);
       return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
     }
   },
