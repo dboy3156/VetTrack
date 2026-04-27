@@ -2,11 +2,35 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { z } from "zod";
-import { animals, clinics, db, hospitalizations, owners, users, type HospitalizationStatus } from "../db.js";
+import { animals, db, hospitalizations, owners, users, type HospitalizationStatus } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 
 const router = Router();
 router.use(requireAuth, requireEffectiveRole("technician"));
+
+// ─── Error contract helpers ──────────────────────────────────────────────────
+
+function resolveRequestId(
+  res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void },
+  incoming: unknown,
+): string {
+  const incomingStr = typeof incoming === "string" ? incoming.trim() : "";
+  const existing = res.getHeader("x-request-id");
+  const fromRes = typeof existing === "string" ? existing.trim() : "";
+  const requestId = incomingStr || fromRes || randomUUID();
+  if (typeof res.setHeader === "function") res.setHeader("x-request-id", requestId);
+  return requestId;
+}
+
+function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
+  return {
+    code: params.code,
+    error: params.code,
+    reason: params.reason,
+    message: params.message,
+    requestId: params.requestId,
+  };
+}
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -93,6 +117,7 @@ function hospitalizationRow(h: typeof hospitalizations.$inferSelect, a: typeof a
 // List active hospitalizations (discharged_at IS NULL)
 
 router.get("/", async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -131,7 +156,7 @@ router.get("/", async (req, res) => {
     });
   } catch (err) {
     console.error("[patients] list failed", err);
-    res.status(500).json({ error: "INTERNAL_ERROR" });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_LIST_FAILED", message: "Failed to list active patients", requestId }));
   }
 });
 
@@ -139,6 +164,7 @@ router.get("/", async (req, res) => {
 // Search existing animals by name (for admit autocomplete)
 
 router.get("/search", async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -166,7 +192,7 @@ router.get("/search", async (req, res) => {
     res.json({ animals: rows });
   } catch (err) {
     console.error("[patients] search failed", err);
-    res.status(500).json({ error: "INTERNAL_ERROR" });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_SEARCH_FAILED", message: "Failed to search animals", requestId }));
   }
 });
 
@@ -174,6 +200,7 @@ router.get("/search", async (req, res) => {
 // Single hospitalization by ID
 
 router.get("/:id", async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
     const { id } = req.params;
@@ -192,13 +219,13 @@ router.get("/:id", async (req, res) => {
       .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId)))
       .limit(1);
 
-    if (!rows.length) return res.status(404).json({ error: "NOT_FOUND" });
+    if (!rows.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found", requestId }));
 
     const r = rows[0]!;
     res.json({ patient: hospitalizationRow(r.h, r.a, r.o, r.vetName ?? null) });
   } catch (err) {
     console.error("[patients] get failed", err);
-    res.status(500).json({ error: "INTERNAL_ERROR" });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_GET_FAILED", message: "Failed to load hospitalization", requestId }));
   }
 });
 
@@ -206,8 +233,9 @@ router.get("/:id", async (req, res) => {
 // Admit a patient (create hospitalization; create animal/owner if needed)
 
 router.post("/", requireEffectiveRole("technician"), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parse = admitSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "VALIDATION_ERROR", details: parse.error.flatten() });
+  if (!parse.success) return res.status(400).json(apiError({ code: "VALIDATION_ERROR", reason: "ADMIT_VALIDATION_FAILED", message: parse.error.flatten().formErrors.join(", ") || "Invalid request", requestId }));
 
   const data = parse.data;
   const clinicId = req.clinicId!;
@@ -259,7 +287,7 @@ router.post("/", requireEffectiveRole("technician"), async (req, res) => {
         .from(animals)
         .where(and(eq(animals.id, animalId), eq(animals.clinicId, clinicId)))
         .limit(1);
-      if (!check.length) return res.status(400).json({ error: "ANIMAL_NOT_FOUND" });
+      if (!check.length) return res.status(400).json(apiError({ code: "ANIMAL_NOT_FOUND", reason: "ANIMAL_NOT_IN_CLINIC", message: "Animal not found in this clinic", requestId }));
     }
 
     const hospId = randomUUID();
@@ -287,15 +315,16 @@ router.post("/", requireEffectiveRole("technician"), async (req, res) => {
     res.status(201).json({ patient: hospitalizationRow(r.h, r.a, r.o, r.vetName ?? null) });
   } catch (err) {
     console.error("[patients] admit failed", err);
-    res.status(500).json({ error: "INTERNAL_ERROR" });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_ADMIT_FAILED", message: "Failed to admit patient", requestId }));
   }
 });
 
 // ─── PATCH /api/patients/:id/status ─────────────────────────────────────────
 
 router.patch("/:id/status", async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parse = statusSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "VALIDATION_ERROR", details: parse.error.flatten() });
+  if (!parse.success) return res.status(400).json(apiError({ code: "VALIDATION_ERROR", reason: "STATUS_VALIDATION_FAILED", message: "Invalid status value", requestId }));
 
   try {
     const clinicId = req.clinicId!;
@@ -307,19 +336,20 @@ router.patch("/:id/status", async (req, res) => {
       .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId), isNull(hospitalizations.dischargedAt)))
       .returning({ id: hospitalizations.id });
 
-    if (!updated.length) return res.status(404).json({ error: "NOT_FOUND" });
+    if (!updated.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
     res.json({ id: updated[0]!.id, status: parse.data.status });
   } catch (err) {
     console.error("[patients] status update failed", err);
-    res.status(500).json({ error: "INTERNAL_ERROR" });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_STATUS_FAILED", message: "Failed to update status", requestId }));
   }
 });
 
 // ─── PATCH /api/patients/:id/discharge ──────────────────────────────────────
 
 router.patch("/:id/discharge", async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parse = dischargeSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "VALIDATION_ERROR" });
+  if (!parse.success) return res.status(400).json(apiError({ code: "VALIDATION_ERROR", reason: "DISCHARGE_VALIDATION_FAILED", message: "Invalid discharge request", requestId }));
 
   try {
     const clinicId = req.clinicId!;
@@ -337,11 +367,11 @@ router.patch("/:id/discharge", async (req, res) => {
       .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId), isNull(hospitalizations.dischargedAt)))
       .returning({ id: hospitalizations.id, dischargedAt: hospitalizations.dischargedAt });
 
-    if (!updated.length) return res.status(404).json({ error: "NOT_FOUND" });
+    if (!updated.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
     res.json({ id: updated[0]!.id, dischargedAt: updated[0]!.dischargedAt });
   } catch (err) {
     console.error("[patients] discharge failed", err);
-    res.status(500).json({ error: "INTERNAL_ERROR" });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_DISCHARGE_FAILED", message: "Failed to discharge patient", requestId }));
   }
 });
 
