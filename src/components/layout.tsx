@@ -423,6 +423,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     { href: "/billing", label: lh.billing, icon: <ReceiptText className="w-5 h-5" /> },
     { href: "/dashboard", label: lh.dashboard, icon: <LayoutDashboard className="w-5 h-5" />, menuOnly: true },
     { href: "/print", label: lh.printQr, icon: <QrCode className="w-5 h-5" />, menuOnly: true },
+    { href: "/inventory-items", label: lh.inventoryItems, icon: <Package className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/procurement", label: lh.procurement, icon: <ShoppingCart className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/admin", label: lh.admin, icon: <Shield className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/admin/shifts", label: lh.adminShifts, icon: <CalendarDays className="w-5 h-5" />, adminOnly: true, menuOnly: true },
@@ -445,7 +446,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const managementMenuItems = useMemo(
     () =>
-      ["/analytics", "/billing", "/dashboard", "/admin", "/admin/shifts", "/stability", "/print"]
+      ["/analytics", "/billing", "/dashboard", "/inventory-items", "/procurement", "/admin", "/admin/shifts", "/stability", "/print"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]

@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -137,13 +138,13 @@ export default function WhatsNewPage() {
         ))}
 
         <div className="pt-2 pb-4">
-          <a
+          <Link
             href="/settings"
             className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline underline-offset-2"
           >
             Configure notifications in Settings
             <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          </Link>
         </div>
       </div>
     </Layout>
