@@ -132,7 +132,7 @@ const parseRateLimit = rateLimit({
   keyGenerator: (req) => {
     const xf = req.headers["x-forwarded-for"];
     const fromHeader = typeof xf === "string" ? xf.split(",")[0]?.trim() : "";
-    return fromHeader || ipKeyGenerator(req.ip);
+    return fromHeader || ipKeyGenerator(req.ip ?? "");
   },
 });
 
@@ -674,7 +674,8 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
 
     if (!dryRunEnabled && hasSmtp) {
       try {
-        const transporter = nodemailer.createTransport({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const smtpOptions: any = {
           host: smtpHost,
           port: parseInt(process.env.SMTP_PORT ?? "587", 10),
           secure: process.env.SMTP_SECURE === "true",
@@ -691,7 +692,8 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
           connectionTimeout: parseTimeoutEnv(process.env.SMTP_CONNECTION_TIMEOUT_MS, 10_000),
           greetingTimeout: parseTimeoutEnv(process.env.SMTP_GREETING_TIMEOUT_MS, 10_000),
           socketTimeout: parseTimeoutEnv(process.env.SMTP_SOCKET_TIMEOUT_MS, 15_000),
-        });
+        };
+        const transporter = nodemailer.createTransport(smtpOptions);
         await transporter.sendMail({
           from: process.env.SMTP_FROM ?? smtpUser,
           to: pharmacyEmail,
