@@ -52,7 +52,16 @@ export type AuditActionType =
   | "inventory_item_deleted"
   | "clinic_pharmacy_email_updated"
   | "forecast_exclusion_created"
-  | "forecast_exclusion_deleted";
+  | "forecast_exclusion_deleted"
+  | "billing_charge_created"
+  | "equipment_restored"
+  | "code_blue_started"
+  | "code_blue_ended"
+  | "integration_config_created"
+  | "integration_config_updated"
+  | "integration_config_deleted"
+  | "integration_credentials_stored"
+  | "users_hard_purged";
 
 export interface LogAuditParams {
   clinicId: string;
