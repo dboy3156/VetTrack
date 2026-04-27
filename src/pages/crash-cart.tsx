@@ -3,9 +3,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Circle, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ErrorCard } from "@/components/ui/error-card";
 import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const CART_ITEMS = [
   { key: "defibrillator",  label: "דפיברילטור — טעון ומוכן" },
@@ -75,6 +77,9 @@ export default function CrashCartCheckPage() {
       setSubmitted(true);
       queryClient.invalidateQueries({ queryKey: ["/api/crash-cart/checks/latest"] });
     },
+    onError: () => {
+      toast.error("שגיאה בשמירת הבדיקה — נסה שנית");
+    },
   });
 
   const toggle = (key: string) => setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -82,6 +87,14 @@ export default function CrashCartCheckPage() {
 
   const criticalPatients = latestQ.data?.criticalPatients ?? [];
   const recentChecks = latestQ.data?.recentChecks ?? [];
+
+  if (latestQ.isError) {
+    return (
+      <div className="min-h-screen bg-background p-4 max-w-2xl mx-auto" dir="rtl">
+        <ErrorCard message="שגיאה בטעינת נתוני עגלת ההחייאה" onRetry={() => latestQ.refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 max-w-2xl mx-auto" dir="rtl">
@@ -133,6 +146,8 @@ export default function CrashCartCheckPage() {
             {CART_ITEMS.map((item) => (
               <button
                 key={item.key}
+                type="button"
+                aria-pressed={checked[item.key]}
                 onClick={() => toggle(item.key)}
                 className={cn(
                   "flex items-center gap-3 text-right p-2 rounded-lg border transition-colors",
