@@ -400,6 +400,17 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
 
     const [row] = await db.select().from(billingLedger).where(eq(billingLedger.id, id)).limit(1);
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "billing_charge_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "billing_entry",
+      metadata: { itemType: b.itemType, itemId: b.itemId, quantity: b.quantity, totalAmountCents, animalId: b.animalId ?? null },
+    });
+
     // Fire webhook if configured (config lookup handled inside enqueueBillingWebhookJob)
     try {
       await enqueueBillingWebhookJob({

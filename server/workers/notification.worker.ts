@@ -81,7 +81,7 @@ async function scanOverdueAndEnqueue(): Promise<void> {
       count: row.count,
     });
   }
-  console.log("OVERDUE_SCAN_ENQUEUED", { users: rows.length });
+  if (process.env.NODE_ENV !== "production") console.log("OVERDUE_SCAN_ENQUEUED", { users: rows.length });
 }
 
 async function processSendNotification(data: NotificationJobData): Promise<void> {
@@ -149,7 +149,7 @@ async function processBillingWebhook(payload: BillingWebhookPayload): Promise<vo
     if (!response.ok) {
       throw new Error(`billing_webhook HTTP ${response.status} from ${webhookUrl}`);
     }
-    console.log("BILLING_WEBHOOK_SENT", { clinicId: payload.clinicId, entryId: entry.id, status: response.status });
+    if (process.env.NODE_ENV !== "production") console.log("BILLING_WEBHOOK_SENT", { clinicId: payload.clinicId, entryId: entry.id, status: response.status });
   } catch (err) {
     clearTimeout(timeout);
     throw err;
@@ -344,7 +344,7 @@ async function handleShiftReportEmail(payload: ShiftReportEmailPayload): Promise
     html: htmlBody,
   });
 
-  console.log("SHIFT_REPORT_EMAIL_SENT", { clinicId, shiftSessionId, managerEmail });
+  if (process.env.NODE_ENV !== "production") console.log("SHIFT_REPORT_EMAIL_SENT", { clinicId, shiftSessionId, managerEmail });
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +417,7 @@ async function main(): Promise<void> {
     async (job) => {
       const t0 = Date.now();
       const jid = String(job.id ?? "");
-      console.log("QUEUE_JOB_STARTED", { id: jid, name: job.name });
+      if (process.env.NODE_ENV !== "production") console.log("QUEUE_JOB_STARTED", { id: jid, name: job.name });
       incrementMetric("queue_jobs_started");
       if (job.attemptsMade > 0) {
         incrementMetric("retries_attempted");
@@ -435,7 +435,7 @@ async function main(): Promise<void> {
         } else if (job.name === "send_notification") {
           const key = `notif:${jid}`;
           if (await checkIdempotentAsync(key)) {
-            console.log("QUEUE_JOB_SKIPPED_IDEMPOTENT", { id: jid, name: job.name });
+            if (process.env.NODE_ENV !== "production") console.log("QUEUE_JOB_SKIPPED_IDEMPOTENT", { id: jid, name: job.name });
             return;
           }
           await processSendNotification(job.data as NotificationJobData);
@@ -449,7 +449,7 @@ async function main(): Promise<void> {
         }
         queueMetrics.completed++;
         incrementMetric("queue_jobs_completed");
-        console.log("QUEUE_JOB_COMPLETED", { id: jid, ms: Date.now() - t0 });
+        if (process.env.NODE_ENV !== "production") console.log("QUEUE_JOB_COMPLETED", { id: jid, ms: Date.now() - t0 });
       } catch (err) {
         queueMetrics.failed++;
         incrementMetric("queue_jobs_failed");

@@ -5,6 +5,7 @@ import { db, codeBlueEvents } from "../db.js";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -55,6 +56,17 @@ router.post("/events", requireAuth, validateBody(startSchema), async (req, res) 
       startedAt,
     });
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "code_blue_started",
+      performedBy: userId,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "code_blue_event",
+      metadata: { startedAt: startedAt.toISOString() },
+    });
+
     res.status(201).json({ id, startedAt: startedAt.toISOString() });
   } catch (err) {
     console.error("[code-blue] start failed", err);
@@ -88,6 +100,17 @@ router.patch("/events/:id", requireAuth, validateUuid("id"), validateBody(endSch
         apiError({ code: "NOT_FOUND", reason: "EVENT_NOT_FOUND", message: "Code Blue event not found", requestId }),
       );
     }
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "code_blue_ended",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "code_blue_event",
+      metadata: { outcome: body.outcome ?? null, endedAt: updated.endedAt?.toISOString() },
+    });
 
     res.json({ id: updated.id, endedAt: updated.endedAt });
   } catch (err) {

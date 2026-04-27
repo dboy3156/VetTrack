@@ -34,6 +34,7 @@ import animalsRoutes from "../routes/animals.js";
 import patientsRoutes from "../routes/patients.js";
 import uploadsRoutes from "../routes/uploads.js";
 import codeBlueRoutes from "../routes/code-blue.js";
+import integrationsRoutes from "../routes/integrations.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -69,6 +70,7 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/patients", patientsRoutes);
   app.use("/api/uploads", uploadsRoutes);
   app.use("/api/code-blue", codeBlueRoutes);
+  app.use("/api/integrations", integrationsRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);
   app.use("/api/health/ready", healthRoutes);

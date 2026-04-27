@@ -64,7 +64,9 @@ export default function SettingsPage() {
 
     update(effectivePatch);
     if (push.subscribed) {
-      push.updateSettings(effectivePatch).catch(() => {});
+      push.updateSettings(effectivePatch).catch(() => {
+        toast.error("Failed to sync notification settings");
+      });
     }
   };
 
@@ -80,7 +82,9 @@ export default function SettingsPage() {
     }
     update({ soundEnabled: v });
     if (push.subscribed) {
-      push.updateSettings({ soundEnabled: v }).catch(() => {});
+      push.updateSettings({ soundEnabled: v }).catch(() => {
+        toast.error("Failed to sync notification settings");
+      });
     }
   };
 
@@ -94,7 +98,9 @@ export default function SettingsPage() {
     }
     update({ criticalAlertsSound: v });
     if (push.subscribed) {
-      push.updateSettings({ alertsEnabled: v }).catch(() => {});
+      push.updateSettings({ alertsEnabled: v }).catch(() => {
+        toast.error("Failed to sync notification settings");
+      });
     }
   };
 
