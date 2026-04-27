@@ -90,6 +90,14 @@ async function processSendNotification(data: NotificationJobData): Promise<void>
     console.warn("[worker] push circuit open; skipping notification job");
     return;
   }
+  if (data.type === "shift_chat_snooze") {
+    await sendPushToUser(data.clinicId, data.userId, {
+      title: `📢 תזכורת: ${data.broadcastKey === "department_close" ? "סגירת מחלקה" : data.broadcastKey}`,
+      body: "טרם אישרת קבלת הפקודה",
+      tag: `shift-chat-snooze-${data.messageId}`,
+    });
+    return;
+  }
   if (data.type === "task_notification") {
     await withTimeout(dispatchTaskNotificationSync(data.event, data.task, data.actor), 5000, "task notification");
     return;

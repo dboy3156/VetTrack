@@ -233,4 +233,69 @@ router.post(
   },
 );
 
+// ─── POST /api/shift-chat/messages/:id/ack ───────────────────────────────────
+
+const ackSchema = z.object({
+  status: z.enum(["acknowledged", "snoozed"]),
+});
+
+router.post(
+  "/messages/:id/ack",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  writeLimiter,
+  validateBody(ackSchema),
+  async (req, res) => {
+    const clinicId  = req.clinicId!;
+    const userId    = req.authUser!.id;
+    const messageId = req.params.id;
+    const { status } = req.body as z.infer<typeof ackSchema>;
+
+    try {
+      // Verify the message exists and belongs to this clinic
+      const [message] = await db
+        .select()
+        .from(shiftMessages)
+        .where(and(eq(shiftMessages.id, messageId), eq(shiftMessages.clinicId, clinicId)))
+        .limit(1);
+
+      if (!message) {
+        return res.status(404).json({ error: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" });
+      }
+      if (message.type !== "broadcast") {
+        return res.status(400).json({ error: "BAD_REQUEST", reason: "NOT_BROADCAST", message: "Only broadcast messages can be acknowledged" });
+      }
+
+      // Upsert the ack record
+      await db
+        .insert(shiftMessageAcks)
+        .values({ messageId, userId, status, respondedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [shiftMessageAcks.messageId, shiftMessageAcks.userId],
+          set: { status, respondedAt: new Date() },
+        });
+
+      // Snooze: enqueue a push notification after 5 minutes
+      if (status === "snoozed" && message.broadcastKey) {
+        const { enqueueNotificationJob } = await import("../lib/queue.js");
+        await enqueueNotificationJob(
+          {
+            type: "shift_chat_snooze",
+            clinicId,
+            userId,
+            messageId,
+            broadcastKey: message.broadcastKey,
+          },
+          { delay: 300000 },
+        );
+      }
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("[shift-chat] POST /messages/:id/ack error:", err);
+      return res.status(500).json({ error: "INTERNAL_ERROR", message: "Internal server error" });
+    }
+  },
+);
+
 export default router;

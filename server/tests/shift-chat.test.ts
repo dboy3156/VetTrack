@@ -97,6 +97,30 @@ async function testMessageBodyMaxLength() {
   }
 }
 
+async function testAckInvalidStatus() {
+  console.log("\n[Test] POST /api/shift-chat/messages/:id/ack — invalid status rejected");
+  const res = await post(
+    "/api/shift-chat/messages/fake-id/ack",
+    { status: "invalid" },
+    { headers: { "x-dev-role-override": "technician" } },
+  );
+  if (res.status === 400) {
+    ok("Invalid ack status returns 400");
+  } else {
+    fail(`Expected 400, got ${res.status}`);
+  }
+}
+
+async function testAckRequiresAuth() {
+  console.log("\n[Test] POST /api/shift-chat/messages/:id/ack — requires auth");
+  const res = await post("/api/shift-chat/messages/fake-id/ack", { status: "acknowledged" });
+  if (res.status === 401) {
+    ok("Unauthenticated ack returns 401");
+  } else {
+    fail(`Expected 401, got ${res.status}`);
+  }
+}
+
 async function run() {
   console.log("=== Shift Chat Tests ===");
   try {
@@ -114,6 +138,8 @@ async function run() {
   await testPostMessageRequiresAuth();
   await testBroadcastForbiddenForTechnician();
   await testMessageBodyMaxLength();
+  await testAckRequiresAuth();
+  await testAckInvalidStatus();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
