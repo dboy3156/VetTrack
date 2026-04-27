@@ -1314,4 +1314,16 @@ export const api = {
     active: () =>
       request<{ animals: ActivePatient[] }>("/api/animals/active"),
   },
+  codeBlue: {
+    startEvent: (data: import("@/types").StartCodeBlueRequest) =>
+      request<import("@/types").StartCodeBlueResponse>("/api/code-blue/events", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    endEvent: (id: string, data: import("@/types").EndCodeBlueRequest) =>
+      request<{ id: string; endedAt: string | null }>(`/api/code-blue/events/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+  },
 };

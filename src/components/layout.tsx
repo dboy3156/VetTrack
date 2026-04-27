@@ -371,7 +371,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     prevAlertCountRef.current = alertCount;
   }, [alertCount]);
 
-  const canAccessCodeBlue = isAdmin || role === "vet";
+  const canAccessCodeBlue = isAdmin || role === "vet" || role === "senior_technician" || role === "technician";
 
   const canAccessHandoverInventory =
     role === "admin" || role === "vet" || role === "technician";

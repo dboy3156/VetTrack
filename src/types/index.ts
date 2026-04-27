@@ -162,6 +162,35 @@ export interface CriticalEquipment {
   lastSeenTimestamp?: string | null;
 }
 
+export type CodeBlueOutcome = "rosc" | "died" | "transferred" | "ongoing";
+
+export interface StartCodeBlueRequest {
+  localStartedAt?: string;
+}
+
+export interface StartCodeBlueResponse {
+  id: string;
+  startedAt: string;
+}
+
+export interface EndCodeBlueRequest {
+  outcome?: CodeBlueOutcome;
+  notes?: string;
+  timeline?: Array<{ elapsed: number; label: string }>;
+}
+
+export interface CodeBlueEvent {
+  id: string;
+  clinicId: string;
+  startedAt: string;
+  endedAt?: string | null;
+  startedByUserId?: string | null;
+  outcome?: CodeBlueOutcome | null;
+  notes?: string | null;
+  timeline: Array<{ elapsed: number; label: string }>;
+  createdAt: string;
+}
+
 export interface CreateEquipmentRequest {
   name: string;
   serialNumber?: string;
