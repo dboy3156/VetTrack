@@ -12,6 +12,7 @@ export interface TopbarSection {
 
 const SECTIONS: TopbarSection[] = [
   { href: "/home",         label: "Home" },
+  { href: "/patients",     label: "Patients" },
   { href: "/equipment",   label: "Equipment" },
   { href: "/meds",        label: "Pharmacy" },
   { href: "/appointments", label: "Shifts" },
