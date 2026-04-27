@@ -8,6 +8,10 @@ import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
 
+function apiError(p: { code: string; reason: string; message: string; requestId: string }) {
+  return { code: p.code, error: p.code, reason: p.reason, message: p.message, requestId: p.requestId };
+}
+
 function resolveRequestId(
   res: { getHeader: (n: string) => unknown; setHeader?: (n: string, v: string) => void },
   incomingHeader: unknown,
@@ -54,7 +58,7 @@ router.post("/checks", requireAuth, validateBody(submitCheckSchema), async (req,
     res.status(201).json({ id, allPassed });
   } catch (err) {
     console.error("[crash-cart] submit check failed", err);
-    res.status(500).json({ code: "INTERNAL_ERROR", message: "Failed to save check", requestId });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "CRASH_CART_SUBMIT_FAILED", message: "Failed to save check", requestId }));
   }
 });
 
@@ -102,7 +106,7 @@ router.get("/checks/latest", requireAuth, async (req, res) => {
     res.json({ latest, checkedToday, recentChecks, criticalPatients });
   } catch (err) {
     console.error("[crash-cart] get latest failed", err);
-    res.status(500).json({ code: "INTERNAL_ERROR", message: "Failed to get latest check", requestId });
+    res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "CRASH_CART_GET_FAILED", message: "Failed to get latest check", requestId }));
   }
 });
 
