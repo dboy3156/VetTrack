@@ -129,7 +129,7 @@ export default function HomePage() {
       value: activePatientsCount,
       subtitle: "In active care",
       icon: Users,
-      href: "/appointments",
+      href: "/patients",
       loading: tasksLoading,
     },
     {

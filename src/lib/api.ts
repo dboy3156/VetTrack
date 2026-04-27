@@ -1314,6 +1314,38 @@ export const api = {
     active: () =>
       request<{ animals: ActivePatient[] }>("/api/animals/active"),
   },
+  patients: {
+    list: (params?: { q?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.q) qs.set("q", params.q);
+      if (params?.status) qs.set("status", params.status);
+      const query = qs.toString();
+      return request<{ patients: import("@/types").Hospitalization[] }>(
+        `/api/patients${query ? `?${query}` : ""}`,
+      );
+    },
+    search: (q: string) =>
+      request<{ animals: import("@/types").AnimalSearchResult[] }>(
+        `/api/patients/search?q=${encodeURIComponent(q)}`,
+      ),
+    get: (id: string) =>
+      request<{ patient: import("@/types").Hospitalization }>(`/api/patients/${id}`),
+    admit: (data: import("@/types").AdmitPatientRequest) =>
+      request<{ patient: import("@/types").Hospitalization }>("/api/patients", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    updateStatus: (id: string, status: import("@/types").HospitalizationStatus) =>
+      request<{ id: string; status: string }>(`/api/patients/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    discharge: (id: string, dischargeNotes?: string) =>
+      request<{ id: string; dischargedAt: string }>(`/api/patients/${id}/discharge`, {
+        method: "PATCH",
+        body: JSON.stringify({ dischargeNotes }),
+      }),
+  },
   codeBlue: {
     startEvent: (data: import("@/types").StartCodeBlueRequest) =>
       request<import("@/types").StartCodeBlueResponse>("/api/code-blue/events", {

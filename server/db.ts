@@ -766,6 +766,32 @@ export const codeBlueEvents = pgTable(
   }),
 );
 
+// status stored as TEXT CHECK — consistent with codeBlueOutcome pattern
+export type HospitalizationStatus = "admitted" | "observation" | "critical" | "recovering" | "discharged" | "deceased";
+
+export const hospitalizations = pgTable(
+  "vt_hospitalizations",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    animalId: text("animal_id").notNull().references(() => animals.id, { onDelete: "cascade" }),
+    admittedAt: timestamp("admitted_at", { withTimezone: true }).notNull().defaultNow(),
+    dischargedAt: timestamp("discharged_at", { withTimezone: true }),
+    status: text("status").$type<HospitalizationStatus>().notNull().default("admitted"),
+    ward: text("ward"),
+    bay: text("bay"),
+    admissionReason: text("admission_reason"),
+    admittingVetId: text("admitting_vet_id").references(() => users.id, { onDelete: "set null" }),
+    dischargeNotes: text("discharge_notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    clinicActiveIdx: index("idx_vt_hospitalizations_clinic_active").on(table.clinicId, table.admittedAt),
+    animalIdx: index("idx_vt_hospitalizations_animal").on(table.animalId),
+  }),
+);
+
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
   // This function is kept as a thin wrapper for backwards compatibility.

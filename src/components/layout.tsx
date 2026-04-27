@@ -47,6 +47,7 @@ import {
   Film,
   Sparkles,
   FileText,
+  Stethoscope,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -401,6 +402,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       badgeCount: myCount,
     },
     { href: "/appointments", label: "Tasks", icon: <CalendarDays className="w-5 h-5" />, menuOnly: true },
+    { href: "/patients", label: "Active Patients", icon: <Stethoscope className="w-5 h-5" />, menuOnly: true },
     { href: "/meds", label: "Medication Hub", icon: <Pill className="w-5 h-5" />, menuOnly: true },
     ...(canAccessPharmacyForecastNav
       ? [{
@@ -436,7 +438,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
   const operationMenuItems = useMemo(
     () =>
-      ["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
+      ["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/patients", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
