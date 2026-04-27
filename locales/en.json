@@ -643,7 +643,8 @@
     "recentActivity": "Recent activity",
     "getStarted": "Get started",
     "total": "Total",
-    "getStartedDescription": "Add your first equipment item to start tracking"
+    "getStartedDescription": "Add your first equipment item to start tracking",
+    "appTourHint": "Training + video"
   },
 
   "landingPage": {

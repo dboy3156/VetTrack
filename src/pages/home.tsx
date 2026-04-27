@@ -201,8 +201,8 @@ export default function HomePage() {
     },
     {
       id: "app-tour",
-      label: "סיור באפליקציה",
-      hint: "הדרכה + סרטון",
+      label: t.layoutHebrew.appTour,
+      hint: t.homePage.appTourHint,
       icon: Film,
       href: "/app-tour",
     },

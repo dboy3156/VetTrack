@@ -644,7 +644,8 @@
     "recentActivity": "פעילות אחרונה",
     "getStarted": "התחל",
     "total": "סה״כ",
-    "getStartedDescription": "הוסף את פריט הציוד הראשון כדי להתחיל במעקב"
+    "getStartedDescription": "הוסף את פריט הציוד הראשון כדי להתחיל במעקב",
+    "appTourHint": "הדרכה + סרטון"
   },
 
   "landingPage": {
@@ -1334,6 +1335,8 @@
     "chipPrn": "PRN: {count}",
     "chipLd": "טעינה: {count}",
     "chipFlags": "דגלים: {count}",
+    "sourceFormatSmartflowBadge": "מקור: SmartFlow",
+    "sourceFormatGenericBadge": "מקור: כללי",
     "errors": {
       "noFile": "נא לבחור קובץ PDF",
       "noText": "נא להדביק טקסט לניתוח"
