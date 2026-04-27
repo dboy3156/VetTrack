@@ -1180,3 +1180,80 @@ export interface InventoryJob {
   resolvedAt: string | null;
 }
 
+// ─── Ward Display Snapshot ────────────────────────────────────────────────────
+
+export interface DisplaySnapshotHospitalization {
+  id: string;
+  status: HospitalizationStatus;
+  ward: string | null;
+  bay: string | null;
+  admittingVetName: string | null;
+  admittedAt: string;
+  animal: {
+    name: string;
+    species: string | null;
+    breed: string | null;
+    weightKg: number | null;
+  };
+  overdueTaskCount: number;
+  overdueTaskLabel: string | null;
+}
+
+export interface DisplaySnapshotEquipment {
+  id: string;
+  name: string;
+  status: EquipmentStatus;
+  inUse: boolean;
+  location: string | null;
+}
+
+export interface DisplaySnapshotTask {
+  id: string;
+  startTime: string;
+  taskType: string | null;
+  notes: string | null;
+  animalName: string;
+  status: string;
+}
+
+export interface DisplaySnapshotCodeBlueSession {
+  id: string;
+  startedAt: string;
+  managerUserName: string;
+  patientId: string | null;
+  patientName: string | null;
+  patientWeight: number | null;
+  patientSpecies: string | null;
+  ward: string | null;
+  bay: string | null;
+  preCheckPassed: boolean | null;
+  pushSentAt: string;
+  logEntries: Array<{
+    elapsedMs: number;
+    label: string;
+    category: string;
+    loggedByName: string;
+  }>;
+  presence: Array<{
+    userId: string;
+    userName: string;
+    lastSeenAt: string;
+  }>;
+}
+
+export interface DisplaySnapshot {
+  currentTime: string;
+  currentShift: Array<{ employeeName: string; role: string }>;
+  hospitalizations: DisplaySnapshotHospitalization[];
+  equipment: DisplaySnapshotEquipment[];
+  upcomingTasks: DisplaySnapshotTask[];
+  activeAlertCount: number;
+  totalOverdueCount: number;
+  crashCartStatus: {
+    lastCheckedAt: string;
+    allPassed: boolean;
+    performedByName: string;
+  } | null;
+  codeBlueSession: DisplaySnapshotCodeBlueSession | null;
+}
+
