@@ -136,7 +136,10 @@ export function useCodeBlueSession() {
     (async () => {
       const remaining: typeof queue = [];
       for (const item of queue) {
-        if (item.sessionId !== sessionId) continue;
+        if (item.sessionId !== sessionId) {
+          remaining.push(item);
+          continue;
+        }
         try {
           await authFetch(`/api/code-blue/sessions/${sessionId}/logs`, {
             method: "POST",

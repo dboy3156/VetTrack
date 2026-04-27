@@ -22,6 +22,7 @@ import {
   XCircle,
   RefreshCw,
   CheckCircle,
+  CheckCircle2,
   LayoutDashboard,
   ReceiptText,
   Globe,
@@ -395,6 +396,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           icon: <Siren className="w-5 h-5 text-red-500" />,
         } satisfies NavItem]
       : []),
+    ...(canAccessCodeBlue
+      ? [{
+          href: "/crash-cart",
+          label: "עגלת החייאה",
+          icon: <CheckCircle2 className="w-5 h-5" />,
+        } satisfies NavItem]
+      : []),
     {
       href: "/my-equipment",
       label: t.layout.nav.mine,
@@ -432,6 +440,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     { href: "/whats-new", label: lh.whatsNew, icon: <Sparkles className="w-5 h-5" />, menuOnly: true },
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/audit-log", label: lh.auditLog, icon: <FileText className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    { href: "/admin/code-blue-history", label: "היסטוריית CODE BLUE", icon: <Clock className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
   ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, canAccessPharmacyForecastNav, myCount, lh, t]);
 
@@ -439,7 +448,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
   const operationMenuItems = useMemo(
     () =>
-      ["/", "/equipment", "/alerts", "/code-blue", "/my-equipment", "/appointments", "/patients", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
+      ["/", "/equipment", "/alerts", "/code-blue", "/crash-cart", "/my-equipment", "/appointments", "/patients", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]
@@ -453,7 +462,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const systemMenuItems = useMemo(
     () =>
-      ["/app-tour", "/whats-new", "/help", "/audit-log", "/settings"]
+      ["/app-tour", "/whats-new", "/help", "/audit-log", "/admin/code-blue-history", "/settings"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]

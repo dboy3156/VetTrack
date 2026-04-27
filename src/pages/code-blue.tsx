@@ -8,6 +8,7 @@ import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/hooks/use-auth";
 import { useCodeBlueSession } from "@/hooks/useCodeBlueSession";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,41 @@ const DRUGS = [
   { key: "vasopressin", label: "וזופרסין",   dosePerKg: 0.8,  unit: "יח׳", category: "drug" as const },
 ];
 
+// ─── Manager picker (for non-eligible users) ─────────────────────────────────
+
+function ManagerPicker({ onSelect }: { onSelect: (id: string, name: string) => void }) {
+  const { userId } = useAuth();
+  const managersQ = useQuery<Array<{ id: string; name: string; role: string }>>({
+    queryKey: ["/api/users/managers"],
+    queryFn: async () => {
+      const res = await authFetch("/api/users/managers");
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      return data.managers ?? [];
+    },
+    enabled: !!userId,
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      {managersQ.isPending && <p className="text-xs text-zinc-500">טוען רשימת רופאים...</p>}
+      {managersQ.data?.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onSelect(m.id, m.name)}
+          className="p-2 rounded border border-zinc-700 bg-zinc-800 text-sm text-zinc-200 text-right hover:bg-zinc-700"
+        >
+          {m.name} ({m.role === "admin" ? "מנהל" : "רופא"})
+        </button>
+      ))}
+      {managersQ.data?.length === 0 && (
+        <p className="text-xs text-red-400">אין רופאים זמינים. יש לוודא שרופא נמצא בשטח.</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Pre-check gate ──────────────────────────────────────────────────────────
 
 const QUICK_CHECK_ITEMS = [
@@ -77,13 +113,14 @@ const QUICK_CHECK_ITEMS = [
 
 function PreCheckGate({ onStart }: { onStart: (passed: boolean, manager: { id: string; name: string }) => void }) {
   const { userId, role, name } = useAuth();
+  const isEligibleManager = role === "vet" || role === "admin";
   const [checked, setChecked] = useState<Record<string, boolean>>(
     Object.fromEntries(QUICK_CHECK_ITEMS.map((i) => [i.key, false])),
   );
-  const [managerId, setManagerId] = useState(userId ?? "");
-  const [managerName, setManagerName] = useState(name ?? "");
+  const [managerId, setManagerId] = useState(isEligibleManager ? (userId ?? "") : "");
+  const [managerName, setManagerName] = useState(isEligibleManager ? (name ?? "") : "");
 
-  const isEligibleManager = role === "vet" || role === "admin";
+
   const allChecked = QUICK_CHECK_ITEMS.every((i) => checked[i.key]);
 
   const toggle = (key: string) => setChecked((p) => ({ ...p, [key]: !p[key] }));
@@ -113,12 +150,12 @@ function PreCheckGate({ onStart }: { onStart: (passed: boolean, manager: { id: s
             {name} (אתה)
           </div>
         ) : (
-          <input
-            className="w-full rounded border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200"
-            placeholder="שם הרופא המנהל..."
-            value={managerName}
-            onChange={(e) => setManagerName(e.target.value)}
-          />
+          <>
+            <ManagerPicker onSelect={(id, n) => { setManagerId(id); setManagerName(n); }} />
+            {managerId && (
+              <div className="mt-2 text-xs text-green-400">✓ נבחר: {managerName}</div>
+            )}
+          </>
         )}
       </div>
 
@@ -196,7 +233,7 @@ function OutcomeModal({ onClose }: { onClose: (outcome: string) => void }) {
             </button>
           ))}
         </div>
-        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={() => onClose("")}>ביטול</button>
+        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={() => onClose("")}>{t.common.cancel}</button>
       </div>
     </div>
   );
@@ -235,7 +272,7 @@ function EquipmentPicker({ onSelect, onClose }: { onSelect: (item: EquipmentItem
           ))}
           {equipQ.data?.length === 0 && <p className="text-zinc-500 text-sm">אין ציוד זמין</p>}
         </div>
-        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={onClose}>ביטול</button>
+        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={onClose}>{t.common.cancel}</button>
       </div>
     </div>
   );
