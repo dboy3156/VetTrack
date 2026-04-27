@@ -1,7 +1,7 @@
 // server/routes/display.ts
 import { randomUUID } from "crypto";
 import { Router } from "express";
-import { and, desc, eq, gte, inArray, isNull, lt, lte, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, sql } from "drizzle-orm";
 import {
   db,
   animals,
@@ -70,7 +70,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
           eq(appointments.clinicId, clinicId),
           inArray(appointments.status, ["pending", "assigned"]),
           lt(appointments.startTime, now),
-          sql`${appointments.animalId} is not null`,
+          isNotNull(appointments.animalId),
         ),
       )
       .orderBy(appointments.startTime);
@@ -132,8 +132,9 @@ router.get("/snapshot", requireAuth, async (req, res) => {
       );
 
     // ── 6. Current shift ───────────────────────────────────────────────────
-    const todayDate = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
-    const nowTimeStr = now.toTimeString().slice(0, 5); // "HH:MM"
+    // Use UTC consistently for both date and time to avoid mixed-timezone issues
+    const todayDate = now.toISOString().slice(0, 10); // "YYYY-MM-DD" UTC
+    const nowTimeStr = now.toISOString().slice(11, 16); // "HH:MM" UTC
     const shiftRows = await db
       .select()
       .from(shifts)
@@ -185,7 +186,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
         const [animal] = await db
           .select()
           .from(animals)
-          .where(eq(animals.id, activeSession.patientId));
+          .where(and(eq(animals.id, activeSession.patientId), eq(animals.clinicId, clinicId)));
         if (animal) {
           patientName = animal.name;
           patientWeight = animal.weightKg ? Number(animal.weightKg) : null;
@@ -196,6 +197,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
           .from(hospitalizations)
           .where(
             and(
+              eq(hospitalizations.clinicId, clinicId),
               eq(hospitalizations.animalId, activeSession.patientId),
               notInArray(hospitalizations.status, ["discharged", "deceased"]),
             ),
