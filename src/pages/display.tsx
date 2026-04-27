@@ -75,7 +75,7 @@ function AwarenessBar({ snapshot }: { snapshot: DisplaySnapshot }) {
 
   const cart = snapshot.crashCartStatus;
   const cartAgeHours = cart
-    ? Math.round((Date.now() - new Date(cart.lastCheckedAt).getTime()) / 3_600_000)
+    ? Math.round((now.getTime() - new Date(cart.lastCheckedAt).getTime()) / 3_600_000)
     : null;
   const cartOk = cart !== null && cartAgeHours !== null && cartAgeHours < 24;
 
@@ -92,7 +92,7 @@ function AwarenessBar({ snapshot }: { snapshot: DisplaySnapshot }) {
       <div className="flex gap-2 flex-wrap">
         {snapshot.currentShift.map((s) => (
           <div
-            key={s.employeeName}
+            key={`${s.employeeName}-${s.role}`}
             className="flex items-center gap-1.5 bg-[#1e2740] border border-[#2d3d5c] rounded-full px-3 py-0.5 text-[11px] text-blue-300"
           >
             <span>{s.employeeName}</span>
@@ -128,7 +128,7 @@ function AwarenessBar({ snapshot }: { snapshot: DisplaySnapshot }) {
         </span>
       )}
 
-      <span className="mr-auto flex items-center bg-white/5 border border-white/10 text-gray-400 rounded px-2.5 py-1 text-[11px] whitespace-nowrap">
+      <span className="ms-auto flex items-center bg-white/5 border border-white/10 text-gray-400 rounded px-2.5 py-1 text-[11px] whitespace-nowrap">
         {snapshot.hospitalizations.length} מאושפזים
       </span>
     </div>
