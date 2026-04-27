@@ -191,6 +191,15 @@ export type NotificationJobData =
       userId: string;
       messageId: string;
       broadcastKey: string;
+    }
+  | {
+      type: "overdue_medication_alert";
+      clinicId: string;
+      userId: string;
+      animalName: string;
+      drugName: string;
+      minutesLate: number;
+      animalId: string;
     };
 
 /**
