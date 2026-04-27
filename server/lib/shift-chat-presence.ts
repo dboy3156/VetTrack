@@ -40,8 +40,12 @@ export function getPresence(clinicId: string): { onlineUserIds: string[]; typing
   const onlineUserIds: string[] = [];
   const typing: string[] = [];
 
-  for (const [userId, entry] of clinic.entries()) {
-    if (now - entry.lastSeenAt < ONLINE_TTL_MS) onlineUserIds.push(userId);
+  for (const [userId, entry] of Array.from(clinic.entries())) {
+    if (now - entry.lastSeenAt >= ONLINE_TTL_MS) {
+      clinic.delete(userId); // evict stale entry to prevent unbounded growth
+      continue;
+    }
+    onlineUserIds.push(userId);
     if (entry.typingUntil > now) typing.push(entry.name);
   }
 
