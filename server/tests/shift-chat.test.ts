@@ -1,5 +1,4 @@
 const BASE = "http://localhost:3001";
-
 let passed = 0;
 let failed = 0;
 
@@ -18,111 +17,111 @@ async function post(path: string, body?: unknown, opts?: RequestInit) {
   });
 }
 
-async function testGetMessagesRequiresAuth() {
-  console.log("\n[Test] GET /api/shift-chat/messages — requires auth");
+// ─── Auth / role gate tests ───────────────────────────────────────────────────
+
+async function testGetRequiresAuth() {
   const res = await get("/api/shift-chat/messages");
-  if (res.status === 401) {
-    ok("Unauthenticated request returns 401");
-  } else {
-    fail(`Expected 401, got ${res.status}`);
-  }
+  res.status === 401 ? ok("GET requires auth") : fail("GET requires auth", `got ${res.status}`);
 }
 
-async function testGetMessagesStudentDenied() {
-  console.log("\n[Test] GET /api/shift-chat/messages — student gets 403");
+async function testStudentDenied() {
   const res = await get("/api/shift-chat/messages", {
     headers: { "x-dev-role-override": "student" },
   });
-  if (res.status === 403) {
-    ok("Student correctly denied");
-  } else {
-    fail(`Expected 403, got ${res.status}`);
-  }
+  res.status === 403 ? ok("Student denied GET") : fail("Student denied GET", `got ${res.status}`);
 }
 
-async function testGetMessagesReturnsShape() {
-  console.log("\n[Test] GET /api/shift-chat/messages — returns correct shape");
+async function testGetReturnsShape() {
   const res = await get("/api/shift-chat/messages", {
     headers: { "x-dev-role-override": "technician" },
   });
-  if (!res.ok) { fail(`Expected 200, got ${res.status}`); return; }
+  if (!res.ok) { fail("GET returns 200", `got ${res.status}`); return; }
   const body = await res.json();
-  if (
-    Array.isArray(body.messages) &&
-    ("pinnedMessage" in body) &&
-    Array.isArray(body.typing) &&
-    Array.isArray(body.onlineUserIds)
-  ) {
-    ok("Response has correct shape");
-  } else {
-    fail("Response missing required fields", JSON.stringify(body));
-  }
+  Array.isArray(body.messages) && "pinnedMessage" in body && Array.isArray(body.typing) && Array.isArray(body.onlineUserIds)
+    ? ok("GET returns correct shape")
+    : fail("GET shape wrong", JSON.stringify(body));
 }
 
-async function testPostMessageRequiresAuth() {
-  console.log("\n[Test] POST /api/shift-chat/messages — requires auth");
-  const res = await post("/api/shift-chat/messages", { body: "hello", type: "regular" });
-  if (res.status === 401) {
-    ok("Unauthenticated returns 401");
-  } else {
-    fail(`Expected 401, got ${res.status}`);
-  }
+async function testPostRequiresAuth() {
+  const res = await post("/api/shift-chat/messages", { body: "hi", type: "regular" });
+  res.status === 401 ? ok("POST requires auth") : fail("POST requires auth", `got ${res.status}`);
 }
 
-async function testBroadcastForbiddenForTechnician() {
-  console.log("\n[Test] POST broadcast — technician gets 403");
+async function testBroadcastBlockedForTech() {
   const res = await post(
     "/api/shift-chat/messages",
     { body: "", type: "broadcast", broadcastKey: "department_close" },
     { headers: { "x-dev-role-override": "technician" } },
   );
-  if (res.status === 403) {
-    ok("Technician cannot send broadcast");
-  } else {
-    fail(`Expected 403, got ${res.status}`);
-  }
+  res.status === 403 ? ok("Technician cannot broadcast") : fail("Broadcast block", `got ${res.status}`);
 }
 
-async function testMessageBodyMaxLength() {
-  console.log("\n[Test] POST /api/shift-chat/messages — body > 1000 chars rejected");
+async function testBodyTooLong() {
   const res = await post(
     "/api/shift-chat/messages",
     { body: "x".repeat(1001), type: "regular" },
     { headers: { "x-dev-role-override": "technician" } },
   );
-  if (res.status === 400) {
-    ok("Body > 1000 chars rejected");
-  } else {
-    fail(`Expected 400, got ${res.status}`);
-  }
-}
-
-async function testAckInvalidStatus() {
-  console.log("\n[Test] POST /api/shift-chat/messages/:id/ack — invalid status rejected");
-  const res = await post(
-    "/api/shift-chat/messages/fake-id/ack",
-    { status: "invalid" },
-    { headers: { "x-dev-role-override": "technician" } },
-  );
-  if (res.status === 400) {
-    ok("Invalid ack status returns 400");
-  } else {
-    fail(`Expected 400, got ${res.status}`);
-  }
+  res.status === 400 ? ok("Body > 1000 chars rejected") : fail("Body length guard", `got ${res.status}`);
 }
 
 async function testAckRequiresAuth() {
-  console.log("\n[Test] POST /api/shift-chat/messages/:id/ack — requires auth");
-  const res = await post("/api/shift-chat/messages/fake-id/ack", { status: "acknowledged" });
-  if (res.status === 401) {
-    ok("Unauthenticated ack returns 401");
-  } else {
-    fail(`Expected 401, got ${res.status}`);
-  }
+  const res = await post("/api/shift-chat/messages/fake/ack", { status: "acknowledged" });
+  res.status === 401 ? ok("Ack requires auth") : fail("Ack auth", `got ${res.status}`);
 }
 
+async function testAckInvalidStatus() {
+  const res = await post(
+    "/api/shift-chat/messages/fake/ack",
+    { status: "wrong" },
+    { headers: { "x-dev-role-override": "technician" } },
+  );
+  res.status === 400 ? ok("Invalid ack status rejected") : fail("Ack validation", `got ${res.status}`);
+}
+
+async function testPinRequiresSenior() {
+  const res = await post("/api/shift-chat/messages/fake/pin", undefined, {
+    headers: { "x-dev-role-override": "technician" },
+  });
+  res.status === 403 ? ok("Technician cannot pin") : fail("Pin RBAC", `got ${res.status}`);
+}
+
+async function testPinAllowedForDoctor() {
+  // vet role has level 30, senior_technician requirement is level 25 — should pass
+  const res = await post("/api/shift-chat/messages/fake/pin", undefined, {
+    headers: { "x-dev-role-override": "vet" },
+  });
+  // Will 404 (message not found) or 409 (no open shift) rather than 403 — that's the correct allowed behaviour
+  res.status !== 403 ? ok("Doctor allowed to pin (gets 404/409, not 403)") : fail("Doctor pin allowed", `got ${res.status}`);
+}
+
+async function testReactionInvalidEmoji() {
+  const res = await post(
+    "/api/shift-chat/reactions",
+    { messageId: "fake", emoji: "🔥" },
+    { headers: { "x-dev-role-override": "technician" } },
+  );
+  res.status === 400 ? ok("Invalid emoji rejected") : fail("Emoji validation", `got ${res.status}`);
+}
+
+async function testTypingUpdatesPresence() {
+  const res = await post("/api/shift-chat/typing", undefined, {
+    headers: { "x-dev-role-override": "technician" },
+  });
+  res.ok ? ok("Typing endpoint returns 200") : fail("Typing endpoint", `got ${res.status}`);
+}
+
+async function testArchiveRequiresSenior() {
+  const res = await get("/api/shift-chat/archive/fake-shift", {
+    headers: { "x-dev-role-override": "technician" },
+  });
+  res.status === 403 ? ok("Technician cannot access archive") : fail("Archive RBAC", `got ${res.status}`);
+}
+
+// ─── Runner ───────────────────────────────────────────────────────────────────
+
 async function run() {
-  console.log("=== Shift Chat Tests ===");
+  console.log("=== Shift Chat Integration Tests ===\n");
   try {
     const health = await get("/api/health");
     if (!health.ok) throw new Error(`health ${health.status}`);
@@ -132,14 +131,19 @@ async function run() {
     process.exit(1);
   }
 
-  await testGetMessagesRequiresAuth();
-  await testGetMessagesStudentDenied();
-  await testGetMessagesReturnsShape();
-  await testPostMessageRequiresAuth();
-  await testBroadcastForbiddenForTechnician();
-  await testMessageBodyMaxLength();
+  await testGetRequiresAuth();
+  await testStudentDenied();
+  await testGetReturnsShape();
+  await testPostRequiresAuth();
+  await testBroadcastBlockedForTech();
+  await testBodyTooLong();
   await testAckRequiresAuth();
   await testAckInvalidStatus();
+  await testPinRequiresSenior();
+  await testPinAllowedForDoctor();
+  await testReactionInvalidEmoji();
+  await testTypingUpdatesPresence();
+  await testArchiveRequiresSenior();
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);
