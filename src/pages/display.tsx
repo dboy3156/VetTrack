@@ -328,13 +328,184 @@ function UpcomingTasksPane({
   );
 }
 
-// ── CodeBlueOverlay placeholder (filled in Task 9) ────────────────────────────
+// ── CodeBlueOverlay ───────────────────────────────────────────────────────────
 
-function CodeBlueOverlay(_props: {
+function CodeBlueOverlay({
+  session,
+  hospitalizations,
+}: {
   session: DisplaySnapshotCodeBlueSession;
   hospitalizations: DisplaySnapshotHospitalization[];
 }) {
-  return <div className="min-h-screen bg-[#0d0505]" />;
+  // Live timer — updates every second using server startedAt (not local clock)
+  const [elapsedMs, setElapsedMs] = useState(
+    () => Date.now() - new Date(session.startedAt).getTime(),
+  );
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsedMs(Date.now() - new Date(session.startedAt).getTime());
+    }, 1_000);
+    return () => clearInterval(interval);
+  }, [session.startedAt]);
+
+  const minutes = Math.floor(elapsedMs / 60_000);
+  const seconds = Math.floor((elapsedMs % 60_000) / 1_000);
+  const timerStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  const staleThreshold = Date.now() - 30_000;
+  const activePresence = session.presence.filter(
+    (p) => new Date(p.lastSeenAt).getTime() > staleThreshold,
+  );
+
+  const minutesSincePush = session.pushSentAt
+    ? Math.floor((Date.now() - new Date(session.pushSentAt).getTime()) / 60_000)
+    : null;
+
+  const attachedEquipment = session.logEntries.filter((e) => e.category === "equipment");
+  // Show last 15 entries — enough to fill the column without scroll
+  const displayedLogs = session.logEntries.slice(-15);
+
+  const remaining = hospitalizations.filter(
+    (h) => !session.patientId || h.id !== session.patientId,
+  );
+
+  return (
+    <div className="flex flex-col min-h-screen bg-[#0d0505]" dir="rtl">
+      {/* Pulsing red header */}
+      <div className="flex items-center gap-4 px-6 py-4 bg-red-600 animate-pulse flex-wrap">
+        <span className="text-2xl font-black tracking-wider text-white">⚠ CODE BLUE</span>
+        <span className="font-mono text-[22px] font-bold text-white bg-black/25 px-3 py-1 rounded tabular-nums">
+          {timerStr}
+        </span>
+        <span className="text-[14px] text-white/85 ms-auto">
+          מנהל הפצה: {session.managerUserName}
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {activePresence.map((p) => (
+            <div
+              key={p.userId}
+              className="flex items-center gap-1.5 bg-red-900/40 border border-red-600/40 rounded-full px-3 py-0.5 text-[11px] text-red-200"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping shrink-0" />
+              {p.userName}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Three-column body */}
+      <div className="flex flex-1 divide-x divide-red-900/30 divide-x-reverse">
+        {/* Column 1 — Patient */}
+        <div className="flex-1 p-5">
+          <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-3">
+            מטופל
+          </div>
+          {session.patientName ? (
+            <>
+              <div className="text-[20px] font-bold text-white mb-1">{session.patientName}</div>
+              <div className="text-[13px] text-red-200 leading-loose">
+                {[
+                  session.patientSpecies,
+                  session.patientWeight ? `${session.patientWeight} ק״ג` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                {(session.ward || session.bay) && (
+                  <>
+                    <br />
+                    {[session.ward, session.bay ? `מיטה ${session.bay}` : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </>
+                )}
+              </div>
+              <div className="mt-3 text-red-500 font-bold text-[13px]">⚠ CPR Risk</div>
+            </>
+          ) : (
+            <div className="text-gray-500 text-[13px]">מטופל לא צוין</div>
+          )}
+          {attachedEquipment.length > 0 && (
+            <div className="mt-5">
+              <div className="text-[10px] font-bold tracking-[.08em] uppercase text-red-700/60 mb-2">
+                ציוד מחובר
+              </div>
+              {attachedEquipment.map((e, i) => (
+                <div key={i} className="text-[12px] text-red-200 mb-1">
+                  {e.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Column 2 — Event timeline */}
+        <div className="flex-1 p-5">
+          <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-3">
+            יומן אירוע
+          </div>
+          <div className="space-y-2">
+            {displayedLogs.map((entry, i) => {
+              const em = Math.floor(entry.elapsedMs / 60_000);
+              const es = Math.floor((entry.elapsedMs % 60_000) / 1_000);
+              const entryTime = `${String(em).padStart(2, "0")}:${String(es).padStart(2, "0")}`;
+              return (
+                <div key={i} className="flex gap-2 text-[12px]">
+                  <span className="text-red-500 tabular-nums min-w-[42px] text-[11px] shrink-0">
+                    {entryTime}
+                  </span>
+                  <span className="flex-1 text-red-200">{entry.label}</span>
+                  <span className="text-gray-600 text-[10px] shrink-0">{entry.loggedByName}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Column 3 — Sidebar */}
+        <div className="w-64 shrink-0 p-5">
+          <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-3">
+            שאר המאושפזים
+          </div>
+          <div className="space-y-1 mb-5">
+            {remaining.map((h) => (
+              <div key={h.id} className="text-[12px] text-gray-400">
+                {h.animal.name} · {h.ward} {h.bay} ·{" "}
+                <span
+                  className={
+                    h.status === "critical"
+                      ? "text-red-400"
+                      : h.status === "observation"
+                        ? "text-amber-400"
+                        : "text-green-400"
+                  }
+                >
+                  {STATUS_LABELS_HE[h.status as HospitalizationStatus] ?? h.status}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-2">
+            עגלת חירום
+          </div>
+          <div className="text-[12px] text-green-400 mb-4">✓ זמינה</div>
+
+          {minutesSincePush !== null && (
+            <>
+              <div className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700/80 mb-2">
+                הודעות
+              </div>
+              <div className="text-[11px] text-gray-400">
+                📱 Push נשלח לכל הצוות
+                <br />
+                <span className="text-gray-600 text-[10px]">לפני {minutesSincePush} דק׳</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── WardDisplayPage ───────────────────────────────────────────────────────────
