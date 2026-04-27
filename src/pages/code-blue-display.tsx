@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Shield, Wifi, WifiOff } from "lucide-react";
+import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/hooks/use-auth";
 import type { SessionPollResult } from "@/hooks/useCodeBlueSession";
 
@@ -30,9 +31,7 @@ export default function CodeBlueDisplay() {
   const pollQ = useQuery<SessionPollResult>({
     queryKey: ["/api/code-blue/sessions/active"],
     queryFn: async () => {
-      const res = await fetch("/api/code-blue/sessions/active", {
-        credentials: "include",
-      });
+      const res = await authFetch("/api/code-blue/sessions/active");
       if (!res.ok) throw new Error("poll failed");
       return res.json();
     },

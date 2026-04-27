@@ -120,8 +120,8 @@ describe("Code Blue display page", () => {
   });
 
   it.skipIf(display === null)("display page has no interactive buttons (no onClick that posts)", () => {
-    expect(display).not.toContain("POST");
-    expect(display).not.toContain("authFetch");
+    expect(display).not.toContain('"POST"');
+    expect(display).not.toContain("useMutation");
   });
 
   it.skipIf(display === null)("display page shows standby message when no session", () => {

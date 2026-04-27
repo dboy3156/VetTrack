@@ -21,7 +21,8 @@ const OUTCOME_COLORS: Record<string, string> = {
 };
 
 export default function CodeBlueHistoryPage() {
-  const { userId, role } = useAuth();
+  const { userId, role, effectiveRole } = useAuth();
+  const resolvedRole = effectiveRole ?? role;
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const historyQ = useQuery<CodeBlueSession[]>({
@@ -31,10 +32,10 @@ export default function CodeBlueHistoryPage() {
       if (!res.ok) throw new Error("failed");
       return res.json();
     },
-    enabled: !!userId && (role === "admin"),
+    enabled: !!userId && (resolvedRole === "admin"),
   });
 
-  if (role !== "admin") {
+  if (resolvedRole !== "admin") {
     return (
       <div className="p-8 text-center text-zinc-500">גישה לאדמין בלבד</div>
     );
