@@ -226,7 +226,7 @@ async function createMedicationTaskInner(input: CreateMedicationTaskInput): Prom
   if (row.safetyLevel === "critical") {
     postSystemMessage(input.clinicId, "med_critical", {
       animalId: input.animalId,
-      drugName: input.drugId,
+      drugId: input.drugId,
     }).catch(() => {});
   }
 

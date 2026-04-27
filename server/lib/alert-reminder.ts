@@ -93,10 +93,11 @@ async function checkAndSendReminders(): Promise<void> {
         }
 
         if (ack.alertType === "overdue") {
+          const minutesOverdue = Math.round((Date.now() - (ack.remindAt?.getTime() ?? Date.now())) / 60_000);
           postSystemMessage(ack.clinicId, "equipment_overdue", {
             equipmentId: ack.equipmentId,
             equipmentName: eqRow.name,
-            minutesOverdue: 60,
+            minutesOverdue,
           }).catch(() => {});
         }
       }

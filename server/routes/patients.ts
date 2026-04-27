@@ -341,7 +341,11 @@ router.patch("/:id/status", async (req, res) => {
 
     const newStatus = parse.data.status;
     if (newStatus === "critical" || newStatus === "discharged" || newStatus === "deceased") {
-      postSystemMessage(clinicId, newStatus === "critical" ? "hosp_critical" : "hosp_discharged", {
+      const eventType =
+        newStatus === "critical"  ? "hosp_critical"  :
+        newStatus === "deceased"  ? "hosp_deceased"  :
+        "hosp_discharged";
+      postSystemMessage(clinicId, eventType, {
         hospitalizationId: id,
         status: newStatus,
         updatedAt: new Date().toISOString(),

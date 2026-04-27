@@ -167,9 +167,6 @@ export async function startInventoryDeductionWorker(): Promise<void> {
         if ("ok" in deductionResult && deductionResult.quantityAfter === 0) {
           postSystemMessage(claimed.clinicId, "low_stock", {
             itemId: deductionResult.containerId,
-            itemName: null,
-            quantity: deductionResult.quantityAfter,
-            minQty: 0,
           }).catch(() => {});
         }
 
