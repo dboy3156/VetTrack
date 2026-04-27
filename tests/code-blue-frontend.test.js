@@ -68,9 +68,8 @@ describe("Code Blue page — manager gate", () => {
   });
 
   it.skipIf(page === null)("Stop CPR button only renders/enables for manager", () => {
-    expect(page).toContain("isManager");
-    const stopIdx = page.indexOf("isManager");
-    expect(stopIdx).toBeGreaterThan(-1);
+    // isManager must appear near the Stop/end action, not just anywhere in the file
+    expect(page).toMatch(/isManager[\s\S]{0,300}[Ss]top|[Ss]top[\s\S]{0,300}isManager/);
   });
 
   it.skipIf(page === null)("CPR gate countdown uses session.startedAt from server", () => {
