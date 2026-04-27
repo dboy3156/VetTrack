@@ -44,7 +44,7 @@ The goal is to eliminate the chaos of verbal event tracking during CPR — one s
 |---|---------|------|
 | C1 | Outcome selector (ROSC / Died / Transferred / Ongoing) | Existing |
 | C2 | Auto-generated event summary | NEW |
-| C3 | Only manager (doctor) can close with "Died" outcome | NEW |
+| C3 | Only manager (doctor) can close the session — any outcome | NEW |
 
 ### After the Event
 | # | Feature | Type |
@@ -92,7 +92,7 @@ created_at           timestamptz NOT NULL DEFAULT now()
 
 **UNIQUE(clinic_id) where status = 'active'** — enforced by partial unique index, preventing two simultaneous sessions.
 
-**Manager rule:** `manager_user_id` must reference a user with role `doctor` or `admin`. Closing with `outcome = 'died'` is only permitted when `req.authUser.id === session.managerUserId`. Server returns `403` if a non-manager attempts it.
+**Manager rule:** `manager_user_id` must reference a user with role `doctor` or `admin`. Only the manager may close the session regardless of outcome. Server returns `403` if any non-manager calls `PATCH /sessions/:id/end`.
 
 ### `vt_code_blue_log_entries` — individual timestamped events
 
@@ -239,7 +239,7 @@ When `category = 'equipment'` and `equipment_id` is provided, the server also cr
 
 8. **Timeline** — chronological list of log entries. Shows elapsed time + label + logger's name + equipment icon for equipment entries.
 
-9. **Stop CPR button** — locked for first 15 minutes with countdown. After 15:00, unlocks and opens outcome selector modal. "Died" option is greyed out with tooltip "זמין למנהל הפצה בלבד" for non-manager staff. Manager sees all 4 options.
+9. **Stop CPR button** — locked for first 15 minutes with countdown. After 15:00, visible only to the manager — non-manager staff see it as hidden or disabled with tooltip "זמין למנהל הפצה בלבד". Manager taps to open outcome selector modal with all 4 options.
 
 ### `CodeBlueDisplay` (room screen)
 
@@ -284,12 +284,11 @@ The polling hook (`useCodeBlueSession`) runs in both Code Blue components:
 A resuscitation manager is a doctor or admin who:
 - Is designated at session start (required field, cannot be changed)
 - Has their name displayed prominently in the header on all devices
-- Is the only person who can close the session with `outcome = 'died'`
-- Can close with any other outcome (ROSC, transferred, ongoing) — as can any staff member when appropriate permissions allow
+- Is the only person who can close the session — with any outcome
 
-Server enforcement: `PATCH /sessions/:id/end` checks `req.body.outcome === 'died'`. If true and `req.authUser.id !== session.managerUserId`, returns `403 { code: 'MANAGER_ONLY', message: 'Only the resuscitation manager can call time of death' }`.
+Server enforcement: `PATCH /sessions/:id/end` checks `req.authUser.id !== session.managerUserId`. If the caller is not the manager, returns `403 { code: 'MANAGER_ONLY', message: 'Only the resuscitation manager can end this session' }`.
 
-Frontend: the "Died" outcome option is rendered as disabled for non-managers with explanatory tooltip. The manager sees it enabled.
+Frontend: the "Stop CPR" button is visible only to the manager after the 15-minute gate. Other staff see it as disabled with tooltip "זמין למנהל הפצה בלבד".
 
 ---
 
