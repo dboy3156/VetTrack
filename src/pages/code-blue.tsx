@@ -1,525 +1,513 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+// src/pages/code-blue.tsx
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useSearch } from "wouter";
+import { AlertTriangle, Shield, Zap } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Circle,
-  MapPin,
-  Plus,
-  RefreshCw,
-  X,
-} from "lucide-react";
-import { api } from "@/lib/api";
-import { leaderPoll } from "@/lib/leader";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import type { CriticalEquipment } from "@/types";
+import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/hooks/use-auth";
+import { useCodeBlueSession } from "@/hooks/useCodeBlueSession";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
-// ─── Session State ─────────────────────────────────────────────────────────────
-// Stored in localStorage so it survives page refresh during an emergency.
-
-const SESSION_KEY = "vt_code_blue_session";
-
-interface CBEvent {
-  /** ms elapsed when event was logged */
-  elapsed: number;
-  label: string;
-}
-
-interface CBSession {
-  id: string;
-  /** epoch ms when timer was last (re)started */
-  startedAt: number;
-  running: boolean;
-  /** ms accumulated before current run segment (used when pausing/resuming) */
-  accumulatedMs: number;
-  checklist: Record<string, boolean>;
-  events: CBEvent[];
-  /** server-assigned ID from POST /api/code-blue/events */
-  dbEventId: string | null;
-}
-
-function loadSession(): CBSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as CBSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveSession(s: CBSession): void {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-  } catch {
-    /* ignore quota errors */
-  }
-}
-
-function clearSession(): void {
-  localStorage.removeItem(SESSION_KEY);
-}
-
-function newSession(): CBSession {
-  return {
-    id: crypto.randomUUID(),
-    startedAt: Date.now(),
-    running: true,
-    accumulatedMs: 0,
-    checklist: {},
-    events: [{ elapsed: 0, label: "Code Blue הופעל" }],
-    dbEventId: null,
-  };
-}
-
-function getElapsed(s: CBSession, now: number = Date.now()): number {
-  return s.running ? s.accumulatedMs + (now - s.startedAt) : s.accumulatedMs;
-}
-
-// ─── Formatters ───────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatElapsed(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0)
-    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60).toString().padStart(2, "0");
+  const s = (totalSec % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
 }
 
-function formatEventTime(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+function useElapsed(startedAt: string | null): number {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!startedAt) return;
+    const tick = () => setElapsed(Date.now() - new Date(startedAt).getTime());
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  return elapsed;
 }
 
-// ─── Static Protocol Data ─────────────────────────────────────────────────────
+// ─── CPR Sound Alert ─────────────────────────────────────────────────────────
 
-const CHECKLIST = [
-  { id: "compressions", label: "לחיצות חזה — 100-120/דקה" },
-  { id: "airway", label: "דרכי אוויר מאובטחות (ETT / מסכה)" },
-  { id: "ventilation", label: "אוורור — 10 נשימות/דקה" },
-  { id: "monitor", label: "מוניטור / דפיברילטור מחובר" },
-  { id: "iv", label: "גישה ורידית / תוך-גרמית (IV/IO)" },
-  { id: "epi", label: "אפינפרין נשלף (0.01 מ\"ג/ק\"ג)" },
-] as const;
+function useCprCycleBeep(elapsedMs: number, active: boolean) {
+  const lastCycleRef = useRef(-1);
+  useEffect(() => {
+    if (!active) return;
+    const cycle = Math.floor(elapsedMs / 120000);
+    if (cycle > 0 && cycle !== lastCycleRef.current) {
+      lastCycleRef.current = cycle;
+      try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      } catch {
+        // AudioContext not available (e.g. in tests)
+      }
+    }
+  }, [elapsedMs, active]);
+}
 
-const QUICK_EVENTS: Array<{ id: string; label: string; cls: string }> = [
-  { id: "epi",      label: "אפינפרין",   cls: "bg-red-700 active:bg-red-600" },
-  { id: "atropine", label: "אטרופין",    cls: "bg-orange-700 active:bg-orange-600" },
-  { id: "shock",    label: "הלם חשמלי", cls: "bg-yellow-700 active:bg-yellow-600" },
-  { id: "vaso",     label: "וזופרסין",   cls: "bg-purple-700 active:bg-purple-600" },
-  { id: "rosc",     label: "ROSC ✓",    cls: "bg-emerald-700 active:bg-emerald-600" },
-  { id: "iv",       label: "IV הוכנס",  cls: "bg-blue-700 active:bg-blue-600" },
-  { id: "airway2",  label: "דרכי אוויר", cls: "bg-sky-700 active:bg-sky-600" },
+// ─── Drug dose calculator ─────────────────────────────────────────────────────
+
+const DRUGS = [
+  { key: "epi",         label: "אפינפרין",   dosePerKg: 0.01, unit: "מ״ג", category: "drug" as const },
+  { key: "atropine",    label: "אטרופין",    dosePerKg: 0.04, unit: "מ״ג", category: "drug" as const },
+  { key: "vasopressin", label: "וזופרסין",   dosePerKg: 0.8,  unit: "יח׳", category: "drug" as const },
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Manager picker (for non-eligible users) ─────────────────────────────────
 
-export default function CodeBluePage() {
-  const [, navigate] = useLocation();
+function ManagerPicker({ onSelect }: { onSelect: (id: string, name: string) => void }) {
   const { userId } = useAuth();
-
-  const [session, setSession] = useState<CBSession | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [showOther, setShowOther] = useState(false);
-  const [otherInput, setOtherInput] = useState("");
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const otherRef = useRef<HTMLInputElement>(null);
-
-  // ── Load or create session on mount ─────────────────────────────────────────
-  useEffect(() => {
-    const existing = loadSession();
-    if (existing) {
-      setSession(existing);
-      setElapsed(getElapsed(existing));
-    } else {
-      const s = newSession();
-      setSession(s);
-      saveSession(s);
-      // Fire-and-forget: persist to server for audit trail
-      api.codeBlue
-        .startEvent({ localStartedAt: new Date(s.startedAt).toISOString() })
-        .then(({ id: dbEventId }) => {
-          setSession((prev) => {
-            if (!prev) return prev;
-            const updated = { ...prev, dbEventId };
-            saveSession(updated);
-            return updated;
-          });
-        })
-        .catch(() => {
-          /* best-effort — do not block emergency workflow on network failure */
-        });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Timer tick ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!session) return;
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    if (session.running) {
-      const tick = () => setElapsed(getElapsed(session));
-      tick();
-      intervalRef.current = setInterval(tick, 250);
-    } else {
-      setElapsed(session.accumulatedMs);
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [session?.running, session?.startedAt, session?.accumulatedMs]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const updateSession = useCallback((fn: (prev: CBSession) => CBSession) => {
-    setSession((prev) => {
-      if (!prev) return prev;
-      const next = fn(prev);
-      saveSession(next);
-      return next;
-    });
-  }, []);
-
-  // ── Timer controls ──────────────────────────────────────────────────────────
-  const toggleTimer = useCallback(() => {
-    updateSession((s) => {
-      const now = Date.now();
-      if (s.running) {
-        return { ...s, running: false, accumulatedMs: s.accumulatedMs + (now - s.startedAt) };
-      }
-      return { ...s, running: true, startedAt: now };
-    });
-  }, [updateSession]);
-
-  // ── Checklist ───────────────────────────────────────────────────────────────
-  const toggleCheck = useCallback(
-    (id: string) => {
-      updateSession((s) => ({
-        ...s,
-        checklist: { ...s.checklist, [id]: !s.checklist[id] },
-      }));
+  const managersQ = useQuery<Array<{ id: string; name: string; role: string }>>({
+    queryKey: ["/api/users/managers"],
+    queryFn: async () => {
+      const res = await authFetch("/api/users/managers");
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      return data.managers ?? [];
     },
-    [updateSession],
-  );
-
-  // ── Event log ───────────────────────────────────────────────────────────────
-  const logEvent = useCallback(
-    (label: string) => {
-      updateSession((s) => ({
-        ...s,
-        events: [...s.events, { elapsed: getElapsed(s), label }],
-      }));
-    },
-    [updateSession],
-  );
-
-  // ── Close / End ─────────────────────────────────────────────────────────────
-  const handleClose = useCallback(() => {
-    // Dismiss without ending — session survives, user can return
-    navigate("/home");
-  }, [navigate]);
-
-  const handleEndCodeBlue = useCallback(() => {
-    if (!session) return;
-    const finalSession = { ...session, events: [...session.events, { elapsed: getElapsed(session), label: "Code Blue הסתיים" }] };
-    // Best-effort: persist timeline to server
-    if (finalSession.dbEventId) {
-      api.codeBlue
-        .endEvent(finalSession.dbEventId, {
-          outcome: "ongoing",
-          timeline: finalSession.events,
-        })
-        .catch(() => {});
-    }
-    clearSession();
-    navigate("/home");
-  }, [session, navigate]);
-
-  // ── Equipment fetch ─────────────────────────────────────────────────────────
-  const {
-    data: equipItems = [],
-    isLoading: equipLoading,
-    refetch: refetchEquip,
-    isFetching: equipFetching,
-  } = useQuery({
-    queryKey: ["/api/equipment/critical"],
-    queryFn: api.equipment.getCriticalEquipment,
     enabled: !!userId,
-    refetchInterval: leaderPoll(15_000),
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
-    retry: false,
   });
 
-  // ── 2-min CPR cycle counter ─────────────────────────────────────────────────
-  const cycle = useMemo(() => {
-    const CYCLE_MS = 2 * 60 * 1000;
-    const remaining = Math.ceil((CYCLE_MS - (elapsed % CYCLE_MS)) / 1000);
-    const num = Math.floor(elapsed / CYCLE_MS) + 1;
-    return { remaining, num };
-  }, [elapsed]);
+  return (
+    <div className="flex flex-col gap-2">
+      {managersQ.isPending && <p className="text-xs text-zinc-500">טוען רשימת רופאים...</p>}
+      {managersQ.data?.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onSelect(m.id, m.name)}
+          className="p-2 rounded border border-zinc-700 bg-zinc-800 text-sm text-zinc-200 text-right hover:bg-zinc-700"
+        >
+          {m.name} ({m.role === "admin" ? "מנהל" : "רופא"})
+        </button>
+      ))}
+      {managersQ.data?.length === 0 && (
+        <p className="text-xs text-red-400">אין רופאים זמינים. יש לוודא שרופא נמצא בשטח.</p>
+      )}
+    </div>
+  );
+}
 
-  if (!session) return null;
+// ─── Pre-check gate ──────────────────────────────────────────────────────────
 
-  const checklistDone = CHECKLIST.filter((c) => session.checklist[c.id]).length;
+const QUICK_CHECK_ITEMS = [
+  { key: "defib",  label: "דפיברילטור טעון" },
+  { key: "o2",     label: "חמצן פתוח" },
+  { key: "iv",     label: "עירוי IV מוכן" },
+  { key: "drugs",  label: "תרופות זמינות" },
+  { key: "ambu",   label: "אמבו מוכן" },
+];
+
+function PreCheckGate({ onStart }: { onStart: (passed: boolean, manager: { id: string; name: string }) => void }) {
+  const { userId, role, name } = useAuth();
+  const isEligibleManager = role === "vet" || role === "admin";
+  const [checked, setChecked] = useState<Record<string, boolean>>(
+    Object.fromEntries(QUICK_CHECK_ITEMS.map((i) => [i.key, false])),
+  );
+  const [managerId, setManagerId] = useState(isEligibleManager ? (userId ?? "") : "");
+  const [managerName, setManagerName] = useState(isEligibleManager ? (name ?? "") : "");
+
+  const allChecked = QUICK_CHECK_ITEMS.every((i) => checked[i.key]);
+
+  const toggle = (key: string) => setChecked((p) => ({ ...p, [key]: !p[key] }));
+
+  const handleStart = (passed: boolean) => {
+    if (!managerId || !managerName) return;
+    onStart(passed, { id: managerId, name: managerName });
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black text-white overflow-y-auto" dir="rtl">
-      {/* Pulsing red border */}
-      <div className="pointer-events-none fixed inset-0 border-[3px] border-red-600 z-[101] animate-pulse" />
-
-      {/* ── STICKY HEADER ─────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-[102] bg-black/95 backdrop-blur border-b border-red-900 px-4 py-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
-          <span className="font-black text-red-300 text-lg tracking-widest uppercase shrink-0">
-            CODE BLUE
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-zinc-400 hover:text-white hover:bg-zinc-800 shrink-0 h-9"
-          onClick={handleClose}
-          data-testid="code-blue-dismiss"
-        >
-          <X className="w-4 h-4 ml-1" />
-          חזור
-        </Button>
+    <div className="min-h-screen bg-zinc-950 p-4 max-w-md mx-auto" dir="rtl">
+      <div className="flex items-center gap-2 mb-6 text-red-400">
+        <AlertTriangle className="h-6 w-6" />
+        <h1 className="text-xl font-bold">פתיחת CODE BLUE</h1>
       </div>
 
-      <div className="px-4 py-4 space-y-5 max-w-xl mx-auto pb-10">
-
-        {/* ── TIMER ─────────────────────────────────────────────────────────────── */}
-        <section className="rounded-2xl bg-zinc-900 border border-zinc-700 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-5xl font-mono font-black text-white tabular-nums leading-none">
-                {formatElapsed(elapsed)}
-              </div>
-              <div className="text-xs text-zinc-400 mt-1.5 tabular-nums">
-                מחזור CPR #{cycle.num} — {cycle.remaining} שנ׳ נותרו
-              </div>
-            </div>
-            <button
-              className={cn(
-                "shrink-0 rounded-xl px-5 py-3 text-base font-black transition-colors touch-manipulation",
-                session.running
-                  ? "bg-amber-600 active:bg-amber-500 text-black"
-                  : "bg-emerald-600 active:bg-emerald-500 text-white",
-              )}
-              onClick={toggleTimer}
-            >
-              {session.running ? "⏸ עצור" : "▶ הפעל"}
-            </button>
+      {/* Manager designation */}
+      <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 mb-4">
+        <h2 className="text-sm font-semibold text-zinc-400 mb-3 flex items-center gap-2">
+          <Shield className="h-4 w-4" /> מנהל ההפצה
+        </h2>
+        <p className="text-xs text-zinc-500 mb-3">
+          חובה. מנהל ההפצה הוא הרופא האחראי. רק הוא יוכל לסגור את האירוע.
+        </p>
+        {isEligibleManager ? (
+          <div className="rounded border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200">
+            {name} (אתה)
           </div>
-        </section>
-
-        {/* ── EQUIPMENT ALERTS ──────────────────────────────────────────────────── */}
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-              התראות ציוד
-            </h2>
-            <button
-              className="text-zinc-500 hover:text-zinc-300 flex items-center gap-1 text-xs transition-colors"
-              onClick={() => refetchEquip()}
-              disabled={equipFetching}
-            >
-              <RefreshCw className={cn("w-3 h-3", equipFetching && "animate-spin")} />
-              רענן
-            </button>
-          </div>
-
-          {equipLoading ? (
-            <p className="text-sm text-zinc-500 py-2">בודק ציוד...</p>
-          ) : equipItems.length === 0 ? (
-            <div className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-3 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-sm text-emerald-300">
-                אין התראות ציוד — בדוק עגלת החייאה ידנית
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {equipItems.map((item: CriticalEquipment) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "rounded-xl border px-4 py-3",
-                    item.status === "critical"
-                      ? "border-red-700 bg-red-950/30"
-                      : "border-amber-700 bg-amber-950/20",
-                  )}
-                  data-testid={`critical-equipment-card-${item.id}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-bold text-sm text-white leading-tight">{item.name}</p>
-                      {item.lastSeenLocation ? (
-                        <p className="text-xs text-zinc-300 flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          {item.lastSeenLocation}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-zinc-500 mt-0.5">מיקום לא ידוע</p>
-                      )}
-                    </div>
-                    <Badge
-                      className={cn(
-                        "text-xs shrink-0 border",
-                        item.status === "critical"
-                          ? "bg-red-900 text-red-200 border-red-700"
-                          : "bg-amber-900 text-amber-200 border-amber-700",
-                      )}
-                    >
-                      {item.status === "critical" ? "⚠ בדוק" : "דרוש טיפול"}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* ── CPR CHECKLIST ─────────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">
-            CPR צ׳קליסט ({checklistDone}/{CHECKLIST.length})
-          </h2>
-          <div className="space-y-1">
-            {CHECKLIST.map((item) => {
-              const done = !!session.checklist[item.id];
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => toggleCheck(item.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 rounded-xl px-4 py-3 text-right transition-colors touch-manipulation",
-                    done
-                      ? "bg-emerald-950/50 border border-emerald-800"
-                      : "bg-zinc-900 border border-zinc-700 active:bg-zinc-800",
-                  )}
-                >
-                  {done ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                  ) : (
-                    <Circle className="w-5 h-5 text-zinc-500 shrink-0" />
-                  )}
-                  <span
-                    className={cn(
-                      "text-sm font-medium flex-1 text-right leading-snug",
-                      done && "line-through text-zinc-500",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ── QUICK LOG ─────────────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">
-            תיעוד מהיר
-          </h2>
-          <div className="grid grid-cols-2 gap-2">
-            {QUICK_EVENTS.map((evt) => (
-              <button
-                key={evt.id}
-                onClick={() => logEvent(evt.label)}
-                className={cn(
-                  "rounded-xl py-3.5 px-3 font-bold text-sm text-white transition-colors touch-manipulation",
-                  evt.cls,
-                )}
-              >
-                {evt.label}
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                setShowOther((v) => !v);
-                setTimeout(() => otherRef.current?.focus(), 50);
-              }}
-              className="rounded-xl py-3.5 px-3 font-bold text-sm text-white bg-zinc-700 active:bg-zinc-600 transition-colors flex items-center justify-center gap-1 touch-manipulation"
-            >
-              <Plus className="w-4 h-4" />
-              אחר
-            </button>
-          </div>
-
-          {showOther && (
-            <div className="mt-2 flex gap-2" dir="rtl">
-              <input
-                ref={otherRef}
-                type="text"
-                value={otherInput}
-                onChange={(e) => setOtherInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && otherInput.trim()) {
-                    logEvent(otherInput.trim());
-                    setOtherInput("");
-                    setShowOther(false);
-                  }
-                  if (e.key === "Escape") setShowOther(false);
-                }}
-                placeholder="תאר את הפעולה..."
-                className="flex-1 bg-zinc-800 border border-zinc-600 rounded-xl px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-400"
-                dir="rtl"
-              />
-              <button
-                className="shrink-0 bg-zinc-600 active:bg-zinc-500 text-white rounded-xl px-4 py-2.5 text-sm font-bold touch-manipulation"
-                onClick={() => {
-                  if (otherInput.trim()) {
-                    logEvent(otherInput.trim());
-                    setOtherInput("");
-                    setShowOther(false);
-                  }
-                }}
-              >
-                הוסף
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* ── TIMELINE ──────────────────────────────────────────────────────────── */}
-        {session.events.length > 0 && (
-          <section>
-            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">
-              ציר זמן
-            </h2>
-            <div className="space-y-1.5">
-              {[...session.events].reverse().map((evt, idx) => (
-                <div key={idx} className="flex items-start gap-3 text-sm">
-                  <span className="font-mono text-zinc-500 text-xs shrink-0 pt-0.5 tabular-nums">
-                    {formatEventTime(evt.elapsed)}
-                  </span>
-                  <span className="text-zinc-200 leading-snug">{evt.label}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+        ) : (
+          <>
+            <ManagerPicker onSelect={(id, n) => { setManagerId(id); setManagerName(n); }} />
+            {managerId && (
+              <div className="mt-2 text-xs text-green-400">✓ נבחר: {managerName}</div>
+            )}
+          </>
         )}
+      </div>
 
-        {/* ── END CODE BLUE ─────────────────────────────────────────────────────── */}
-        <section>
-          <button
-            className="w-full rounded-xl border border-zinc-700 text-zinc-300 active:bg-zinc-900 py-3.5 text-sm font-medium transition-colors touch-manipulation"
-            onClick={handleEndCodeBlue}
-          >
-            סיים Code Blue וחזור
-          </button>
-        </section>
+      {/* Quick pre-check */}
+      <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 mb-4">
+        <h2 className="text-sm font-semibold text-zinc-400 mb-3">בדיקה מהירה של עגלה</h2>
+        <div className="flex flex-col gap-2">
+          {QUICK_CHECK_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => toggle(item.key)}
+              className={cn(
+                "flex items-center gap-3 p-2 rounded border text-sm text-right transition-colors",
+                checked[item.key]
+                  ? "border-green-500/40 bg-green-500/10 text-green-300"
+                  : "border-zinc-700 bg-zinc-800 text-zinc-300",
+              )}
+            >
+              <span className={cn("h-4 w-4 rounded-full border-2 shrink-0", checked[item.key] ? "border-green-500 bg-green-500" : "border-zinc-500")} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Button
+        className="w-full bg-red-700 hover:bg-red-600 text-white font-bold"
+        disabled={!managerId}
+        onClick={() => handleStart(allChecked)}
+      >
+        ⚠ פתח CODE BLUE
+      </Button>
+      {!allChecked && (
+        <button
+          type="button"
+          className="w-full mt-2 text-xs text-zinc-500 hover:text-zinc-400"
+          onClick={() => handleStart(false)}
+        >
+          המשך ללא בדיקה מלאה
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Outcome modal ───────────────────────────────────────────────────────────
+
+const OUTCOMES = [
+  { value: "rosc",        label: "ROSC — חזרת פעילות לב" },
+  { value: "transferred", label: "הועבר לבית חולים" },
+  { value: "ongoing",     label: "ממשיך — לא הסתיים" },
+  { value: "died",        label: "הכרזת מוות" },
+];
+
+function OutcomeModal({ onClose }: { onClose: (outcome: string) => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4" dir="rtl">
+      <div className="w-full max-w-md bg-zinc-900 rounded-t-2xl border border-zinc-700 p-4">
+        <h2 className="text-base font-bold text-white mb-4 text-center">בחר תוצאה לסיום האירוע</h2>
+        <div className="flex flex-col gap-2">
+          {OUTCOMES.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => onClose(o.value)}
+              className={cn(
+                "p-3 rounded-lg border text-sm font-semibold transition-colors text-right",
+                o.value === "died"
+                  ? "border-red-800 bg-red-950/50 text-red-300 hover:bg-red-900/50"
+                  : "border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700",
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={() => onClose("")}>{t.common.cancel}</button>
       </div>
     </div>
   );
+}
+
+// ─── Equipment picker ─────────────────────────────────────────────────────────
+
+interface EquipmentItem { id: string; name: string; }
+
+function EquipmentPicker({ onSelect, onClose }: { onSelect: (item: EquipmentItem) => void; onClose: () => void }) {
+  const { userId } = useAuth();
+  const equipQ = useQuery<EquipmentItem[]>({
+    queryKey: ["/api/equipment", "active"],
+    queryFn: async () => {
+      const res = await authFetch("/api/equipment?status=ok&limit=30");
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      return (data.items ?? data) as EquipmentItem[];
+    },
+    enabled: !!userId,
+  });
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-end justify-center z-50 p-4" dir="rtl">
+      <div className="w-full max-w-md bg-zinc-900 rounded-t-2xl border border-zinc-700 p-4">
+        <h2 className="text-base font-bold text-white mb-4">בחר ציוד לתיעוד</h2>
+        <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+          {equipQ.data?.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => { onSelect(item); onClose(); }}
+              className="p-3 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-zinc-200 text-right hover:bg-zinc-700"
+            >
+              {item.name}
+            </button>
+          ))}
+          {equipQ.data?.length === 0 && <p className="text-zinc-500 text-sm">אין ציוד זמין</p>}
+        </div>
+        <button type="button" className="w-full mt-3 text-xs text-zinc-500" onClick={onClose}>{t.common.cancel}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Active session view ──────────────────────────────────────────────────────
+
+function ActiveSession() {
+  const { userId } = useAuth();
+  const { session, logEntries, presence, cartStatus, logEntry } = useCodeBlueSession();
+  // elapsed is derived from session.startedAt (server timestamp)
+  const elapsed = useElapsed(session?.startedAt ?? null);
+  const [showOutcomeModal, setShowOutcomeModal] = useState(false);
+  const [showEquipPicker, setShowEquipPicker] = useState(false);
+  const [, navigate] = useLocation();
+
+  useCprCycleBeep(elapsed, !!session);
+
+  // isManager: compare session.managerUserId against current logged-in user
+  const isManager = session?.managerUserId === userId;
+  const cprCycle = Math.floor(elapsed / 120000) + 1;
+  const msInCycle = elapsed % 120000;
+  const msToNext = 120000 - msInCycle;
+
+  // 15-minute gate: lock Stop CPR button for first 15 * 60 * 1000 ms
+  const gateMs = 15 * 60 * 1000;
+  const gateOpen = elapsed >= gateMs;
+  const gateCountdown = gateOpen ? "" : formatElapsed(gateMs - elapsed);
+
+  const handleEndSession = async (outcome: string) => {
+    if (!outcome || !session) return;
+    setShowOutcomeModal(false);
+    await authFetch(`/api/code-blue/sessions/${session.id}/end`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome }),
+    });
+    navigate("/home");
+  };
+
+  // Each quick-log action uses crypto.randomUUID() as idempotencyKey (via logEntry in the hook)
+  // The hook internally calls: idempotencyKey: crypto.randomUUID()
+
+  if (!session) return null;
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white" dir="rtl" style={{ borderTop: "3px solid #dc2626" }}>
+      {/* Header */}
+      <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
+        <span className="text-red-400 font-black tracking-widest text-sm flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4" /> CODE BLUE
+        </span>
+        <div className="flex gap-2 items-center">
+          {presence.slice(0, 3).map((p) => (
+            <span key={p.userId} className="bg-blue-900 text-blue-300 text-xs px-2 py-0.5 rounded-full">{p.userName}</span>
+          ))}
+          {presence.length > 3 && (
+            <span className="bg-blue-900 text-blue-300 text-xs px-2 py-0.5 rounded-full">+{presence.length - 3}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Cart status */}
+      {cartStatus ? (
+        <div className={cn(
+          "px-4 py-1.5 text-xs flex gap-2 border-b",
+          cartStatus.allPassed
+            ? "bg-green-500/10 border-green-500/20 text-green-400"
+            : "bg-amber-500/10 border-amber-500/20 text-amber-400",
+        )}>
+          {cartStatus.allPassed
+            ? `✓ עגלה נבדקה ע״י ${cartStatus.performedByName}`
+            : "⚠ עגלה לא נבדקה היום"}
+        </div>
+      ) : (
+        <div className="px-4 py-1.5 text-xs bg-amber-500/10 border-b border-amber-500/20 text-amber-400">
+          ⚠ עגלה לא נבדקה היום
+        </div>
+      )}
+
+      {/* Manager badge */}
+      <div className="px-4 py-2 bg-zinc-900/50 border-b border-zinc-800 text-xs text-zinc-400 flex items-center gap-2">
+        <Shield className="h-3.5 w-3.5 text-blue-400" />
+        מנהל הפצה: <span className="text-blue-300 font-semibold">{session.managerUserName}</span>
+      </div>
+
+      {/* Patient banner */}
+      {session.patientName && (
+        <div className="px-4 py-2 bg-zinc-900/30 border-b border-zinc-800 text-xs text-amber-300">
+          🐕 {session.patientName}{session.patientWeight ? ` — ${session.patientWeight} ק״ג` : ""}
+        </div>
+      )}
+
+      {/* Timer — elapsed computed from session.startedAt */}
+      <div className="px-4 py-5 bg-zinc-900 border-b border-zinc-800">
+        <div className="text-5xl font-black tracking-widest text-white font-mono leading-none">
+          {formatElapsed(elapsed)}
+        </div>
+        <div className="text-xs text-zinc-500 mt-2">
+          מחזור CPR #{cprCycle} — {formatElapsed(msToNext)} לבדיקת קצב
+        </div>
+      </div>
+
+      {/* Quick log grid */}
+      <div className="p-4 border-b border-zinc-800">
+        <div className="text-xs text-zinc-500 tracking-widest uppercase mb-3">תיעוד מהיר</div>
+        <div className="grid grid-cols-2 gap-2">
+          {DRUGS.map((drug) => {
+            const dose = session.patientWeight
+              ? (drug.dosePerKg * session.patientWeight).toFixed(2)
+              : null;
+            return (
+              <button
+                key={drug.key}
+                type="button"
+                onClick={() => logEntry({ label: `${drug.label}${dose ? ` ${dose} ${drug.unit}` : ""}`, category: drug.category })}
+                className="bg-red-900/60 hover:bg-red-800/60 border border-red-800/50 rounded-lg p-3 text-center transition-colors"
+              >
+                <div className="text-white font-bold text-sm">{drug.label}</div>
+                {dose && <div className="text-red-300 text-xs mt-0.5">{dose} {drug.unit}</div>}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => logEntry({ label: "הלם חשמלי", category: "shock" })}
+            className="bg-yellow-900/60 hover:bg-yellow-800/60 border border-yellow-800/50 rounded-lg p-3 text-center"
+          >
+            <Zap className="h-5 w-5 text-yellow-300 mx-auto mb-1" />
+            <div className="text-white font-bold text-sm">הלם חשמלי</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => logEntry({ label: "CPR — החלפת מדחס", category: "cpr" })}
+            className="bg-blue-900/60 hover:bg-blue-800/60 border border-blue-800/50 rounded-lg p-3 text-center"
+          >
+            <div className="text-white font-bold text-sm">החלפת מדחס</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowEquipPicker(true)}
+            className="col-span-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg p-3 text-center"
+          >
+            <div className="text-zinc-200 font-bold text-sm">+ ציוד מחובר</div>
+            <div className="text-zinc-500 text-xs mt-0.5">מכשיר הנשמה, שאיבה...</div>
+          </button>
+        </div>
+      </div>
+
+      {showEquipPicker && (
+        <EquipmentPicker
+          onSelect={(item) => logEntry({ label: item.name, category: "equipment", equipmentId: item.id })}
+          onClose={() => setShowEquipPicker(false)}
+        />
+      )}
+
+      {/* Timeline */}
+      <div className="p-4 border-b border-zinc-800">
+        <div className="text-xs text-zinc-500 tracking-widest uppercase mb-3">ציר זמן</div>
+        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+          {[...logEntries].reverse().map((entry) => (
+            <div key={entry.id} className="flex gap-3 text-xs items-baseline">
+              <span className="text-zinc-600 font-mono shrink-0">{formatElapsed(entry.elapsedMs)}</span>
+              <span className="text-zinc-200">{entry.label}</span>
+              <span className="text-green-400 mr-auto shrink-0">{entry.loggedByName}</span>
+            </div>
+          ))}
+          {logEntries.length === 0 && (
+            <p className="text-xs text-zinc-600">אין אירועים עדיין</p>
+          )}
+        </div>
+      </div>
+
+      {/* Stop CPR button — isManager gate + 15-min time gate */}
+      <div className="p-4">
+        {isManager ? (
+          gateOpen ? (
+            <Button
+              className="w-full bg-zinc-700 hover:bg-zinc-600 text-white font-bold py-4"
+              onClick={() => setShowOutcomeModal(true)}
+            >
+              עצור CPR — בחר תוצאה
+            </Button>
+          ) : (
+            <div className="rounded-lg bg-zinc-900 border border-zinc-700 p-4 text-center text-zinc-500 text-sm">
+              🔒 עצור CPR — זמין בעוד {gateCountdown}
+            </div>
+          )
+        ) : (
+          <div className="rounded-lg bg-zinc-900 border border-zinc-700 p-4 text-center text-zinc-600 text-xs">
+            זמין למנהל הפצה בלבד
+          </div>
+        )}
+      </div>
+
+      {showOutcomeModal && <OutcomeModal onClose={handleEndSession} />}
+    </div>
+  );
+}
+
+// ─── Page root ────────────────────────────────────────────────────────────────
+
+export default function CodeBluePage() {
+  const { userId } = useAuth();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const initHospId = params.get("hospitalizationId") ?? undefined;
+  const initPatientId = params.get("patientId") ?? undefined;
+
+  const { session } = useCodeBlueSession();
+  const [starting, setStarting] = useState(false);
+
+  // Log entries use crypto.randomUUID() as idempotencyKey for deduplication
+  const handleStart = async (preCheckPassed: boolean, manager: { id: string; name: string }) => {
+    setStarting(true);
+    try {
+      await authFetch("/api/code-blue/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idempotencyKey: crypto.randomUUID(),
+          managerUserId: manager.id,
+          managerUserName: manager.name,
+          preCheckPassed,
+          hospitalizationId: initHospId,
+          patientId: initPatientId,
+        }),
+      });
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  if (session?.status === "active") {
+    return <ActiveSession />;
+  }
+
+  return <PreCheckGate onStart={handleStart} />;
 }

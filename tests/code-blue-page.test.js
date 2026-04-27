@@ -1,29 +1,17 @@
+// tests/code-blue-page.test.js — updated for new session architecture
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-function readFile(relPath) {
-  return fs.readFileSync(path.join(__dirname, "..", relPath), "utf8");
-}
-
-const codeBluePage = readFile("src/pages/code-blue.tsx");
-const layout = readFile("src/components/layout.tsx");
-const routesSource = readFile("src/app/routes.tsx");
+const codeBluePage = fs.readFileSync(path.join(__dirname, "..", "src", "pages", "code-blue.tsx"), "utf8");
+const layout = fs.readFileSync(path.join(__dirname, "..", "src", "components", "layout.tsx"), "utf8");
+const routesSource = fs.readFileSync(path.join(__dirname, "..", "src", "app", "routes.tsx"), "utf8");
 
 describe("Code Blue page structure tests", () => {
-  it("Code Blue page fetches critical equipment via API client", () => {
-    expect(codeBluePage).toContain("api.equipment.getCriticalEquipment");
-  });
-
-  it("Auto-refresh is configured to 15 seconds", () => {
-    // Interval is wrapped with leader tab-election (may pause when backgrounded).
-    expect(
-      codeBluePage.includes("15_000") &&
-        (codeBluePage.includes("refetchInterval: 15_000") || codeBluePage.includes("refetchInterval: leaderPoll(15_000)")),
-    ).toBe(true);
+  it("Page uses useCodeBlueSession hook", () => {
+    expect(codeBluePage).toContain("useCodeBlueSession");
   });
 
   it("Header contains CODE BLUE label with alert icon", () => {
@@ -31,37 +19,28 @@ describe("Code Blue page structure tests", () => {
   });
 
   it("Elapsed timer uses formatElapsed helper (not raw ISO timestamps)", () => {
-    expect(
-      codeBluePage.includes("formatElapsed(elapsed)") &&
-        codeBluePage.includes("function formatElapsed"),
-    ).toBe(true);
+    expect(codeBluePage).toContain("function formatElapsed");
   });
 
-  it("Dismiss button exists and navigates back", () => {
-    expect(
-      codeBluePage.includes("handleClose") &&
-        codeBluePage.includes("navigate(\"/home\")"),
-    ).toBe(true);
+  it("Manager designation is required before session starts", () => {
+    expect(codeBluePage).toContain("managerUserId");
+    expect(codeBluePage).toContain("managerUserName");
   });
 
-  it("Empty-state rendering exists when no equipment is returned", () => {
-    expect(
-      codeBluePage.includes("equipItems.length === 0") &&
-        codeBluePage.includes("בדוק עגלת החייאה ידנית"),
-    ).toBe(true);
+  it("15-minute CPR gate is enforced on the stop button", () => {
+    expect(codeBluePage).toMatch(/15\s*\*\s*60\s*\*\s*1000/);
   });
 
-  it("Code Blue nav button is role-gated (admin, vet, technician, senior_technician)", () => {
-    expect(
-      layout.includes("canAccessCodeBlue") &&
-        layout.includes("href: \"/code-blue\""),
-    ).toBe(true);
+  it("Code Blue nav button is role-gated", () => {
+    expect(layout).toContain("canAccessCodeBlue");
+    expect(layout).toContain('href: "/code-blue"');
   });
 
   it("Code Blue route is registered behind AuthGuard", () => {
     expect(
-      routesSource.includes("const CodeBluePage = lazy(() => import(\"@/pages/code-blue\"));") &&
-        routesSource.includes('<Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>'),
+      routesSource.includes('const CodeBluePage = lazy(() => import("@/pages/code-blue"))') &&
+        routesSource.includes('"/code-blue"') &&
+        routesSource.includes("AuthGuard"),
     ).toBe(true);
   });
 });

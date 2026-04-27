@@ -61,7 +61,7 @@ function poTotalCents(lines: PurchaseOrderLine[] | undefined): number {
 export default function ProcurementPage() {
   const qc = useQueryClient();
   const p = t.procurementPage;
-  const { userId, role } = useAuth();
+  const { userId, role, isLoaded } = useAuth();
   const isAdmin = role === "admin";
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -83,7 +83,7 @@ export default function ProcurementPage() {
   const ordersQ = useQuery({
     queryKey: ["/api/procurement", statusFilter],
     queryFn: () => api.procurement.list(statusFilter !== "all" ? { status: statusFilter } : undefined),
-    enabled: !!userId,
+    enabled: !!userId && isLoaded,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -206,7 +206,7 @@ export default function ProcurementPage() {
           ))}
         </div>
 
-        {ordersQ.isPending ? (
+        {(ordersQ.isPending || (ordersQ.isError && ordersQ.isFetching)) ? (
           <div className="space-y-2">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
