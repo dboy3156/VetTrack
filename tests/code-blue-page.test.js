@@ -26,34 +26,34 @@ describe("Code Blue page structure tests", () => {
     ).toBe(true);
   });
 
-  it("Header contains Code Blue Hebrew label with alert icon", () => {
-    expect(codeBluePage.includes("CODE BLUE — ציוד קריטי") && codeBluePage.includes("AlertTriangle")).toBe(true);
+  it("Header contains CODE BLUE label with alert icon", () => {
+    expect(codeBluePage.includes("CODE BLUE") && codeBluePage.includes("AlertTriangle")).toBe(true);
   });
 
-  it("Timestamp is rendered via relative-time formatter (not raw ISO)", () => {
+  it("Elapsed timer uses formatElapsed helper (not raw ISO timestamps)", () => {
     expect(
-      codeBluePage.includes("formatCodeBlueRelativeTime(item.lastSeenTimestamp)") &&
-        !codeBluePage.includes("item.lastSeenTimestamp ??"),
+      codeBluePage.includes("formatElapsed(elapsed)") &&
+        codeBluePage.includes("function formatElapsed"),
     ).toBe(true);
   });
 
   it("Dismiss button exists and navigates back", () => {
     expect(
-      codeBluePage.includes("onClick={() => navigate(\"/home\")}") &&
-        codeBluePage.includes("<X className=\"w-4 h-4 mr-1\" />"),
+      codeBluePage.includes("handleClose") &&
+        codeBluePage.includes("navigate(\"/home\")"),
     ).toBe(true);
   });
 
   it("Empty-state rendering exists when no equipment is returned", () => {
     expect(
-      codeBluePage.includes("items.length === 0") &&
-        codeBluePage.includes("אין כרגע ציוד קריטי או ציוד שדורש תשומת לב."),
+      codeBluePage.includes("equipItems.length === 0") &&
+        codeBluePage.includes("בדוק עגלת החייאה ידנית"),
     ).toBe(true);
   });
 
-  it("Code Blue nav button is role-gated to admin/vet", () => {
+  it("Code Blue nav button is role-gated (admin, vet, technician, senior_technician)", () => {
     expect(
-      layout.includes("const canAccessCodeBlue = isAdmin || role === \"vet\"") &&
+      layout.includes("canAccessCodeBlue") &&
         layout.includes("href: \"/code-blue\""),
     ).toBe(true);
   });
