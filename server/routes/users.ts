@@ -916,11 +916,8 @@ router.post("/purge-deleted", requireAuth, requireAdmin, authSensitiveLimiter, a
   }
 });
 
-/**
- * GET /api/users/managers
- * Returns active vets and admins in the clinic — used by Code Blue manager picker.
- * Accessible to all authenticated users (any role).
- */
+// Returns eligible managers (vet/admin) for the Code Blue manager picker.
+// All authenticated staff can see this list since they may need to designate a manager.
 router.get("/managers", requireAuth, async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {

@@ -11,8 +11,9 @@ import {
   equipment,
   animals,
   hospitalizations,
+  users,
 } from "../db.js";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
@@ -183,6 +184,25 @@ router.post("/sessions", requireAuth, validateBody(startSessionSchema), async (r
     const userId = req.authUser!.id;
     const body = req.body as z.infer<typeof startSessionSchema>;
 
+    // Validate that managerUserId is an active vet or admin in this clinic
+    const [managerUser] = await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(
+        and(
+          eq(users.id, body.managerUserId),
+          eq(users.clinicId, clinicId),
+          inArray(users.role, ["vet", "admin"]),
+          eq(users.status, "active"),
+        ),
+      )
+      .limit(1);
+    if (!managerUser) {
+      return res.status(400).json(
+        apiError({ code: "INVALID_MANAGER", reason: "INVALID_MANAGER", message: "Manager must be an active vet or admin in this clinic", requestId }),
+      );
+    }
+
     const id = randomUUID();
     const startedAt = body.localStartedAt ? new Date(body.localStartedAt) : new Date();
 
@@ -192,8 +212,8 @@ router.post("/sessions", requireAuth, validateBody(startSessionSchema), async (r
       startedAt,
       startedBy: userId,
       startedByName: req.authUser!.name,
-      managerUserId: body.managerUserId,
-      managerUserName: body.managerUserName,
+      managerUserId: managerUser.id,
+      managerUserName: managerUser.name,
       patientId: body.patientId ?? null,
       hospitalizationId: body.hospitalizationId ?? null,
       preCheckPassed: body.preCheckPassed ?? null,
@@ -260,7 +280,7 @@ router.get("/sessions/active", requireAuth, async (req, res) => {
       .limit(1);
 
     const cartStatus = latestCheck
-      ? { lastCheckedAt: latestCheck.performedAt, allPassed: latestCheck.allPassed, performedByName: latestCheck.performedByName }
+      ? { lastCheckedAt: latestCheck.performedAt.toISOString(), allPassed: latestCheck.allPassed, performedByName: latestCheck.performedByName }
       : null;
 
     if (!session) {
