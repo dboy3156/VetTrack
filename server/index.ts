@@ -224,7 +224,15 @@ if (process.env.NODE_ENV === "production") {
     res.setHeader("Content-Type", "application/javascript; charset=UTF-8");
     res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/sw.js"));
   });
-  // Everything else (icons, manifest): short cache.
+  // Manifest: iOS Safari requires application/manifest+json (not application/json).
+  // Without the correct MIME type iOS does not recognise the file as a web-app
+  // manifest and "Add to Home Screen" falls back to a plain bookmark.
+  app.get("/manifest.json", (_req, res) => {
+    res.setHeader("Content-Type", "application/manifest+json; charset=UTF-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public/manifest.json"));
+  });
+  // Everything else (icons, etc.): short cache.
   app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "../dist/public"), { maxAge: 0 }));
   // SPA shell: never cache — browsers must always get the latest index.html
   // so they pick up new content-hashed asset filenames after a deployment.

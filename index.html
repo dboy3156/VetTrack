@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#2563eb" />
 
@@ -69,14 +70,16 @@
     <!-- Mobile / PWA -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- black-translucent lets the status bar overlay the app in standalone
-         mode, honouring viewport-fit=cover so notch/Dynamic Island are covered
-         correctly. "default" ignores viewport-fit on iOS PWAs. -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- "default" renders system-chrome status bar (dark text on white/grey
+         bar). Safe for any app color scheme. "black-translucent" overlays the
+         bar on top of the app content — only useful when the very top of the
+         app is always dark; otherwise the time/battery text becomes invisible. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="VetTrack" />
+    <!-- 180x180 is the canonical size iOS Safari uses for the home-screen icon.
+         Using icon-192 here is intentional — iOS scales it down cleanly. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
-    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
     <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
     <!-- Prevent iOS from auto-linking phone numbers / addresses -->
     <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />

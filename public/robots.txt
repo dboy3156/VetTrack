@@ -5,4 +5,4 @@ Disallow: /api
 Disallow: /api/
 Disallow: /print
 
-Sitemap: https://vettrack.replit.app/sitemap.xml
+Sitemap: https://vettrack.uk/sitemap.xml
