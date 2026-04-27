@@ -49,6 +49,7 @@ export interface SessionPollResult {
 
 const QUEUE_KEY = "vt_cb_queue";
 const SESSION_CACHE_KEY = "vt_cb_cache";
+let _flushInProgress = false;
 
 function loadQueue(): Array<{ sessionId: string; entry: object }> {
   try {
@@ -130,6 +131,8 @@ export function useCodeBlueSession() {
     if (!sessionId || query.isError) return;
     const queue = loadQueue();
     if (queue.length === 0) return;
+    if (_flushInProgress) return;
+    _flushInProgress = true;
     (async () => {
       const remaining: typeof queue = [];
       for (const item of queue) {
@@ -148,7 +151,9 @@ export function useCodeBlueSession() {
       if (remaining.length < queue.length) {
         queryClient.invalidateQueries({ queryKey: ["/api/code-blue/sessions/active"] });
       }
-    })();
+    })().finally(() => {
+      _flushInProgress = false;
+    });
   }, [sessionId, query.isError, queryClient]);
 
   const logEntry = useCallback(
