@@ -61,6 +61,7 @@ import type {
   ForecastParseResponse,
   ForecastApproveResponse,
   ForecastKeepaliveResponse,
+  DisplaySnapshot,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -1357,5 +1358,9 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+  },
+  display: {
+    snapshot: (): Promise<DisplaySnapshot> =>
+      request<DisplaySnapshot>("/api/display/snapshot"),
   },
 };
