@@ -9,6 +9,7 @@ import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { writeLimiter } from "../middleware/rate-limiters.js";
 import { validateBody } from "../middleware/validate.js";
 import { sendPushToUser, sendPushToRole } from "../lib/push.js";
+import { enqueueNotificationJob } from "../lib/queue.js";
 import { touchPresence, getPresence } from "../lib/shift-chat-presence.js";
 
 const router = Router();
@@ -277,7 +278,6 @@ router.post(
 
       // Snooze: enqueue a push notification after 5 minutes
       if (status === "snoozed" && message.broadcastKey) {
-        const { enqueueNotificationJob } = await import("../lib/queue.js");
         await enqueueNotificationJob(
           {
             type: "shift_chat_snooze",
@@ -328,12 +328,16 @@ router.post(
           ),
         );
 
-      // Pin the target message
+      // Pin the target message (must belong to the current open shift)
       const now = new Date();
       const [updated] = await db
         .update(shiftMessages)
         .set({ pinnedAt: now, pinnedByUserId: userId })
-        .where(and(eq(shiftMessages.id, messageId), eq(shiftMessages.clinicId, clinicId)))
+        .where(and(
+          eq(shiftMessages.id, messageId),
+          eq(shiftMessages.clinicId, clinicId),
+          eq(shiftMessages.shiftSessionId, shift.id),
+        ))
         .returning();
 
       if (!updated) {
@@ -423,6 +427,7 @@ router.post(
   "/typing",
   requireAuth,
   requireEffectiveRole("technician"),
+  writeLimiter,
   async (req, res) => {
     const clinicId = req.clinicId!;
     const userId   = req.authUser!.id;

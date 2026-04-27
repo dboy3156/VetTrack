@@ -27,6 +27,7 @@ import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js
 import { isCircuitOpen } from "../lib/circuit-breaker.js";
 import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/push.js";
 import { withTimeout } from "../lib/timeout.js";
+import { BROADCAST_TEMPLATES } from "../routes/shift-chat.js";
 import { safeRedisSetex } from "../lib/redis.js";
 import { decryptConfigValue } from "../lib/config-crypto.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
@@ -91,11 +92,16 @@ async function processSendNotification(data: NotificationJobData): Promise<void>
     return;
   }
   if (data.type === "shift_chat_snooze") {
-    await sendPushToUser(data.clinicId, data.userId, {
-      title: `📢 תזכורת: ${data.broadcastKey === "department_close" ? "סגירת מחלקה" : data.broadcastKey}`,
-      body: "טרם אישרת קבלת הפקודה",
-      tag: `shift-chat-snooze-${data.messageId}`,
-    });
+    const label = BROADCAST_TEMPLATES[data.broadcastKey]?.label ?? data.broadcastKey;
+    await withTimeout(
+      sendPushToUser(data.clinicId, data.userId, {
+        title: `📢 תזכורת: ${label}`,
+        body: "טרם אישרת קבלת הפקודה",
+        tag: `shift-chat-snooze-${data.messageId}`,
+      }),
+      5000,
+      "shift_chat_snooze",
+    );
     return;
   }
   if (data.type === "task_notification") {
