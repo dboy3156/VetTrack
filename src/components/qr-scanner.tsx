@@ -49,7 +49,7 @@ type ScannerPhase =
   | "manual"
   | "result";
 
-const DEBOUNCE_MS = 800;
+const DEBOUNCE_MS = 300;
 
 function errorToString(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -94,17 +94,16 @@ export function extractEquipmentId(raw: string): string | null {
   }
 }
 
-// Nuclear camera teardown — works in both Safari and PWA/Standalone mode.
-// Requests a fresh stream solely to get a handle on any active tracks, then
-// immediately stops and disables every one of them.
+// Stop all active camera tracks by pulling them from the existing video element.
+// Avoids requesting a new getUserMedia stream just to tear down the old one.
 const killAllCameras = () => {
-  if (navigator.mediaDevices?.getUserMedia) {
-    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-      stream.getTracks().forEach(track => {
-        track.stop();
-        track.enabled = false;
-      });
-    }).catch(() => {});
+  const videoEl = document.querySelector("video") as HTMLVideoElement | null;
+  const stream = videoEl?.srcObject;
+  if (stream instanceof MediaStream) {
+    stream.getTracks().forEach(track => {
+      track.stop();
+      track.enabled = false;
+    });
   }
 };
 
@@ -314,7 +313,7 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
       }
       setManualCode("");
       setPhase("manual");
-    }, 4000);
+    }, 8000);
 
     try {
       const scanner = new Html5Qrcode(containerId, { verbose: false });

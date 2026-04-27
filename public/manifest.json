@@ -10,8 +10,8 @@
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
-  "lang": "he",
-  "dir": "rtl",
+  "lang": "en",
+  "dir": "ltr",
   "categories": ["medical", "productivity", "utilities"],
   "icons": [
     {
@@ -49,6 +49,13 @@
     }
   ],
   "shortcuts": [
+    {
+      "name": "Scan Equipment",
+      "short_name": "Scan",
+      "description": "Open the QR scanner directly",
+      "url": "/?scan=1&source=shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
     {
       "name": "Dashboard",
       "short_name": "Dashboard",

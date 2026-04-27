@@ -18,7 +18,7 @@ const RETRY_DELAYS_MS = [2000, 5000, 10000];
 const BURST_LIMIT = 50;
 const BURST_DELAY_MS = 500;
 const CIRCUIT_THRESHOLD = 5;
-const CIRCUIT_COOLDOWN_MS = 60_000;
+const CIRCUIT_COOLDOWN_MS = 20_000;
 const ITEM_TIMEOUT_MS = 30_000;
 
 type SyncListener = () => void;
@@ -374,7 +374,7 @@ export function initSyncEngine(queryClient?: QueryClient) {
   window.addEventListener("online", handleOnline);
 
   if (isOnline()) {
-    setTimeout(() => processQueue(), 1000);
+    processQueue();
   }
 
   return () => {
