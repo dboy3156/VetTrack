@@ -100,21 +100,23 @@ export function ReturnPlugDialog({
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="plugInDeadlineMinutes">Alert deadline (minutes)</Label>
-            <Input
-              id="plugInDeadlineMinutes"
-              type="number"
-              min={1}
-              max={1440}
-              value={deadlineMinutes}
-              onChange={(event) =>
-                setDeadlineMinutes(parseInt(event.target.value || `${defaultDeadlineMinutes}`, 10))
-              }
-              disabled={isBusy}
-              data-testid="input-plug-deadline"
-            />
-          </div>
+          {!isPluggedIn && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="plugInDeadlineMinutes">Alert deadline (minutes)</Label>
+              <Input
+                id="plugInDeadlineMinutes"
+                type="number"
+                min={1}
+                max={1440}
+                value={deadlineMinutes}
+                onChange={(event) =>
+                  setDeadlineMinutes(parseInt(event.target.value || `${defaultDeadlineMinutes}`, 10))
+                }
+                disabled={isBusy}
+                data-testid="input-plug-deadline"
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -122,7 +124,7 @@ export function ReturnPlugDialog({
             Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={isBusy} data-testid="btn-confirm-return-plug">
-            Confirm Return
+            {isPluggedIn ? "Confirm — Plugged In ✓" : "Set Alert & Return"}
           </Button>
         </DialogFooter>
       </DialogContent>

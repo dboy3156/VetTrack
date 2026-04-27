@@ -94,8 +94,6 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 // 9 cards per page — DOM never holds more than 9 <div>s regardless of dataset size.
 const PAGE_SIZE = 9;
 
-// Minimum skeleton visibility duration (ms) — just enough to prevent flash on cache hits.
-const SKELETON_MIN_MS = 400;
 
 export default function EquipmentListPage() {
   const { settings } = useSettings();
@@ -110,10 +108,6 @@ export default function EquipmentListPage() {
   const [folderSheetOpen, setFolderSheetOpen] = useState(false);
   const [folderSearch, setFolderSearch] = useState("");
   const [page, setPage] = useState(1);
-
-  const [showSkeleton, setShowSkeleton] = useState(true);
-  const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skeletonPhaseStartedAtRef = useRef<number | null>(null);
 
   const params = useMemo(() => new URLSearchParams(searchStr), [searchStr]);
   const search = params.get("q") ?? "";
@@ -202,12 +196,6 @@ export default function EquipmentListPage() {
     setSelected(new Set());
     setSelectMode(false);
     setPage(1);
-    setShowSkeleton(false);
-    skeletonPhaseStartedAtRef.current = null;
-    if (skeletonTimerRef.current) {
-      clearTimeout(skeletonTimerRef.current);
-      skeletonTimerRef.current = null;
-    }
 
     queryClient.removeQueries({ queryKey: ["/api/equipment", "paginated"] });
 
@@ -229,63 +217,9 @@ export default function EquipmentListPage() {
     locationFilter,
   ]);
 
-  // Minimum skeleton time is measured from when loading *starts*, not after data lands — avoids an extra
-  // fixed SKELETON_MIN_MS delay after every fetch (felt like flicker / deadlock when the API was slow).
-  // On error, hide immediately so we never pair "load failed" with a long shimmer.
-  useEffect(() => {
-    if (!userId) return;
-
-    if (isError) {
-      setShowSkeleton(false);
-      skeletonPhaseStartedAtRef.current = null;
-      if (skeletonTimerRef.current) {
-        clearTimeout(skeletonTimerRef.current);
-        skeletonTimerRef.current = null;
-      }
-      return;
-    }
-    if (isQueryLoading) {
-      if (skeletonPhaseStartedAtRef.current === null) {
-        skeletonPhaseStartedAtRef.current = Date.now();
-      }
-      setShowSkeleton(true);
-      if (skeletonTimerRef.current) {
-        clearTimeout(skeletonTimerRef.current);
-        skeletonTimerRef.current = null;
-      }
-      return;
-    }
-    const startedAt = skeletonPhaseStartedAtRef.current;
-    skeletonPhaseStartedAtRef.current = null;
-    // Cached / placeholder path can skip an isQueryLoading=true paint — don't invent a min-delay window.
-    if (startedAt === null) {
-      setShowSkeleton(false);
-      return;
-    }
-    const elapsed = Date.now() - startedAt;
-    const remaining = Math.max(0, SKELETON_MIN_MS - elapsed);
-    if (remaining === 0) {
-      setShowSkeleton(false);
-      return;
-    }
-    skeletonTimerRef.current = setTimeout(() => {
-      skeletonTimerRef.current = null;
-      setShowSkeleton(false);
-    }, remaining);
-    return () => {
-      if (skeletonTimerRef.current) {
-        clearTimeout(skeletonTimerRef.current);
-        skeletonTimerRef.current = null;
-      }
-    };
-  }, [isQueryLoading, isError, userId]);
-
-  // Block the list while initial load runs, during the minimum skeleton window, or while retrying after an error.
+  // Block the list while initial load runs or while retrying after an error.
   // Avoid treating unrelated background refetches (when data already loaded) as full-page blocking load.
-  const isLoading =
-    isQueryLoading ||
-    (isFetching && isError) ||
-    (showSkeleton && !isError);
+  const isLoading = isQueryLoading || (isFetching && isError);
 
   const { data: folders } = useQuery({
     queryKey: ["/api/folders"],
@@ -863,24 +797,78 @@ function EquipmentItem({
 
   const checkoutMut = useMutation({
     mutationFn: () => api.equipment.checkout(eq.id),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["/api/equipment"] });
+      queryClient.setQueriesData(
+        { queryKey: ["/api/equipment"] },
+        (old: unknown) => {
+          if (!old || typeof old !== "object") return old;
+          if ("items" in (old as object)) {
+            const page = old as { items: Equipment[]; total: number };
+            return {
+              ...page,
+              items: page.items.map((item) =>
+                item.id === eq.id ? { ...item, checkedOutById: "optimistic" } : item
+              ),
+            };
+          }
+          if (Array.isArray(old)) {
+            return (old as Equipment[]).map((item) =>
+              item.id === eq.id ? { ...item, checkedOutById: "optimistic" } : item
+            );
+          }
+          return old;
+        }
+      );
+    },
     onSuccess: () => {
       haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       toast.success(`Checked out — ${eq.name}`);
     },
-    onError: () => toast.error(t.equipmentList.toast.checkoutError),
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      toast.error(t.equipmentList.toast.checkoutError);
+    },
   });
 
   const returnMut = useMutation({
     mutationFn: (payload: { isPluggedIn: boolean; plugInDeadlineMinutes?: number }) =>
       api.equipment.return(eq.id, payload),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["/api/equipment"] });
+      queryClient.setQueriesData(
+        { queryKey: ["/api/equipment"] },
+        (old: unknown) => {
+          if (!old || typeof old !== "object") return old;
+          if ("items" in (old as object)) {
+            const page = old as { items: Equipment[]; total: number };
+            return {
+              ...page,
+              items: page.items.map((item) =>
+                item.id === eq.id ? { ...item, checkedOutById: null, checkedOutByEmail: null } : item
+              ),
+            };
+          }
+          if (Array.isArray(old)) {
+            return (old as Equipment[]).map((item) =>
+              item.id === eq.id ? { ...item, checkedOutById: null, checkedOutByEmail: null } : item
+            );
+          }
+          return old;
+        }
+      );
+    },
     onSuccess: () => {
       haptics.tap();
       queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
       queryClient.invalidateQueries({ queryKey: ["/api/equipment/my"] });
       toast.success(`Returned — ${eq.name} is now available`);
     },
-    onError: () => toast.error(t.equipmentList.toast.returnError),
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/equipment"] });
+      toast.error(t.equipmentList.toast.returnError);
+    },
   });
 
   const quickAction = !isCheckedOut && eq.status === "ok"
