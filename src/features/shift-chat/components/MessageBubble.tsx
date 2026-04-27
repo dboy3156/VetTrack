@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 import type { ShiftMessage } from "../types";
 
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 interface MessageBubbleProps {
   message: ShiftMessage;
   currentUserId: string | null;
@@ -52,13 +55,9 @@ export function MessageBubble({ message, currentUserId, onReact, onPin, canPin }
           )}
           <span
             dangerouslySetInnerHTML={{
-              __html: message.body.replace(
-                /@(\S+)/g,
-                '<span class="text-indigo-300 font-semibold">@$1</span>',
-              ).replace(
-                /#(\S+)/g,
-                '<span class="text-indigo-300 underline cursor-pointer font-semibold">#$1</span>',
-              ),
+              __html: escapeHtml(message.body)
+                .replace(/@(\S+)/g, '<span class="text-indigo-300 font-semibold">@$1</span>')
+                .replace(/#(\S+)/g, '<span class="text-indigo-300 underline cursor-pointer font-semibold">#$1</span>'),
             }}
           />
         </div>

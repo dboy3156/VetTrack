@@ -21,6 +21,7 @@ const UNIQUE_ROOM_TAGS = (msgs: { roomTag: string | null }[]) =>
 
 export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
   const { role, effectiveRole, userId } = useAuth();
+  const { sendMessage, isSending, notifyTyping, ackMessage, reactToMessage, pinMessage } = chat;
   const bottomRef   = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLTextAreaElement>(null);
   const [body, setBody]               = useState("");
@@ -28,16 +29,24 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
   const [roomFilter, setRoomFilter]   = useState<string | null>(null);
   const [showBroadcast, setShowBroadcast] = useState(false);
 
-  const canSendBroadcast = effectiveRole === "senior_technician" ||
+  const canSendBroadcast = effectiveRole === "senior_technician" || role === "senior_technician" ||
     effectiveRole === "admin" || role === "admin";
   const canPin = effectiveRole === "vet" || role === "vet" ||
-    effectiveRole === "senior_technician" || effectiveRole === "admin" || role === "admin";
+    effectiveRole === "senior_technician" || role === "senior_technician" ||
+    effectiveRole === "admin" || role === "admin";
 
   useEffect(() => {
     if (isOpen && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [chat.messages.length, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   const filteredMessages = roomFilter
     ? chat.messages.filter((m) => m.roomTag === roomFilter || m.type === "system")
@@ -47,7 +56,7 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
     const trimmed = body.trim();
     if (!trimmed && !showBroadcast) return;
 
-    chat.sendMessage({
+    sendMessage({
       body: trimmed,
       type: "regular",
       isUrgent,
@@ -56,10 +65,10 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
 
     setBody("");
     setIsUrgent(false);
-  }, [body, isUrgent, chat, showBroadcast]);
+  }, [body, isUrgent, sendMessage, showBroadcast]);
 
   const handleBroadcast = (key: BroadcastKey) => {
-    chat.sendMessage({ body: "", type: "broadcast", broadcastKey: key });
+    sendMessage({ body: "", type: "broadcast", broadcastKey: key });
     setShowBroadcast(false);
   };
 
@@ -72,7 +81,7 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
 
   const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setBody(e.target.value);
-    chat.notifyTyping();
+    notifyTyping();
   };
 
   const roomTags = UNIQUE_ROOM_TAGS(chat.messages);
@@ -149,7 +158,7 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
                   message={msg}
                   currentUserId={userId ?? null}
                   isSender={msg.senderId === userId}
-                  onAck={(status) => chat.ackMessage({ id: msg.id, status })}
+                  onAck={(status) => ackMessage({ id: msg.id, status })}
                 />
               );
             }
@@ -158,8 +167,8 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
                 key={msg.id}
                 message={msg}
                 currentUserId={userId ?? null}
-                onReact={(emoji) => chat.reactToMessage({ messageId: msg.id, emoji })}
-                onPin={() => chat.pinMessage(msg.id)}
+                onReact={(emoji) => reactToMessage({ messageId: msg.id, emoji })}
+                onPin={() => pinMessage(msg.id)}
                 canPin={canPin}
               />
             );
@@ -230,7 +239,7 @@ export function ShiftChatPanel({ isOpen, onClose, chat }: ShiftChatPanelProps) {
           </div>
           <button
             onClick={handleSend}
-            disabled={!body.trim() || chat.isSending}
+            disabled={!body.trim() || isSending}
             className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 disabled:opacity-40"
             aria-label="שלח"
           >
