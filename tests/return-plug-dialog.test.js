@@ -32,7 +32,7 @@ describe("Return plug dialog UI tests", () => {
     expect(
       dialogSource.includes("!isPluggedIn && (") &&
         dialogSource.includes("data-testid=\"return-plug-warning\"") &&
-        dialogSource.includes("התראה תישלח לאחר"),
+        dialogSource.includes("An alert will be sent after"),
     ).toBe(true);
   });
 
