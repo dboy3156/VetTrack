@@ -113,6 +113,7 @@ export const appointments = pgTable("vt_appointments", {
   escalatedTo: text("escalated_to").references(() => users.id, { onDelete: "set null" }),
   escalatedAt: timestamp("escalated_at", { withTimezone: true }),
   stuckNotifiedAt: timestamp("stuck_notified_at", { withTimezone: true }),
+  overdueNotifiedAt: timestamp("overdue_notified_at", { withTimezone: true }),
   prestartReminderAt: timestamp("prestart_reminder_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
