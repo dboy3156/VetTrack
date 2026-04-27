@@ -40,7 +40,20 @@ function isIosSafari(): boolean {
   return /iphone|ipad|ipod/i.test(ua) && /safari/i.test(ua) && !/chrome|crios|fxios/i.test(ua);
 }
 
-const IOS_DISMISSED_KEY = "vt_pwa_ios_guidance_dismissed";
+// Re-show the iOS guidance banner after this many milliseconds (7 days).
+const IOS_DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const IOS_DISMISSED_KEY = "vt_pwa_ios_guidance_dismissed_at";
+
+function isIosGuidanceSuppressed(): boolean {
+  try {
+    const raw = localStorage.getItem(IOS_DISMISSED_KEY);
+    if (!raw) return false;
+    const dismissedAt = parseInt(raw, 10);
+    return Number.isFinite(dismissedAt) && Date.now() - dismissedAt < IOS_DISMISS_TTL_MS;
+  } catch {
+    return false;
+  }
+}
 
 export function usePwaInstall(): PwaInstallState {
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -50,13 +63,7 @@ export function usePwaInstall(): PwaInstallState {
     return mode === "standalone" || mode === "fullscreen";
   });
   const [isIos] = useState(isIosSafari);
-  const [iosGuidanceDismissed, setIosGuidanceDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(IOS_DISMISSED_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
+  const [iosGuidanceDismissed, setIosGuidanceDismissed] = useState(isIosGuidanceSuppressed);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -88,7 +95,8 @@ export function usePwaInstall(): PwaInstallState {
   function dismissIosGuidance() {
     setIosGuidanceDismissed(true);
     try {
-      localStorage.setItem(IOS_DISMISSED_KEY, "1");
+      // Store timestamp so we can re-show after IOS_DISMISS_TTL_MS (7 days).
+      localStorage.setItem(IOS_DISMISSED_KEY, String(Date.now()));
     } catch {
       // storage unavailable — state still held in memory for this session
     }
