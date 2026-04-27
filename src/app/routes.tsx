@@ -33,6 +33,7 @@ const MedicationHubPage = lazy(() => import("@/pages/meds"));
 const PharmacyForecastPage = lazy(() => import("@/pages/pharmacy-forecast"));
 const CodeBluePage = lazy(() => import("@/pages/code-blue"));
 const CodeBlueDisplay = lazy(() => import("@/pages/code-blue-display"));
+const WardDisplayPage = lazy(() => import("@/pages/display"));
 const CrashCartCheckPage = lazy(() => import("@/pages/crash-cart"));
 const CodeBlueHistoryPage = lazy(() => import("@/pages/code-blue-history"));
 const AppTourPage = lazy(() => import("@/pages/app-tour"));
@@ -93,6 +94,7 @@ export function AppRoutes() {
         <Route path="/pharmacy-forecast"><AuthGuard><PharmacyForecastPage /></AuthGuard></Route>
         <Route path="/code-blue"><AuthGuard><CodeBluePage /></AuthGuard></Route>
         <Route path="/code-blue/display"><AuthGuard><CodeBlueDisplay /></AuthGuard></Route>
+        <Route path="/display"><AuthGuard><WardDisplayPage /></AuthGuard></Route>
         <Route path="/crash-cart"><AuthGuard><CrashCartCheckPage /></AuthGuard></Route>
         <Route path="/admin/code-blue-history"><AuthGuard><CodeBlueHistoryPage /></AuthGuard></Route>
         <Route path="/app-tour"><AuthGuard><AppTourPage /></AuthGuard></Route>
