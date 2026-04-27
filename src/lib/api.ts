@@ -86,6 +86,7 @@ import {
 import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
 import { isOnline } from "./safe-browser";
+import { shiftChatApi } from "@/features/shift-chat/api";
 
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -1363,4 +1364,5 @@ export const api = {
     snapshot: (): Promise<DisplaySnapshot> =>
       request<DisplaySnapshot>("/api/display/snapshot"),
   },
+  shiftChat: shiftChatApi,
 };
