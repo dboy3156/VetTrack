@@ -219,7 +219,7 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                     <div>
                       <label className="text-[10px] text-muted-foreground">Conc (mg/mL)</label>
                       <input
-                        type="number" min="0.001" step="0.001" value={editConc}
+                        type="number" inputMode="decimal" min="0.001" step="0.001" value={editConc}
                         onChange={(e) => setEditConc(e.target.value)}
                         className="w-full rounded border border-input px-2 py-1 text-xs"
                       />
@@ -227,7 +227,7 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                     <div>
                       <label className="text-[10px] text-muted-foreground">Std dose</label>
                       <input
-                        type="number" min="0.001" step="0.001" value={editDose}
+                        type="number" inputMode="decimal" min="0.001" step="0.001" value={editDose}
                         onChange={(e) => setEditDose(e.target.value)}
                         className="w-full rounded border border-input px-2 py-1 text-xs"
                       />
@@ -248,14 +248,14 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-[10px] text-muted-foreground">Min dose</label>
-                      <input type="number" min="0.001" step="0.001" value={editMinDose}
+                      <input type="number" inputMode="decimal" min="0.001" step="0.001" value={editMinDose}
                         onChange={(e) => setEditMinDose(e.target.value)}
                         placeholder="optional"
                         className="w-full rounded border border-input px-2 py-1 text-xs" />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">Max dose</label>
-                      <input type="number" min="0.001" step="0.001" value={editMaxDose}
+                      <input type="number" inputMode="decimal" min="0.001" step="0.001" value={editMaxDose}
                         onChange={(e) => setEditMaxDose(e.target.value)}
                         placeholder="optional"
                         className="w-full rounded border border-input px-2 py-1 text-xs" />
@@ -335,14 +335,14 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-muted-foreground">Conc (mg/mL)</label>
-              <input type="number" min="0.001" step="0.001" value={addConc}
+              <input type="number" inputMode="decimal" min="0.001" step="0.001" value={addConc}
                 onChange={(e) => setAddConc(e.target.value)}
                 className="w-full rounded border border-input px-2 py-1 text-xs"
               />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Std dose</label>
-              <input type="number" min="0.001" step="0.001" value={addDose}
+              <input type="number" inputMode="decimal" min="0.001" step="0.001" value={addDose}
                 onChange={(e) => setAddDose(e.target.value)}
                 className="w-full rounded border border-input px-2 py-1 text-xs"
               />
@@ -362,13 +362,13 @@ function FormularyManager({ onClose }: FormularyManagerProps) {
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-muted-foreground">Min dose</label>
-              <input type="number" min="0.001" step="0.001" value={addMinDose}
+              <input type="number" inputMode="decimal" min="0.001" step="0.001" value={addMinDose}
                 onChange={(e) => setAddMinDose(e.target.value)} placeholder="optional"
                 className="w-full rounded border border-input px-2 py-1 text-xs" />
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground">Max dose</label>
-              <input type="number" min="0.001" step="0.001" value={addMaxDose}
+              <input type="number" inputMode="decimal" min="0.001" step="0.001" value={addMaxDose}
                 onChange={(e) => setAddMaxDose(e.target.value)} placeholder="optional"
                 className="w-full rounded border border-input px-2 py-1 text-xs" />
             </div>
@@ -801,7 +801,7 @@ export function MedicationCalculator({
             </label>
             <input
               id="weight-input"
-              type="number" min="0.01" step="0.1"
+              type="number" inputMode="decimal" min="0.01" step="0.1"
               value={weightKgRaw}
               onChange={(e) => setWeightKgRaw(e.target.value)}
               placeholder="e.g. 12.5"
@@ -823,7 +823,7 @@ export function MedicationCalculator({
             </label>
             <input
               id="desired-mg-input"
-              type="number" min="0.001" step="0.001"
+              type="number" inputMode="decimal" min="0.001" step="0.001"
               value={desiredMgRaw}
               onChange={(e) => setDesiredMgRaw(e.target.value)}
               placeholder="e.g. 25"

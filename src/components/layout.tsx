@@ -783,7 +783,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         {menuMounted && (
           <div
             className={cn(
-              "border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75vh] overflow-y-auto",
+              "border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75dvh] overflow-y-auto",
               "origin-top will-change-transform",
               menuVisible
                 ? "[animation:menuReveal_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
