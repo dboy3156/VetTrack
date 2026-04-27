@@ -51,6 +51,10 @@ export default function CodeBlueHistoryPage() {
 
       {historyQ.isPending && <p className="text-zinc-500">טוען...</p>}
 
+      {historyQ.isError && (
+        <p className="text-red-400 text-sm">טעינת הנתונים נכשלה. נסה לרענן את הדף.</p>
+      )}
+
       {sessions.length === 0 && !historyQ.isPending && (
         <p className="text-zinc-500">אין אירועים בהיסטוריה</p>
       )}
@@ -72,7 +76,7 @@ export default function CodeBlueHistoryPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm font-semibold text-white">
-                      {new Date(s.startedAt).toLocaleDateString("he-IL", {
+                      {new Date(s.startedAt).toLocaleString("he-IL", {
                         day: "2-digit", month: "2-digit", year: "numeric",
                         hour: "2-digit", minute: "2-digit",
                       })}
