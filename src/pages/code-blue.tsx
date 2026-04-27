@@ -251,7 +251,7 @@ export default function CodeBluePage() {
     queryKey: ["/api/equipment/critical"],
     queryFn: api.equipment.getCriticalEquipment,
     enabled: !!userId,
-    refetchInterval: leaderPoll(15_000),
+    refetchInterval: leaderPoll(30_000),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     retry: false,
