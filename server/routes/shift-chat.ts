@@ -445,7 +445,7 @@ router.get(
       const messages = await db
         .select()
         .from(shiftMessages)
-        .where(eq(shiftMessages.shiftSessionId, shiftId))
+        .where(and(eq(shiftMessages.shiftSessionId, shiftId), eq(shiftMessages.clinicId, clinicId)))
         .orderBy(asc(shiftMessages.createdAt));
 
       return res.json({ messages, shift });
