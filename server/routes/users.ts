@@ -10,6 +10,7 @@ import { authSensitiveLimiter } from "../middleware/rate-limiters.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { resolveCurrentRole } from "../lib/role-resolution.js";
 import { ensureUserEmail } from "../services/user-sync.service.js";
+import { countPurgeCandidates, purgeDeletedUsers, PURGE_AFTER_DAYS } from "../lib/cleanup-scheduler.js";
 
 /*
  * PERMISSIONS MATRIX — /api/users
@@ -538,7 +539,7 @@ router.patch("/:id/display_name", requireAuthAny, validateUuid("id"), validateBo
   }
 });
 
-router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res) => {
+router.patch("/:id/delete", requireAuth, validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     if (!req.authUser) {
@@ -643,7 +644,7 @@ router.patch("/:id/delete", requireAuthAny, validateUuid("id"), async (req, res)
   }
 });
 
-router.patch("/:id/restore", requireAuthAny, validateUuid("id"), async (req, res) => {
+router.patch("/:id/restore", requireAuth, validateUuid("id"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     if (!req.authUser) {
@@ -854,6 +855,61 @@ router.post("/sync", requireAuth, authSensitiveLimiter, validateBody(syncUserSch
         code: "INTERNAL_ERROR",
         reason: "USER_SYNC_FAILED",
         message: "Failed to sync user",
+        requestId,
+      }),
+    );
+  }
+});
+
+/**
+ * GET /api/users/purge-candidates
+ * Returns count of soft-deleted users eligible for permanent purge.
+ * Admin only — informational endpoint before committing to purge.
+ */
+router.get("/purge-candidates", requireAuth, requireAdmin, authSensitiveLimiter, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const count = await countPurgeCandidates();
+    res.json({ count, purgeAfterDays: PURGE_AFTER_DAYS });
+  } catch (err) {
+    console.error("users:purge-candidates", err);
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "PURGE_CANDIDATES_FAILED",
+        message: "Failed to count purge candidates",
+        requestId,
+      }),
+    );
+  }
+});
+
+/**
+ * POST /api/users/purge-deleted
+ * Permanently hard-deletes soft-deleted users that have been deleted for
+ * longer than PURGE_AFTER_DAYS. Requires admin role. Logged to audit trail.
+ * This is the ONLY way to permanently remove users — automatic cleanup
+ * schedulers do not perform hard deletes.
+ */
+router.post("/purge-deleted", requireAuth, requireAdmin, authSensitiveLimiter, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const actor = req.authUser!;
+    const { purged } = await purgeDeletedUsers({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      clinicId,
+    });
+    return res.json({ ok: true, purged, purgeAfterDays: PURGE_AFTER_DAYS });
+  } catch (err) {
+    console.error("users:purge-deleted", err);
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "PURGE_DELETED_FAILED",
+        message: "Failed to purge deleted users",
         requestId,
       }),
     );
