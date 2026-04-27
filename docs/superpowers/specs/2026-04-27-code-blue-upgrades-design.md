@@ -435,6 +435,28 @@ The emergency workflow is never blocked by a connectivity issue. The display mod
 
 ---
 
+## Testing Requirements
+
+Each batch ships with tests. Pattern follows existing test files in `tests/`.
+
+**Server-side (static analysis + integration where possible):**
+- `PATCH /sessions/:id/end` by non-manager returns 403
+- `PATCH /sessions/:id/end` by manager succeeds for all 4 outcomes
+- Duplicate `idempotency_key` on log entry returns `200 { duplicate: true }`, no second row inserted
+- Partial unique index enforces only one active session per clinic
+- Equipment log entry creates a `vt_usage_sessions` row linked to the patient
+- Crash cart check stores `all_passed = false` when any item is unchecked
+
+**Frontend (static analysis against source files):**
+- `Stop CPR` button is gated on `isManager` check in render
+- Poll hook includes `started_at` from server response (not `Date.now()`) for the CPR gate countdown
+- `useCodeBlueSession` queues entries to localStorage on fetch failure
+- Cart status indicator reads from `cartStatus` in poll response
+- High-risk badge renders when `hospitalizationStatus === 'critical'`
+- Equipment picker dispatches log entry with `category = 'equipment'`
+
+---
+
 ## Implementation Batches
 
 **Batch 1 — Server foundation**
