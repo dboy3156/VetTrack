@@ -90,8 +90,8 @@ const OVERDUE_MED_SCAN_MS = 60_000;
 async function scanOverdueMedications(): Promise<void> {
   const now = new Date();
 
-  // Find medication tasks that are overdue and not yet notified
-  const overdueAppts = await db
+  // Phase 1: find candidates (join animals for display name)
+  const candidates = await db
     .select({
       id: appointments.id,
       clinicId: appointments.clinicId,
@@ -110,36 +110,47 @@ async function scanOverdueMedications(): Promise<void> {
         lt(appointments.startTime, now),
         isNull(appointments.overdueNotifiedAt),
         isNotNull(appointments.animalId),
+        isNotNull(appointments.vetId), // only claim rows with an assigned vet
       ),
     );
 
-  for (const appt of overdueAppts) {
-    if (!appt.animalId || !appt.clinicId) continue;
+  if (candidates.length === 0) return;
+
+  // Phase 2: atomically claim the rows by stamping overdueNotifiedAt.
+  // Two concurrent workers may both complete Phase 1 before either writes here.
+  // The extra isNull guard ensures only the first writer claims each row.
+  const ids = candidates.map((a) => a.id);
+  const claimed = await db
+    .update(appointments)
+    .set({ overdueNotifiedAt: now })
+    .where(and(inArray(appointments.id, ids), isNull(appointments.overdueNotifiedAt)))
+    .returning({ id: appointments.id });
+
+  const claimedIds = new Set(claimed.map((c) => c.id));
+
+  // Phase 3: enqueue only for rows this worker actually claimed
+  let notified = 0;
+  for (const appt of candidates) {
+    if (!claimedIds.has(appt.id)) continue; // another worker beat us to this row
+    if (!appt.animalId || !appt.clinicId || !appt.vetId) continue;
 
     const minutesLate = Math.floor((now.getTime() - appt.startTime.getTime()) / 60_000);
     const drugName = appt.notes ?? "תרופה";
 
-    if (appt.vetId) {
-      await enqueueNotificationJob({
-        type: "overdue_medication_alert",
-        clinicId: appt.clinicId,
-        userId: appt.vetId,
-        animalName: appt.animalName,
-        drugName,
-        minutesLate,
-        animalId: appt.animalId,
-      });
-    }
-
-    // Mark as notified to prevent re-firing on next scan
-    await db
-      .update(appointments)
-      .set({ overdueNotifiedAt: now })
-      .where(eq(appointments.id, appt.id));
+    await enqueueNotificationJob({
+      type: "overdue_medication_alert",
+      clinicId: appt.clinicId,
+      userId: appt.vetId,
+      animalName: appt.animalName,
+      drugName,
+      minutesLate,
+      animalId: appt.animalId,
+    });
+    notified++;
   }
 
   if (process.env.NODE_ENV !== "production") {
-    console.log("OVERDUE_MED_SCAN", { count: overdueAppts.length });
+    console.log("OVERDUE_MED_SCAN", { scanned: candidates.length, notified });
   }
 }
 
