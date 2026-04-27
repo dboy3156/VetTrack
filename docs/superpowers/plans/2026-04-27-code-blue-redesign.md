@@ -23,7 +23,7 @@
 | `server/app/routes.ts` | Modify | Register crash-cart router |
 | `src/hooks/useCodeBlueSession.ts` | Create | 2s polling hook, offline queue, presence heartbeat |
 | `src/pages/code-blue.tsx` | Rewrite | Full session-based interactive page |
-| `src/pages/code-blue-display.tsx` | Create | Read-only room display page |
+| `src/pages/code-blue-display.tsx` | ~~Create~~ | ~~Read-only room display page~~ — REPLACED by `/display` (ward-display.md) |
 | `src/pages/crash-cart.tsx` | Create | Daily crash cart check page |
 | `src/pages/code-blue-history.tsx` | Create | Admin history page |
 | `src/app/routes.tsx` | Modify | Register 3 new routes |
@@ -1013,7 +1013,7 @@ function read(rel) {
 
 const hook = read("src/hooks/useCodeBlueSession.ts");
 const page = read("src/pages/code-blue.tsx");
-const display = read("src/pages/code-blue-display.tsx");
+// const display = read("src/pages/code-blue-display.tsx"); — REPLACED by /display (ward-display.md)
 const routes = read("src/app/routes.tsx");
 
 describe("useCodeBlueSession hook", () => {
@@ -1078,25 +1078,23 @@ describe("Code Blue page — quick log idempotency", () => {
 });
 
 describe("Code Blue display page", () => {
-  it("display page polls /api/code-blue/sessions/active", () => {
-    expect(display).toContain("/api/code-blue/sessions/active");
+  // Tests for code-blue-display page are REPLACED by /display (ward-display.md)
+  it.skip("display page polls /api/code-blue/sessions/active", () => {
+    // REPLACED: code-blue-display.tsx is no longer created
   });
 
-  it("display page has no interactive buttons (no onClick that posts)", () => {
-    // Display should not contain POST calls
-    expect(display).not.toContain("POST");
-    expect(display).not.toContain("authFetch");
+  it.skip("display page has no interactive buttons (no onClick that posts)", () => {
+    // REPLACED: code-blue-display.tsx is no longer created
   });
 
-  it("display page shows standby message when no session", () => {
-    expect(display).toContain("ממתין");
+  it.skip("display page shows standby message when no session", () => {
+    // REPLACED: code-blue-display.tsx is no longer created
   });
 });
 
 describe("Route registration", () => {
-  it("/code-blue/display route is registered", () => {
-    expect(routes).toContain('"/code-blue/display"');
-    expect(routes).toContain("CodeBlueDisplay");
+  it.skip("/code-blue/display route is registered", () => {
+    // REPLACED: /code-blue/display route is no longer registered; use /display instead (ward-display.md)
   });
 
   it("/crash-cart route is registered", () => {
@@ -2128,166 +2126,11 @@ git commit -m "feat: rewrite Code Blue page — session sync, manager gate, CPR 
 
 ---
 
-## Task 10: Code Blue Display Page
+## Task 10: Code Blue Display Page — REPLACED by ward display
 
-**Files:**
-- Create: `src/pages/code-blue-display.tsx`
+**REPLACED BY:** `/display` route (see `docs/superpowers/plans/2026-04-28-ward-display.md`)
 
-- [ ] **Step 1: Create the display page**
-
-```typescript
-// src/pages/code-blue-display.tsx
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Shield, Wifi, WifiOff } from "lucide-react";
-import { authFetch } from "@/lib/auth-store";
-import { useAuth } from "@/hooks/use-auth";
-import type { SessionPollResult } from "@/hooks/useCodeBlueSession";
-import { cn } from "@/lib/utils";
-
-function formatElapsed(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60).toString().padStart(2, "0");
-  const s = (totalSec % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
-}
-
-function useElapsed(startedAt: string | null): number {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!startedAt) return;
-    const tick = () => setElapsed(Date.now() - new Date(startedAt).getTime());
-    tick();
-    const id = setInterval(tick, 500);
-    return () => clearInterval(id);
-  }, [startedAt]);
-  return elapsed;
-}
-
-export default function CodeBlueDisplay() {
-  const { userId } = useAuth();
-
-  const pollQ = useQuery<SessionPollResult>({
-    queryKey: ["/api/code-blue/sessions/active", "display"],
-    queryFn: async () => {
-      const res = await authFetch("/api/code-blue/sessions/active");
-      if (!res.ok) throw new Error("poll failed");
-      return res.json();
-    },
-    refetchInterval: 2000,
-    refetchOnWindowFocus: false,
-    retry: 1,
-    enabled: !!userId,
-  });
-
-  const session = pollQ.data?.session ?? null;
-  const logEntries = pollQ.data?.logEntries ?? [];
-  const presence = pollQ.data?.presence ?? [];
-
-  const elapsed = useElapsed(session?.startedAt ?? null);
-  const cprCycle = session ? Math.floor(elapsed / 120000) + 1 : 0;
-  const msToNext = session ? 120000 - (elapsed % 120000) : 0;
-
-  return (
-    <div
-      className="min-h-screen bg-zinc-950 text-white flex flex-col"
-      dir="rtl"
-      style={{ borderTop: session ? "4px solid #dc2626" : "4px solid #27272a" }}
-    >
-      {/* Connection indicator */}
-      <div className="absolute top-2 left-2">
-        {pollQ.isError
-          ? <WifiOff className="h-4 w-4 text-red-400" />
-          : <Wifi className="h-4 w-4 text-green-500/50" />
-        }
-      </div>
-
-      {!session ? (
-        /* Standby */
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-zinc-600">
-            <div className="text-4xl font-black tracking-widest mb-4">ממתין לאירוע...</div>
-            <div className="text-lg">המסך יתעדכן אוטומטית בתוך 2 שניות מפתיחת CODE BLUE</div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Header */}
-          <div className="px-8 py-4 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
-            <div>
-              <div className="text-red-400 font-black tracking-widest text-2xl">⚠ CODE BLUE ACTIVE</div>
-              {session.patientName && (
-                <div className="text-zinc-400 text-base mt-1">
-                  {session.patientName}{session.patientWeight ? ` — ${session.patientWeight} ק״ג` : ""}
-                </div>
-              )}
-            </div>
-            <div className="text-right text-sm text-zinc-400 flex items-center gap-2">
-              <Shield className="h-4 w-4 text-blue-400" />
-              {session.managerUserName}
-            </div>
-          </div>
-
-          {/* Giant timer */}
-          <div className="px-8 py-10 bg-zinc-900/60 border-b border-zinc-800 text-center">
-            <div className="font-black text-9xl tracking-widest font-mono leading-none">
-              {formatElapsed(elapsed)}
-            </div>
-            <div className="flex gap-6 justify-center items-center mt-4">
-              <span className="bg-red-700 text-white text-base font-bold px-4 py-1 rounded-full">
-                מחזור #{cprCycle}
-              </span>
-              <span className="text-zinc-400 text-base">עוד {formatElapsed(msToNext)} לבדיקת קצב</span>
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div className="flex-1 px-8 py-6 overflow-y-auto">
-            <div className="text-sm text-zinc-500 tracking-widest uppercase mb-4">אירועים</div>
-            <div className="flex flex-col gap-4">
-              {[...logEntries].reverse().slice(0, 8).map((entry) => (
-                <div key={entry.id} className="flex gap-6 items-baseline">
-                  <span className="text-2xl font-mono text-zinc-600 min-w-[60px]">{formatElapsed(entry.elapsedMs)}</span>
-                  <span className="text-2xl text-white">{entry.label}</span>
-                  <span className="text-base text-green-400 mr-auto">{entry.loggedByName}</span>
-                </div>
-              ))}
-              {logEntries.length === 0 && (
-                <p className="text-zinc-600 text-xl">אין אירועים עדיין</p>
-              )}
-            </div>
-          </div>
-
-          {/* Presence */}
-          <div className="px-8 py-4 border-t border-zinc-800 flex gap-3 items-center">
-            <span className="text-sm text-zinc-600">נוכחים:</span>
-            {presence.map((p) => (
-              <span key={p.userId} className="bg-blue-900 text-blue-300 text-sm px-3 py-1 rounded-full">
-                {p.userName}
-              </span>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-```
-
-- [ ] **Step 2: Run display tests**
-
-```bash
-npx vitest run tests/code-blue-frontend.test.js 2>&1 | grep -E "display|PASS|FAIL"
-```
-
-Expected: display-related tests pass.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add src/pages/code-blue-display.tsx
-git commit -m "feat: add Code Blue room display page (read-only, auto-activates on poll)"
-```
+> `/code-blue/display` is no longer implemented here. The `/display` route (implemented in the ward display plan) covers both the ward dashboard and the Code Blue room view in a single page. `src/pages/code-blue-display.tsx` is not created.
 
 ---
 
@@ -2301,7 +2144,7 @@ git commit -m "feat: add Code Blue room display page (read-only, auto-activates 
 
 ```typescript
 // Add after the existing CodeBluePage import line:
-const CodeBlueDisplay = lazy(() => import("@/pages/code-blue-display"));
+// ~~const CodeBlueDisplay = lazy(() => import("@/pages/code-blue-display"));~~ — REPLACED by /display (ward-display.md)
 const CrashCartCheckPage = lazy(() => import("@/pages/crash-cart"));
 const CodeBlueHistoryPage = lazy(() => import("@/pages/code-blue-history"));
 ```
@@ -2311,7 +2154,7 @@ const CodeBlueHistoryPage = lazy(() => import("@/pages/code-blue-history"));
 Add the following inside the `<Switch>` block, after the existing `/code-blue` route:
 
 ```typescript
-<Route path="/code-blue/display"><AuthGuard><CodeBlueDisplay /></AuthGuard></Route>
+<!-- ~~<Route path="/code-blue/display"><AuthGuard><CodeBlueDisplay /></AuthGuard></Route>~~ — REPLACED by /display (ward-display.md) -->
 <Route path="/crash-cart"><AuthGuard><CrashCartCheckPage /></AuthGuard></Route>
 <Route path="/admin/code-blue-history"><AuthGuard><CodeBlueHistoryPage /></AuthGuard></Route>
 ```
