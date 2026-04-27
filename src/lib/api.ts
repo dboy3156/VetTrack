@@ -1358,4 +1358,8 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+  display: {
+    snapshot: (): Promise<import("@/types").DisplaySnapshot> =>
+      request<import("@/types").DisplaySnapshot>("/api/display/snapshot"),
+  },
 };
