@@ -62,8 +62,8 @@ async function testGetMessagesReturnsShape() {
 async function run() {
   console.log("=== Shift Chat Tests ===");
   try {
-    const health = await get("/api/healthz");
-    if (!health.ok) throw new Error(`healthz ${health.status}`);
+    const health = await get("/api/health");
+    if (!health.ok) throw new Error(`health ${health.status}`);
     console.log("Server reachable ✓\n");
   } catch {
     console.error("Server not reachable — start with: pnpm dev");
