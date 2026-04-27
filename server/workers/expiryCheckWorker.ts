@@ -83,7 +83,7 @@ async function markNotified(clinicId: string, itemIds: string[]): Promise<void> 
 export async function runExpiryCheckWorkerForClinic(clinicId: string): Promise<number> {
   const clinicRows = await fetchExpiringEquipmentForClinic(clinicId);
   if (clinicRows.length === 0) {
-    console.log("[expiry-check-worker] completed", {
+    if (process.env.NODE_ENV !== "production") console.log("[expiry-check-worker] completed", {
       notifiedCount: 0,
       timestamp: new Date().toISOString(),
     });
@@ -100,7 +100,7 @@ export async function runExpiryCheckWorkerForClinic(clinicId: string): Promise<n
   }
   await markNotified(clinicId, clinicRows.map((row) => row.id));
   const notifiedCount = clinicRows.length;
-  console.log("[expiry-check-worker] completed", {
+  if (process.env.NODE_ENV !== "production") console.log("[expiry-check-worker] completed", {
     notifiedCount,
     timestamp: new Date().toISOString(),
   });
@@ -110,7 +110,7 @@ export async function runExpiryCheckWorkerForClinic(clinicId: string): Promise<n
 export async function runExpiryCheckWorker(): Promise<number> {
   const clinicIds = await fetchClinicsWithExpiringEquipment();
   if (clinicIds.length === 0) {
-    console.log("[expiry-check-worker] completed", {
+    if (process.env.NODE_ENV !== "production") console.log("[expiry-check-worker] completed", {
       notifiedCount: 0,
       timestamp: new Date().toISOString(),
     });

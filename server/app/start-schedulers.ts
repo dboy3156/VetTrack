@@ -9,6 +9,7 @@ import { startSystemWatchdog } from "../lib/system-watchdog.js";
 import { startExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
 import { startChargeAlertWorker } from "../workers/chargeAlertWorker.js";
 import { startInventoryDeductionWorker } from "../workers/inventory-deduction.worker.js";
+import { startIntegrationWorker } from "../workers/integration.worker.js";
 
 export async function startBackgroundSchedulers() {
   await initVapid();
@@ -21,4 +22,5 @@ export async function startBackgroundSchedulers() {
   await startExpiryCheckWorker();
   await startChargeAlertWorker();
   await startInventoryDeductionWorker();
+  await startIntegrationWorker();
 }

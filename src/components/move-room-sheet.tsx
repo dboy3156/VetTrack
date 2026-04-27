@@ -59,7 +59,7 @@ export function MoveRoomSheet({ equipment, open, onOpenChange, onMoved }: MoveRo
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-2xl max-h-[75vh] overflow-y-auto">
+      <SheetContent side="bottom" className="rounded-t-2xl max-h-[75dvh] overflow-y-auto">
         <SheetHeader className="pb-3 border-b border-border/60 mb-2">
           <SheetTitle className="text-base">Move to Room</SheetTitle>
           <p className="text-xs text-muted-foreground truncate">{equipment.name}</p>

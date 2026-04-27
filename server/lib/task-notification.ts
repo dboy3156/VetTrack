@@ -96,7 +96,7 @@ export async function dispatchTaskNotificationSync(
             audience: "technician_role",
           },
         });
-        console.log("NOTIFICATION_SENT", { userId: null, clinicId, type: event });
+        if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: null, clinicId, type: event });
         return;
       }
       if (task.vetId) {
@@ -108,7 +108,7 @@ export async function dispatchTaskNotificationSync(
             `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""}`,
           ),
         );
-        console.log("NOTIFICATION_SENT", { userId: task.vetId, clinicId, type: event });
+        if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: task.vetId, clinicId, type: event });
       }
       return;
     }
@@ -117,7 +117,7 @@ export async function dispatchTaskNotificationSync(
       const body = `${typeLabel} · ${asset} · ${task.vetId ?? "tech"}${windowLabel ? ` · ${windowLabel}` : ""}`;
       await sendPushToRole(clinicId, "admin", payloadFor("Task started", body));
       await sendPushToRole(clinicId, "vet", payloadFor("Task started", body));
-      console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
+      if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
       return;
     }
 
@@ -125,7 +125,7 @@ export async function dispatchTaskNotificationSync(
       const body = `${typeLabel} · ${asset} · ${task.vetId ?? "tech"}${windowLabel ? ` · ${windowLabel}` : ""}`;
       await sendPushToRole(clinicId, "admin", payloadFor("Task completed", body));
       await sendPushToRole(clinicId, "vet", payloadFor("Task completed", body));
-      console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
+      if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
       return;
     }
 

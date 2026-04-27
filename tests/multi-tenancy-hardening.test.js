@@ -18,9 +18,22 @@ const routeFiles = fs
   .filter((f) => f.endsWith(".ts"))
   .map((f) => path.join(routesDir, f));
 
+// Routes that intentionally operate across all tenants (no clinicId scoping):
+//   webhooks.ts — Clerk webhook handler uses clerkId to find users across clinics;
+//                 it is unauthenticated and must not be tenant-scoped.
+const CROSS_TENANT_ROUTES = new Set(["webhooks.ts"]);
+
 const dbRouteFiles = routeFiles.filter((filePath) => {
+  if (CROSS_TENANT_ROUTES.has(path.basename(filePath))) return false;
   const src = fs.readFileSync(filePath, "utf8");
-  return src.includes("from(equipment)") || src.includes("from(users)") || src.includes("from(folders)") || src.includes("from(rooms)");
+  return (
+    src.includes("from(equipment)") ||
+    src.includes("from(users)") ||
+    src.includes("from(folders)") ||
+    src.includes("from(rooms)") ||
+    src.includes("from(hospitalizations)") ||
+    src.includes("from(animals)")
+  );
 });
 
 describe("Multi-Tenancy Hardening Smoke Test", () => {

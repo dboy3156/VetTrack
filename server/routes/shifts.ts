@@ -649,7 +649,7 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
 
     await db.insert(shifts).values(values).onConflictDoNothing();
 
-    console.log(
+    console.info(
       `[shifts import] filename=${parsed.filename} totalRows=${parsed.totalRows} insertedRows=${values.length} skippedRows=${parsed.issues.length}`
     );
 

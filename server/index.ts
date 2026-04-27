@@ -25,6 +25,7 @@ import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
 import { registerApiRoutes } from "./app/routes.js";
+import clerkWebhookRoutes from "./routes/webhooks.js";
 import { startBackgroundSchedulers } from "./app/start-schedulers.js";
 import { ensureClinicPhase2Defaults } from "./lib/ensure-clinic-phase2-defaults.js";
 import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
@@ -153,6 +154,11 @@ app.use(
   }),
 );
 app.use(compression());
+
+// Clerk webhook MUST be mounted before express.json() so the raw body is
+// available for svix signature verification.
+app.use("/api/webhooks/clerk", clerkWebhookRoutes);
+
 app.use(express.json());
 
 function sanitizeValue(value: unknown): unknown {

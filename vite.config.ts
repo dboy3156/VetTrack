@@ -49,6 +49,19 @@ export default defineConfig({
   build: {
     outDir: "dist/public",
     sourcemap: "hidden",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Heavy data libraries — only needed on analytics / billing / forecast pages
+          "vendor-charts": ["recharts"],
+          "vendor-export": ["jspdf", "xlsx"],
+          // React core — stable across all chunks, cached aggressively
+          "vendor-react": ["react", "react-dom"],
+          // Animation — only a few pages use framer-motion
+          "vendor-motion": ["framer-motion"],
+        },
+      },
+    },
   },
   test: {
     environment: "node",

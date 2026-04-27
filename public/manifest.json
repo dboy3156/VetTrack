@@ -10,8 +10,8 @@
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
-  "lang": "en",
-  "dir": "ltr",
+  "lang": "he",
+  "dir": "auto",
   "categories": ["medical", "productivity", "utilities"],
   "icons": [
     {

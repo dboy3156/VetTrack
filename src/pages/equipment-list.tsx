@@ -442,7 +442,7 @@ export default function EquipmentListPage() {
             <ChevronRight className="w-3.5 h-3.5 shrink-0 rotate-90" />
           </button>
           <Sheet open={folderSheetOpen} onOpenChange={(o) => { setFolderSheetOpen(o); if (!o) setFolderSearch(""); }}>
-            <SheetContent side="bottom" className="max-h-[75vh] flex flex-col p-0">
+            <SheetContent side="bottom" className="max-h-[75dvh] flex flex-col p-0">
               <SheetHeader className="px-4 pt-5 pb-3 border-b">
                 <SheetTitle>{t.equipmentList.folders.filterByFolder}</SheetTitle>
               </SheetHeader>

@@ -34,6 +34,7 @@ describe("Frontend Routing Structure", () => {
     'path="/rooms"',
     'path="/appointments"',
     'path="/settings"',
+    'path="/patients"',
   ]) {
     it(`Critical route exists: ${route}`, () => {
       expect(routeSources).toContain(route);

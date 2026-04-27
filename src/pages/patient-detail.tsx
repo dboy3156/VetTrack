@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   ClipboardList,
+  Clock,
   LayoutGrid,
   MapPin,
   Package,
@@ -14,6 +15,7 @@ import {
   Radar,
   Receipt,
   Sparkles,
+  Stethoscope,
   Syringe,
   UserRound,
 } from "lucide-react";
@@ -35,8 +37,9 @@ import type {
   Appointment,
   BillingLedgerEntry,
   Equipment,
-  MedicationExecutionTask,
+  Hospitalization,
 } from "@/types";
+type MedicationExecutionTask = import("@/types").MedicationExecutionTask;
 
 const ROLE_LEVEL: Record<string, number> = {
   admin: 40,
@@ -120,6 +123,19 @@ export default function PatientDetailPage() {
   const resolvedRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canTasks = roleLevel(resolvedRole) >= ROLE_LEVEL.technician;
   const canBilling = roleLevel(resolvedRole) >= ROLE_LEVEL.vet;
+
+  // Fetch active hospitalization for this animal (if any)
+  const hospQ = useQuery({
+    queryKey: ["/api/patients", "by-animal", animalId],
+    queryFn: async () => {
+      const r = await api.patients.list({ q: "" });
+      return r.patients.find((p) => p.animalId === animalId) ?? null;
+    },
+    enabled: Boolean(userId && animalId),
+    staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   const equipmentQ = useQuery({
     queryKey: ["/api/equipment"],
@@ -307,7 +323,7 @@ export default function PatientDetailPage() {
         <div className="flex w-full flex-col gap-5 pt-2">
           <header className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button variant="ghost" size="sm" className="h-9 min-h-[40px] gap-1.5 px-2 text-muted-foreground hover:text-foreground" asChild>
-              <Link href="/appointments">
+              <Link href="/patients">
                 <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 {p.back}
               </Link>
@@ -380,6 +396,64 @@ export default function PatientDetailPage() {
               </div>
             </dl>
           </section>
+
+          {/* Hospitalization banner — shown when this animal has an active admission */}
+          {hospQ.data ? (() => {
+            const hosp = hospQ.data;
+            const STATUS_STYLES: Record<string, string> = {
+              critical:    "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30",
+              admitted:    "border-sky-300 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/30",
+              observation: "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30",
+              recovering:  "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30",
+            };
+            const DOT_STYLES: Record<string, string> = {
+              critical:    "bg-red-500",
+              admitted:    "bg-sky-500",
+              observation: "bg-amber-500",
+              recovering:  "bg-emerald-500",
+            };
+            const STATUS_LABELS: Record<string, string> = {
+              admitted:    "Admitted",
+              observation: "Observation",
+              critical:    "Critical",
+              recovering:  "Recovering",
+              discharged:  "Discharged",
+              deceased:    "Deceased",
+            };
+            const panelClass = STATUS_STYLES[hosp.status] ?? "border-border bg-muted/30";
+            const dotClass = DOT_STYLES[hosp.status] ?? "bg-muted-foreground";
+            const statusLabel = STATUS_LABELS[hosp.status] ?? hosp.status;
+            return (
+              <div className={cn("rounded-2xl border px-4 py-3 flex flex-wrap items-center gap-3", panelClass)} style={{ direction: dir }}>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", dotClass, hosp.status === "critical" && "animate-pulse")} />
+                  <Stethoscope className="h-4 w-4 text-foreground/70" />
+                  <span className="text-sm font-semibold text-foreground">{statusLabel}</span>
+                </span>
+                {(hosp.ward || hosp.bay) ? (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    {[hosp.ward, hosp.bay].filter(Boolean).join(" · ")}
+                  </span>
+                ) : null}
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <span dir="ltr">{formatRelativeTime(hosp.admittedAt)}</span>
+                </span>
+                {hosp.admittingVetName ? (
+                  <span className="text-xs text-muted-foreground ms-auto">
+                    {hosp.admittingVetName}
+                  </span>
+                ) : null}
+                <Link
+                  href="/patients"
+                  className="ms-auto text-xs font-medium text-primary underline-offset-2 hover:underline shrink-0"
+                >
+                  מטופלים פעילים ←
+                </Link>
+              </div>
+            );
+          })() : null}
 
           <section style={{ direction: dir }}>
             <SectionTitle icon={Package} title={p.sectionEquipment} />

@@ -115,7 +115,7 @@ export async function processChargeAlertJob(
   });
   await markChargeAlertSent(returnRecord.id, payload.clinicId);
 
-  console.log("[charge-alert-worker] alerted", {
+  if (process.env.NODE_ENV !== "production") console.log("[charge-alert-worker] alerted", {
     returnId: returnRecord.id,
     equipmentId: payload.equipmentId,
     clinicId: payload.clinicId,

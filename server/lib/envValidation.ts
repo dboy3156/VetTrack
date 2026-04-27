@@ -10,6 +10,10 @@ const REQUIRED_IN_PRODUCTION: string[] = [
   "CLERK_SECRET_KEY",
   "VITE_CLERK_PUBLISHABLE_KEY",
   "ALLOWED_ORIGIN",
+  // Webhook signature verification — required for Clerk user lifecycle sync
+  "CLERK_WEBHOOK_SECRET",
+  // Credential encryption — required to protect external integration API keys at rest
+  "DB_CONFIG_ENCRYPTION_KEY",
 ];
 
 function validateClerkKeyPair(): void {

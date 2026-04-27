@@ -937,6 +937,19 @@ router.post("/:id/restore", requireAuth, requireAdmin, validateUuid("id"), async
       .where(and(eq(equipment.clinicId, clinicId), eq(equipment.id, req.params.id)))
       .returning();
 
+    if (restored) {
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "equipment_restored",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: req.params.id,
+        targetType: "equipment",
+        metadata: { equipmentName: restored.name },
+      });
+    }
+
     invalidateAnalyticsCache(clinicId);
     res.json(restored);
   } catch (err) {

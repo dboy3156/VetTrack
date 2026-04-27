@@ -60,6 +60,12 @@ export function formatDateTimeByLocale(date: Date, options?: Intl.DateTimeFormat
   return date.toLocaleString(locale, options);
 }
 
+export function formatDateByLocale(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
+  const locale = getStoredLocale();
+  const localeTag = locale === "he" ? "he-IL" : "en-US";
+  return new Date(date).toLocaleDateString(localeTag, options);
+}
+
 export function applyLocaleDocumentAttributes(locale: string | null | undefined): void {
   if (typeof document === "undefined") return;
   const resolved = resolveClientLocale(locale);
@@ -315,6 +321,13 @@ const translations = {
       tr(d.adminPage.logEntries, { count, hasMoreSuffix: hasMore ? "+" : "" }),
     logClientPage: (current: number, total: number) =>
       tr(d.adminPage.logClientPage, { current, total }),
+    signedUp: (date: string) => tr(d.adminPage.signedUp, { date }),
+    joined: (date: string) => tr(d.adminPage.joined, { date }),
+    rejectUserTitle: (name: string) => tr(d.adminPage.rejectUserTitle, { name }),
+    deleteUserTitle: (name: string) => tr(d.adminPage.deleteUserTitle, { name }),
+    deletedOn: (date: string) => tr(d.adminPage.deletedOn, { date }),
+    blockUserTitle: (name: string) => tr(d.adminPage.blockUserTitle, { name }),
+    formularyDeleteTitle: (name: string) => tr(d.adminPage.formularyDeleteTitle, { name }),
   },
 
   layoutHebrew: {

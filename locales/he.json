@@ -644,7 +644,8 @@
     "recentActivity": "פעילות אחרונה",
     "getStarted": "התחל",
     "total": "סה״כ",
-    "getStartedDescription": "הוסף את פריט הציוד הראשון כדי להתחיל במעקב"
+    "getStartedDescription": "הוסף את פריט הציוד הראשון כדי להתחיל במעקב",
+    "appTourHint": "הדרכה + סרטון"
   },
 
   "landingPage": {
@@ -980,7 +981,33 @@
     "logFilterApply": "סנן",
     "logFilterReset": "אפס",
     "noTicketsYet": "אין פניות תמיכה עדיין",
-    "noTicketsYetSub": "פניות שיישלחו על ידי משתמשים יופיעו כאן."
+    "noTicketsYetSub": "פניות שיישלחו על ידי משתמשים יופיעו כאן.",
+    "tabDeleted": "נמחקו",
+    "signedUp": "נרשם {date}",
+    "joined": "הצטרף {date}",
+    "reject": "דחה",
+    "approve": "אשר",
+    "rejectUserTitle": "לדחות את {name}?",
+    "rejectUserBody": "המשתמש ייחסם מגישה ל-VetTrack. הוא לא יקבל הודעה.",
+    "rejectUserConfirm": "כן, דחה",
+    "userDeleted": "המשתמש נמחק",
+    "deleteUser": "מחק",
+    "deleteUserTitle": "מחיקת {name}?",
+    "deleteUserBody": "המשתמש יסומן כמחוק. ניתן לשחזר אותו מאוחר יותר.",
+    "deleteUserConfirm": "כן, מחק",
+    "restoreUser": "שחזר",
+    "deletedEquipmentTitle": "ציוד שנמחק",
+    "noDeletedEquipment": "אין ציוד שנמחק.",
+    "noDeletedUsers": "אין משתמשים שנמחקו.",
+    "deletedOn": "נמחק {date}",
+    "restore": "שחזר",
+    "changeRoleTo": "שינוי תפקיד ל",
+    "changeRoleConfirm": "כן, שנה תפקיד",
+    "blockUserTitle": "לחסום את {name}?",
+    "blockUserBody": "פעולה זו תבטל מיידית את הגישה שלהם ל-VetTrack. הם לא יוכלו להתחבר עד שהסטטוס ישונה חזרה לפעיל.",
+    "blockUserConfirm": "כן, חסום",
+    "formularyDeleteTitle": "מחיקת \"{name}\"?",
+    "formularyDeleteBody": "פעולה זו תסיר את התרופה מהרשימה של הקליניקה. תמיד ניתן להוסיף אותה מחדש."
   },
 
   "layoutHebrew": {
@@ -1005,7 +1032,10 @@
     "adminShifts": "משמרות",
     "stability": "יציבות",
     "procurement": "הזמנות רכש",
+    "inventoryItems": "פריטי מלאי",
     "appTour": "סיור באפליקציה",
+    "whatsNew": "מה חדש",
+    "auditLog": "יומן ביקורת",
     "quickGuide": "מדריך מהיר",
     "settings": "הגדרות",
     "about": "אודות VetTrack",
@@ -1332,6 +1362,8 @@
     "chipPrn": "PRN: {count}",
     "chipLd": "טעינה: {count}",
     "chipFlags": "דגלים: {count}",
+    "sourceFormatSmartflowBadge": "מקור: SmartFlow",
+    "sourceFormatGenericBadge": "מקור: כללי",
     "errors": {
       "noFile": "נא לבחור קובץ PDF",
       "noText": "נא להדביק טקסט לניתוח"

@@ -1,4 +1,4 @@
-import { t } from "@/lib/i18n";
+import { t, formatDateByLocale } from "@/lib/i18n";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
@@ -219,7 +219,7 @@ export default function BillingLedgerPage() {
       if (typeFilter === "EQUIPMENT" && e.itemType !== "EQUIPMENT") return false;
       if (typeFilter === "CONSUMABLE" && e.itemType !== "CONSUMABLE") return false;
       if (normalizedSearch) {
-        const createdDate = new Date(e.createdAt).toLocaleDateString().toLowerCase();
+        const createdDate = formatDateByLocale(e.createdAt).toLowerCase();
         return (
           (e.animalId ?? "").toLowerCase().includes(normalizedSearch) ||
           e.itemId.toLowerCase().includes(normalizedSearch) ||
@@ -325,14 +325,14 @@ export default function BillingLedgerPage() {
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-emerald-700">Pending Sync</p>
+              <p className="text-xs font-medium text-emerald-700">Auto-Synced</p>
               <Sparkles className="h-4 w-4 text-emerald-700" />
             </div>
             <p className="mt-2 text-2xl font-semibold tracking-tight text-emerald-800">
               {formatCents(autoCapturedTotal)}
             </p>
             <p className="mt-1 text-xs text-emerald-700">
-              {autoCapturedEntries.length} synced to billing
+              {autoCapturedEntries.length} entries synced to external
             </p>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition-shadow duration-200 hover:shadow-md motion-reduce:hover:shadow-sm">
@@ -488,7 +488,7 @@ export default function BillingLedgerPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {new Date(entry.createdAt).toLocaleDateString("he-IL")}
+                        {formatDateByLocale(entry.createdAt)}
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">
@@ -522,7 +522,7 @@ export default function BillingLedgerPage() {
                     <div className="min-w-0 space-y-1">
                       <p className="break-all font-mono text-xs text-muted-foreground">{entry.animalId}</p>
                       <p className="text-sm font-medium">{entry.itemType}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateByLocale(entry.createdAt)}</p>
                     </div>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${STATUS_BADGE[entry.status]}`}>
                       {STATUS_LABEL[entry.status]}

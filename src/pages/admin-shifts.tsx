@@ -47,9 +47,11 @@ export default function AdminShiftsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/shifts"] });
       // Keep selected file + preview visible after confirm so admins can
       // still see exactly which CSV/rows were imported.
-      console.log(
-        `[admin shifts] confirmed import filename=${result.filename} inserted=${result.insertedRows} skipped=${result.skippedRows}`
-      );
+      if (import.meta.env.DEV) {
+        console.log(
+          `[admin shifts] confirmed import filename=${result.filename} inserted=${result.insertedRows} skipped=${result.skippedRows}`
+        );
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || t.adminShiftsPage.importFailed);

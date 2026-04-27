@@ -16,7 +16,7 @@ importers:
         version: 5.61.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@clerk/clerk-sdk-node':
         specifier: ^5.1.6
-        version: 5.1.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 5.1.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(svix@1.92.2)
       '@clerk/express':
         specifier: ^1.0.0
         version: 1.7.77(express@4.22.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -164,15 +164,15 @@ importers:
       jspdf:
         specifier: ^4.2.1
         version: 4.2.1
-      jsqr:
-        specifier: ^1.4.0
-        version: 1.4.0
       lucide-react:
         specifier: ^0.446.0
         version: 0.446.0(react@18.3.1)
       multer:
         specifier: ^2.1.1
         version: 2.1.1
+      nanoid:
+        specifier: ^5.0.0
+        version: 5.1.9
       nodemailer:
         specifier: ^8.0.5
         version: 8.0.5
@@ -182,9 +182,6 @@ importers:
       pg:
         specifier: ^8.12.0
         version: 8.20.0
-      playwright:
-        specifier: ^1.59.1
-        version: 1.59.1
       qrcode.react:
         specifier: ^4.0.0
         version: 4.2.0(react@18.3.1)
@@ -212,6 +209,9 @@ importers:
       sonner:
         specifier: ^1.5.0
         version: 1.7.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      svix:
+        specifier: ^1.92.2
+        version: 1.92.2
       tailwind-merge:
         specifier: ^2.5.0
         version: 2.6.1
@@ -288,6 +288,9 @@ importers:
       kill-port:
         specifier: ^2.0.1
         version: 2.0.1
+      playwright:
+        specifier: ^1.59.1
+        version: 1.59.1
       postcss:
         specifier: ^8.4.0
         version: 8.5.9
@@ -3522,9 +3525,6 @@ packages:
   jspdf@4.2.1:
     resolution: {integrity: sha512-YyAXyvnmjTbR4bHQRLzex3CuINCDlQnBqoSYyjJwTP2x9jDLuKDzy7aKUl0hgx3uhcl7xzg32agn5vlie6HIlQ==}
 
-  jsqr@1.4.0:
-    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
-
   jwa@2.0.1:
     resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
 
@@ -3677,6 +3677,11 @@ packages:
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
+  nanoid@5.1.9:
+    resolution: {integrity: sha512-ZUvP7KeBLe3OZ1ypw6dI/TzYJuvHP77IM4Ry73waSQTLn8/g8rpdjfyVAh7t1/+FjBtG4lCP42MEbDxOsRpBMw==}
+    engines: {node: ^18 || >=20}
     hasBin: true
 
   negotiator@0.6.3:
@@ -4274,6 +4279,9 @@ packages:
   svg-pathdata@6.0.3:
     resolution: {integrity: sha512-qsjeeq5YjBZ5eMdFuUa4ZosMLxgr5RZ+F+Y1OrDhuOCEInRMA3x74XdBtggJcj9kOeInz0WE+LgCPDkZFlBYJw==}
     engines: {node: '>=12.0.0'}
+
+  svix@1.92.2:
+    resolution: {integrity: sha512-ZmuA3UVvlnF9EgxlzmPtF7CKjQb64Z6OFlyfdDfU0sdcC7dJa+3aOYX5B9mA+RS6ch1AxBa4UP/l6KmqfGtWBQ==}
 
   swr@2.3.4:
     resolution: {integrity: sha512-bYd2lrhc+VarcpkgWclcUi92wYCpOgMws9Sd1hG1ntAu0NEy+14CbotuFjshBU2kt9rYj9TSmDcybpxpeTU1fg==}
@@ -5147,13 +5155,15 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@clerk/backend@1.34.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@clerk/backend@1.34.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(svix@1.92.2)':
     dependencies:
       '@clerk/shared': 3.47.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@clerk/types': 4.101.21(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       cookie: 1.0.2
       snakecase-keys: 8.0.1
       tslib: 2.8.1
+    optionalDependencies:
+      svix: 1.92.2
     transitivePeerDependencies:
       - react
       - react-dom
@@ -5184,9 +5194,9 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       tslib: 2.8.1
 
-  '@clerk/clerk-sdk-node@5.1.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@clerk/clerk-sdk-node@5.1.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(svix@1.92.2)':
     dependencies:
-      '@clerk/backend': 1.34.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@clerk/backend': 1.34.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(svix@1.92.2)
       '@clerk/shared': 2.22.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@clerk/types': 4.101.21(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       tslib: 2.4.1
@@ -8173,8 +8183,6 @@ snapshots:
       dompurify: 3.3.3
       html2canvas: 1.4.1
 
-  jsqr@1.4.0: {}
-
   jwa@2.0.1:
     dependencies:
       buffer-equal-constant-time: 1.0.1
@@ -8315,6 +8323,8 @@ snapshots:
       thenify-all: 1.6.0
 
   nanoid@3.3.11: {}
+
+  nanoid@5.1.9: {}
 
   negotiator@0.6.3: {}
 
@@ -8900,6 +8910,10 @@ snapshots:
 
   svg-pathdata@6.0.3:
     optional: true
+
+  svix@1.92.2:
+    dependencies:
+      standardwebhooks: 1.0.0
 
   swr@2.3.4(react@18.3.1):
     dependencies:

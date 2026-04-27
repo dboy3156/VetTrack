@@ -84,6 +84,9 @@ export const animals = pgTable("vt_animals", {
   weightKg: numeric("weight_kg", { precision: 6, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  externalId: text("external_id"),
+  externalSource: text("external_source"),
+  externalSyncedAt: timestamp("external_synced_at"),
 });
 
 export const appointments = pgTable("vt_appointments", {
@@ -112,6 +115,9 @@ export const appointments = pgTable("vt_appointments", {
   prestartReminderAt: timestamp("prestart_reminder_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  externalId: text("external_id"),
+  externalSource: text("external_source"),
+  externalSyncedAt: timestamp("external_synced_at"),
 });
 
 export const folders = pgTable("vt_folders", {
@@ -350,6 +356,9 @@ export const billingLedger = pgTable("vt_billing_ledger", {
   idempotencyKey: text("idempotency_key").notNull().unique(),
   status: billingLedgerStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  externalId: text("external_id"),
+  externalSource: text("external_source"),
+  externalSyncedAt: timestamp("external_synced_at"),
 });
 
 export const usageSessions = pgTable("vt_usage_sessions", {
@@ -392,6 +401,9 @@ export const inventoryItems = pgTable(
     isBillable: boolean("is_billable").notNull().default(true),
     minimumDispenseToCapture: integer("minimum_dispense_to_capture").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    externalId: text("external_id"),
+    externalSource: text("external_source"),
+    externalSyncedAt: timestamp("external_synced_at"),
   },
   (table) => ({
     clinicCodeUnique: uniqueIndex("vt_items_clinic_code_unique").on(table.clinicId, table.code),
@@ -633,6 +645,40 @@ export const serverConfig = pgTable("vt_server_config", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const integrationConfigs = pgTable("vt_integration_configs", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+  adapterId: text("adapter_id").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  syncPatients: boolean("sync_patients").notNull().default(false),
+  syncInventory: boolean("sync_inventory").notNull().default(false),
+  syncAppointments: boolean("sync_appointments").notNull().default(false),
+  exportBilling: boolean("export_billing").notNull().default(false),
+  lastPatientSyncAt: timestamp("last_patient_sync_at"),
+  lastInventorySyncAt: timestamp("last_inventory_sync_at"),
+  lastAppointmentSyncAt: timestamp("last_appointment_sync_at"),
+  lastBillingExportAt: timestamp("last_billing_export_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const integrationSyncLog = pgTable("vt_integration_sync_log", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  adapterId: text("adapter_id").notNull(),
+  syncType: text("sync_type").notNull(),
+  direction: text("direction").notNull(),
+  status: text("status").notNull(),
+  recordsAttempted: integer("records_attempted").notNull().default(0),
+  recordsSucceeded: integer("records_succeeded").notNull().default(0),
+  recordsFailed: integer("records_failed").notNull().default(0),
+  error: text("error"),
+  jobId: text("job_id"),
+  startedAt: timestamp("started_at").notNull(),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata"),
+});
+
 export const pushSubscriptions = pgTable("vt_push_subscriptions", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
@@ -744,7 +790,9 @@ export const poLines = pgTable(
   }),
 );
 
-export const codeBlueOutcomeEnum = pgEnum("vt_code_blue_outcome", ["rosc", "died", "transferred", "ongoing"]);
+// outcome is stored as TEXT with a CHECK constraint in migration 067 (not a PG enum type).
+// Using text().$type preserves TS safety without declaring a phantom enum type.
+type CodeBlueOutcome = "rosc" | "died" | "transferred" | "ongoing";
 
 export const codeBlueEvents = pgTable(
   "vt_code_blue_events",
@@ -754,13 +802,39 @@ export const codeBlueEvents = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     startedByUserId: text("started_by_user_id").references(() => users.id, { onDelete: "set null" }),
-    outcome: codeBlueOutcomeEnum("outcome"),
+    outcome: text("outcome").$type<CodeBlueOutcome>(),
     notes: text("notes"),
     timeline: jsonb("timeline").$type<Array<{ elapsed: number; label: string }>>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     clinicStartedIdx: index("idx_vt_code_blue_events_clinic_started").on(table.clinicId, table.startedAt),
+  }),
+);
+
+// status stored as TEXT CHECK — consistent with codeBlueOutcome pattern
+export type HospitalizationStatus = "admitted" | "observation" | "critical" | "recovering" | "discharged" | "deceased";
+
+export const hospitalizations = pgTable(
+  "vt_hospitalizations",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    animalId: text("animal_id").notNull().references(() => animals.id, { onDelete: "cascade" }),
+    admittedAt: timestamp("admitted_at", { withTimezone: true }).notNull().defaultNow(),
+    dischargedAt: timestamp("discharged_at", { withTimezone: true }),
+    status: text("status").$type<HospitalizationStatus>().notNull().default("admitted"),
+    ward: text("ward"),
+    bay: text("bay"),
+    admissionReason: text("admission_reason"),
+    admittingVetId: text("admitting_vet_id").references(() => users.id, { onDelete: "set null" }),
+    dischargeNotes: text("discharge_notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    clinicActiveIdx: index("idx_vt_hospitalizations_clinic_active").on(table.clinicId, table.admittedAt),
+    animalIdx: index("idx_vt_hospitalizations_animal").on(table.animalId),
   }),
 );
 

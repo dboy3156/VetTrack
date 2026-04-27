@@ -106,6 +106,7 @@ export function ReturnPlugDialog({
               <Input
                 id="plugInDeadlineMinutes"
                 type="number"
+                inputMode="numeric"
                 min={1}
                 max={1440}
                 value={deadlineMinutes}
