@@ -17,6 +17,7 @@ import {
   uuid,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 // Managed Postgres providers (Neon, Supabase, Heroku, Railway public proxy, …)
@@ -811,6 +812,86 @@ export const codeBlueEvents = pgTable(
     clinicStartedIdx: index("idx_vt_code_blue_events_clinic_started").on(table.clinicId, table.startedAt),
   }),
 );
+
+// ─── Code Blue Sessions ───────────────────────────────────────────────────────
+
+export const codeBlueSessionsTable = pgTable(
+  "vt_code_blue_sessions",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    startedBy: text("started_by").notNull(),
+    startedByName: text("started_by_name").notNull(),
+    managerUserId: text("manager_user_id").notNull(),
+    managerUserName: text("manager_user_name").notNull(),
+    patientId: text("patient_id").references(() => animals.id, { onDelete: "set null" }),
+    hospitalizationId: text("hospitalization_id").references(() => hospitalizations.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("active"),
+    outcome: text("outcome"),
+    preCheckPassed: boolean("pre_check_passed"),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    clinicCreatedIdx: index("idx_vt_code_blue_sessions_clinic_created").on(table.clinicId, table.createdAt),
+  }),
+);
+
+export const codeBlueLogEntriesTable = pgTable(
+  "vt_code_blue_log_entries",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull().references(() => codeBlueSessionsTable.id, { onDelete: "cascade" }),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    elapsedMs: integer("elapsed_ms").notNull(),
+    label: text("label").notNull(),
+    category: text("category").notNull(),
+    equipmentId: text("equipment_id").references(() => equipment.id, { onDelete: "set null" }),
+    loggedByUserId: text("logged_by_user_id").notNull(),
+    loggedByName: text("logged_by_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sessionElapsedIdx: index("idx_vt_code_blue_log_entries_session").on(table.sessionId, table.elapsedMs),
+    idempotencyUniq: uniqueIndex("idx_vt_code_blue_log_entries_idempotency").on(table.sessionId, table.idempotencyKey),
+  }),
+);
+
+export const codeBluePresenceTable = pgTable(
+  "vt_code_blue_presence",
+  {
+    sessionId: text("session_id").notNull().references(() => codeBlueSessionsTable.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.sessionId, table.userId] }),
+  }),
+);
+
+export const crashCartChecksTable = pgTable(
+  "vt_crash_cart_checks",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    performedByUserId: text("performed_by_user_id").notNull(),
+    performedByName: text("performed_by_name").notNull(),
+    performedAt: timestamp("performed_at", { withTimezone: true }).notNull().defaultNow(),
+    itemsChecked: jsonb("items_checked").notNull().$type<Array<{ key: string; label: string; checked: boolean }>>(),
+    allPassed: boolean("all_passed").notNull(),
+    notes: text("notes"),
+  },
+  (table) => ({
+    clinicPerformedIdx: index("idx_vt_crash_cart_checks_clinic_performed").on(table.clinicId, table.performedAt),
+  }),
+);
+
+export type CodeBlueSession = typeof codeBlueSessionsTable.$inferSelect;
+export type CodeBlueLogEntry = typeof codeBlueLogEntriesTable.$inferSelect;
+export type CrashCartCheck = typeof crashCartChecksTable.$inferSelect;
 
 // status stored as TEXT CHECK — consistent with codeBlueOutcome pattern
 export type HospitalizationStatus = "admitted" | "observation" | "critical" | "recovering" | "discharged" | "deceased";
