@@ -323,7 +323,7 @@ export default function PatientDetailPage() {
         <div className="flex w-full flex-col gap-5 pt-2">
           <header className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Button variant="ghost" size="sm" className="h-9 min-h-[40px] gap-1.5 px-2 text-muted-foreground hover:text-foreground" asChild>
-              <Link href="/appointments">
+              <Link href="/patients">
                 <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 {p.back}
               </Link>

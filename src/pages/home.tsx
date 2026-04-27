@@ -101,17 +101,22 @@ export default function HomePage() {
     refetchInterval: 60_000,
   });
 
+  const { data: patientsData, isLoading: patientsLoading } = useQuery({
+    queryKey: ["/api/patients"],
+    queryFn: () => api.patients.list({}),
+    enabled: !!userId,
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
   const alerts = equipment ? computeAlerts(equipment) : [];
   const alertCount = alerts.length;
   const totalCount = equipment?.length ?? 0;
   const tasksDueCount =
     taskDashboard ? taskDashboard.counts.today + taskDashboard.counts.overdue : null;
-  const activePatientsCount = taskDashboard
-    ? new Set(
-      [...taskDashboard.today, ...taskDashboard.overdue]
-        .map((task) => task.animalId)
-        .filter((animalId): animalId is string => Boolean(animalId)),
-    ).size
+  const activePatientsCount = patientsData
+    ? patientsData.patients.length
     : null;
 
   const kpiCards: Array<{
@@ -130,7 +135,7 @@ export default function HomePage() {
       subtitle: "In active care",
       icon: Users,
       href: "/patients",
-      loading: tasksLoading,
+      loading: patientsLoading,
     },
     {
       id: "tasks-due",
