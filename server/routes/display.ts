@@ -168,7 +168,12 @@ router.get("/snapshot", requireAuth, async (req, res) => {
       const logEntries = await db
         .select()
         .from(codeBlueLogEntries)
-        .where(eq(codeBlueLogEntries.sessionId, activeSession.id))
+        .where(
+          and(
+            eq(codeBlueLogEntries.sessionId, activeSession.id),
+            eq(codeBlueLogEntries.clinicId, clinicId),
+          ),
+        )
         .orderBy(codeBlueLogEntries.elapsedMs);
 
       const presence = await db
@@ -245,6 +250,7 @@ router.get("/snapshot", requireAuth, async (req, res) => {
         const timeStr = first.startTime.toLocaleTimeString("he-IL", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Asia/Jerusalem",
         });
         overdueLabel = `${drugName} — ${timeStr} (${minutesLate} דק׳ באיחור)`;
       }

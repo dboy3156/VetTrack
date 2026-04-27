@@ -242,7 +242,7 @@ function EquipmentPane({ equipment }: { equipment: DisplaySnapshotEquipment[] })
             key={eq.id}
             className="flex items-start justify-between py-1.5 border-b border-[#1a1f2b] last:border-0"
           >
-            <div className="min-w-0 ml-2">
+            <div className="min-w-0 me-2">
               <div className="text-[12px] text-gray-300 truncate">{eq.name}</div>
               <div className="text-[10px] text-gray-500 truncate">
                 {eq.location ?? "—"}
