@@ -18,7 +18,11 @@ CREATE TABLE IF NOT EXISTS vt_code_blue_sessions (
   outcome              TEXT CHECK (outcome IN ('rosc', 'died', 'transferred', 'ongoing')),
   pre_check_passed     BOOLEAN,
   ended_at             TIMESTAMPTZ,
-  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (
+    (status = 'active' AND ended_at IS NULL) OR
+    (status = 'ended' AND ended_at IS NOT NULL)
+  )
 );
 
 -- Only one active session per clinic at a time
@@ -33,8 +37,8 @@ CREATE INDEX IF NOT EXISTS idx_vt_code_blue_sessions_clinic_created
 CREATE TABLE IF NOT EXISTS vt_code_blue_log_entries (
   id                  TEXT PRIMARY KEY,
   session_id          TEXT NOT NULL REFERENCES vt_code_blue_sessions(id) ON DELETE CASCADE,
-  clinic_id           TEXT NOT NULL,
-  idempotency_key     TEXT NOT NULL UNIQUE,
+  clinic_id           TEXT NOT NULL REFERENCES vt_clinics(id) ON DELETE CASCADE,
+  idempotency_key     TEXT NOT NULL,
   elapsed_ms          INTEGER NOT NULL,
   label               TEXT NOT NULL,
   category            TEXT NOT NULL
@@ -42,7 +46,8 @@ CREATE TABLE IF NOT EXISTS vt_code_blue_log_entries (
   equipment_id        TEXT REFERENCES vt_equipment(id) ON DELETE SET NULL,
   logged_by_user_id   TEXT NOT NULL,
   logged_by_name      TEXT NOT NULL,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (session_id, idempotency_key)
 );
 
 CREATE INDEX IF NOT EXISTS idx_vt_code_blue_log_entries_session
