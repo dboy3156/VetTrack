@@ -449,7 +449,7 @@ export default function PatientDetailPage() {
                   href="/patients"
                   className="ms-auto text-xs font-medium text-primary underline-offset-2 hover:underline shrink-0"
                 >
-                  Active patients →
+                  מטופלים פעילים ←
                 </Link>
               </div>
             );

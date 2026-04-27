@@ -12,6 +12,8 @@ import {
 import {
   Bell,
   Shield,
+  Stethoscope,
+  Siren,
   Users,
   Clock,
   Smartphone,
@@ -31,6 +33,26 @@ interface ReleaseEntry {
 }
 
 const releases: ReleaseEntry[] = [
+  {
+    version: "1.1.1",
+    date: "April 2026",
+    highlights: [
+      {
+        icon: <Stethoscope className="w-5 h-5 text-primary" />,
+        title: "Active Patients",
+        description:
+          "Admit patients directly from the app. Track hospitalization status (admitted, critical, observation, recovering), ward and bay location, admitting vet, and admission reason. The home screen KPI now shows real hospitalized patient count.",
+        badge: { label: "New", variant: "default" },
+      },
+      {
+        icon: <Siren className="w-5 h-5 text-red-500" />,
+        title: "Code Blue — Emergency Command Center",
+        description:
+          "Redesigned Code Blue as a full emergency command center: resuscitation timer, CPR checklist with timestamps, quick action log for real-time event recording, and a full audit trail that persists after the event ends.",
+        badge: { label: "Redesigned", variant: "secondary" },
+      },
+    ],
+  },
   {
     version: "1.1.0",
     date: "April 2026",
