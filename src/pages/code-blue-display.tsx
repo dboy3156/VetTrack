@@ -1,5 +1,5 @@
 // src/pages/code-blue-display.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Shield, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,7 +28,7 @@ export default function CodeBlueDisplay() {
   const { userId } = useAuth();
 
   const pollQ = useQuery<SessionPollResult>({
-    queryKey: ["/api/code-blue/sessions/active", "display"],
+    queryKey: ["/api/code-blue/sessions/active"],
     queryFn: async () => {
       const res = await fetch("/api/code-blue/sessions/active", {
         credentials: "include",
@@ -46,13 +46,20 @@ export default function CodeBlueDisplay() {
   const logEntries = pollQ.data?.logEntries ?? [];
   const presence = pollQ.data?.presence ?? [];
 
-  const elapsed = useElapsed(session?.startedAt ?? null);
+  const startedAtRef = useRef<string | null>(null);
+  if (session?.startedAt) startedAtRef.current = session.startedAt;
+  const elapsed = useElapsed(startedAtRef.current);
+  const recentEntries = useMemo(
+    () => [...logEntries].reverse().slice(0, 8),
+    [logEntries]
+  );
+
   const cprCycle = session ? Math.floor(elapsed / 120000) + 1 : 0;
   const msToNext = session ? 120000 - (elapsed % 120000) : 0;
 
   return (
     <div
-      className="min-h-screen bg-zinc-950 text-white flex flex-col"
+      className="relative min-h-screen bg-zinc-950 text-white flex flex-col"
       dir="rtl"
       style={{ borderTop: session ? "4px solid #dc2626" : "4px solid #27272a" }}
     >
@@ -63,6 +70,11 @@ export default function CodeBlueDisplay() {
           : <Wifi className="h-4 w-4 text-green-500/50" />
         }
       </div>
+      {pollQ.isError && (
+        <div className="text-center text-red-400 text-sm py-1 bg-red-950/30">
+          חיבור אבד — מנסה שוב...
+        </div>
+      )}
 
       {!session ? (
         /* Standby */
@@ -107,7 +119,7 @@ export default function CodeBlueDisplay() {
           <div className="flex-1 px-8 py-6 overflow-y-auto">
             <div className="text-sm text-zinc-500 tracking-widest uppercase mb-4">אירועים</div>
             <div className="flex flex-col gap-4">
-              {[...logEntries].reverse().slice(0, 8).map((entry) => (
+              {recentEntries.map((entry) => (
                 <div key={entry.id} className="flex gap-6 items-baseline">
                   <span className="text-2xl font-mono text-zinc-600 min-w-[60px]">{formatElapsed(entry.elapsedMs)}</span>
                   <span className="text-2xl text-white">{entry.label}</span>
