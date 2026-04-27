@@ -18,6 +18,7 @@ import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { enqueueNotificationJob } from "../lib/queue.js";
+import { postSystemMessage } from "../lib/shift-chat-presence.js";
 
 const router = Router();
 
@@ -199,6 +200,11 @@ router.post("/sessions", requireAuth, validateBody(startSessionSchema), async (r
       preCheckPassed: body.preCheckPassed ?? null,
       status: "active",
     });
+
+    postSystemMessage(clinicId, "code_blue_start", {
+      startedBy: req.authUser!.name ?? req.authUser!.id,
+      startedAt: startedAt.toISOString(),
+    }).catch(() => {});
 
     logAudit({
       actorRole: resolveAuditActorRole(req),
@@ -511,6 +517,11 @@ router.patch("/sessions/:id/end", requireAuth, validateUuid("id"), validateBody(
       targetType: "code_blue_session",
       metadata: { outcome, durationMinutes },
     });
+
+    postSystemMessage(clinicId, "code_blue_end", {
+      outcome: outcome ?? "unknown",
+      endedAt: endedAt.toISOString(),
+    }).catch(() => {});
 
     res.json({ id: sessionId, endedAt: endedAt.toISOString(), summary: JSON.parse(summary) });
   } catch (err) {
