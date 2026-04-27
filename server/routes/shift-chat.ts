@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
@@ -94,8 +94,19 @@ router.get(
         }
       }
 
-      // Find pinned message (last pinned, compatible with ES2020 target)
-      const pinnedRow = rows.filter((m) => m.pinnedAt !== null).at(-1) ?? null;
+      // Query pinned message independently of afterDate filter so it persists across incremental polls
+      const [pinnedRow] = await db
+        .select()
+        .from(shiftMessages)
+        .where(
+          and(
+            eq(shiftMessages.shiftSessionId, shift.id),
+            eq(shiftMessages.clinicId, clinicId),
+            isNotNull(shiftMessages.pinnedAt),
+          ),
+        )
+        .orderBy(desc(shiftMessages.pinnedAt))
+        .limit(1);
 
       const messages = rows.map((m) => ({
         ...m,

@@ -44,7 +44,7 @@ export function ShiftChatArchive() {
             key={msg.id}
             message={msg}
             currentUserId={userId ?? null}
-            isSender={true}
+            isSender={msg.senderId === userId}
             onAck={() => {}}
           />
         );
