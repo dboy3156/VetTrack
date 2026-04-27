@@ -744,7 +744,9 @@ export const poLines = pgTable(
   }),
 );
 
-export const codeBlueOutcomeEnum = pgEnum("vt_code_blue_outcome", ["rosc", "died", "transferred", "ongoing"]);
+// outcome is stored as TEXT with a CHECK constraint in migration 067 (not a PG enum type).
+// Using text().$type preserves TS safety without declaring a phantom enum type.
+type CodeBlueOutcome = "rosc" | "died" | "transferred" | "ongoing";
 
 export const codeBlueEvents = pgTable(
   "vt_code_blue_events",
@@ -754,7 +756,7 @@ export const codeBlueEvents = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     startedByUserId: text("started_by_user_id").references(() => users.id, { onDelete: "set null" }),
-    outcome: codeBlueOutcomeEnum("outcome"),
+    outcome: text("outcome").$type<CodeBlueOutcome>(),
     notes: text("notes"),
     timeline: jsonb("timeline").$type<Array<{ elapsed: number; label: string }>>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
