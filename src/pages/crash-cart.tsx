@@ -1,0 +1,200 @@
+// src/pages/crash-cart.tsx
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, Circle, AlertTriangle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { authFetch } from "@/lib/auth-fetch";
+import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
+
+const CART_ITEMS = [
+  { key: "defibrillator",  label: "דפיברילטור — טעון ומוכן" },
+  { key: "oxygen",         label: "חמצן — מחובר ופתוח" },
+  { key: "iv_line",        label: "עירוי IV — מוכן (קו פתוח)" },
+  { key: "epinephrine",    label: "אפינפרין — זמין ולא פג תוקף" },
+  { key: "atropine",       label: "אטרופין — זמין ולא פג תוקף" },
+  { key: "vasopressin",    label: "וזופרסין — זמין ולא פג תוקף" },
+  { key: "ambu",           label: "אמבו — מוכן ונקי" },
+  { key: "suction",        label: "ציוד שאיבה — תקין" },
+];
+
+interface CartCheckData {
+  latest: { performedAt: string; allPassed: boolean; performedByName: string } | null;
+  checkedToday: boolean;
+  recentChecks: Array<{ id: string; performedAt: string; allPassed: boolean; performedByName: string }>;
+  criticalPatients: Array<{
+    hospitalizationId: string;
+    animalName: string;
+    species: string;
+    weightKg: number | null;
+    ward: string | null;
+    bay: string | null;
+  }>;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h > 0) return `${h}שע׳ ${m}ד׳`;
+  return `${m}ד׳`;
+}
+
+export default function CrashCartCheckPage() {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const [checked, setChecked] = useState<Record<string, boolean>>(
+    Object.fromEntries(CART_ITEMS.map((i) => [i.key, false])),
+  );
+  const [notes, setNotes] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const latestQ = useQuery<CartCheckData>({
+    queryKey: ["/api/crash-cart/checks/latest"],
+    queryFn: async () => {
+      const res = await authFetch("/api/crash-cart/checks/latest");
+      if (!res.ok) throw new Error("failed");
+      return res.json();
+    },
+    enabled: !!userId,
+    refetchOnWindowFocus: false,
+  });
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const items = CART_ITEMS.map((i) => ({ key: i.key, label: i.label, checked: checked[i.key] }));
+      const res = await authFetch("/api/crash-cart/checks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, notes: notes || undefined }),
+      });
+      if (!res.ok) throw new Error("submit failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      setSubmitted(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/crash-cart/checks/latest"] });
+    },
+  });
+
+  const toggle = (key: string) => setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
+  const allChecked = CART_ITEMS.every((i) => checked[i.key]);
+
+  const criticalPatients = latestQ.data?.criticalPatients ?? [];
+  const recentChecks = latestQ.data?.recentChecks ?? [];
+
+  return (
+    <div className="min-h-screen bg-background p-4 max-w-2xl mx-auto" dir="rtl">
+      <div className="flex items-center gap-2 mb-6">
+        <CheckCircle2 className="h-6 w-6 text-green-500" />
+        <h1 className="text-xl font-bold">בדיקת עגלת החייאה יומית</h1>
+      </div>
+
+      {/* Last check status */}
+      {latestQ.data && (
+        <div className={cn(
+          "rounded-lg border p-3 mb-4 text-sm",
+          latestQ.data.checkedToday
+            ? "border-green-500/30 bg-green-500/10 text-green-400"
+            : "border-amber-500/30 bg-amber-500/10 text-amber-400",
+        )}>
+          {latestQ.data.checkedToday && latestQ.data.latest ? (
+            <span>✓ נבדקה לפני {formatRelativeTime(latestQ.data.latest.performedAt)} ע״י {latestQ.data.latest.performedByName}</span>
+          ) : (
+            <span>⚠ העגלה לא נבדקה היום</span>
+          )}
+        </div>
+      )}
+
+      {/* High-risk patients */}
+      {criticalPatients.length > 0 && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 mb-4">
+          <div className="flex items-center gap-2 mb-2 text-red-400 text-sm font-semibold">
+            <AlertTriangle className="h-4 w-4" />
+            מטופלים בסיכון גבוה — {criticalPatients.length}
+          </div>
+          <div className="flex flex-col gap-1">
+            {criticalPatients.map((p) => (
+              <div key={p.hospitalizationId} className="text-xs text-zinc-300 flex gap-2">
+                <span className="font-medium">{p.animalName}</span>
+                <span className="text-zinc-500">{p.species}{p.weightKg ? ` · ${p.weightKg} ק״ג` : ""}</span>
+                {(p.ward || p.bay) && <span className="text-zinc-500">· {[p.ward, p.bay].filter(Boolean).join(" / ")}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Checklist */}
+      {!submitted ? (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 mb-4">
+          <h2 className="text-sm font-semibold text-zinc-400 mb-3">פריטים לבדיקה</h2>
+          <div className="flex flex-col gap-3">
+            {CART_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => toggle(item.key)}
+                className={cn(
+                  "flex items-center gap-3 text-right p-2 rounded-lg border transition-colors",
+                  checked[item.key]
+                    ? "border-green-500/40 bg-green-500/10 text-green-300"
+                    : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-600",
+                )}
+              >
+                {checked[item.key]
+                  ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                  : <Circle className="h-5 w-5 text-zinc-600 shrink-0" />
+                }
+                <span className="text-sm">{item.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {!allChecked && (
+            <textarea
+              className="mt-3 w-full rounded border border-zinc-700 bg-zinc-800 p-2 text-sm text-zinc-200 placeholder-zinc-500"
+              placeholder="הערות על פריטים חסרים..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+            />
+          )}
+
+          <Button
+            className="mt-4 w-full"
+            variant={allChecked ? "default" : "outline"}
+            onClick={() => submit.mutate()}
+            disabled={submit.isPending}
+          >
+            {allChecked ? "✓ כל הפריטים תקינים — שמור" : "שמור (עם פריטים חסרים)"}
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 mb-4 text-center text-green-400">
+          <CheckCircle2 className="h-8 w-8 mx-auto mb-2" />
+          <p className="font-semibold">הבדיקה נשמרה</p>
+        </div>
+      )}
+
+      {/* Recent history */}
+      {recentChecks.length > 0 && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+          <h2 className="text-sm font-semibold text-zinc-400 mb-3 flex items-center gap-2">
+            <Clock className="h-4 w-4" /> היסטוריית בדיקות
+          </h2>
+          <div className="flex flex-col gap-2">
+            {recentChecks.map((check) => (
+              <div key={check.id} className="flex justify-between items-center text-xs text-zinc-400">
+                <span>{new Date(check.performedAt).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="text-zinc-500">{check.performedByName}</span>
+                <span className={check.allPassed ? "text-green-400" : "text-red-400"}>
+                  {check.allPassed ? "✓ תקין" : "⚠ חסר"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
