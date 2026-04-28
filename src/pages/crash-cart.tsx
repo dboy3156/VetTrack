@@ -1,24 +1,16 @@
 // src/pages/crash-cart.tsx
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, AlertTriangle, Clock } from "lucide-react";
+import { CheckCircle2, Circle, AlertTriangle, Clock, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorCard } from "@/components/ui/error-card";
 import { authFetch } from "@/lib/auth-fetch";
 import { useAuth } from "@/hooks/use-auth";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-const CART_ITEMS = [
-  { key: "defibrillator",  label: "דפיברילטור — טעון ומוכן" },
-  { key: "oxygen",         label: "חמצן — מחובר ופתוח" },
-  { key: "iv_line",        label: "עירוי IV — מוכן (קו פתוח)" },
-  { key: "epinephrine",    label: "אפינפרין — זמין ולא פג תוקף" },
-  { key: "atropine",       label: "אטרופין — זמין ולא פג תוקף" },
-  { key: "vasopressin",    label: "וזופרסין — זמין ולא פג תוקף" },
-  { key: "ambu",           label: "אמבו — מוכן ונקי" },
-  { key: "suction",        label: "ציוד שאיבה — תקין" },
-];
+import { CrashCartAdminSheet } from "@/components/crash-cart-admin-sheet";
+import type { CrashCartItem } from "@/types";
 
 interface CartCheckData {
   latest: { performedAt: string; allPassed: boolean; performedByName: string } | null;
@@ -43,13 +35,23 @@ function formatRelativeTime(iso: string): string {
 }
 
 export default function CrashCartCheckPage() {
-  const { userId } = useAuth();
+  const { userId, isAdmin } = useAuth();
   const queryClient = useQueryClient();
-  const [checked, setChecked] = useState<Record<string, boolean>>(
-    Object.fromEntries(CART_ITEMS.map((i) => [i.key, false])),
-  );
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [adminSheetOpen, setAdminSheetOpen] = useState(false);
+
+  const itemsQ = useQuery({
+    queryKey: ["/api/crash-cart/items"],
+    queryFn: () => api.crashCartItems.list(),
+    enabled: !!userId,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
+  const cartItems: CrashCartItem[] = itemsQ.data ?? [];
+  const allChecked = cartItems.length > 0 && cartItems.every((i) => checked[i.id]);
 
   const latestQ = useQuery<CartCheckData>({
     queryKey: ["/api/crash-cart/checks/latest"],
@@ -64,7 +66,7 @@ export default function CrashCartCheckPage() {
 
   const submit = useMutation({
     mutationFn: async () => {
-      const items = CART_ITEMS.map((i) => ({ key: i.key, label: i.label, checked: checked[i.key] }));
+      const items = cartItems.map((i) => ({ key: i.key, label: i.label, checked: !!checked[i.id] }));
       const res = await authFetch("/api/crash-cart/checks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,8 +84,7 @@ export default function CrashCartCheckPage() {
     },
   });
 
-  const toggle = (key: string) => setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
-  const allChecked = CART_ITEMS.every((i) => checked[i.key]);
+  const toggle = (id: string) => setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const criticalPatients = latestQ.data?.criticalPatients ?? [];
   const recentChecks = latestQ.data?.recentChecks ?? [];
@@ -100,7 +101,18 @@ export default function CrashCartCheckPage() {
     <div className="min-h-screen bg-background p-4 max-w-2xl mx-auto" dir="rtl">
       <div className="flex items-center gap-2 mb-6">
         <CheckCircle2 className="h-6 w-6 text-green-500" />
-        <h1 className="text-xl font-bold">בדיקת עגלת החייאה יומית</h1>
+        <h1 className="text-xl font-bold flex-1">בדיקת עגלת החייאה יומית</h1>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+            onClick={() => setAdminSheetOpen(true)}
+            aria-label="הגדרות עגלה"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Last check status */}
@@ -139,24 +151,28 @@ export default function CrashCartCheckPage() {
       )}
 
       {/* Checklist */}
-      {!submitted ? (
+      {itemsQ.isPending ? (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 mb-4">
+          <p className="text-sm text-zinc-500">טוען פריטים...</p>
+        </div>
+      ) : !submitted ? (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 mb-4">
           <h2 className="text-sm font-semibold text-zinc-400 mb-3">פריטים לבדיקה</h2>
           <div className="flex flex-col gap-3">
-            {CART_ITEMS.map((item) => (
+            {cartItems.map((item) => (
               <button
-                key={item.key}
+                key={item.id}
                 type="button"
-                aria-pressed={checked[item.key]}
-                onClick={() => toggle(item.key)}
+                aria-pressed={!!checked[item.id]}
+                onClick={() => toggle(item.id)}
                 className={cn(
                   "flex items-center gap-3 text-right p-2 rounded-lg border transition-colors",
-                  checked[item.key]
+                  checked[item.id]
                     ? "border-green-500/40 bg-green-500/10 text-green-300"
                     : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-600",
                 )}
               >
-                {checked[item.key]
+                {checked[item.id]
                   ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                   : <Circle className="h-5 w-5 text-zinc-600 shrink-0" />
                 }
@@ -179,7 +195,7 @@ export default function CrashCartCheckPage() {
             className="mt-4 w-full"
             variant={allChecked ? "default" : "outline"}
             onClick={() => submit.mutate()}
-            disabled={submit.isPending}
+            disabled={submit.isPending || cartItems.length === 0}
           >
             {allChecked ? "✓ כל הפריטים תקינים — שמור" : "שמור (עם פריטים חסרים)"}
           </Button>
@@ -209,6 +225,10 @@ export default function CrashCartCheckPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {isAdmin && (
+        <CrashCartAdminSheet open={adminSheetOpen} onOpenChange={setAdminSheetOpen} />
       )}
     </div>
   );

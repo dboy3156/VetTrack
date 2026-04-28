@@ -904,6 +904,25 @@ export const codeBluePresence = pgTable(
   }),
 );
 
+export const crashCartItems = pgTable(
+  "vt_crash_cart_items",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    requiredQty: integer("required_qty").notNull().default(1),
+    expiryWarnDays: integer("expiry_warn_days"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+  },
+  (table) => ({
+    clinicActiveIdx: index("idx_vt_crash_cart_items_clinic").on(table.clinicId),
+  }),
+);
+
+export type CrashCartItem = typeof crashCartItems.$inferSelect;
+
 export const crashCartChecks = pgTable(
   "vt_crash_cart_checks",
   {
