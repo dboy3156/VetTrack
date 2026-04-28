@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { type CrashCartItem } from "@/types";
+import { t } from "@/lib/i18n";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -226,7 +227,7 @@ export function CrashCartAdminSheet({ open, onOpenChange }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>ביטול</Button>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>{t.common.cancel}</Button>
             <Button onClick={handleSave} disabled={isPending || !form.label.trim() || !form.key.trim()}>
               {isPending ? "שומר..." : "שמור"}
             </Button>
@@ -244,7 +245,7 @@ export function CrashCartAdminSheet({ open, onOpenChange }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

@@ -27,9 +27,10 @@ const page = read("src/pages/crash-cart.tsx");
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Crash cart check page", () => {
-  it.skipIf(page === null)("contains at least 6 checklist items", () => {
-    const matches = page.match(/key:\s*["'][a-z_]+["']/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(6);
+  it.skipIf(page === null)("fetches checklist items from DB (not hardcoded)", () => {
+    // Items are now DB-driven via api.crashCartItems.list()
+    expect(page).toContain("api.crashCartItems");
+    expect(page).toContain("i.key");
   });
 
   it.skipIf(page === null)("shows high-risk patients panel from API response", () => {
