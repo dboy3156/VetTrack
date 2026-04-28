@@ -1,12 +1,14 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
 import { t } from "@/lib/i18n";
-import { Beaker, Loader2, Pill, Syringe } from "lucide-react";
+import { FormularyAdminSheet } from "@/components/formulary-admin-sheet";
+import { Beaker, FlaskConical, Loader2, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
 import { MedicationCalculator } from "@/components/MedicationCalculator";
 import { VerificationCalculator } from "@/components/VerificationCalculator";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -154,7 +156,8 @@ function VetTaskCard({ task }: { task: MedicationExecutionTask }) {
 
 export default function MedicationHubPage() {
   const queryClient = useQueryClient();
-  const { userId, role, effectiveRole, isLoaded } = useAuth();
+  const { userId, role, effectiveRole, isLoaded, isAdmin } = useAuth();
+  const [formularySheetOpen, setFormularySheetOpen] = useState(false);
   const authReady = isLoaded;
   const { getByDrugName } = useDrugFormulary();
   const canExecuteTask = canExecuteMedicationTask(role, effectiveRole);
@@ -231,10 +234,23 @@ export default function MedicationHubPage() {
     <Layout title={t.medsPage.title}>
       <div className="space-y-4 pb-24">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Pill className="h-6 w-6 text-primary" />
-            {t.medsPage.title}
-          </h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Pill className="h-6 w-6 text-primary" />
+              {t.medsPage.title}
+            </h1>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 text-xs"
+                onClick={() => setFormularySheetOpen(true)}
+              >
+                <FlaskConical className="h-4 w-4 mr-1" />
+                ניהול פורמולריום
+              </Button>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             {canExecuteTask ? t.medsPage.executeDesc : t.medsPage.prescribeDesc}
           </p>
@@ -326,6 +342,12 @@ export default function MedicationHubPage() {
           })}
         </div>
       </div>
+      {isAdmin && (
+        <FormularyAdminSheet
+          open={formularySheetOpen}
+          onOpenChange={setFormularySheetOpen}
+        />
+      )}
     </Layout>
   );
 }
