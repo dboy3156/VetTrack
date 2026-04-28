@@ -49,7 +49,13 @@ export default function ShiftLeaderboardPage() {
   }
 
   const users = reportQ.data?.users ?? [];
-  const sorted = [...users].sort((a, b) => b.avgScansPerShift - a.avgScansPerShift);
+  const sorted = [...users]
+    .map((u) => ({
+      ...u,
+      avgScansPerShift:
+        typeof u.avgScansPerShift === "number" ? u.avgScansPerShift : Number(u.avgScansPerShift ?? 0),
+    }))
+    .sort((a, b) => b.avgScansPerShift - a.avgScansPerShift);
 
   return (
     <Layout>
