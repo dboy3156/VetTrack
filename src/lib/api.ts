@@ -50,6 +50,9 @@ import type {
   TaskRecommendations,
   DrugFormularyEntry,
   CreateDrugFormularyRequest,
+  CrashCartItem,
+  CreateCrashCartItemRequest,
+  UpdateCrashCartItemRequest,
   RestockSession,
   RestockContainerView,
   RestockFinishSummary,
@@ -967,6 +970,15 @@ export const api = {
       request<DrugFormularyEntry>(`/api/formulary/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     remove: (id: string) =>
       request<void>(`/api/formulary/${id}`, { method: "DELETE" }),
+  },
+  crashCartItems: {
+    list: () => request<CrashCartItem[]>("/api/crash-cart/items"),
+    create: (data: CreateCrashCartItemRequest) =>
+      request<CrashCartItem>("/api/crash-cart/items", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: UpdateCrashCartItemRequest) =>
+      request<CrashCartItem>(`/api/crash-cart/items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    remove: (id: string) =>
+      request<void>(`/api/crash-cart/items/${id}`, { method: "DELETE" }),
   },
   metrics: {
     get: () => request<SystemMetrics>("/api/metrics", {}, undefined, true),

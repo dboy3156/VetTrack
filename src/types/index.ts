@@ -1243,6 +1243,31 @@ export interface DisplaySnapshotCodeBlueSession {
   }>;
 }
 
+export interface CrashCartItem {
+  id: string;
+  clinicId: string;
+  key: string;
+  label: string;
+  requiredQty: number;
+  expiryWarnDays: number | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface CreateCrashCartItemRequest {
+  key: string;
+  label: string;
+  requiredQty?: number;
+  expiryWarnDays?: number | null;
+}
+
+export interface UpdateCrashCartItemRequest {
+  label?: string;
+  requiredQty?: number;
+  expiryWarnDays?: number | null;
+  sortOrder?: number;
+}
+
 export interface DisplaySnapshot {
   currentTime: string;
   currentShift: Array<{ employeeName: string; role: ShiftRole }>;
