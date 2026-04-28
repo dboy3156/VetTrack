@@ -254,6 +254,10 @@ describe("server/db.ts — integration tables and sync columns", () => {
     expect(body).toContain("direction");
     expect(body).toContain("status");
   });
+  it("defines integrationWebhookEvents table", () => {
+    expect(src).toContain('export const integrationWebhookEvents = pgTable("vt_integration_webhook_events"');
+    expect(src).toContain("signatureValid");
+  });
   it("animals table has externalId, externalSource, externalSyncedAt", () => {
     const start = src.indexOf('export const animals = pgTable("vt_animals"');
     const body = src.slice(start, start + 1000);
@@ -285,23 +289,43 @@ describe("server/db.ts — integration tables and sync columns", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 6b. Inbound webhooks (raw body) — server bootstrap
+// ---------------------------------------------------------------------------
+describe("server/index.ts — integration webhooks", () => {
+  const src = read("server/index.ts");
+
+  it("mounts raw body route before express.json for HMAC", () => {
+    const jsonIdx = src.indexOf("app.use(express.json())");
+    const whIdx = src.indexOf('"/api/integration-webhooks/:adapterId"');
+    expect(whIdx).toBeGreaterThan(-1);
+    expect(jsonIdx).toBeGreaterThan(whIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 7. Queue and worker
 // ---------------------------------------------------------------------------
 describe("integration queue", () => {
   const src = read("server/queues/integration.queue.ts");
+  const shards = read("server/queues/integration-shards.ts");
 
   it("exports integrationQueue.add", () => {
     expect(src).toContain("export const integrationQueue");
     expect(src).toContain("async add(");
   });
-  it("queue name is integration-sync", () => {
-    expect(src).toContain('"integration-sync"');
+  it("defines legacy integration-sync queue name (single-shard compat)", () => {
+    expect(shards).toContain('"integration-sync"');
+    expect(src).toContain("INTEGRATION_QUEUE_LEGACY_NAME");
   });
   it("job data includes clinicId, adapterId, syncType, direction", () => {
     expect(src).toContain("clinicId");
     expect(src).toContain("adapterId");
     expect(src).toContain("syncType");
     expect(src).toContain("direction");
+  });
+  it("job data includes optional webhook hook fields", () => {
+    expect(src).toContain("webhookEventId");
+    expect(src).toContain("scheduled");
   });
   it("dedup key prevents duplicate clinic/adapter/type jobs", () => {
     expect(src).toContain("jobId");
@@ -337,7 +361,7 @@ describe("integration worker", () => {
     expect(src).toContain("Redis unavailable");
   });
   it("logs failed jobs", () => {
-    expect(src).toContain('worker.on("failed"');
+    expect(src).toContain('.on("failed"');
   });
 });
 
@@ -390,7 +414,7 @@ describe("routes/integrations.ts", () => {
     const validateEnd = src.indexOf("POST /configs/:adapterId/sync");
     const validateBody = src.slice(validateStart, validateEnd);
     // The validate route should call adapter.validateCredentials and return its result (not the raw credentials)
-    expect(validateBody).toContain("adapter.validateCredentials(credentials)");
+    expect(validateBody).toMatch(/adapter\.validateCredentials\((credentials|toValidate)\)/);
     // The result from validateCredentials ({valid, error}) is what gets returned — not the credential map itself
     expect(validateBody).not.toContain("res.json(credentials)");
   });
@@ -455,5 +479,15 @@ describe("migration 070 — external sync columns", () => {
   });
   it("uses IF NOT EXISTS to be re-runnable", () => {
     expect(src).toContain("ADD COLUMN IF NOT EXISTS");
+  });
+});
+
+describe("migration 079 — webhook event store", () => {
+  const src = read("migrations/079_integration_webhook_events.sql");
+
+  it("creates vt_integration_webhook_events", () => {
+    expect(src).toContain("CREATE TABLE IF NOT EXISTS vt_integration_webhook_events");
+    expect(src).toContain("signature_valid");
+    expect(src).toContain("payload JSONB");
   });
 });

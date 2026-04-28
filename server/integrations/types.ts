@@ -165,6 +165,8 @@ export interface IntegrationConfig {
   syncInventory: boolean;
   syncAppointments: boolean;
   exportBilling: boolean;
+  /** Control-plane JSON — validated partially via `config-metadata.ts`. */
+  metadata?: Record<string, unknown> | null;
   lastPatientSyncAt: Date | null;
   lastInventorySyncAt: Date | null;
   lastAppointmentSyncAt: Date | null;
