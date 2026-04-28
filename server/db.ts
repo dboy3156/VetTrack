@@ -18,6 +18,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 
 // Managed Postgres providers (Neon, Supabase, Heroku, Railway public proxy, …)
@@ -679,6 +680,63 @@ export const integrationSyncLog = pgTable("vt_integration_sync_log", {
   startedAt: timestamp("started_at").notNull(),
   completedAt: timestamp("completed_at"),
   metadata: jsonb("metadata"),
+});
+
+/** Low-confidence / ambiguous mapping queue — Phase D Sprint 4. */
+export const integrationMappingReviews = pgTable("vt_integration_mapping_reviews", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+  adapterId: text("adapter_id").notNull(),
+  entityType: text("entity_type").notNull(),
+  externalId: text("external_id").notNull(),
+  localId: text("local_id"),
+  confidence: doublePrecision("confidence"),
+  snapshot: jsonb("snapshot"),
+  reviewStatus: text("review_status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** Vendor → VetTrack webhook payloads (Phase B Sprint 4). Signature outcome stored; payload is opaque JSON (never logged). */
+export const integrationWebhookEvents = pgTable("vt_integration_webhook_events", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+  adapterId: text("adapter_id").notNull(),
+  signatureValid: boolean("signature_valid").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("received"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  processedAt: timestamp("processed_at"),
+});
+
+export const integrationWebhookEventsArchive = pgTable("vt_integration_webhook_events_archive", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  adapterId: text("adapter_id").notNull(),
+  signatureValid: boolean("signature_valid").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at").notNull(),
+  processedAt: timestamp("processed_at"),
+  archivedAt: timestamp("archived_at").defaultNow().notNull(),
+});
+
+export const integrationSyncLogArchive = pgTable("vt_integration_sync_log_archive", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull(),
+  adapterId: text("adapter_id").notNull(),
+  syncType: text("sync_type").notNull(),
+  direction: text("direction").notNull(),
+  status: text("status").notNull(),
+  recordsAttempted: integer("records_attempted").notNull().default(0),
+  recordsSucceeded: integer("records_succeeded").notNull().default(0),
+  recordsFailed: integer("records_failed").notNull().default(0),
+  error: text("error"),
+  jobId: text("job_id"),
+  startedAt: timestamp("started_at").notNull(),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata"),
+  archivedAt: timestamp("archived_at").defaultNow().notNull(),
 });
 
 export const pushSubscriptions = pgTable("vt_push_subscriptions", {

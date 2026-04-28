@@ -289,13 +289,15 @@ describe("server/db.ts — integration tables and sync columns", () => {
 // ---------------------------------------------------------------------------
 describe("integration queue", () => {
   const src = read("server/queues/integration.queue.ts");
+  const shards = read("server/queues/integration-shards.ts");
 
   it("exports integrationQueue.add", () => {
     expect(src).toContain("export const integrationQueue");
     expect(src).toContain("async add(");
   });
-  it("queue name is integration-sync", () => {
-    expect(src).toContain('"integration-sync"');
+  it("defines legacy integration-sync queue name (single-shard compat)", () => {
+    expect(shards).toContain('"integration-sync"');
+    expect(src).toContain("INTEGRATION_QUEUE_LEGACY_NAME");
   });
   it("job data includes clinicId, adapterId, syncType, direction", () => {
     expect(src).toContain("clinicId");
@@ -337,7 +339,7 @@ describe("integration worker", () => {
     expect(src).toContain("Redis unavailable");
   });
   it("logs failed jobs", () => {
-    expect(src).toContain('worker.on("failed"');
+    expect(src).toContain('.on("failed"');
   });
 });
 
