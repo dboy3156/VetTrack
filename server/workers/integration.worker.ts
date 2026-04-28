@@ -13,7 +13,7 @@
  */
 
 import { Worker, type Job } from "bullmq";
-import type Redis from "ioredis";
+import type { Redis } from "ioredis";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {

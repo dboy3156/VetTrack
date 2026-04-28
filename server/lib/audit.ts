@@ -61,6 +61,8 @@ export type AuditActionType =
   | "integration_config_updated"
   | "integration_config_deleted"
   | "integration_credentials_stored"
+  | "integration_vendor_rollback"
+  | "integration_vendor_promoted"
   | "users_hard_purged"
   | "inventory_dispensed"
   | "code_blue_session_reconciled";

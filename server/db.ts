@@ -661,8 +661,25 @@ export const integrationConfigs = pgTable("vt_integration_configs", {
   lastInventorySyncAt: timestamp("last_inventory_sync_at"),
   lastAppointmentSyncAt: timestamp("last_appointment_sync_at"),
   lastBillingExportAt: timestamp("last_billing_export_at"),
+  /** Control-plane metadata (ownership, SLA, migration, flags); validated via Zod at API boundary. */
+  metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** Inbound merge conflicts (patients first; Phase B Sprint 2). */
+export const integrationSyncConflicts = pgTable("vt_integration_sync_conflicts", {
+  id: text("id").primaryKey(),
+  clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+  adapterId: text("adapter_id").notNull(),
+  entityType: text("entity_type").notNull(),
+  localId: text("local_id").notNull(),
+  externalId: text("external_id").notNull(),
+  status: text("status").notNull().default("open"),
+  policyUsed: text("policy_used").notNull(),
+  payloadSnapshot: jsonb("payload_snapshot"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
 });
 
 export const integrationSyncLog = pgTable("vt_integration_sync_log", {

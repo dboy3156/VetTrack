@@ -28,10 +28,10 @@ describe("integration adapter template checklist", () => {
     expect(idx).toContain("getAdapter");
   });
 
-  it("playbook references required onboarding checklist", () => {
-    const playbook = read("docs/integrations/new-vendor-playbook.md");
-    expect(playbook).toContain("validateCredentials");
-    expect(playbook).toContain("fetchPatients");
-    expect(playbook).toContain("generic-pms-v1");
+  it("documented vendor-x reference implementation exists", () => {
+    const vx = read("server/integrations/adapters/vendor-x.ts");
+    expect(vx).toContain("vendor-x-v1");
+    expect(vx).toContain("validateCredentials");
+    expect(vx).toContain("fetchPatients");
   });
 });
