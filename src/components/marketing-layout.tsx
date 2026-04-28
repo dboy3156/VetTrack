@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { QrCode, LayoutDashboard, ArrowRight } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import "@/landing-theme.css";
 
 type MarketingLayoutProps = {
   children: ReactNode;
@@ -20,7 +19,7 @@ export function MarketingLayout({ children, showAppCta, showAuthCta }: Marketing
   const lp = t.landingPage;
 
   return (
-    <div className="vt-premium-landing min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-background text-foreground font-sans antialiased">
+    <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-background text-foreground font-sans antialiased">
       <div
         className="pointer-events-none fixed inset-x-0 top-0 h-[min(70vh,720px)] -z-10"
         style={{

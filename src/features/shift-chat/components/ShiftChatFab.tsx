@@ -3,15 +3,20 @@ import { cn } from "@/lib/utils";
 import { useShiftChat } from "../hooks/useShiftChat";
 import { ShiftChatPanel } from "./ShiftChatPanel";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 
 export function ShiftChatFab() {
   const { role, effectiveRole } = useAuth();
+  const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const chat = useShiftChat(isOpen);
 
   // Only render for shift-eligible roles
   const eligibleRoles = ["vet", "technician", "senior_technician", "admin"];
   if (!eligibleRoles.includes(effectiveRole ?? role ?? "")) return null;
+  if (location === "/" || location === "/landing" || location.startsWith("/signin") || location.startsWith("/signup")) {
+    return null;
+  }
 
   return (
     <>

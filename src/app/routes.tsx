@@ -1,9 +1,7 @@
 import { Route, Switch } from "wouter";
 import { lazy } from "react";
-import { Loader2 } from "lucide-react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
-import { useAuth } from "@/hooks/use-auth";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -53,16 +51,8 @@ const ShiftChatArchive = lazy(() =>
   import("@/features/shift-chat/components/ShiftChatArchive").then((m) => ({ default: m.ShiftChatArchive }))
 );
 
-// Root path is always public landing: keep auth-loading spinner to prevent
-// transient CTA state while auth is still resolving.
+// Root path stays public landing for all visitors.
 function RootRoute() {
-  const { isLoaded, isOfflineSession } = useAuth();
-  const authKnown = isLoaded || isOfflineSession;
-  if (!authKnown) return (
-    <div className="flex h-screen items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-    </div>
-  );
   return <LandingPage />;
 }
 
