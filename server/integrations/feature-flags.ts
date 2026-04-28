@@ -13,6 +13,11 @@ export function isIntegrationGloballyKilled(): boolean {
   return truthyEnv("INTEGRATION_GLOBAL_KILL");
 }
 
+/** When set, the Priza integration path is allowed in rollout policy (register adapter in the same deployment). */
+export function isPrizaEnabled(): boolean {
+  return truthyEnv("INTEGRATION_PRIZA_ENABLED");
+}
+
 export type IntegrationEnqueueBlockReason =
   | "integration_globally_killed"
   | "adapter_disabled"
