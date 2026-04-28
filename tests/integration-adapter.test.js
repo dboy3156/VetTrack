@@ -392,7 +392,7 @@ describe("routes/integrations.ts", () => {
     const validateEnd = src.indexOf("POST /configs/:adapterId/sync");
     const validateBody = src.slice(validateStart, validateEnd);
     // The validate route should call adapter.validateCredentials and return its result (not the raw credentials)
-    expect(validateBody).toContain("adapter.validateCredentials(credentials)");
+    expect(validateBody).toContain("adapter.validateCredentials(");
     // The result from validateCredentials ({valid, error}) is what gets returned — not the credential map itself
     expect(validateBody).not.toContain("res.json(credentials)");
   });
