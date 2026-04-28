@@ -10,29 +10,34 @@
 
 @layer base {
   :root {
-    --background: 210 25% 97%;
-    --foreground: 222 30% 16%;
+    /*
+     * Semantic tokens (Tailwind: bg-background, bg-card, text-primary, border-border, …)
+     * map to the Ivory palette so existing shadcn-style components track PageShell/mobile
+     * Ivory chrome without per-file class rewrites. HSL triplets feed hsl(var(--name)).
+     */
+    --background: 45 25% 94%;
+    --foreground: 127 21% 8%;
     --card: 0 0% 100%;
-    --card-foreground: 222 30% 16%;
+    --card-foreground: 127 21% 8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 16%;
-    --primary: 217 76% 43%;
+    --popover-foreground: 127 21% 8%;
+    --primary: 130 42% 20%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 24% 92%;
-    --secondary-foreground: 222 24% 22%;
-    --muted: 210 22% 93%;
-    --muted-foreground: 222 12% 38%;
-    --accent: 210 34% 91%;
-    --accent-foreground: 222 30% 20%;
-    --destructive: 0 72% 55%;
+    --secondary: 125 32% 93%;
+    --secondary-foreground: 129 15% 25%;
+    --muted: 42 18% 91%;
+    --muted-foreground: 135 6% 51%;
+    --accent: 122 28% 90%;
+    --accent-foreground: 129 15% 25%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 216 24% 84%;
-    --input: 216 22% 86%;
-    --ring: 217 76% 43%;
+    --border: 40 12% 81%;
+    --input: 40 12% 81%;
+    --ring: 130 42% 20%;
     --radius: 0.875rem;
-    --status-ok: 152 40% 45%;
-    --status-issue: 0 72% 55%;
-    --status-maintenance: 38 92% 50%;
+    --status-ok: 142 76% 36%;
+    --status-issue: 0 72% 51%;
+    --status-maintenance: 32 95% 44%;
     --status-sterilized: 221 83% 53%;
     --sat: env(safe-area-inset-top);
     --sab: env(safe-area-inset-bottom);
@@ -56,25 +61,26 @@
   }
 
   .dark {
-    --background: 223 29% 8%;
-    --foreground: 213 31% 92%;
-    --card: 222 26% 11%;
-    --card-foreground: 213 31% 92%;
-    --popover: 222 26% 11%;
-    --popover-foreground: 213 31% 92%;
-    --primary: 217 76% 60%;
+    /* Forest / navy dark — aligned with Ivory (--ivory-navy, green accents), not cool blue-grey */
+    --background: 128 35% 9%;
+    --foreground: 45 20% 92%;
+    --card: 130 28% 12%;
+    --card-foreground: 45 18% 93%;
+    --popover: 130 28% 12%;
+    --popover-foreground: 45 18% 93%;
+    --primary: 125 38% 42%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 221 20% 16%;
-    --secondary-foreground: 213 25% 88%;
-    --muted: 221 18% 15%;
-    --muted-foreground: 216 12% 70%;
-    --accent: 219 30% 19%;
-    --accent-foreground: 213 28% 90%;
-    --destructive: 0 65% 50%;
+    --secondary: 130 22% 18%;
+    --secondary-foreground: 45 15% 88%;
+    --muted: 130 18% 16%;
+    --muted-foreground: 135 8% 62%;
+    --accent: 130 25% 20%;
+    --accent-foreground: 42 25% 90%;
+    --destructive: 0 65% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 219 16% 24%;
-    --input: 220 16% 25%;
-    --ring: 217 76% 60%;
+    --border: 130 14% 22%;
+    --input: 130 14% 24%;
+    --ring: 125 38% 45%;
   }
 }
 
