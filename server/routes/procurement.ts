@@ -87,7 +87,7 @@ router.get("/", requireAuth, requireEffectiveRole("technician"), async (req, res
               createdAt: poLines.createdAt,
             })
             .from(poLines)
-            .innerJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
+            .leftJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
             .where(inArray(poLines.purchaseOrderId, orderIds))
         : [];
 
@@ -133,7 +133,7 @@ router.get("/:id", requireAuth, requireEffectiveRole("technician"), validateUuid
         createdAt: poLines.createdAt,
       })
       .from(poLines)
-      .innerJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
+      .leftJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
       .where(eq(poLines.purchaseOrderId, order.id));
 
     res.json({ ...order, lines });
@@ -188,7 +188,7 @@ router.post("/", requireAuth, requireAdmin, validateBody(createPoSchema), async 
         createdAt: poLines.createdAt,
       })
       .from(poLines)
-      .innerJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
+      .leftJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
       .where(eq(poLines.purchaseOrderId, orderId));
 
     logAudit({
@@ -355,7 +355,7 @@ router.patch("/:id/receive", requireAuth, requireEffectiveRole("technician"), va
         createdAt: poLines.createdAt,
       })
       .from(poLines)
-      .innerJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
+      .leftJoin(inventoryItems, eq(poLines.itemId, inventoryItems.id))
       .where(eq(poLines.purchaseOrderId, req.params.id));
 
     logAudit({
