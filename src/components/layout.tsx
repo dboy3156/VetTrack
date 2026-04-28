@@ -208,6 +208,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   }, [menuOpen]);
 
   useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
     if (quickSettingsOpen) {
       setQsMounted(true);
       const raf = requestAnimationFrame(() => setQsVisible(true));
