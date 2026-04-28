@@ -1,4 +1,5 @@
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { SettingsSectionHeader, SettingsToggle, SettingsSelect } from "@/components/settings-controls";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/hooks/use-auth";
@@ -146,34 +147,36 @@ export default function SettingsPage() {
     }
   }, [isTechnicianContext, isSeniorContext, isAdminContext]);
 
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+
   if (!isLoaded) {
-    return (
-      <Layout title={t.settingsPage.title}>
-        <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      </Layout>
+    const loadingContent = (
+      <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
     );
+    if (isDesktop) return <PageShell>{loadingContent}</PageShell>;
+    return <Layout title={t.settingsPage.title}>{loadingContent}</Layout>;
   }
 
   if (!isSignedIn) {
-    return (
-      <Layout title={t.settingsPage.title}>
-        <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
-          <ErrorCard
-            message="Unable to load settings for this session."
-            onRetry={() => safeReloadPage()}
-          />
-        </div>
-      </Layout>
+    const errorContent = (
+      <div className="w-full max-w-full overflow-x-hidden space-y-3 pb-8">
+        <ErrorCard
+          message="Unable to load settings for this session."
+          onRetry={() => safeReloadPage()}
+        />
+      </div>
     );
+    if (isDesktop) return <PageShell>{errorContent}</PageShell>;
+    return <Layout title={t.settingsPage.title}>{errorContent}</Layout>;
   }
 
-  return (
-    <Layout title={t.settingsPage.title}>
+  const pageContent = (
+    <>
       <div className="w-full max-w-full overflow-x-hidden space-y-6 pb-8 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t.settingsPage.title}</h1>
@@ -499,6 +502,8 @@ export default function SettingsPage() {
           </div>
         </section>
       </div>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout title={t.settingsPage.title}>{pageContent}</Layout>;
 }

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -76,8 +77,9 @@ export default function AnalyticsPage() {
       })
     : [];
 
-  return (
-    <Layout>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>Analytics — VetTrack</title>
         <meta name="description" content="Equipment analytics for veterinary clinics — maintenance compliance rates, sterilization compliance, scan activity over 14 days, and top problem equipment." />
@@ -279,6 +281,8 @@ export default function AnalyticsPage() {
           </Card>
         )}
       </div>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }

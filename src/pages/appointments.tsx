@@ -4,6 +4,8 @@ import { Link, Redirect } from "wouter";
 import { t } from "@/lib/i18n";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock3, Plus, User, Zap } from "lucide-react";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
+import type { SidebarItem } from "@/components/layout/IconSidebar";
 import { MedicationCalculator } from "@/components/MedicationCalculator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -680,8 +682,13 @@ export default function AppointmentsPage() {
     return <Redirect to="/equipment" replace />;
   }
 
-  return (
-    <Layout title="Tasks">
+  const TASKS_SIDEBAR: SidebarItem[] = [
+    { href: "/appointments", icon: CalendarDays, label: "Tasks" },
+  ];
+
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <div dir="rtl" className="flex flex-col gap-4 pb-24 text-right">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -1716,6 +1723,10 @@ export default function AppointmentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </>
   );
+  if (isDesktop) {
+    return <PageShell sidebarItems={TASKS_SIDEBAR}>{pageContent}</PageShell>;
+  }
+  return <Layout title="Tasks">{pageContent}</Layout>;
 }

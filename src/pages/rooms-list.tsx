@@ -5,6 +5,7 @@ import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -251,8 +252,9 @@ export default function RoomsListPage() {
   const totalIssues = rooms?.reduce((a, r) => a + (r.issueCount ?? 0), 0) ?? 0;
   const syncedCount = rooms?.filter((r) => r.syncStatus === "synced").length ?? 0;
 
-  return (
-    <Layout>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>{t.qrPrintPage.titleFull}</title>
         <meta name="description" content="Room-by-room equipment inventory. Verify all items in a room with one tap." />
@@ -437,6 +439,8 @@ export default function RoomsListPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }

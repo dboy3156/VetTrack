@@ -6,6 +6,8 @@ import { FormularyAdminSheet } from "@/components/formulary-admin-sheet";
 import { Beaker, FlaskConical, Loader2, Pill, Syringe } from "lucide-react";
 import { toast } from "sonner";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
+import type { SidebarItem } from "@/components/layout/IconSidebar";
 import { MedicationCalculator } from "@/components/MedicationCalculator";
 import { VerificationCalculator } from "@/components/VerificationCalculator";
 import { Button } from "@/components/ui/button";
@@ -230,8 +232,14 @@ export default function MedicationHubPage() {
     return <Redirect to="/equipment" replace />;
   }
 
-  return (
-    <Layout title={t.medsPage.title}>
+  const MEDS_SIDEBAR: SidebarItem[] = [
+    { href: "/meds",              icon: Pill,    label: "Medication Hub" },
+    { href: "/pharmacy-forecast", icon: Syringe, label: "Pharmacy Forecast" },
+  ];
+
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <div className="space-y-4 pb-24">
         <div className="space-y-1">
           <div className="flex items-center justify-between">
@@ -348,6 +356,10 @@ export default function MedicationHubPage() {
           onOpenChange={setFormularySheetOpen}
         />
       )}
-    </Layout>
+    </>
   );
+  if (isDesktop) {
+    return <PageShell sidebarItems={MEDS_SIDEBAR}>{pageContent}</PageShell>;
+  }
+  return <Layout title={t.medsPage.title}>{pageContent}</Layout>;
 }

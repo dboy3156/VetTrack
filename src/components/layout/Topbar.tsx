@@ -16,7 +16,8 @@ const SECTIONS: TopbarSection[] = [
   { href: "/equipment",   label: "Equipment" },
   { href: "/meds",        label: "Pharmacy" },
   { href: "/appointments", label: "Shifts" },
-  { href: "/admin",       label: "Admin", adminOnly: true },
+  { href: "/display",      label: "Ward" },
+  { href: "/admin",        label: "Admin", adminOnly: true },
 ];
 
 export function Topbar() {
