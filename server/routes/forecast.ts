@@ -5,6 +5,7 @@ import multer from "multer";
 import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 import pdfParse from "pdf-parse";
 
 import { db, clinics, pharmacyForecastParses, pharmacyOrders, pharmacyForecastExclusions } from "../db.js";
@@ -674,8 +675,7 @@ router.post("/approve", requireAuth, ensureUserClinicMembership, requireEffectiv
 
     if (!dryRunEnabled && hasSmtp) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const smtpOptions: any = {
+        const smtpOptions: SMTPTransport.Options & { family?: number } = {
           host: smtpHost,
           port: parseInt(process.env.SMTP_PORT ?? "587", 10),
           secure: process.env.SMTP_SECURE === "true",

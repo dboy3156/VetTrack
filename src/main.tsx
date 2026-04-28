@@ -1,12 +1,10 @@
 import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
-import { useEffect } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import App from "./App";
 import "./index.css";
 import "./instrument";
 
-// Imports
 import { ClerkAuthProviderInner } from "@/hooks/use-auth";
 import { SyncProvider } from "@/hooks/use-sync";
 import { SettingsProvider } from "@/hooks/use-settings";

@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
+import { Stethoscope, Map } from "lucide-react";
+import type { SidebarItem } from "@/components/layout/IconSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -367,8 +370,14 @@ export default function PatientsPage() {
   const patients = data?.patients ?? [];
   const criticalCount = patients.filter((p) => p.status === "critical").length;
 
-  return (
-    <Layout>
+  const PATIENTS_SIDEBAR: SidebarItem[] = [
+    { href: "/patients", icon: Stethoscope, label: "Patients" },
+    { href: "/rooms",    icon: Map,         label: "Rooms" },
+  ];
+
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>מטופלים פעילים — VetTrack</title>
       </Helmet>
@@ -496,6 +505,10 @@ export default function PatientsPage() {
       </div>
 
       <AdmitSheet open={admitOpen} onClose={() => setAdmitOpen(false)} />
-    </Layout>
+    </>
   );
+  if (isDesktop) {
+    return <PageShell sidebarItems={PATIENTS_SIDEBAR}>{pageContent}</PageShell>;
+  }
+  return <Layout>{pageContent}</Layout>;
 }
