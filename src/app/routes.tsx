@@ -47,6 +47,8 @@ const InventoryItemsPage = lazy(() => import("@/pages/inventory-items"));
 const ProcurementPage = lazy(() => import("@/pages/procurement"));
 const PendingEmergenciesPage = lazy(() => import("@/pages/pending-emergencies"));
 const WardDisplayPage = lazy(() => import("@/pages/display"));
+const CodeBlueReconciliationPage = lazy(() => import("@/pages/code-blue-reconciliation"));
+const ShiftLeaderboardPage = lazy(() => import("@/pages/shift-leaderboard"));
 const ShiftChatArchive = lazy(() =>
   import("@/features/shift-chat/components/ShiftChatArchive").then((m) => ({ default: m.ShiftChatArchive }))
 );
@@ -108,7 +110,9 @@ export function AppRoutes() {
         <Route path="/whats-new"><AuthGuard><WhatsNewPage /></AuthGuard></Route>
         <Route path="/billing/leakage"><AuthGuard><LeakageReportPage /></AuthGuard></Route>
         <Route path="/billing/inventory-jobs"><AuthGuard><InventoryJobsPage /></AuthGuard></Route>
+        <Route path="/billing/code-blue-reconciliation"><AuthGuard><CodeBlueReconciliationPage /></AuthGuard></Route>
         <Route path="/billing"><AuthGuard><BillingLedgerPage /></AuthGuard></Route>
+        <Route path="/analytics/shift-leaderboard"><AuthGuard><ShiftLeaderboardPage /></AuthGuard></Route>
         <Route path="/patients"><AuthGuard><PatientsPage /></AuthGuard></Route>
         <Route path="/patients/:id"><AuthGuard><PatientDetailPage /></AuthGuard></Route>
         <Route path="/inventory-items"><AuthGuard><InventoryItemsPage /></AuthGuard></Route>
