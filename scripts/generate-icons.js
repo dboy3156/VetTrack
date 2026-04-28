@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-const fs = require("fs");
-const path = require("path");
-const zlib = require("zlib");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import zlib from "zlib";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PNG_HEADER = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -32,40 +35,75 @@ function createIcon(size, outputPath) {
   const h = size;
   const pixels = new Uint8Array(w * h * 4);
 
-  const cx = w / 2;
-  const cy = h / 2;
-  const crossThick = Math.round(w * 0.14);
-  const crossLen = Math.round(w * 0.55);
+  const BG = [0x0f, 0x1f, 0x11, 255];
+  const FG = [0x4c, 0xde, 0x6a, 255];
 
+  const m = Math.max(1, Math.floor(size / 20));
+  const finder = 7 * m;
+  const gap = 2 * m;
+  const pad = Math.round((size - (2 * finder + gap)) / 2);
+  const rx = Math.round(size * 0.18);
+
+  function setPixel(x, y, c) {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    const i = (y * w + x) * 4;
+    pixels[i] = c[0];
+    pixels[i + 1] = c[1];
+    pixels[i + 2] = c[2];
+    pixels[i + 3] = c[3];
+  }
+
+  function fillRect(x0, y0, bw, bh, c) {
+    for (let y = y0; y < y0 + bh; y++) {
+      for (let x = x0; x < x0 + bw; x++) {
+        setPixel(x, y, c);
+      }
+    }
+  }
+
+  // rounded background
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const dx = x - cx;
-      const dy = y - cy;
-      const r = Math.sqrt(dx * dx + dy * dy);
-      const inCircle = r <= w * 0.48;
-      const inHoriz = Math.abs(dy) <= crossThick / 2 && Math.abs(dx) <= crossLen / 2;
-      const inVert = Math.abs(dx) <= crossThick / 2 && Math.abs(dy) <= crossLen / 2;
-      const inCross = inHoriz || inVert;
-
-      if (inCircle) {
-        if (inCross) {
-          pixels[idx] = 26;
-          pixels[idx + 1] = 111;
-          pixels[idx + 2] = 191;
-          pixels[idx + 3] = 255;
-        } else {
-          pixels[idx] = 255;
-          pixels[idx + 1] = 255;
-          pixels[idx + 2] = 255;
-          pixels[idx + 3] = 255;
-        }
-      } else {
-        pixels[idx] = 0;
-        pixels[idx + 1] = 0;
-        pixels[idx + 2] = 0;
-        pixels[idx + 3] = 0;
+      const dx = Math.max(0, Math.max(rx - x - 1, x - (w - rx)));
+      const dy = Math.max(0, Math.max(rx - y - 1, y - (h - rx)));
+      if (dx * dx + dy * dy <= rx * rx) {
+        setPixel(x, y, BG);
       }
+    }
+  }
+
+  function drawFinder(ox, oy) {
+    fillRect(ox, oy, 7 * m, 7 * m, FG);
+    fillRect(ox + m, oy + m, 5 * m, 5 * m, BG);
+    fillRect(ox + 2 * m, oy + 2 * m, 3 * m, 3 * m, FG);
+  }
+
+  drawFinder(pad, pad);
+  drawFinder(pad + finder + gap, pad);
+  drawFinder(pad, pad + finder + gap);
+
+  // hide data dots on tiny icons
+  if (size >= 48) {
+    const drX = pad + finder + gap;
+    const drY = pad + finder + gap;
+
+    const dots = [
+      [0, 0],
+      [2, 0],
+      [4, 0],
+      [6, 0],
+      [1, 2],
+      [3, 2],
+      [5, 2],
+      [0, 4],
+      [4, 4],
+      [6, 4],
+      [2, 6],
+      [6, 6],
+    ];
+
+    for (const [dc, dr] of dots) {
+      fillRect(drX + dc * m, drY + dr * m, m, m, FG);
     }
   }
 
