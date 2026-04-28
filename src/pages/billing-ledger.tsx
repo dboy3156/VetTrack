@@ -40,7 +40,7 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, ReceiptText, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, ShieldAlert, TrendingDown, PackageX, Boxes } from "lucide-react";
+import { Receipt, ReceiptText, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, ShieldAlert, TrendingDown, PackageX, Siren, Boxes } from "lucide-react";
 import { Link } from "wouter";
 import {
   BarChart,
@@ -281,6 +281,14 @@ export default function BillingLedgerPage() {
                 <Button variant="outline" size="sm" className="gap-1.5 rounded-xl text-xs">
                   <PackageX className="h-3.5 w-3.5 text-orange-500" />
                   Inventory Jobs
+                </Button>
+              </Link>
+            )}
+            {role === "admin" && (
+              <Link href="/billing/code-blue-reconciliation">
+                <Button variant="outline" size="sm" className="gap-1.5 rounded-xl text-xs">
+                  <Siren className="h-3.5 w-3.5 text-destructive" />
+                  Code Blue
                 </Button>
               </Link>
             )}

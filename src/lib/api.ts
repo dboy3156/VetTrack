@@ -65,6 +65,10 @@ import type {
   ForecastApproveResponse,
   ForecastKeepaliveResponse,
   DisplaySnapshot,
+  CodeBlueReconciliationSession,
+  CodeBlueDispense,
+  ManualBillingRequest,
+  ShiftCompletionResult,
 } from "@/types";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -753,6 +757,13 @@ export const api = {
   },
   analytics: {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
+    shiftCompletion: (from?: string, to?: string) => {
+      const qs = new URLSearchParams();
+      if (from) qs.set("from", from);
+      if (to) qs.set("to", to);
+      const query = qs.toString();
+      return request<ShiftCompletionResult>(`/api/analytics/shift-completion${query ? `?${query}` : ""}`);
+    },
   },
   users: {
     list: async (status?: "pending" | "active" | "blocked"): Promise<User[]> => {
@@ -1369,6 +1380,17 @@ export const api = {
       request<{ id: string; endedAt: string | null }>(`/api/code-blue/events/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
+      }),
+    reconciliationList: () =>
+      request<{ sessions: CodeBlueReconciliationSession[] }>("/api/code-blue/reconciliation"),
+    sessionDispenses: (sessionId: string) =>
+      request<{ dispenses: CodeBlueDispense[] }>(`/api/code-blue/sessions/${sessionId}/dispenses`),
+    reconcile: (sessionId: string) =>
+      request<{ ok: boolean }>(`/api/code-blue/sessions/${sessionId}/reconcile`, { method: "PATCH" }),
+    manualBilling: (sessionId: string, body: ManualBillingRequest) =>
+      request<{ ledgerId: string }>(`/api/code-blue/sessions/${sessionId}/manual-billing`, {
+        method: "POST",
+        body: JSON.stringify(body),
       }),
   },
   display: {

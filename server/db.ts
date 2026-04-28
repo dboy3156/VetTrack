@@ -864,6 +864,9 @@ export const codeBlueSessions = pgTable(
     preCheckPassed: boolean("pre_check_passed"),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    isReconciled: boolean("is_reconciled").notNull().default(false),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    reconciledByUserId: text("reconciled_by_user_id").references(() => users.id, { onDelete: "set null" }),
   },
   (table) => ({
     clinicCreatedIdx: index("idx_vt_code_blue_sessions_clinic_created").on(table.clinicId, table.createdAt),

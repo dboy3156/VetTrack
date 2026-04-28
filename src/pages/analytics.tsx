@@ -34,8 +34,10 @@ import {
   Droplets,
   Activity,
   Trophy,
+  TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
+import { Link } from "wouter";
 
 const STATUS_COLORS_HEX = {
   ok: "#6ec4a0",
@@ -84,7 +86,15 @@ export default function AnalyticsPage() {
         <link rel="canonical" href="https://vettrack.replit.app/analytics" />
       </Helmet>
       <div className="flex flex-col gap-5 pb-24 animate-fade-in">
-        <h1 className="text-2xl font-bold leading-tight">{t.analyticsPage.title}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold leading-tight">{t.analyticsPage.title}</h1>
+          <Link href="/analytics/shift-leaderboard">
+            <span className="inline-flex items-center gap-1.5 rounded-xl border bg-card px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-muted/50 transition-colors cursor-pointer">
+              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+              Shift Scan Leaderboard
+            </span>
+          </Link>
+        </div>
 
         {isError && (
           <ErrorCard

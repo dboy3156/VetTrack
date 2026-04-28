@@ -9,6 +9,7 @@ import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaul
 import { restockContainerInTx } from "../services/inventory.service.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
 import { enqueueBillingWebhookJob } from "../lib/queue.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -465,6 +466,22 @@ router.post(
         console.error("[billing-webhook] Failed to enqueue webhook for dispense, continuing:", webhookErr);
       }
 
+      logAudit({
+        clinicId,
+        actionType: "inventory_dispensed",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: containerId,
+        targetType: "container",
+        actorRole: resolveAuditActorRole(req),
+        metadata: {
+          dispensedItemCount: dispensedItems.length,
+          autoBilledCents,
+          animalId: animalId ?? null,
+          isEmergency: false,
+        },
+      });
+
       return res.json({
         success: true,
         dispensed: dispensedItems,
@@ -687,6 +704,22 @@ router.patch(
       } catch (webhookErr) {
         console.error("[billing-webhook] Failed to enqueue webhook for emergency dispense, continuing:", webhookErr);
       }
+
+      logAudit({
+        clinicId,
+        actionType: "inventory_dispensed",
+        performedBy: actorUserId,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: eventId,
+        targetType: "emergency_event",
+        actorRole: resolveAuditActorRole(req),
+        metadata: {
+          dispensedItemCount: dispensedItems.length,
+          autoBilledCents: billingIds.length,
+          animalId: animalId ?? null,
+          isEmergency: true,
+        },
+      });
 
       return res.json({
         success: true,
