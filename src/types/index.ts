@@ -1284,3 +1284,53 @@ export interface DisplaySnapshot {
   codeBlueSession: DisplaySnapshotCodeBlueSession | null;
 }
 
+// Code Blue Reconciliation
+export interface CodeBlueReconciliationSession {
+  sessionId: string;
+  patientId: string | null;
+  patientName: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  isReconciled: boolean;
+  reconciledAt: string | null;
+  reconciledByUserId: string | null;
+  dispenseCount: number;
+  billedCount: number;
+  totalBilledCents: number;
+}
+
+export interface CodeBlueDispense {
+  inventoryLogId: string;
+  itemId: string;
+  itemName: string;
+  quantityDispensed: number;
+  dispensedAt: string;
+  billingLedgerId: string | null;
+  billedCents: number | null;
+}
+
+export interface ManualBillingRequest {
+  inventoryLogId: string;
+  itemId: string;
+  quantity: number;
+  unitPriceCents: number;
+  animalId?: string;
+}
+
+// Shift Completion Leaderboard
+export interface ShiftCompletionUser {
+  userId: string;
+  name: string;
+  email: string;
+  totalScans: number;
+  shiftCount: number;
+  avgScansPerShift: number;
+  zeroCaptureShifts: number;
+}
+
+export interface ShiftCompletionResult {
+  from: string;
+  to: string;
+  users: ShiftCompletionUser[];
+}
+
