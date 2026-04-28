@@ -113,11 +113,6 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
 
   const activePatients: ActivePatient[] = activePatientsQ.data?.animals ?? [];
 
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.log("[DispenseSheet] activePatients:", activePatients);
-  }
-
   const dispenseMut = useMutation({
     mutationFn: (data: { items: Array<{ itemId: string; quantity: number }>; animalId?: string | null; isEmergency?: boolean }) =>
       api.containers.dispense(containerId, data),
