@@ -39,13 +39,13 @@ describe("Wave 3 UI token consistency checks (static)", () => {
     expect(appointments).toContain("high: \"bg-accent text-accent-foreground border-border\"");
   });
 
-  it("Layout bottom navigation uses semantic token classes", () => {
+  it("Layout bottom navigation uses Ivory design token classes", () => {
     expect(
       layout.includes("fixed bottom-0 left-0 right-0 z-50") &&
         layout.includes("border-t") &&
-        layout.includes("border-border") &&
-        (layout.includes("bg-background/98") || layout.includes("bg-background\"")) &&
-        layout.includes("bg-primary text-primary-foreground"),
+        layout.includes("border-ivory-border") &&
+        layout.includes("bg-ivory-surface/98") &&
+        layout.includes("bg-ivory-green text-white"),
     ).toBe(true);
   });
 
