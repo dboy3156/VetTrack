@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db, pool, equipment, scanLogs } from "../db.js";
 import { gte, desc, eq, and, isNull, sql } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { subDays } from "date-fns";
 import { analyticsCache } from "../lib/analytics-cache.js";
 import { computeUsageTrends } from "../lib/analytics-engine.js";
@@ -353,6 +353,80 @@ router.get("/billing", requireAuth, async (req, res) => {
         message: "Failed to get billing analytics",
         requestId,
       }),
+    );
+  }
+});
+
+/**
+ * GET /api/analytics/shift-completion?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * Returns per-user scan counts and shift stats. Defaults to last 30 days. Admin only.
+ */
+router.get("/shift-completion", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const fromRaw = typeof req.query.from === "string" ? req.query.from : null;
+    const toRaw   = typeof req.query.to   === "string" ? req.query.to   : null;
+    const from = fromRaw ? new Date(fromRaw) : subDays(new Date(), 30);
+    const to   = toRaw   ? new Date(toRaw)   : new Date();
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      return res.status(400).json(
+        apiError({ code: "INVALID_PARAMS", reason: "INVALID_DATE_RANGE", message: "Invalid from/to dates", requestId }),
+      );
+    }
+    const rows = await pool.query(
+      `WITH user_scans AS (
+         SELECT sl.user_id, COUNT(*)::int AS total_scans
+         FROM vt_scan_logs sl
+         WHERE sl.clinic_id = $1
+           AND sl.timestamp >= $2
+           AND sl.timestamp < $3
+         GROUP BY sl.user_id
+       ),
+       user_shifts AS (
+         SELECT
+           ss.started_by_user_id AS user_id,
+           COUNT(*)::int AS shift_count,
+           COUNT(*) FILTER (
+             WHERE NOT EXISTS (
+               SELECT 1 FROM vt_scan_logs sl2
+               WHERE sl2.user_id = ss.started_by_user_id
+                 AND sl2.clinic_id = ss.clinic_id
+                 AND sl2.timestamp >= ss.started_at
+                 AND sl2.timestamp < COALESCE(ss.ended_at, NOW())
+             )
+           )::int AS zero_capture_shifts
+         FROM vt_shift_sessions ss
+         WHERE ss.clinic_id = $1
+           AND ss.started_at >= $2
+           AND ss.started_at < $3
+         GROUP BY ss.started_by_user_id
+       )
+       SELECT
+         u.id                                                         AS "userId",
+         u.name,
+         u.email,
+         COALESCE(us.total_scans, 0)::int                            AS "totalScans",
+         COALESCE(ush.shift_count, 0)::int                           AS "shiftCount",
+         CASE
+           WHEN COALESCE(ush.shift_count, 0) > 0
+           THEN ROUND(COALESCE(us.total_scans, 0)::numeric / ush.shift_count, 1)
+           ELSE 0
+         END                                                          AS "avgScansPerShift",
+         COALESCE(ush.zero_capture_shifts, 0)::int                   AS "zeroCaptureShifts"
+       FROM vt_users u
+       LEFT JOIN user_scans  us  ON us.user_id  = u.id
+       LEFT JOIN user_shifts ush ON ush.user_id = u.id
+       WHERE u.clinic_id = $1
+         AND (COALESCE(us.total_scans, 0) > 0 OR COALESCE(ush.shift_count, 0) > 0)
+       ORDER BY COALESCE(us.total_scans, 0) DESC`,
+      [clinicId, from.toISOString(), to.toISOString()],
+    );
+    res.json({ from: from.toISOString(), to: to.toISOString(), users: rows.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "SHIFT_COMPLETION_FAILED", message: "Failed to get shift completion stats", requestId }),
     );
   }
 });
