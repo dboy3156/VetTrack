@@ -524,11 +524,11 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] bg-ivory-bg">
       <header
         className={cn(
-          "sticky top-safe z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-          navigationLocked ? "border-amber-400/60" : "border-border/60",
+          "sticky top-safe z-40 border-b bg-ivory-navy backdrop-blur supports-[backdrop-filter]:bg-ivory-navy/95",
+          navigationLocked ? "border-amber-400/60" : "border-[#0a1509]",
           "transition-colors duration-300"
         )}
       >
@@ -549,35 +549,32 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             <div
               className={cn(
                 "w-8 h-8 rounded-2xl flex items-center justify-center",
-                "bg-primary/10",
-                "group-hover:bg-primary/20 group-hover:scale-110 group-hover:shadow-sm group-hover:shadow-primary/20",
+                "bg-ivory-green/30",
+                "group-hover:bg-ivory-green/50 group-hover:scale-110 group-hover:shadow-sm group-hover:shadow-ivory-green/20",
                 "group-active:scale-95",
                 "transition-all duration-200 ease-out"
               )}
             >
               <QrCode
-                className="w-4 h-4 text-primary transition-transform duration-300 ease-out group-hover:rotate-[15deg]"
+                className="w-4 h-4 text-[#4cde6a] transition-transform duration-300 ease-out group-hover:rotate-[15deg]"
                 aria-hidden
               />
             </div>
-            <span
-              className="text-lg font-bold tracking-tight transition-colors duration-200
-                text-foreground group-hover:text-primary"
-            >
-              VetTrack
+            <span className="text-lg font-bold tracking-tight transition-colors duration-200 text-white group-hover:text-[#4cde6a]">
+              Vet<em className="text-[#4cde6a] not-italic group-hover:text-white">Track</em>
             </span>
           </Link>
 
           <div className="flex items-center gap-1.5">
             {!isOnline && (
-              <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800 rounded-full px-2.5 py-1">
+              <div className="flex items-center gap-1 text-xs text-amber-300 bg-amber-900/40 border border-amber-700/50 rounded-full px-2.5 py-1">
                 <WifiOff className="w-3 h-3" />
                 <span>{lh.offline}</span>
               </div>
             )}
 
             {isOnline && isSyncing && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1">
+              <div className="flex items-center gap-1 text-xs text-[#8ab89a] bg-white/[0.08] border border-white/10 rounded-full px-2.5 py-1">
                 <RefreshCw className="w-3 h-3 animate-spin" />
                 <span>{lh.syncing}</span>
               </div>
@@ -585,8 +582,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
             {isOnline && justSynced && !isSyncing && pendingCount === 0 && (
               <div
-                className="flex items-center gap-1 text-xs text-emerald-600 rounded-full px-2.5 py-1
-                  border border-emerald-200/80 dark:border-emerald-800"
+                className="flex items-center gap-1 text-xs text-emerald-400 rounded-full px-2.5 py-1 border border-emerald-700/50"
                 style={{ animation: "syncSuccessBoom 2.2s ease-out forwards" }}
                 data-testid="sync-synced-indicator"
               >
@@ -602,7 +598,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             {isOnline && hasPending && !isSyncing && (
               <button
                 onClick={triggerSync}
-                className="flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-1 hover:bg-accent transition-colors"
+                className="flex items-center gap-1 text-xs text-[#8ab89a] bg-white/[0.08] border border-white/10 rounded-full px-2.5 py-1 hover:bg-white/15 transition-colors"
                 title={lh.pendingTitle(pendingCount)}
                 data-testid="sync-pending-indicator"
               >
@@ -613,7 +609,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
             {hasFailed && (
               <div
-                className="flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200/80 dark:border-red-800 rounded-full px-2.5 py-1"
+                className="flex items-center gap-1 text-xs text-red-400 bg-red-900/30 border border-red-700/50 rounded-full px-2.5 py-1"
                 title={lh.failedTitle(failedCount)}
                 data-testid="sync-failed-indicator"
               >
@@ -626,7 +622,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="relative text-[#8ab89a] hover:text-white hover:bg-white/10"
                 onClick={() => setSyncQueueOpen(true)}
                 title={t.layout.sync.viewQueue}
                 aria-label={t.layout.sync.viewQueue}
@@ -655,7 +651,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="relative text-muted-foreground hover:text-foreground hover:bg-muted"
+                  className="relative text-[#8ab89a] hover:text-white hover:bg-white/10"
                   aria-label={lh.alertAria(alertCount)}
                   data-testid="alert-bell"
                 >
@@ -697,7 +693,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 }}
                 aria-label={t.common.quickSettings}
                 data-testid="quick-settings-toggle"
-                className="text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="text-[#8ab89a] hover:text-white hover:bg-white/10"
               >
                 <Settings className="w-4 h-4" />
               </Button>
@@ -801,7 +797,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         {menuMounted && (
           <div
             className={cn(
-              "border-t border-border/60 bg-background px-4 py-3 max-w-2xl mx-auto max-h-[75dvh] overflow-y-auto",
+              "border-t border-ivory-border bg-ivory-bg px-4 py-3 max-w-2xl mx-auto max-h-[75dvh] overflow-y-auto",
               "origin-top will-change-transform",
               menuVisible
                 ? "[animation:menuReveal_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
@@ -809,7 +805,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             )}
           >
             <nav className="flex flex-col gap-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-1 pb-0.5">Operations</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-1 pb-0.5">Operations</p>
               {operationMenuItems.map((item, index) => {
                 const isActive = location === item.href;
                 return (
@@ -826,13 +822,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                         "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
                         "relative overflow-hidden",
                         isActive
-                          ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
-                          : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
+                          ? "bg-ivory-greenBg text-ivory-green font-semibold pl-4 pr-3"
+                          : "text-ivory-text hover:bg-ivory-border/40 active:bg-ivory-border/60 pl-3 hover:pl-4 pr-3"
                       )}
                     >
                       {isActive && (
                         <span
-                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-ivory-green pointer-events-none"
                           style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
                           aria-hidden
                         />
@@ -858,7 +854,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 );
               })}
 
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">Management</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">Management</p>
               {managementMenuItems.map((item, index) => {
                 const isActive = location === item.href;
                 const stagger = operationMenuItems.length + index;
@@ -876,13 +872,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                         "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
                         "relative overflow-hidden",
                         isActive
-                          ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
-                          : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
+                          ? "bg-ivory-greenBg text-ivory-green font-semibold pl-4 pr-3"
+                          : "text-ivory-text hover:bg-ivory-border/40 active:bg-ivory-border/60 pl-3 hover:pl-4 pr-3"
                       )}
                     >
                       {isActive && (
                         <span
-                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-ivory-green pointer-events-none"
                           style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
                           aria-hidden
                         />
@@ -903,7 +899,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 );
               })}
 
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-0.5">System</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">System</p>
               {systemMenuItems.map((item, index) => {
                 const isActive = location === item.href;
                 const stagger = operationMenuItems.length + managementMenuItems.length + index;
@@ -928,7 +924,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                       >
                         {isActive && (
                           <span
-                            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-ivory-green pointer-events-none"
                             style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
                             aria-hidden
                           />
@@ -962,13 +958,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                         "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
                         "relative overflow-hidden",
                         isActive
-                          ? "bg-primary/8 text-primary font-semibold pl-4 pr-3"
-                          : "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3"
+                          ? "bg-ivory-greenBg text-ivory-green font-semibold pl-4 pr-3"
+                          : "text-ivory-text hover:bg-ivory-border/40 active:bg-ivory-border/60 pl-3 hover:pl-4 pr-3"
                       )}
                     >
                       {isActive && (
                         <span
-                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary pointer-events-none"
+                          className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-ivory-green pointer-events-none"
                           style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
                           aria-hidden
                         />
@@ -998,7 +994,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 className={cn(
                   "w-full text-left min-h-[44px] relative overflow-hidden",
                   "opacity-0 [animation:navItemFade_160ms_ease-out_forwards] rounded-xl",
-                  "text-foreground hover:bg-muted/70 active:bg-muted pl-3 hover:pl-4 pr-3",
+                  "text-ivory-text hover:bg-ivory-border/40 active:bg-ivory-border/60 pl-3 hover:pl-4 pr-3",
                   "flex items-center gap-3 transition-all duration-150 py-2.5"
                 )}
                 style={{
@@ -1029,7 +1025,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/80 bg-background/98 backdrop-blur-md shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-ivory-border bg-ivory-surface/98 backdrop-blur-md shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]"
         style={{
           paddingBottom: "env(safe-area-inset-bottom)",
           willChange: "transform",
@@ -1042,7 +1038,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           {activeTabIndex >= 0 && (
             <div
               aria-hidden
-              className="vt-bottom-nav-tab-pill absolute top-1 h-[3px] w-6 rounded-full bg-primary pointer-events-none"
+              className="vt-bottom-nav-tab-pill absolute top-1 h-[3px] w-6 rounded-full bg-ivory-green pointer-events-none"
               style={{
                 left: `calc(${activeTabIndex} * 20% + 10% - 12px)`,
               }}
@@ -1050,20 +1046,20 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           )}
           <Link
             href="/home"
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
             data-testid="bottom-nav-home"
           >
             <Home
               className={cn(
                 "w-6 h-6 transition-all duration-200",
-                bottomNavActive.home ? "text-primary scale-110" : "text-muted-foreground scale-100"
+                bottomNavActive.home ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100"
               )}
               aria-hidden
             />
             <span
               className={cn(
                 "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
-                bottomNavActive.home ? "text-primary" : "text-muted-foreground"
+                bottomNavActive.home ? "text-ivory-green" : "text-ivory-text3"
               )}
             >
               {lh.bottomHome}
@@ -1072,20 +1068,20 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
           <Link
             href="/equipment"
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
             data-testid="bottom-nav-equipment"
           >
             <Package
               className={cn(
                 "w-6 h-6 transition-all duration-200",
-                bottomNavActive.equipment ? "text-primary scale-110" : "text-muted-foreground scale-100"
+                bottomNavActive.equipment ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100"
               )}
               aria-hidden
             />
             <span
               className={cn(
                 "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
-                bottomNavActive.equipment ? "text-primary" : "text-muted-foreground"
+                bottomNavActive.equipment ? "text-ivory-green" : "text-ivory-text3"
               )}
             >
               {lh.bottomEquipment}
@@ -1096,7 +1092,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
           <div className="flex flex-col items-center justify-end pb-1 relative">
             {!scannerUIOpen && !navigationLocked && (
               <span
-                className="absolute top-[-24px] w-[3.75rem] h-[3.75rem] rounded-2xl bg-primary/20 pointer-events-none"
+                className="absolute top-[-24px] w-[3.75rem] h-[3.75rem] rounded-2xl bg-ivory-green/20 pointer-events-none"
                 style={{ animation: "scanAmbient 2.8s ease-in-out infinite" }}
                 aria-hidden
               />
@@ -1115,7 +1111,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600"
                   : navigationLocked
                     ? "bg-amber-500 text-white shadow-lg shadow-amber-500/35 hover:bg-amber-600"
-                    : "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:bg-primary/90"
+                    : "bg-ivory-green text-white shadow-lg shadow-ivory-green/30 hover:bg-ivory-greenMid"
               )}
               aria-label={scannerUIOpen ? lh.closeScannerAria : lh.bottomScan}
               data-testid="bottom-nav-scan"
@@ -1140,7 +1136,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                   ? "text-emerald-600"
                   : navigationLocked
                     ? "text-amber-600"
-                    : "text-foreground"
+                    : "text-ivory-text2"
               )}
             >
               {scannerUIOpen ? lh.bottomScanClose : lh.bottomScan}
@@ -1149,20 +1145,20 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
           <Link
             href="/rooms"
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
+            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
             data-testid="bottom-nav-rooms"
           >
             <Map
               className={cn(
                 "w-6 h-6 transition-all duration-200",
-                bottomNavActive.rooms ? "text-primary scale-110" : "text-muted-foreground scale-100"
+                bottomNavActive.rooms ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100"
               )}
               aria-hidden
             />
             <span
               className={cn(
                 "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate px-0.5",
-                bottomNavActive.rooms ? "text-primary" : "text-muted-foreground"
+                bottomNavActive.rooms ? "text-ivory-green" : "text-ivory-text3"
               )}
             >
               {lh.bottomRooms}
@@ -1187,7 +1183,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
               <X
                 className={cn(
                   "w-6 h-6 transition-all duration-200",
-                  "text-primary scale-110"
+                  "text-ivory-green scale-110"
                 )}
                 aria-hidden
               />
@@ -1195,12 +1191,12 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
               <Menu
                 className={cn(
                   "w-6 h-6 transition-all duration-200",
-                  "text-muted-foreground scale-100"
+                  "text-ivory-text3 scale-100"
                 )}
                 aria-hidden
               />
             )}
-            <span className={cn("text-[10px] font-semibold", menuOpen ? "text-primary" : "text-muted-foreground")}>
+            <span className={cn("text-[10px] font-semibold", menuOpen ? "text-ivory-green" : "text-ivory-text3")}>
               {lh.bottomMenu}
             </span>
           </button>
