@@ -5,6 +5,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tansta
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -649,47 +650,49 @@ export default function EquipmentDetailPage() {
     window.open(`/equipment/${id}/qr`, "_blank");
   }
 
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+
   if (isLoading) {
     return <EquipmentDetailSkeleton />;
   }
 
   if (isError) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-          <AlertTriangle className="w-10 h-10 text-destructive opacity-60" />
-          <div>
-            <p className="font-semibold text-foreground">Failed to load equipment</p>
-            <p className="text-sm text-muted-foreground mt-1">Check your connection and try again</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => refetch()}
-              disabled={isRefetching}
-              className="gap-1.5"
-            >
-              <Loader2 className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
-              {isRefetching ? t.equipmentDetail.toast.trying : t.equipmentDetail.toast.tryAgain}
-            </Button>
-            <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
-          </div>
+    const errorContent = (
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <AlertTriangle className="w-10 h-10 text-destructive opacity-60" />
+        <div>
+          <p className="font-semibold text-foreground">Failed to load equipment</p>
+          <p className="text-sm text-muted-foreground mt-1">Check your connection and try again</p>
         </div>
-      </Layout>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => refetch()}
+            disabled={isRefetching}
+            className="gap-1.5"
+          >
+            <Loader2 className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
+            {isRefetching ? t.equipmentDetail.toast.trying : t.equipmentDetail.toast.tryAgain}
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/equipment")}>Back to List</Button>
+        </div>
+      </div>
     );
+    if (isDesktop) return <PageShell>{errorContent}</PageShell>;
+    return <Layout>{errorContent}</Layout>;
   }
 
   if (!equipment) {
-    return (
-      <Layout>
-        <div className="text-center py-20">
-          <p className="text-muted-foreground">Equipment not found</p>
-          <Button variant="ghost" onClick={() => navigate("/equipment")} className="mt-2">
-            Back to list
-          </Button>
-        </div>
-      </Layout>
+    const notFoundContent = (
+      <div className="text-center py-20">
+        <p className="text-muted-foreground">Equipment not found</p>
+        <Button variant="ghost" onClick={() => navigate("/equipment")} className="mt-2">
+          Back to list
+        </Button>
+      </div>
     );
+    if (isDesktop) return <PageShell>{notFoundContent}</PageShell>;
+    return <Layout>{notFoundContent}</Layout>;
   }
 
   const statusConf = STATUS_CONFIG[equipment.status as keyof typeof STATUS_CONFIG];
@@ -699,8 +702,8 @@ export default function EquipmentDetailPage() {
   const isCheckedOut = !!equipment.checkedOutById;
   const checkedOutByMe = equipment.checkedOutById === userId;
 
-  return (
-    <Layout>
+  const pageContent = (
+    <>
       <Helmet>
         <title>{equipment.name} — VetTrack</title>
         <meta name="description" content={`Equipment detail for ${equipment.name}. Status: ${equipment.status}${equipment.location ? `. Location: ${equipment.location}` : ""}. Update status, check out, report issues, and view full history.`} />
@@ -1558,6 +1561,8 @@ export default function EquipmentDetailPage() {
           }}
         />
       )}
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }

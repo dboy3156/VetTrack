@@ -23,6 +23,7 @@ import {
 import { t, getDirection } from "@/lib/i18n";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -314,8 +315,9 @@ export default function PatientDetailPage() {
           ? { label: p.statusOpenBilling, className: "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200" }
           : { label: p.statusStable, className: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" };
 
-  return (
-    <Layout>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>{`${derived.patientName} — ${p.pageTitle} — VetTrack`}</title>
         <meta name="description" content="Patient operating center — equipment, billing, tasks, and activity in one place." />
@@ -786,6 +788,8 @@ export default function PatientDetailPage() {
           </section>
         </div>
       </div>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }

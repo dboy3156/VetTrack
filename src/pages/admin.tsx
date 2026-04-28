@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { leaderPoll } from "@/lib/leader";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,9 +104,11 @@ export default function AdminPage() {
     retry: false,
   });
 
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+
   if (!isAdmin) {
-    return (
-      <Layout>
+    const earlyContent = (
+      <>
         <Helmet>
           <title>Admin — VetTrack</title>
           <meta
@@ -123,15 +126,17 @@ export default function AdminPage() {
             Go Home
           </Button>
         </div>
-      </Layout>
+      </>
     );
+    if (isDesktop) return <PageShell>{earlyContent}</PageShell>;
+    return <Layout>{earlyContent}</Layout>;
   }
 
   const unresolvedCount = supportUnresolved?.count ?? 0;
   const pendingCount = pendingUsers?.length ?? 0;
 
-  return (
-    <Layout>
+  const pageContent = (
+    <>
       <Helmet>
         <title>Admin — VetTrack</title>
         <meta
@@ -317,8 +322,10 @@ export default function AdminPage() {
         {activeTab === "formulary" && <FormularySection />}
         {activeTab === "settings" && <ClinicSettingsSection />}
       </div>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }
 
 function FoldersSection() {

@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -397,8 +398,9 @@ export default function RoomRadarPage() {
     handleVerifyAll();
   };
 
-  return (
-    <Layout>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>{room ? `${room.name} — Asset Radar` : "Asset Radar"} — VetTrack</title>
       </Helmet>
@@ -722,6 +724,8 @@ export default function RoomRadarPage() {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }

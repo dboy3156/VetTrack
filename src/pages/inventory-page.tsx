@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { ErrorCard } from "@/components/ui/error-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -510,8 +511,9 @@ export default function InventoryPage() {
 
   // ── render ────────────────────────────────────────────────────────────────
 
-  return (
-    <Layout title={p.title}>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>{p.title} — VetTrack</title>
       </Helmet>
@@ -919,6 +921,8 @@ export default function InventoryPage() {
         />
       )}
 
-    </Layout>
+    </>
   );
-}  
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout title={p.title}>{pageContent}</Layout>;
+}

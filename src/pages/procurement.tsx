@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { ErrorCard } from "@/components/ui/error-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -171,8 +172,9 @@ export default function ProcurementPage() {
 
   const orders = ordersQ.data ?? [];
 
-  return (
-    <Layout>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet><title>{p.title} — VetTrack</title></Helmet>
 
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -507,6 +509,8 @@ export default function ProcurementPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }

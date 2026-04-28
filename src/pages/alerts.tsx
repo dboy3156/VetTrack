@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -149,8 +150,9 @@ export default function AlertsPage() {
 
   const priorityOrder: AlertType[] = ["issue", "overdue", "sterilization_due", "inactive"];
 
-  return (
-    <Layout>
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>{t.alertsPage.title} — VetTrack</title>
         <meta name="description" content={t.alertsPage.metaDescription} />
@@ -336,6 +338,8 @@ export default function AlertsPage() {
             })
         )}
       </div>
-    </Layout>
+    </>
   );
+  if (isDesktop) return <PageShell>{pageContent}</PageShell>;
+  return <Layout>{pageContent}</Layout>;
 }
