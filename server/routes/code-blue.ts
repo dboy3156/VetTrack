@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
   db,
+  pool,
+  billingLedger,
   codeBlueEvents,
   codeBlueSessions,
   codeBlueLogEntries,
@@ -569,6 +571,203 @@ router.get("/history", requireAuth, requireAdmin, async (req, res) => {
     console.error("[code-blue] history list failed", err);
     res.status(500).json(
       apiError({ code: "INTERNAL_ERROR", reason: "HISTORY_FAILED", message: "Failed to list history", requestId }),
+    );
+  }
+});
+
+// ─── Reconciliation endpoints ─────────────────────────────────────────────────
+
+/**
+ * GET /api/code-blue/reconciliation
+ * Lists ended Code Blue sessions with dispense + billing summary. Admin only.
+ */
+router.get("/reconciliation", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const rows = await pool.query(
+      `SELECT
+         s.id,
+         s.started_at        AS "startedAt",
+         s.ended_at          AS "endedAt",
+         s.outcome,
+         s.patient_id        AS "patientId",
+         s.is_reconciled     AS "isReconciled",
+         s.reconciled_at     AS "reconciledAt",
+         a.name              AS "patientName",
+         COUNT(il.id)::int   AS "dispenseCount",
+         COUNT(bl.id) FILTER (WHERE bl.id IS NOT NULL)::int AS "billedCount",
+         COALESCE(SUM(bl.total_amount_cents) FILTER (WHERE bl.status != 'voided'), 0)::int AS "totalBilledCents"
+       FROM vt_code_blue_sessions s
+       LEFT JOIN vt_animals a ON a.id = s.patient_id
+       LEFT JOIN vt_inventory_logs il
+         ON il.clinic_id = s.clinic_id
+         AND il.quantity_added < 0
+         AND il.created_at >= s.started_at
+         AND il.created_at <= COALESCE(s.ended_at, NOW())
+       LEFT JOIN vt_billing_ledger bl
+         ON bl.idempotency_key = 'adjustment_' || il.id
+       WHERE s.clinic_id = $1
+         AND s.status = 'ended'
+       GROUP BY s.id, s.started_at, s.ended_at, s.outcome, s.patient_id,
+                s.is_reconciled, s.reconciled_at, a.name
+       ORDER BY s.started_at DESC
+       LIMIT 100`,
+      [clinicId],
+    );
+    res.json(rows.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "RECONCILIATION_LIST_FAILED", message: "Failed to load reconciliation list", requestId }),
+    );
+  }
+});
+
+/**
+ * GET /api/code-blue/sessions/:id/dispenses
+ * Returns inventory dispenses during a Code Blue session with billing status. Admin only.
+ */
+router.get("/sessions/:id/dispenses", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const sessionId = req.params.id;
+    const [session] = await db
+      .select({ startedAt: codeBlueSessions.startedAt, endedAt: codeBlueSessions.endedAt })
+      .from(codeBlueSessions)
+      .where(and(eq(codeBlueSessions.id, sessionId), eq(codeBlueSessions.clinicId, clinicId)))
+      .limit(1);
+    if (!session) {
+      return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "SESSION_NOT_FOUND", message: "Session not found", requestId }));
+    }
+    const rows = await pool.query(
+      `SELECT
+         il.id,
+         il.quantity_added       AS "quantityAdded",
+         il.created_at           AS "createdAt",
+         il.animal_id            AS "animalId",
+         c.name                  AS "containerName",
+         bl.id                   AS "billingId",
+         bl.total_amount_cents   AS "totalAmountCents",
+         bl.status               AS "billingStatus"
+       FROM vt_inventory_logs il
+       JOIN vt_containers c ON c.id = il.container_id
+       LEFT JOIN vt_billing_ledger bl
+         ON bl.idempotency_key = 'adjustment_' || il.id
+         AND bl.status != 'voided'
+       WHERE il.clinic_id = $1
+         AND il.quantity_added < 0
+         AND il.created_at >= $2
+         AND il.created_at <= $3
+       ORDER BY il.created_at`,
+      [clinicId, session.startedAt.toISOString(), (session.endedAt ?? new Date()).toISOString()],
+    );
+    res.json(rows.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "SESSION_DISPENSES_FAILED", message: "Failed to load session dispenses", requestId }),
+    );
+  }
+});
+
+/**
+ * PATCH /api/code-blue/sessions/:id/reconcile
+ * Marks a session as reconciled. Idempotent. Admin only.
+ */
+router.patch("/sessions/:id/reconcile", requireAuth, requireAdmin, async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const sessionId = req.params.id;
+    const [updated] = await db
+      .update(codeBlueSessions)
+      .set({
+        isReconciled: true,
+        reconciledAt: new Date(),
+        reconciledByUserId: req.authUser!.id,
+      })
+      .where(and(eq(codeBlueSessions.id, sessionId), eq(codeBlueSessions.clinicId, clinicId)))
+      .returning({ id: codeBlueSessions.id, isReconciled: codeBlueSessions.isReconciled, reconciledAt: codeBlueSessions.reconciledAt });
+    if (!updated) {
+      return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "SESSION_NOT_FOUND", message: "Session not found", requestId }));
+    }
+    logAudit({
+      clinicId,
+      actionType: "code_blue_session_reconciled",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: sessionId,
+      targetType: "code_blue_session",
+      actorRole: resolveAuditActorRole(req),
+    });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "RECONCILE_FAILED", message: "Failed to reconcile session", requestId }),
+    );
+  }
+});
+
+/**
+ * POST /api/code-blue/sessions/:id/manual-billing
+ * Creates a manual billing entry for an unbilled dispense. Admin only.
+ */
+const manualBillingSchema = z.object({
+  inventoryLogId: z.string().min(1),
+  itemId: z.string().min(1),
+  quantity: z.number().int().min(1),
+  unitPriceCents: z.number().int().min(0),
+  animalId: z.string().nullable().optional(),
+});
+
+router.post("/sessions/:id/manual-billing", requireAuth, requireAdmin, validateBody(manualBillingSchema), async (req, res) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  try {
+    const clinicId = req.clinicId!;
+    const sessionId = req.params.id;
+    const b = req.body as z.infer<typeof manualBillingSchema>;
+    const [session] = await db
+      .select({ clinicId: codeBlueSessions.clinicId })
+      .from(codeBlueSessions)
+      .where(and(eq(codeBlueSessions.id, sessionId), eq(codeBlueSessions.clinicId, clinicId)))
+      .limit(1);
+    if (!session) {
+      return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "SESSION_NOT_FOUND", message: "Session not found", requestId }));
+    }
+    const { randomUUID } = await import("crypto");
+    const id = randomUUID();
+    const idempotencyKey = `adjustment_${b.inventoryLogId}`;
+    await db.insert(billingLedger).values({
+      id,
+      clinicId,
+      animalId: b.animalId ?? null,
+      itemType: "CONSUMABLE",
+      itemId: b.itemId,
+      quantity: b.quantity,
+      unitPriceCents: b.unitPriceCents,
+      totalAmountCents: b.unitPriceCents * b.quantity,
+      idempotencyKey,
+      status: "pending",
+    }).onConflictDoNothing();
+    const [row] = await db.select().from(billingLedger).where(eq(billingLedger.idempotencyKey, idempotencyKey)).limit(1);
+    logAudit({
+      clinicId,
+      actionType: "billing_charge_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: row?.id ?? id,
+      targetType: "billing_ledger",
+      actorRole: resolveAuditActorRole(req),
+      metadata: { source: "code_blue_manual", sessionId, inventoryLogId: b.inventoryLogId },
+    });
+    res.status(201).json(row ?? { id, idempotencyKey, status: "pending" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(
+      apiError({ code: "INTERNAL_ERROR", reason: "MANUAL_BILLING_FAILED", message: "Failed to create manual billing entry", requestId }),
     );
   }
 });
