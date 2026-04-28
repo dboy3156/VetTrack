@@ -1,4 +1,4 @@
-import { Route, Switch, Redirect } from "wouter";
+import { Route, Switch } from "wouter";
 import { lazy } from "react";
 import { Loader2 } from "lucide-react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
@@ -53,17 +53,16 @@ const ShiftChatArchive = lazy(() =>
   import("@/features/shift-chat/components/ShiftChatArchive").then((m) => ({ default: m.ShiftChatArchive }))
 );
 
-// Guards the root path: renders nothing while auth resolves (prevents flicker),
-// redirects authenticated users to /home, shows LandingPage otherwise.
+// Root path is always public landing: keep auth-loading spinner to prevent
+// transient CTA state while auth is still resolving.
 function RootRoute() {
-  const { isLoaded, isSignedIn, isOfflineSession } = useAuth();
+  const { isLoaded, isOfflineSession } = useAuth();
   const authKnown = isLoaded || isOfflineSession;
   if (!authKnown) return (
     <div className="flex h-screen items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
     </div>
   );
-  if (isSignedIn) return <Redirect to="/home" replace />;
   return <LandingPage />;
 }
 
