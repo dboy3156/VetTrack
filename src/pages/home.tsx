@@ -5,6 +5,7 @@ import { Link, useSearch } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -213,12 +214,9 @@ export default function HomePage() {
     },
   ];
 
-  return (
-    <Layout
-      onScan={() => setScannerOpen(true)}
-      scannerOpen={scannerOpen}
-      onCloseScan={() => setScannerOpen(false)}
-    >
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>Dashboard — VetTrack</title>
         <meta name="description" content="Real-time veterinary equipment dashboard. View status at a glance, scan QR codes, triage active alerts, and track checked-out equipment across your clinic." />
@@ -549,6 +547,18 @@ export default function HomePage() {
         open={shiftSummaryOpen}
         onClose={() => setShiftSummaryOpen(false)}
       />
+    </>
+  );
+  if (isDesktop) {
+    return <PageShell>{pageContent}</PageShell>;
+  }
+  return (
+    <Layout
+      onScan={() => setScannerOpen(true)}
+      scannerOpen={scannerOpen}
+      onCloseScan={() => setScannerOpen(false)}
+    >
+      {pageContent}
     </Layout>
   );
 }

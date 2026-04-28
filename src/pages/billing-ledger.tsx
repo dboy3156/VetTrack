@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Helmet } from "react-helmet-async";
 import { api } from "@/lib/api";
 import { Layout } from "@/components/layout";
+import { PageShell } from "@/components/layout/PageShell";
+import type { SidebarItem } from "@/components/layout/IconSidebar";
 import { ErrorCard } from "@/components/ui/error-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +40,7 @@ import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import type { BillingLedgerEntry } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
-import { Receipt, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, ShieldAlert, TrendingDown, PackageX } from "lucide-react";
+import { Receipt, ReceiptText, Plus, Ban, Search, Sparkles, AlertTriangle, CalendarDays, Clock3, X, TrendingUp, Clock, CheckCircle2, XCircle, ShieldAlert, TrendingDown, PackageX, Boxes } from "lucide-react";
 import { Link } from "wouter";
 import {
   BarChart,
@@ -248,8 +250,15 @@ export default function BillingLedgerPage() {
     { key: "all", label: p.rangeAll },
   ];
 
-  return (
-    <Layout>
+  const BILLING_SIDEBAR: SidebarItem[] = [
+    { href: "/billing",                icon: ReceiptText,  label: "Billing Ledger" },
+    { href: "/billing/leakage",        icon: TrendingDown, label: "Leakage Report" },
+    { href: "/billing/inventory-jobs", icon: Boxes,        label: "Inventory Jobs" },
+  ];
+
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
+  const pageContent = (
+    <>
       <Helmet>
         <title>{p.title} — VetTrack</title>
       </Helmet>
@@ -665,6 +674,10 @@ export default function BillingLedgerPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Layout>
+    </>
   );
+  if (isDesktop) {
+    return <PageShell sidebarItems={BILLING_SIDEBAR}>{pageContent}</PageShell>;
+  }
+  return <Layout>{pageContent}</Layout>;
 }
