@@ -43,6 +43,9 @@ superpowers-main.zip
 playwright-ui-screenshots/
 playwright-report/
 
+# Generated CSS preview captures (see docs/previews/README.md)
+docs/previews/*.png
+
 # Python build artifacts (desktop/cleaner)
 __pycache__/
 *.pyc
