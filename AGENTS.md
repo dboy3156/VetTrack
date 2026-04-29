@@ -29,17 +29,16 @@ VetTrack is a single full-stack app: React 18 + Vite frontend (port 5000) and Ex
    ```
 
 ### Environment Variables
-The app has **no dotenv** dependency. Vite reads `.env` for `VITE_*` vars automatically, but the backend (`tsx watch server/index.ts`) needs env vars passed via the shell or exported.
+The app loads env vars from `.env.local` and `.env` at startup via `server/lib/env-bootstrap.ts` (dotenv). Vite also reads `.env` automatically for `VITE_*` vars. Copy `.env.example` to `.env` and fill in the required values.
 
 A minimal `.env` for dev:
 ```
 DATABASE_URL=postgres://vettrack:vettrack@localhost:5432/vettrack
 SESSION_SECRET=dev-session-secret-for-local-development
 NODE_ENV=development
-PORT=3001
 ```
 
-**Critical:** The backend `PORT` env var must be set to `3001` to match the Vite proxy config (`vite.config.ts` proxies `/api` to `http://localhost:3001`). Without it, Express defaults to port 3000 and the proxy breaks.
+The `dev` script sets `PORT=3001` automatically via `cross-env`; you do not need to set it in `.env`.
 
 ### Running the Dev Server
 ```bash
@@ -71,7 +70,7 @@ Only 4 route modules are mounted in `server/index.ts`: equipment, analytics, act
 | E2E tests | `pnpm test:signup` (requires Playwright + Chromium) |
 
 ### Gotchas
-- The `predev` script runs `fuser -k 3001/tcp 5000/tcp` to kill stale processes. This is fine and expected.
+- The `predev` script runs `kill-port 3001 5000` to clear stale processes silently before starting.
 - No ESLint config exists in this repo.
-- Migrations are not auto-run on server start — run them manually after DB setup.
+- Migrations **are** auto-run on server start (`runMigrations()` is called in `server/index.ts`). You can also run them manually with `pnpm db:migrate`.
 - The `server/migrate.ts` file only exports `runMigrations()` — it has no self-executing code.
