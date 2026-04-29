@@ -132,6 +132,21 @@ app.use(
           return;
         }
 
+        // In development allow any localhost / 127.0.0.1 origin so that direct
+        // API calls from browser devtools and API testing tools work without
+        // needing ALLOWED_ORIGIN set to a specific localhost port.
+        if (!isProduction) {
+          try {
+            const parsed = new URL(requestOrigin);
+            if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+              callback(null, requestOrigin);
+              return;
+            }
+          } catch {
+            // fall through to ALLOWED_ORIGIN check
+          }
+        }
+
         const allowedOrigin = normalizeOrigin(process.env.ALLOWED_ORIGIN);
         if (!allowedOrigin) {
           callback(null, false);
@@ -263,9 +278,9 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 });
 
 function resolvePort(value: string | undefined): number {
-  if (!value || value.trim() === "") return 3000;
+  if (!value || value.trim() === "") return 3001;
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return 3000;
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) return 3001;
   return parsed;
 }
 
