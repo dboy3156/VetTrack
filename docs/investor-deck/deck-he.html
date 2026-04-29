@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VetTrack — מצגת משקיעים</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reveal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/theme/black.css" />
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
+
+    .reveal {
+      font-family: "IBM Plex Sans Hebrew", "IBM Plex Sans", system-ui, sans-serif;
+      background: radial-gradient(ellipse 120% 80% at 50% -20%, #1e3a5f 0%, #0f172a 45%, #020617 100%);
+    }
+    .reveal .slides section {
+      color: #e2e8f0;
+      text-align: right;
+      direction: rtl;
+    }
+    .reveal h1, .reveal h2, .reveal h3 {
+      font-weight: 700;
+      color: #f8fafc;
+      text-transform: none;
+      letter-spacing: -0.02em;
+    }
+    .reveal h1 { font-size: 2.15em; line-height: 1.15; }
+    .reveal h2 { font-size: 1.5em; margin-bottom: 0.55em; }
+    .reveal .deck-kicker {
+      font-size: 0.38em;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 1.1em;
+    }
+    .reveal .deck-sub {
+      font-size: 0.55em;
+      color: #94a3b8;
+      max-width: 38em;
+      line-height: 1.55;
+      margin-right: auto;
+      margin-left: auto;
+    }
+    .reveal .deck-tagline {
+      font-size: 0.8em;
+      color: #cbd5e1;
+      margin-top: 0.5em;
+      max-width: 34em;
+      line-height: 1.55;
+      margin-right: auto;
+      margin-left: auto;
+    }
+    .reveal ul {
+      font-size: 0.7em;
+      line-height: 1.5;
+      color: #cbd5e1;
+      text-align: right;
+    }
+    .reveal ul li { margin-bottom: 0.32em; }
+    .reveal .deck-highlight { color: #7dd3fc; font-weight: 600; }
+    .reveal .deck-slide-img {
+      max-height: 46vh;
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      margin: 0.55em auto 0;
+      display: block;
+    }
+    .reveal .deck-slide-img--tall { max-height: 42vh; }
+    .reveal .deck-pill {
+      display: inline-block;
+      font-size: 0.48em;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #bae6fd;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 0.35em 0.75em;
+      border-radius: 999px;
+      margin-top: 0.75em;
+    }
+    .reveal .pillar-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5em;
+      font-size: 0.48em;
+      margin-top: 0.45em;
+    }
+    @media (max-width: 900px) {
+      .reveal .pillar-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .reveal .pillar-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      border-radius: 10px;
+      padding: 0.55em 0.65em;
+      line-height: 1.35;
+      text-align: right;
+    }
+    .reveal .pillar-card strong {
+      display: block;
+      color: #f1f5f9;
+      font-size: 1.05em;
+      margin-bottom: 0.2em;
+    }
+    .reveal .pillar-card .diff {
+      display: block;
+      color: #a5b4fc;
+      font-size: 0.88em;
+      margin-top: 0.35em;
+      font-style: italic;
+    }
+    .reveal .pillar-card span { color: #94a3b8; font-size: 0.92em; }
+    .reveal .deck-foot {
+      position: fixed;
+      bottom: 14px;
+      right: 28px;
+      left: auto;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #475569;
+      z-index: 10;
+    }
+    .reveal .deck-muted {
+      font-size: 0.76em;
+      color: #94a3b8;
+      margin-top: 0.65em;
+      line-height: 1.45;
+    }
+    .reveal .slides .center-title { text-align: center; }
+    .reveal .slides .center-title h1,
+    .reveal .slides .center-title .deck-tagline,
+    .reveal .slides .center-title .deck-sub {
+      margin-right: auto;
+      margin-left: auto;
+      text-align: center;
+    }
+    .reveal .deck-legal {
+      font-size: 0.56em;
+      color: #64748b;
+      margin-top: 0.75em;
+      font-style: italic;
+    }
+    .reveal code { direction: ltr; unicode-bidi: embed; display: inline-block; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section class="center-title">
+        <p class="deck-kicker">Enterprise SaaS · רב־בית־חולי</p>
+        <h1>שכבת ההפעלה לבתי חולות וטרינריים</h1>
+        <p class="deck-tagline">
+          נראות ברמת מחלקה, ניהול חירום, תרופות, שלמות מלאי וחיוב, ונכסים ניתנים למעקב —
+          <span class="deck-highlight">offline-first</span>, מוכן לאינטגרציה, ליישוב
+          <strong>לצד או מעל</strong> מערכות הניהול הקיימות במרפאה.
+        </p>
+        <p class="deck-pill">ווטרינריה היום · תפעול ברמת בית חולה</p>
+        <img
+          class="deck-slide-img"
+          src="assets/landing.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">למה עכשיו</p>
+        <h2>מחיר השברירות של מערכות מפוצלות</h2>
+        <ul>
+          <li>
+            <span class="deck-highlight">סיכון למטופל ולצוות</span> — מידע ופעולות קריטיות מפוזרות; בחירום כל העברה
+            אוכלת זמן.
+          </li>
+          <li>
+            <span class="deck-highlight">דליפות תפעוליות</span> — חיוב, מלאי וניצול מתפצלים; אין תמונה אחת אמיתית
+            להנהלה.
+          </li>
+          <li>
+            <span class="deck-highlight">חוב ארכיטקטוני</span> — לעיתים חסר אמין <em>אופליין</em> במחלקה,
+            <em>בידוד רב־סניפי</em> ו־<em>שכבת תפעול בזמן אמת</em> בלי התאמות כבדות.
+          </li>
+        </ul>
+        <p class="deck-muted">
+          <strong>במילים פשוטות:</strong> היום לעיתים רצף כלים שבכל אחד רק <em>חלק</em> מהאמת. המטרה היא
+          <strong>מערכת תפעולית אחת מהימנה</strong> — מקום אחד שבו מה שקרה בטיפול, בכספים ובביקורת
+          <strong>מתיישב וניתן להגנה</strong> אחר כך.
+        </p>
+      </section>
+
+      <section>
+        <p class="deck-kicker">בידול</p>
+        <h2>לא «עוד PIMS» — שכבת תיאום עם עומק</h2>
+        <ul>
+          <li>
+            <span class="deck-highlight">מול תוכנת ניהול מונוליטית:</span> PIMS מצוינים כ־<em>מקור רשומה</em> לתיעוד
+            וחיוב, אך בפועל נוספים גיליונות, וואטסאפ ולוחות ל־
+            <strong>קצב רצפה, מיקום ציוד, משמעת Code Blue ועצירת דליפות</strong>.
+          </li>
+          <li>
+            <span class="deck-highlight">מול אפליקציות נקודתיות:</span> כלי «ציוד בלבד» או «צ'אט בלבד» לא מאחדים
+            <strong>פעולה קלינית + מלאי + חיוב + ביקורת</strong> בערימה אחת ובטננט אחד.
+          </li>
+          <li>
+            <span class="deck-highlight">תזת VetTrack:</span> בסיס <strong>אינטגרציה ומתאמים חזק</strong>
+            (תיקיית <code>server/integrations/</code>) מאפשר לפעול כ־
+            <strong>שכבת ערך מעל מה שכבר נרכש</strong> — סנכרון היכן שצריך, ובעלות על זרימות שלא נבנו ב־PIMS.
+          </li>
+        </ul>
+        <p class="deck-muted">
+          <strong>הקשר שוק (דוגמאות, לא ממצה):</strong> IDEXX (Cornerstone, Neo, ezyVet), Covetrus (Pulse, AVImark),
+          Provet Cloud, Shepherd, Digitail, Vetspire, NaVetor, DaySmart Vet; לתנועות חירום/התמחות — לדוגמה Instinct.
+          VetTrack מתחרה על <em>תיאום בית־חולי</em>, לא בהכרח על החלפת מסמך הריפוד ביום הראשון.
+        </p>
+        <p class="deck-legal">רקע מורחב: <code>docs/investor-deck/COMPETITIVE_LANDSCAPE.md</code></p>
+      </section>
+
+      <section>
+        <p class="deck-kicker">תזה</p>
+        <h2>VetTrack OS — מכאוס תגובתי לטיפול מתואם</h2>
+        <ul>
+          <li><span class="deck-highlight">שכבה אחת</span> בשימוש ליד המיטה ומול המשרד — לא ארכיון פסיבי.</li>
+          <li>
+            <span class="deck-highlight">פחות החלפת הקשר</span> בין מטופל, תרופה, מכשיר וחיוב — יותר זמן להחלטה קלינית.
+          </li>
+          <li>
+            <span class="deck-highlight">מחושב לקבוצות</span> — נתונים ממוקדי־קליניקה, מודולים עתירי־ביקורת, תורים,
+            וקונפיגורציה מוכנה לאינטגרציה.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <p class="deck-kicker">עמודי תווך</p>
+        <h2>תפעול בית חולה — מחובר וניתן להגנה</h2>
+        <div class="pillar-grid">
+          <div class="pillar-card">
+            <strong>פיקוד במחלקה</strong>
+            <span>משטחי ward / תצוגה — מה הרצפה צריכה עכשיו.</span>
+            <em class="diff">בניגוד ל־PIMS בלבד: קצב למסך מחלקה בלי לשכתב את התיק.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>Code Blue וחירום</strong>
+            <span>זרימות, תצוגות, היסטוריה, הפקה מול חיוב.</span>
+            <em class="diff">בניגוד לרדיו אד־הוק: אירוע מובנה + יישור כספי.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>תרופות ומרקחת</strong>
+            <span>מרכז, חיזוי, ביצוע לפי תפקידים מהמסד.</span>
+            <em class="diff">בניגוד לנייר: נתיבים שמוחקים כפילויות + קשר למלאי.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>מלאי ויושר חיוב</strong>
+            <span>ספר חיוב, דליפות, משימות מלאי.</span>
+            <em class="diff">בניגוד לייצוא דוחות: סימטריה תפעולית־כספית במוצר.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>נכסים ניתנים למעקב</strong>
+            <span>QR / NFC, חדרים ורדאר, הזמנה והחזרה.</span>
+            <em class="diff">בניגוד לרישום סטטי: מוכח ברצפה ואופליין.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>כוח אדם ותובנות</strong>
+            <span>משמרות, מסירה, אנליטיקה — לא גיליונות.</span>
+            <em class="diff">בניגוד לכלי HR מבודד: קשור לאירועים קליניים אמיתיים.</em>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <p class="deck-kicker">משטח דגל</p>
+        <h2>Ward View — משטח הפיקוד החי</h2>
+        <ul>
+          <li>
+            <span class="deck-highlight">נבנה למסך מחלקה ולאחראית משמרת</span> — סדר עדיפויות, הקשר תפוסה/ציוד,
+            ו«מה השתנה» בלי לחפש בתור PIMS קלאסי.
+          </li>
+          <li>
+            <span class="deck-highlight">אותו מנוע אבטחה ואופליין</span> כמו שאר VetTrack — לא ייצוא דשבורד ישן.
+          </li>
+          <li>
+            <span class="deck-highlight">ערך אסטרטגי:</span> רוכשים PIMS לתיעוד; <em>מריצים את היום</em> על נראות —
+            Ward View הוא נקודת הדבקות היומית.
+          </li>
+        </ul>
+        <img
+          class="deck-slide-img deck-slide-img--tall"
+          src="assets/ward.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">ממשל</p>
+        <h2>יומן ביקורת — הוכחה תפעולית</h2>
+        <ul>
+          <li>
+            <span class="deck-highlight">יומן ביקורת בלתי־ניתן לשינוי</span> לפעולות רגישות אבטחה וכספים — מחזור חיים של
+            ציוד, תרופות ומשימות, אירועי Code Blue, חיוב ומלאי, אינטגרציות וניהול (סוגי פעולות בשרת).
+          </li>
+          <li>
+            <span class="deck-highlight">ניתן לחיפוש ולשיוך</span> — מי עשה מה, מתי, באיזו קליניקה — קריטי לסכסוכים,
+            QA ורגולציה.
+          </li>
+          <li>
+            <span class="deck-highlight">ובנוסף היסטוריה תפעולית</span> — לדוגמה סריקות ואימות חדרים — כך שהרצפה לא
+            נשענת על «אמרו בעל פה».
+          </li>
+        </ul>
+        <p class="deck-muted">
+          <strong>זווית משקיע:</strong> תפעול ניתן להגנה הוא חפיץ באנטרפרייז בריאות — מבלי ביקורת עמוקה מאבדים עסקאות.
+        </p>
+        <img
+          class="deck-slide-img deck-slide-img--tall"
+          src="assets/audit.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">עומק מוצר</p>
+        <h2>חירום ו־Code Blue</h2>
+        <ul>
+          <li>
+            <span class="deck-highlight">Code Blue תפעולי</span> — מסכים, תצוגות קיר, היסטוריה והפקה מול אירוע חירום.
+          </li>
+          <li>גשר בין <span class="deck-highlight">קצב קליני</span> לבין <span class="deck-highlight">משמעת פיננסית</span>.</li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/code-blue.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">עומק מוצר</p>
+        <h2>תרופות ותפעול מרקחת</h2>
+        <ul>
+          <li><span class="deck-highlight">מרכז תרופות</span> ומשטחי חיזוי מרקחת.</li>
+          <li>ביצוע מקושר ל־<span class="deck-highlight">תפקידים מהמסד</span>.</li>
+          <li>ניכוי מלאי וחיוב כזרימות ראשוניות.</li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/meds.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">עומק מוצר</p>
+        <h2>הכנסות ומלאי — מקור אמת אחד</h2>
+        <ul>
+          <li><span class="deck-highlight">ספר חיוב</span> + נראות <span class="deck-highlight">דליפות</span> + עיבוד משימות מלאי.</li>
+          <li><span class="deck-highlight">Workers אסינכרוניים</span> לשינויים רגישים בלי לחסום קלינאים בשמירה.</li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/billing.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">עומק מוצר</p>
+        <h2>נכסים והרצפה הקלינית</h2>
+        <ul>
+          <li><span class="deck-highlight">מחזור חיים</span> — רישום, QR, NFC, הזמנה והחזרה.</li>
+          <li><span class="deck-highlight">Asset Radar</span> — אימות חדרים, פעולות מרובות, stale / ביקורת.</li>
+          <li><span class="deck-highlight">PWA ותור אופליין</span>.</li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/equipment.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <section>
+        <p class="deck-kicker">אמינות הנדסית</p>
+        <h2>נבנה כמו תוכנה שמשקיעים סומכים עליה</h2>
+        <ul>
+          <li><span class="deck-highlight">רב־דיירות מעוצבת</span> — שאילתות ממוקדי־קליניקה ככל מכוון.</li>
+          <li>
+            <span class="deck-highlight">ליבה מודרנית</span> — React 18 ו־PWA, Express ו־TypeScript, PostgreSQL ו־Drizzle,
+            BullMQ ו־Redis, Clerk בפרודקשן.
+          </li>
+          <li>
+            <span class="deck-highlight">בגרות תפעולית</span> — יומני ביקורת, Web Push, תצפית, הקשחה; אישורי אינטגרציה
+            מוצפנים כשמוגדר.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <p class="deck-kicker">מסחרי</p>
+        <h2>איפה אנחנו — ואיך מגדילים</h2>
+        <ul>
+          <li><em>אתרים פעילים / פיילוטים / כוונות — הוסיפו לוגואים.</em></li>
+          <li><em>ARR או הכנסות — רק אם מאומת.</em></li>
+          <li><em>שיווק:</em> מרפאה, מודולים, ארגון, כניסה דרך אינטגרציה והרחבה.</li>
+        </ul>
+      </section>
+
+      <section class="center-title">
+        <p class="deck-kicker">סיבוב השקעה</p>
+        <h2>הבקשה</h2>
+        <p class="deck-sub" style="margin-top: 1em">
+          <em>גודל סיבוב · מבנה · שותף מוביל</em><br /><br />
+          <em>שימוש בכספים — עומק מוצר, שיווק, אמינות, מוכנות רגולציה</em><br /><br />
+          <em>יצירת קשר — vettrack.uk</em>
+        </p>
+      </section>
+    </div>
+  </div>
+  <div class="deck-foot">VetTrack · סודי</div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reveal.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: "c/t",
+      transition: "fade",
+      width: 1280,
+      height: 720,
+    });
+  </script>
+</body>
+</html>

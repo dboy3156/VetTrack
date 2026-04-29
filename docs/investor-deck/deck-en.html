@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VetTrack — Investor deck</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reveal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/theme/black.css" />
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap");
+
+    .reveal {
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background: radial-gradient(ellipse 120% 80% at 50% -20%, #1e3a5f 0%, #0f172a 45%, #020617 100%);
+    }
+    .reveal .slides section {
+      color: #e2e8f0;
+      text-align: left;
+    }
+    .reveal h1,
+    .reveal h2,
+    .reveal h3 {
+      font-weight: 700;
+      color: #f8fafc;
+      text-transform: none;
+      letter-spacing: -0.02em;
+    }
+    .reveal h1 { font-size: 2.35em; line-height: 1.1; }
+    .reveal h2 { font-size: 1.55em; margin-bottom: 0.55em; }
+    .reveal .deck-kicker {
+      font-size: 0.38em;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 1.1em;
+    }
+    .reveal .deck-sub {
+      font-size: 0.55em;
+      font-weight: 400;
+      color: #94a3b8;
+      max-width: 38em;
+      line-height: 1.45;
+    }
+    .reveal .deck-tagline {
+      font-size: 0.85em;
+      color: #cbd5e1;
+      margin-top: 0.5em;
+      max-width: 34em;
+      line-height: 1.5;
+    }
+    .reveal ul {
+      font-size: 0.72em;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+    .reveal ul li { margin-bottom: 0.32em; }
+    .reveal .deck-highlight { color: #7dd3fc; font-weight: 600; }
+    .reveal .deck-slide-img {
+      max-height: 46vh;
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      margin: 0.55em auto 0;
+      display: block;
+    }
+    .reveal .deck-slide-img--tall { max-height: 42vh; }
+    .reveal .deck-pill {
+      display: inline-block;
+      font-size: 0.5em;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #bae6fd;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 0.35em 0.75em;
+      border-radius: 999px;
+      margin-top: 0.75em;
+    }
+    .reveal .pillar-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5em;
+      font-size: 0.5em;
+      margin-top: 0.45em;
+    }
+    @media (max-width: 900px) {
+      .reveal .pillar-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .reveal .pillar-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      border-radius: 10px;
+      padding: 0.55em 0.65em;
+      line-height: 1.35;
+    }
+    .reveal .pillar-card strong {
+      display: block;
+      color: #f1f5f9;
+      font-size: 1.05em;
+      margin-bottom: 0.2em;
+    }
+    .reveal .pillar-card .diff {
+      display: block;
+      color: #a5b4fc;
+      font-size: 0.88em;
+      margin-top: 0.35em;
+      font-style: italic;
+    }
+    .reveal .pillar-card span { color: #94a3b8; font-size: 0.92em; }
+    .reveal .deck-foot {
+      position: fixed;
+      bottom: 14px;
+      left: 28px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #475569;
+      z-index: 10;
+    }
+    .reveal .deck-muted {
+      font-size: 0.78em;
+      color: #94a3b8;
+      margin-top: 0.65em;
+      line-height: 1.45;
+    }
+    .reveal .slides .center-title { text-align: center; }
+    .reveal .slides .center-title h1,
+    .reveal .slides .center-title .deck-tagline,
+    .reveal .slides .center-title .deck-sub {
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+    }
+    .reveal .deck-legal {
+      font-size: 0.58em;
+      color: #64748b;
+      margin-top: 0.75em;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- 1 -->
+      <section class="center-title">
+        <p class="deck-kicker">Enterprise SaaS · Multi-hospital</p>
+        <h1>The operating layer for veterinary hospitals</h1>
+        <p class="deck-tagline">
+          Ward-grade visibility, emergency orchestration, medications, inventory &amp; billing integrity, and
+          traceable assets — <span class="deck-highlight">offline-first</span>, integration-ready, built to sit
+          <strong>alongside or above</strong> incumbent practice systems.
+        </p>
+        <p class="deck-pill">Veterinary today · hospital-grade operations</p>
+        <img
+          class="deck-slide-img"
+          src="assets/landing.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 2 -->
+      <section>
+        <p class="deck-kicker">Why now</p>
+        <h2>The cost of fragmented hospital systems</h2>
+        <ul>
+          <li>
+            <strong class="deck-highlight">Patient &amp; staff risk</strong> — critical information and actions
+            scattered across tools; handoffs eat time in emergencies.
+          </li>
+          <li>
+            <strong class="deck-highlight">Operational leakage</strong> — billing, inventory, and utilization drift
+            out of sync; leadership lacks a single truthful view.
+          </li>
+          <li>
+            <strong class="deck-highlight">Architecture debt</strong> — incumbent stacks are often weak at
+            <em>offline</em> ward behavior, <em>multi-site isolation</em>, and <em>real-time ops layers</em> without heavy customization.
+          </li>
+        </ul>
+        <p class="deck-muted">
+          <strong>What we mean:</strong> Today many hospitals run a patchwork where each tool holds only a <em>partial</em>
+          picture. The goal is a trusted <strong>operational system of record</strong> — one place where what happened
+          in care, finance, and compliance lines up and can be defended afterward.
+        </p>
+      </section>
+
+      <!-- 3 -->
+      <section>
+        <p class="deck-kicker">Differentiation</p>
+        <h2>Not “another PIMS” — an orchestration layer with teeth</h2>
+        <ul>
+          <li>
+            <strong class="deck-highlight">Vs. monolithic practice software:</strong> Legacy and cloud PIMS excel as
+            <em>systems of record</em> for charting &amp; billing, but teams still bolt on spreadsheets, WhatsApp, and
+            whiteboards for <strong>floor tempo, asset location, Code Blue discipline, and leakage control</strong>.
+          </li>
+          <li>
+            <strong class="deck-highlight">Vs. single-point apps:</strong> Equipment-only or chat-only tools don’t
+            join <strong>clinical action + stock + charges + audit</strong> into one tenant-safe stack.
+          </li>
+          <li>
+            <strong class="deck-highlight">VetTrack thesis:</strong> A strong <strong>integration + adapter base</strong>
+            (per <code style="font-size:0.9em">server/integrations/</code>) lets the product act as a
+            <strong>value layer on top of what hospitals already bought</strong> — sync where needed, own the workflows
+            PIMS weren’t built for.
+          </li>
+        </ul>
+        <p class="deck-muted">
+          <strong>Market context (examples, not exhaustive):</strong> IDEXX (Cornerstone, Neo, ezyVet), Covetrus (Pulse,
+          AVImark), Provet Cloud, Shepherd, Digitail, Vetspire, NaVetor, DaySmart Vet; specialty workflow vendors such as
+          Instinct for ER/ICU-style operations. VetTrack competes for <em>hospital orchestration</em>, not necessarily for
+          replacing the charting ledger on day one.
+        </p>
+        <p class="deck-legal">See <code>docs/investor-deck/COMPETITIVE_LANDSCAPE.md</code> for a short landscape note.</p>
+      </section>
+
+      <!-- 4 -->
+      <section>
+        <p class="deck-kicker">Thesis</p>
+        <h2>VetTrack OS — from reactive chaos to coordinated care</h2>
+        <ul>
+          <li>
+            A <strong class="deck-highlight">single layer</strong> staff use at the bedside and in the back office —
+            not a passive archive.
+          </li>
+          <li>
+            <strong class="deck-highlight">Fewer context switches</strong> between patient, drug, device, and charge —
+            more time on clinical decisions.
+          </li>
+          <li>
+            <strong class="deck-highlight">Built for groups</strong> — clinic-scoped data, audit-heavy modules, job
+            queues, and integration-ready configuration.
+          </li>
+        </ul>
+      </section>
+
+      <!-- 5 -->
+      <section>
+        <p class="deck-kicker">Platform pillars</p>
+        <h2>Hospital operations — connected and defensible</h2>
+        <div class="pillar-grid">
+          <div class="pillar-card">
+            <strong>Ward command</strong>
+            <span>Live ward / display surfaces — what the floor needs now.</span>
+            <em class="diff">Unlike PIMS alone: TV-ready tempo without rewriting the medical record.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>Code Blue &amp; emergency</strong>
+            <span>Dedicated flows, displays, history, billing reconciliation.</span>
+            <em class="diff">Unlike ad-hoc radios: structured event + finance alignment.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>Medications &amp; pharmacy</strong>
+            <span>Hub, forecasting, execution gated by DB-resolved roles.</span>
+            <em class="diff">Unlike paper double-check: system-enforced paths + inventory ties.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>Inventory &amp; billing integrity</strong>
+            <span>Ledger, leakage views, async inventory jobs.</span>
+            <em class="diff">Unlike batch exports: operational + financial symmetry in product.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>Traceable assets</strong>
+            <span>QR / NFC, rooms &amp; radar, checkout — know where kit lives.</span>
+            <em class="diff">Unlike static asset registers: ward-proof, offline-capable.</em>
+          </div>
+          <div class="pillar-card">
+            <strong>Workforce &amp; insight</strong>
+            <span>Shifts, handover, analytics — tempo, not spreadsheets.</span>
+            <em class="diff">Unlike siloed HR tools: tied to real clinical events.</em>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section>
+        <p class="deck-kicker">Flagship surface</p>
+        <h2>Ward View — the live command surface</h2>
+        <ul>
+          <li>
+            <strong class="deck-highlight">Purpose-built for the ward wall and charge nurse</strong> — prioritization,
+            occupancy/equipment context, and “what changed” without digging through a classic PIMS queue.
+          </li>
+          <li>
+            <strong class="deck-highlight">Same security &amp; offline engine</strong> as the rest of VetTrack — not a
+            stale dashboard export.
+          </li>
+          <li>
+            <strong class="deck-highlight">Strategic value:</strong> Hospitals buy PIMS for records; they <em>run</em>
+            the day on visibility — Ward View is where VetTrack wins daily stickiness.
+          </li>
+        </ul>
+        <img
+          class="deck-slide-img deck-slide-img--tall"
+          src="assets/ward.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 7 -->
+      <section>
+        <p class="deck-kicker">Governance</p>
+        <h2>Audit trail &amp; operational proof</h2>
+        <ul>
+          <li>
+            <strong class="deck-highlight">Immutable audit log</strong> of security- and finance-sensitive actions —
+            equipment lifecycle, medications &amp; tasks, Code Blue events, billing &amp; inventory,
+            integrations &amp; admin (see server audit action types).
+          </li>
+          <li>
+            <strong class="deck-highlight">Searchable &amp; attributable</strong> — who did what, when, in which
+            tenant — critical for disputes, QA, and regulatory conversations.
+          </li>
+          <li>
+            <strong class="deck-highlight">Plus operational history</strong> — e.g. per-scan and room verification
+            trails — so “what happened on the floor” isn’t hearsay.
+          </li>
+        </ul>
+        <p class="deck-muted">
+          <strong>Investor angle:</strong> Defensible operations are a moat in enterprise health — systems without deep
+          audit lose enterprise deals.
+        </p>
+        <img
+          class="deck-slide-img deck-slide-img--tall"
+          src="assets/audit.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 8 -->
+      <section>
+        <p class="deck-kicker">Product depth</p>
+        <h2>Emergency &amp; Code Blue</h2>
+        <ul>
+          <li>
+            <strong class="deck-highlight">Operational Code Blue</strong> — dedicated screens, wall displays, history,
+            and billing reconciliation for emergency events.
+          </li>
+          <li>
+            Bridges <strong class="deck-highlight">clinical tempo</strong> with <strong class="deck-highlight">financial discipline</strong>.
+          </li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/code-blue.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 9 -->
+      <section>
+        <p class="deck-kicker">Product depth</p>
+        <h2>Medication &amp; pharmacy operations</h2>
+        <ul>
+          <li>Central <strong class="deck-highlight">medication hub</strong> plus pharmacy forecasting surfaces.</li>
+          <li>Execution tied to <strong class="deck-highlight">role resolution from the database</strong>.</li>
+          <li>Designed for <strong class="deck-highlight">inventory deduction</strong> and billing as first-class workflows.</li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/meds.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 10 -->
+      <section>
+        <p class="deck-kicker">Product depth</p>
+        <h2>Revenue &amp; stock — one source of truth</h2>
+        <ul>
+          <li><strong class="deck-highlight">Billing ledger</strong> + <strong class="deck-highlight">leakage</strong> visibility + inventory job processing.</li>
+          <li>
+            <strong class="deck-highlight">Async, idempotent workers</strong> — high-stakes adjustments without blocking
+            clinicians at save time.
+          </li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/billing.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 11 -->
+      <section>
+        <p class="deck-kicker">Product depth</p>
+        <h2>Traceable assets &amp; the clinical floor</h2>
+        <ul>
+          <li>
+            Full <strong class="deck-highlight">equipment lifecycle</strong> — registry, QR batch printing, NFC deep links,
+            checkout / return.
+          </li>
+          <li><strong class="deck-highlight">Asset Radar</strong> — room verification, bulk actions, stale / audit semantics.</li>
+          <li><strong class="deck-highlight">PWA + offline queue</strong> — actions survive bad Wi‑Fi.</li>
+        </ul>
+        <img
+          class="deck-slide-img"
+          src="assets/equipment.png"
+          alt=""
+          onerror="this.onerror=null;this.src='assets/_placeholder.svg'"
+        />
+      </section>
+
+      <!-- 12 -->
+      <section>
+        <p class="deck-kicker">Engineering credibility</p>
+        <h2>Built like software investors underwrite</h2>
+        <ul>
+          <li>
+            <strong class="deck-highlight">Multi-tenant by design</strong> — clinic-scoped queries as a rule.
+          </li>
+          <li>
+            <strong class="deck-highlight">Modern core</strong> — React 18 &amp; PWA, Express &amp; TypeScript, PostgreSQL
+            &amp; Drizzle, BullMQ &amp; Redis, Clerk in production.
+          </li>
+          <li>
+            <strong class="deck-highlight">Operational maturity</strong> — audit logging, web push, observability hooks,
+            rate limiting &amp; hardening patterns; encrypted integration credentials when configured.
+          </li>
+        </ul>
+      </section>
+
+      <!-- 13 -->
+      <section>
+        <p class="deck-kicker">Commercial traction</p>
+        <h2>Where we are — and how we scale</h2>
+        <ul>
+          <li><em>Live sites / pilots / LOIs — add your logos.</em></li>
+          <li><em>ARR or revenue — only if verified.</em></li>
+          <li><em>Go-to-market:</em> per clinic, module attach, enterprise agreements, integration-led land-and-expand.</li>
+        </ul>
+      </section>
+
+      <!-- 14 -->
+      <section class="center-title">
+        <p class="deck-kicker">Round</p>
+        <h2>The ask</h2>
+        <p class="deck-sub" style="margin-top: 1em">
+          <em>Round size · instrument · lead partner</em><br /><br />
+          <em>Use of funds — product depth, GTM, reliability, compliance readiness</em><br /><br />
+          <em>Contact — vettrack.uk</em>
+        </p>
+      </section>
+    </div>
+  </div>
+  <div class="deck-foot">VetTrack · Confidential</div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.0.4/dist/reveal.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: "c/t",
+      transition: "fade",
+      width: 1280,
+      height: 720,
+    });
+  </script>
+</body>
+</html>
