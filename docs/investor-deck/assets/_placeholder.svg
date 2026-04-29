@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="Placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect x="48" y="48" width="1104" height="56" rx="8" fill="rgba(56,189,248,0.25)" stroke="rgba(56,189,248,0.45)" stroke-width="1"/>
+  <rect x="48" y="120" width="1104" height="507" rx="10" fill="#020617" stroke="rgba(148,163,184,0.25)" stroke-width="1"/>
+  <text x="600" y="400" text-anchor="middle" font-family="system-ui,sans-serif" font-size="26" fill="#94a3b8">Screenshot placeholder</text>
+  <text x="600" y="438" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#64748b">Add PNG under docs/investor-deck/assets/ — see README</text>
+</svg>
