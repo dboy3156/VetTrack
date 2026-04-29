@@ -8,6 +8,7 @@ Two **Reveal.js** decks — **14 slides** each: OS narrative, **differentiation 
 | [`deck-he.html`](./deck-he.html) | Hebrew (RTL) |
 
 **Competitive context (short):** [`COMPETITIVE_LANDSCAPE.md`](./COMPETITIVE_LANDSCAPE.md)
+**How to share package:** [`SHARE.md`](./SHARE.md)
 
 ## Open
 
