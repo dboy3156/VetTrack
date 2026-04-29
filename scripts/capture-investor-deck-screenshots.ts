@@ -78,7 +78,10 @@ const routes: RouteSpec[] = [
 async function main(): Promise<void> {
   await waitForPreviewServer(base);
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_EXECUTABLE_PATH ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
   page.on("console", (msg) => {
