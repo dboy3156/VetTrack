@@ -110,6 +110,18 @@ async function main(): Promise<void> {
         console.warn(`  skip ${file}: not signed in (need pnpm dev + DATABASE_URL + dev-bypass auth)`);
         continue;
       }
+      // Dismiss onboarding walkthrough so it never blocks screenshots.
+      await page.evaluate(() => {
+        localStorage.setItem("vettrack_onboarding_v1", "1");
+        // Close the modal if already rendered by clicking the Skip/X button.
+        const closeBtn = document.querySelector<HTMLElement>("[data-onboarding-close], button[aria-label='Close']");
+        if (closeBtn) closeBtn.click();
+      });
+      // If the modal is still visible, click Skip.
+      const skipBtn = page.locator("text=Skip").first();
+      if (await skipBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await skipBtn.click();
+      }
       await new Promise((r) => setTimeout(r, settleMs ?? 4000));
       await page.screenshot({ path: join(outDir, file), fullPage: true, animations: "disabled" });
       console.info(`  wrote ${file}`);
