@@ -14,7 +14,7 @@
  *   pnpm deck:capture
  */
 import "dotenv/config";
-import { subHours, subMinutes } from "date-fns";
+import { subHours, subMinutes, subDays } from "date-fns";
 import { and, eq, inArray, like } from "drizzle-orm";
 import {
   animals,
@@ -392,6 +392,66 @@ async function main(): Promise<void> {
       targetType: "user",
       metadata: { role: "admin" },
       timestamp: subHours(now, 30),
+    },
+    {
+      id: `${PREFIX}-audit-5`,
+      actionType: "EQUIPMENT_CREATED",
+      performedBy: DEV_USER_ID,
+      performedByEmail: "admin@vettrack.dev",
+      targetId: `${PREFIX}-eq-defib`,
+      targetType: "equipment",
+      metadata: { name: "Defibrillator" },
+      timestamp: subHours(now, 2),
+    },
+    {
+      id: `${PREFIX}-audit-6`,
+      actionType: "CHECKOUT",
+      performedBy: DEV_USER_ID,
+      performedByEmail: "admin@vettrack.dev",
+      targetId: `${PREFIX}-eq-xray`,
+      targetType: "equipment",
+      metadata: { location: "Radiology" },
+      timestamp: subMinutes(now, 90),
+    },
+    {
+      id: `${PREFIX}-audit-7`,
+      actionType: "EQUIPMENT_VERIFY",
+      performedBy: DEV_USER_ID,
+      performedByEmail: "admin@vettrack.dev",
+      targetId: `${PREFIX}-eq-anes`,
+      targetType: "equipment",
+      metadata: { scanned: true, location: "Theatre 1" },
+      timestamp: subMinutes(now, 55),
+    },
+    {
+      id: `${PREFIX}-audit-8`,
+      actionType: "EQUIPMENT_UPDATED",
+      performedBy: DEV_USER_ID,
+      performedByEmail: "admin@vettrack.dev",
+      targetId: `${PREFIX}-eq-drill`,
+      targetType: "equipment",
+      metadata: { status: "needs_attention", note: "Reported issue" },
+      timestamp: subDays(now, 1),
+    },
+    {
+      id: `${PREFIX}-audit-9`,
+      actionType: "RETURN",
+      performedBy: DEV_USER_ID,
+      performedByEmail: "admin@vettrack.dev",
+      targetId: `${PREFIX}-eq-monitor`,
+      targetType: "equipment",
+      metadata: { location: "Recovery ward" },
+      timestamp: subHours(now, 3),
+    },
+    {
+      id: `${PREFIX}-audit-10`,
+      actionType: "EQUIPMENT_VERIFY",
+      performedBy: DEV_USER_ID,
+      performedByEmail: "admin@vettrack.dev",
+      targetId: `${PREFIX}-eq-pump`,
+      targetType: "equipment",
+      metadata: { scanned: true, location: "ICU — Bay 3" },
+      timestamp: subMinutes(now, 15),
     },
   ];
 

@@ -84,6 +84,11 @@ async function main(): Promise<void> {
   });
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
+  // Inject localStorage keys before any page script runs so React never shows the onboarding modal.
+  await page.addInitScript(() => {
+    localStorage.setItem("vettrack_onboarding_v1", "1");
+  });
+
   page.on("console", (msg) => {
     if (msg.type() === "error") {
       console.warn(`[browser ${msg.type()}] ${msg.text()}`);
@@ -110,19 +115,34 @@ async function main(): Promise<void> {
         console.warn(`  skip ${file}: not signed in (need pnpm dev + DATABASE_URL + dev-bypass auth)`);
         continue;
       }
-      // Dismiss onboarding walkthrough so it never blocks screenshots.
-      await page.evaluate(() => {
-        localStorage.setItem("vettrack_onboarding_v1", "1");
-        // Close the modal if already rendered by clicking the Skip/X button.
-        const closeBtn = document.querySelector<HTMLElement>("[data-onboarding-close], button[aria-label='Close']");
-        if (closeBtn) closeBtn.click();
-      });
-      // If the modal is still visible, click Skip.
-      const skipBtn = page.locator("text=Skip").first();
-      if (await skipBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await skipBtn.click();
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Billing leakage page: push "to" date to tomorrow so today's seeded
+      // records (created after midnight) fall within the range, then run report.
+      if (pth === "/billing/leakage") {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const toStr = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
+        await page.evaluate((val) => {
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("input[type='date']"));
+          // Second date input is "To"
+          const toInput = inputs[1];
+          if (toInput) {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+            nativeInputValueSetter?.call(toInput, val);
+            toInput.dispatchEvent(new Event("input", { bubbles: true }));
+            toInput.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }, toStr);
+        await new Promise((r) => setTimeout(r, 500));
+        const runBtn = page.getByRole("button", { name: /run report/i });
+        if (await runBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await runBtn.click();
+          await new Promise((r) => setTimeout(r, 3000));
+        }
       }
-      await new Promise((r) => setTimeout(r, settleMs ?? 4000));
+
+      await new Promise((r) => setTimeout(r, settleMs ?? 2000));
       await page.screenshot({ path: join(outDir, file), fullPage: true, animations: "disabled" });
       console.info(`  wrote ${file}`);
     } catch (e) {
