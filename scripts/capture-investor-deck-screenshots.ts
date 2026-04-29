@@ -11,7 +11,7 @@
  *   PREVIEW_BASE_URL=http://127.0.0.1:5000 pnpm exec tsx scripts/capture-investor-deck-screenshots.ts
  *   PREVIEW_WAIT_MS=180000  (default 120000 — poll until dev responds or exit with error)
  */
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -78,11 +78,22 @@ const routes: RouteSpec[] = [
 async function main(): Promise<void> {
   await waitForPreviewServer(base);
 
-  const browser = await chromium.launch({
-    executablePath: process.env.CHROMIUM_EXECUTABLE_PATH ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const linuxFallbackChromium = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+  const configuredChromiumPath = process.env.CHROMIUM_EXECUTABLE_PATH ?? linuxFallbackChromium;
+  const hasConfiguredBinary = existsSync(configuredChromiumPath);
+
+  const browser = await chromium.launch(
+    hasConfiguredBinary
+      ? {
+          executablePath: configuredChromiumPath,
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        }
+      : {},
+  );
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  await page.addInitScript(() => {
+    window.localStorage.setItem("vettrack_onboarding_v1", "1");
+  });
 
   page.on("console", (msg) => {
     if (msg.type() === "error") {
@@ -105,6 +116,10 @@ async function main(): Promise<void> {
         },
         { timeout: 60_000 },
       );
+      const onboardingDismissButton = page.getByTestId("btn-onboarding-dismiss");
+      if (await onboardingDismissButton.isVisible().catch(() => false)) {
+        await onboardingDismissButton.click();
+      }
       const href = page.url();
       if (auth && (href.includes("/signin") || href.includes("/signup"))) {
         console.warn(`  skip ${file}: not signed in (need pnpm dev + DATABASE_URL + dev-bypass auth)`);
