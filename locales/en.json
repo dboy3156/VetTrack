@@ -304,6 +304,7 @@
     },
     "guard": {
       "pendingTitle": "Account pending hospital management approval",
+      "syncFailedTitle": "Could not verify account with server",
       "blockedTitle": "Access blocked",
       "blockedDescription": "Contact IT department for assistance.",
       "accessDeniedTitle": "Access denied",
@@ -319,7 +320,8 @@
         "insufficientRole": "You do not have permission to access this area.",
         "accountDeleted": "Your account was removed.",
         "accountBlocked": "Your account is blocked.",
-        "accountPendingApproval": "Your account is pending approval."
+        "accountPendingApproval": "Your account is pending approval.",
+        "authSyncFailed": "The server did not return profile data (offline, API error, or wrong DATABASE_URL). Check that the API is running, then retry."
       }
     }
   },

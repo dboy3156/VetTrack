@@ -4,6 +4,18 @@ import path from "path";
 import { fileURLToPath } from "url";
 const MIGRATION_ADVISORY_LOCK_ID = 123456;
 
+/** Leading digits before `_` (e.g. `001_`, `018_`, `0018_`, `076_`). Plain `.sort()` is wrong: `0018_*` runs before `001_*`. */
+function compareMigrationFilenames(a: string, b: string): number {
+  const numericPrefix = (name: string): number => {
+    const m = /^(\d+)_/.exec(name);
+    return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+  };
+  const na = numericPrefix(a);
+  const nb = numericPrefix(b);
+  if (na !== nb) return na - nb;
+  return a.localeCompare(b);
+}
+
 async function ensureMigrationsTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS vt_migrations (
@@ -39,7 +51,7 @@ export async function runMigrations(): Promise<void> {
     const files = fs
       .readdirSync(migrationsDir)
       .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql") && !f.startsWith("meta/"))
-      .sort();
+      .sort(compareMigrationFilenames);
 
     for (const filename of files) {
       if (applied.has(filename)) {

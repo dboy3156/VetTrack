@@ -30,6 +30,11 @@ describe("Data Integrity Hardening Test", () => {
     ).toBeTruthy();
   });
 
+  it("Migration runner sorts files by numeric prefix (not lexicographic)", () => {
+    expect(migrationRunner.includes("compareMigrationFilenames")).toBeTruthy();
+    expect(migrationRunner.includes(".sort(compareMigrationFilenames)")).toBeTruthy();
+  });
+
   it("Tenant migration includes staged guard + constraints + indexes", () => {
     expect(
       migration024.includes("SET NOT NULL") &&

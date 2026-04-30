@@ -305,6 +305,7 @@
     },
     "guard": {
       "pendingTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
+      "syncFailedTitle": "לא ניתן לאמת את החשבון מול השרת",
       "blockedTitle": "גישה חסומה",
       "blockedDescription": "פנה למחלקת מערכות מידע לבירור.",
       "accessDeniedTitle": "אין גישה",
@@ -320,7 +321,8 @@
         "insufficientRole": "אין לך הרשאה לגשת לאזור זה.",
         "accountDeleted": "החשבון הוסר מהמערכת.",
         "accountBlocked": "החשבון חסום.",
-        "accountPendingApproval": "החשבון ממתין לאישור."
+        "accountPendingApproval": "החשבון ממתין לאישור.",
+        "authSyncFailed": "השרת לא החזיר נתוני פרופיל (אין רשת, שגיאת API או DATABASE_URL שגוי). ודא שהשרת פועל ונסה שוב."
       }
     }
   },

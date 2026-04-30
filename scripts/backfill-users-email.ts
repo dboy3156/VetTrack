@@ -20,6 +20,19 @@ function isEmpty(value: string | null | undefined): boolean {
   return !value?.trim();
 }
 
+/** Clerk getUser throws when the user id was deleted or belongs to another instance. */
+function isClerkUserNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const any = err as { status?: number; statusCode?: number; errors?: Array<{ code?: string }>; message?: string };
+  const code = any.errors?.[0]?.code;
+  if (code === "resource_not_found") return true;
+  const st = any.status ?? any.statusCode;
+  if (st === 404) return true;
+  const msg = (any.message ?? "").trim().toLowerCase();
+  if (msg === "not found") return true;
+  return msg.includes("not found") && (msg.includes("user") || msg.includes("could not find"));
+}
+
 async function main(): Promise<void> {
   console.log("Starting backfill…");
   console.log("PostgreSQL URL:", isPostgresqlConfigured() ? "set" : "MISSING");
@@ -95,6 +108,9 @@ async function main(): Promise<void> {
 
     let updated = 0;
     let skipped = 0;
+    let failedNotFound = 0;
+    let failedOther = 0;
+    const orphanIds: string[] = [];
     let clerkCallIndex = 0;
 
     for (const user of needsBackfill) {
@@ -102,6 +118,8 @@ async function main(): Promise<void> {
         await sleep(CLERK_DELAY_MS);
       }
       clerkCallIndex += 1;
+
+      let resolved = false;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         if (attempt > 1) {
@@ -131,9 +149,19 @@ async function main(): Promise<void> {
               `[updated] id=${user.id} clerkId=${user.clerkId} fields=${Object.keys(patch).join(",")} → ${JSON.stringify(patch)}`,
             );
           }
+          resolved = true;
           break;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          if (isClerkUserNotFoundError(err)) {
+            failedNotFound += 1;
+            orphanIds.push(user.id);
+            console.error(
+              `[not found in Clerk] id=${user.id} clerkId=${user.clerkId} — ${message} (no retries: user deleted, or CLERK_SECRET_KEY is a different Clerk instance than these ids)`,
+            );
+            resolved = true;
+            break;
+          }
           if (attempt === MAX_ATTEMPTS) {
             console.error(
               `[error] id=${user.id} clerkId=${user.clerkId} after ${MAX_ATTEMPTS} attempts: ${message}`,
@@ -145,11 +173,17 @@ async function main(): Promise<void> {
           }
         }
       }
+
+      if (!resolved) failedOther += 1;
     }
 
-    console.log(
-      `\nDone. Updated: ${updated}; skipped (no Clerk data): ${skipped}; rows needing backfill: ${needsBackfill.length}`,
-    );
+    console.log(`\nDone. Updated: ${updated}; skipped (nothing to apply): ${skipped}; Clerk user not found: ${failedNotFound}; other errors: ${failedOther}.`);
+    if (orphanIds.length > 0) {
+      console.log(
+        `\nOrphan vt_users rows (no matching Clerk user): ${orphanIds.join(", ")}\n` +
+          "You can fix by: using the same CLERK_SECRET_KEY instance that created those ids, soft-deleting the row if the user left, or setting email/name manually in SQL if you know them.",
+      );
+    }
   } finally {
     await pool.end();
   }

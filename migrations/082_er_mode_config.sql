@@ -1,7 +1,4 @@
--- Ensure correct ownership (run once)
-ALTER TABLE vt_clinics OWNER TO vettrack;
-
--- Add column
+-- Add ER mode state to clinics. States: disabled (default), preview, enforced.
 ALTER TABLE vt_clinics
   ADD COLUMN IF NOT EXISTS er_mode_state VARCHAR(20) NOT NULL DEFAULT 'disabled';
 
