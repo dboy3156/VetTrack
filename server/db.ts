@@ -70,6 +70,7 @@ export const clinics = pgTable("vt_clinics", {
   id: text("id").primaryKey(),
   pharmacyEmail: text("pharmacy_email"),
   forecastPdfSourceFormat: varchar("forecast_pdf_source_format", { length: 20 }).notNull().default("smartflow"),
+  erModeState: varchar("er_mode_state", { length: 20 }).notNull().default("disabled"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
