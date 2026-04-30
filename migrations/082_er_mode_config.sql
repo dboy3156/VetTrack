@@ -1,5 +1,8 @@
 -- Ensure correct ownership (run once)
-ALTER TABLE vt_clinics OWNER TO postgres;
+ALTER TABLE vt_clinics OWNER TO vettrack;
+
+-- Add column
+ALTER TABLE vt_clinics
   ADD COLUMN IF NOT EXISTS er_mode_state VARCHAR(20) NOT NULL DEFAULT 'disabled';
 
 -- Add constraint safely
