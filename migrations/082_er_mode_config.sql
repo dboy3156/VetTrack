@@ -1,5 +1,5 @@
 -- Add ER mode state to clinics. States: disabled (default), preview, enforced.
-ALTER TABLE vt_clinics
+ALTER TABLE vt_clinics OWNER TO postgres;
   ADD COLUMN IF NOT EXISTS er_mode_state VARCHAR(20) NOT NULL DEFAULT 'disabled';
 ALTER TABLE vt_clinics
   ADD CONSTRAINT vt_clinics_er_mode_state_check
