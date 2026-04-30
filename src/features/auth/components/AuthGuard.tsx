@@ -34,6 +34,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     ACCOUNT_DELETED: t.auth.guard.reasons.accountDeleted,
     ACCOUNT_BLOCKED: t.auth.guard.reasons.accountBlocked,
     ACCOUNT_PENDING_APPROVAL: t.auth.guard.reasons.accountPendingApproval,
+    AUTH_SYNC_FAILED: t.auth.guard.reasons.authSyncFailed,
   };
 
   useEffect(() => {
@@ -103,6 +104,22 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       <Button className="mt-4" onClick={signOut}>{t.auth.guard.signOut}</Button>
     </div>
   );
+
+  if (accessDeniedReason === "AUTH_SYNC_FAILED") {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center text-center p-6 bg-amber-50 dark:bg-amber-950/20">
+        <ShieldAlert className="h-16 w-16 text-amber-600 mb-4" />
+        <h1 className="text-2xl font-bold">{t.auth.guard.syncFailedTitle}</h1>
+        <p className="mt-2 max-w-md text-muted-foreground">{accessDeniedReasonText.AUTH_SYNC_FAILED}</p>
+        <div className="mt-4 flex gap-3">
+          <Button variant="outline" onClick={() => { setLoadTimedOut(false); refreshAuth(); }}>
+            {t.auth.guard.retry}
+          </Button>
+          <Button onClick={signOut}>{t.auth.guard.signOut}</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (accessDeniedReason) {
     return (

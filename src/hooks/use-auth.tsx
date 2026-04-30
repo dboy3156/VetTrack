@@ -18,6 +18,8 @@ export type AccessDeniedReason =
   | "ACCOUNT_DELETED"
   | "ACCOUNT_BLOCKED"
   | "ACCOUNT_PENDING_APPROVAL"
+  /** Clerk signed in but /api/users/me failed with a non-403 error (network, 5xx, etc.) — not approval pending */
+  | "AUTH_SYNC_FAILED"
   | null;
 
 interface AuthState {
@@ -454,8 +456,8 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
             ...s,
             isLoaded: true,
             isSignedIn: true,
-            status: "pending",
-            accessDeniedReason: null,
+            status: null,
+            accessDeniedReason: "AUTH_SYNC_FAILED",
             isOfflineSession: false,
           }));
         }
@@ -466,8 +468,8 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
           ...s,
           isLoaded: true,
           isSignedIn: true,
-          status: "pending",
-          accessDeniedReason: null,
+          status: null,
+          accessDeniedReason: "AUTH_SYNC_FAILED",
           isOfflineSession: false,
         }));
       } finally {

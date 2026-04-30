@@ -15,6 +15,28 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
+function normalizedLoginEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+function isAdminAllowlistedEmail(email: string | null | undefined): boolean {
+  const n = normalizedLoginEmail(email);
+  return Boolean(n && ADMIN_EMAILS.includes(n));
+}
+
+/** Prefer Clerk primary email — `[0]` is not guaranteed to be primary (matches user-sync.service). */
+function resolveClerkPrimaryEmail(clerkUser: {
+  primaryEmailAddressId: string | null;
+  emailAddresses?: Array<{ id: string; emailAddress: string }>;
+}): string {
+  const pid = clerkUser.primaryEmailAddressId;
+  if (pid && clerkUser.emailAddresses?.length) {
+    const primary = clerkUser.emailAddresses.find((e) => e.id === pid);
+    if (primary?.emailAddress) return primary.emailAddress;
+  }
+  return clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
+}
+
 export type UserRole = "admin" | "vet" | "technician" | "senior_technician" | "student";
 type LegacyUserRole = UserRole | "viewer";
 
@@ -85,6 +107,20 @@ const DEV_USER_PRESETS: Record<string, Partial<AuthUser>> = {
 
 const isProduction = process.env.NODE_ENV === "production";
 const isDevelopment = process.env.NODE_ENV !== "production";
+
+/** Production-like signup gate (pending until admin approves). Off by default in local dev so Clerk sign-in works without manual activation. */
+function enforceSignupPendingApproval(): boolean {
+  const v = process.env.ENFORCE_SIGNUP_PENDING_APPROVAL?.trim().toLowerCase();
+  return v === "true" || v === "1";
+}
+
+/** Auto-activate non-admin signups and promote stuck `pending` rows in local dev (NODE_ENV unset/non-production), but not in Vitest (`test`) or production. */
+function devAutoApprovePendingUsers(): boolean {
+  if (enforceSignupPendingApproval()) return false;
+  const env = process.env.NODE_ENV ?? "";
+  if (env === "production" || env === "test") return false;
+  return true;
+}
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY?.trim());
 const LEGACY_CLINIC_ID = "legacy-clinic";
 
@@ -335,15 +371,18 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   if (!clerkEmail) {
     try {
       const clerkUser = await clerkClient.users.getUser(clerkUserId);
-      clerkEmail = clerkUser.emailAddresses?.[0]?.emailAddress ?? "";
+      clerkEmail = resolveClerkPrimaryEmail(clerkUser);
       clerkName = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
     } catch (err) {
       console.warn("[auth] Unable to enrich Clerk profile; continuing with session claims only", err);
     }
   }
 
-  const isAdminEmail = clerkEmail && ADMIN_EMAILS.includes(clerkEmail.toLowerCase());
-  const defaultStatus = isAdminEmail ? "active" : "pending";
+  clerkEmail = clerkEmail.trim();
+  clerkName = clerkName.trim();
+
+  const isAdminEmail = isAdminAllowlistedEmail(clerkEmail);
+  const defaultStatus = isAdminEmail || devAutoApprovePendingUsers() ? "active" : "pending";
   const defaultRole: UserRole = isAdminEmail ? "admin" : "technician";
 
   // SECURITY: Role is ALWAYS resolved from the database record.
@@ -372,7 +411,9 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
     })
     .returning();
 
-  if (ADMIN_EMAILS.length > 0 && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+  const matchesAdminAllowlist =
+    isAdminAllowlistedEmail(clerkEmail) || isAdminAllowlistedEmail(user.email);
+  if (ADMIN_EMAILS.length > 0 && matchesAdminAllowlist) {
     if (user.role !== "admin") {
       [user] = await db
         .update(users)
@@ -386,6 +427,24 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
         .where(eq(users.id, user.id))
         .returning();
     }
+  }
+
+  if (devAutoApprovePendingUsers() && user.status === "pending") {
+    [user] = await db
+      .update(users)
+      .set({ status: "active" })
+      .where(eq(users.id, user.id))
+      .returning();
+  }
+
+  /** Production has no dev auto-approve; ADMIN_EMAILS may be unset. Admins assigned in DB must not stay signup-gated as pending. */
+  const dbRole = (user.role ?? "").trim().toLowerCase();
+  if (dbRole === "admin" && user.status !== "active") {
+    [user] = await db
+      .update(users)
+      .set({ status: "active" })
+      .where(eq(users.id, user.id))
+      .returning();
   }
 
   if (user.deletedAt) {

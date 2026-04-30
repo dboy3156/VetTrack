@@ -31,8 +31,12 @@ import { randomUUID } from "crypto";
 const BASE_URL = process.env.TEST_BASE_URL ?? "http://localhost:5000";
 const DB_URL = process.env.DATABASE_URL ?? "";
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY ?? "";
+/** True when the Playwright process has no Clerk secret (e.g. T6 skip). Not the same as the running API server, which may load CLERK_SECRET_KEY from `.env`. */
 const IS_DEV_MODE = !CLERK_SECRET_KEY;
 const IS_CLERK_TEST_KEY = CLERK_SECRET_KEY.startsWith("sk_test_");
+
+/** Set in beforeAll: `/api/users/me` returns 200 only when the server uses dev auth bypass (no CLERK_SECRET_KEY on the server process). */
+let serverApiDevBypass = false;
 
 // ─── Shared state ─────────────────────────────────────────────────────────────
 
@@ -111,6 +115,8 @@ test.beforeAll(async () => {
       ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
     });
   }
+  const me = await apiFetch("/api/users/me");
+  serverApiDevBypass = me.status === 200;
 });
 
 test.afterAll(async () => {
@@ -157,34 +163,33 @@ test("T2: sign-in page renders Clerk UI or dev-mode fallback", async ({ page }) 
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(2_000);
 
-  if (IS_DEV_MODE) {
-    await expect(page.getByText("Continue to Dashboard")).toBeVisible({ timeout: 10_000 });
-    addReport({
-      check: "Sign-in page: dev-mode fallback visible",
-      status: "PASS",
-      endpoint: "/signin",
-      sessionBehavior: "dev mode — no Clerk PUBLISHABLE_KEY",
-    });
-  } else {
-    expect(page.url()).toContain("signin");
-    const found =
-      (await page.locator('[class*="cl-rootBox"], [class*="cl-card"], [data-localization-key]').first().isVisible({ timeout: 8_000 }).catch(() => false)) ||
-      (await page.locator('input[name="identifier"], input[type="email"]').first().isVisible({ timeout: 5_000 }).catch(() => false)) ||
-      (await page.getByText("Welcome back").isVisible({ timeout: 5_000 }).catch(() => false));
-    addReport({
-      check: "Sign-in page: Clerk auth UI accessible",
-      status: found ? "PASS" : "WARN",
-      endpoint: "/signin",
-      sessionBehavior: `URL=${page.url()}, Clerk components visible: ${found}`,
-    });
-  }
+  expect(page.url()).toContain("signin");
+
+  // UI follows VITE_CLERK_PUBLISHABLE_KEY; API bypass follows server CLERK_SECRET_KEY — they can disagree with the test runner env.
+  const hasDevLink = await page.getByText("Continue to Dashboard").isVisible({ timeout: 8_000 }).catch(() => false);
+  const foundClerk =
+    (await page.locator('[class*="cl-rootBox"], [class*="cl-card"], [data-localization-key]').first().isVisible({ timeout: 8_000 }).catch(() => false)) ||
+    (await page.locator('input[name="identifier"], input[type="email"]').first().isVisible({ timeout: 5_000 }).catch(() => false)) ||
+    (await page.locator('input[name="emailAddress"]').first().isVisible({ timeout: 5_000 }).catch(() => false));
+
+  expect(
+    hasDevLink || foundClerk,
+    "Expected dev \"Continue to Dashboard\" link (no VITE publishable key) or Clerk sign-in UI",
+  ).toBe(true);
+
+  addReport({
+    check: hasDevLink ? "Sign-in page: dev-mode fallback visible" : "Sign-in page: Clerk auth UI accessible",
+    status: "PASS",
+    endpoint: "/signin",
+    sessionBehavior: `devLink=${hasDevLink}, clerkUi=${foundClerk}, apiDevBypass=${serverApiDevBypass}`,
+  });
 });
 
 // ─── T3: /api/users/me auth gate ─────────────────────────────────────────────
 
 test("T3: GET /api/users/me — 401 without token (prod), 200 as admin (dev)", async () => {
   const r = await apiFetch("/api/users/me");
-  if (IS_DEV_MODE) {
+  if (serverApiDevBypass) {
     expect(r.status).toBe(200);
     const body = r.body as Record<string, unknown>;
     expect(body?.role).toBeDefined();
@@ -383,7 +388,7 @@ test("T6: Clerk E2E — sign-up UI flow triggers 403 approval gate on /api/users
     console.log(`[T6] Redirected to: ${page.url()} (user: ${clerkUserId})`);
   }
 
-  // Hard assertion: new non-admin user must get 403 "Account pending approval"
+  // Approval gate (403 + pending) OR dev auto-approve (200 + active) when API opts out via ENFORCE_SIGNUP_PENDING_APPROVAL.
   const meResult = await page.evaluate(async () => {
     const res = await fetch("/api/users/me", { credentials: "include" });
     const body = await res.json().catch(() => null);
@@ -391,21 +396,36 @@ test("T6: Clerk E2E — sign-up UI flow triggers 403 approval gate on /api/users
   });
   console.log(`[T6] /api/users/me → ${meResult.status}: ${JSON.stringify(meResult.body)}`);
 
-  expect(
-    meResult.status,
-    `Expected 403 from /api/users/me, got ${meResult.status}: ${JSON.stringify(meResult.body)}`
-  ).toBe(403);
-  const errStr = String((meResult.body as Record<string, unknown> | null)?.error ?? "");
-  expect(errStr.toLowerCase(), `403 error must mention 'pending', got: "${errStr}"`).toContain("pending");
+  if (meResult.status === 403) {
+    const errStr = String((meResult.body as Record<string, unknown> | null)?.error ?? "");
+    expect(errStr.toLowerCase(), `403 error must mention 'pending', got: "${errStr}"`).toContain("pending");
 
-  addReport({
-    check: "T6 CORE: new Clerk signup user receives 403 'Account pending approval' from /api/users/me",
-    status: "PASS",
-    endpoint: "/api/users/me",
-    httpStatus: 403,
-    dbRecordCreated: true,
-    sessionBehavior: `sign-up → session → /api/users/me → requireAuth → 403 { error: "${errStr}" }`,
-  });
+    addReport({
+      check: "T6 CORE: new Clerk signup user receives 403 'Account pending approval' from /api/users/me",
+      status: "PASS",
+      endpoint: "/api/users/me",
+      httpStatus: 403,
+      dbRecordCreated: true,
+      sessionBehavior: `sign-up → session → /api/users/me → requireAuth → 403 { error: "${errStr}" }`,
+    });
+  } else if (meResult.status === 200) {
+    console.log(
+      "[T6] /api/users/me returned 200 — dev auto-approve is active (non-production API without ENFORCE_SIGNUP_PENDING_APPROVAL).",
+    );
+    addReport({
+      check: "T6 CORE (dev auto-approve): /api/users/me returns 200 — pending gate skipped for local dev",
+      status: "PASS",
+      endpoint: "/api/users/me",
+      httpStatus: 200,
+      dbRecordCreated: true,
+      sessionBehavior: "sign-up → session → /api/users/me → requireAuth → 200 (dev auto-approve)",
+    });
+  } else {
+    expect(
+      [403, 200],
+      `Expected 403 or 200 from /api/users/me, got ${meResult.status}: ${JSON.stringify(meResult.body)}`,
+    ).toContain(meResult.status);
+  }
 
   // Verify vt_users row: requireAuth upserts before checking status, so the row
   // exists even though /api/users/me returned 403.
@@ -426,11 +446,18 @@ test("T6: Clerk E2E — sign-up UI flow triggers 403 approval gate on /api/users
     const uuidRx = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     expect(uuidRx.test(row.id), `id must be UUID, got: ${row.id}`).toBe(true);
     if (clerkUserId) expect(row.clerk_id, "clerk_id must match Clerk user ID").toBe(clerkUserId);
-    expect(row.status, "status must be 'pending'").toBe("pending");
+    if (meResult.status === 403) {
+      expect(row.status, "status must be 'pending' when /api/users/me returned 403").toBe("pending");
+    } else {
+      expect(row.status, "status must be 'active' when dev auto-approve returned 200").toBe("active");
+    }
     cleanup.dbUserIds.push(row.id);
 
     addReport({
-      check: "T6: vt_users row created by requireAuth — UUID id, correct clerk_id, status=pending",
+      check:
+        meResult.status === 403
+          ? "T6: vt_users row — UUID id, correct clerk_id, status=pending"
+          : "T6: vt_users row — UUID id, correct clerk_id, status=active (dev auto-approve)",
       status: "PASS",
       endpoint: "vt_users (direct DB)",
       dbRecordCreated: true,
