@@ -8,7 +8,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "predev": "kill-port 3001 5000 >/dev/null 2>&1 || true",
+    "predev": "npx kill-port 3001 5000",
     "dev": "concurrently -k -p \"[{name}]\" -n \"api,web\" -c \"cyan,teal\" \"cross-env PORT=3001 tsx watch server/index.ts\" \"vite --port 5000 --host\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
@@ -21,7 +21,10 @@
     "test": "vitest run",
     "test:signup": "playwright test tests/signup-flow.spec.ts --reporter=list",
     "db:migrate": "tsx scripts/run-migrations.ts",
-    "migrate": "tsx scripts/run-migrations.ts"
+    "migrate": "tsx scripts/run-migrations.ts",
+    "deck:seed": "tsx scripts/seed-investor-deck-demo.ts",
+    "deck:capture": "tsx scripts/capture-investor-deck-screenshots.ts",
+    "deck:verify-assets": "tsx scripts/verify-investor-deck-assets.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",
