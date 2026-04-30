@@ -23,6 +23,7 @@ import { fileURLToPath } from "url";
 import { runMigrations } from "./migrate.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
+import { erAllowlistMiddleware } from "./middleware/er-allowlist.js"; 
 import { tenantContext } from "./middleware/tenant-context.js";
 import { registerApiRoutes } from "./app/routes.js";
 import clerkWebhookRoutes from "./routes/webhooks.js";
@@ -228,6 +229,7 @@ if (authModeResolution.mode === "clerk") {
 app.use("/api", globalApiLimiter);
 app.use("/api", i18nMiddleware);
 app.use("/api", tenantContext);
+app.use("/api", erAllowlistMiddleware);
 
 registerApiRoutes(app);
 

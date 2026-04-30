@@ -1094,6 +1094,193 @@ export type ShiftMessage = typeof shiftMessages.$inferSelect;
 export type ShiftMessageAck = typeof shiftMessageAcks.$inferSelect;
 export type ShiftMessageReaction = typeof shiftMessageReactions.$inferSelect;
 
+export const erIntakeEvents = pgTable(
+  "vt_er_intake_events",
+  {
+    id: text("id").primaryKey(),
+
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+
+    animalId: text("animal_id")
+      .references(() => animals.id, { onDelete: "set null" }),
+
+    ownerName: text("owner_name"),
+
+    species: text("species").notNull(),
+
+    severity: varchar("severity", { length: 20 }).notNull(),
+
+    chiefComplaint: text("chief_complaint").notNull(),
+
+    waitingSince: timestamp("waiting_since", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    assignedUserId: text("assigned_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+
+    status: varchar("status", { length: 20 })
+      .notNull()
+      .default("waiting"),
+
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicStatusIdx: index("idx_er_intake_clinic_status").on(
+      table.clinicId,
+      table.status
+    ),
+    clinicWaitingIdx: index("idx_er_intake_clinic_waiting").on(
+      table.clinicId,
+      table.waitingSince
+    ),
+  }),
+);
+
+export const shiftHandoffs = pgTable(
+  "vt_shift_handoffs",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    hospitalizationId: text("hospitalization_id")
+      .references(() => hospitalizations.id, { onDelete: "set null" }),
+    outgoingUserId: text("outgoing_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 20 })
+      .notNull()
+      .default("open"),
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicStatusIdx: index("idx_shift_handoffs_clinic_status").on(
+      table.clinicId,
+      table.status
+    ),
+    clinicCreatedIdx: index("idx_shift_handoffs_clinic_created").on(
+      table.clinicId,
+      table.createdAt
+    ),
+  }),
+);
+export const shiftHandoffItems = pgTable(
+  "vt_shift_handoff_items",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    handoffId: text("handoff_id")
+      .notNull()
+      .references(() => shiftHandoffs.id, { onDelete: "cascade" }),
+    activeIssue: text("active_issue").notNull(),
+    nextAction: text("next_action").notNull(),
+    etaMinutes: integer("eta_minutes").notNull(),
+    ownerUserId: text("owner_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+    riskFlags: jsonb("risk_flags")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    pendingMedicationTaskId: text("pending_medication_task_id"),
+    note: text("note"),
+    ackBy: text("ack_by")
+      .references(() => users.id, { onDelete: "set null" }),
+    ackAt: timestamp("ack_at"),
+    overriddenBy: text("overridden_by")
+      .references(() => users.id, { onDelete: "set null" }),
+    overrideReason: text("override_reason"),
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    handoffIdx: index("idx_shift_handoff_items_handoff").on(table.handoffId),
+    clinicOwnerIdx: index("idx_shift_handoff_items_clinic_owner").on(
+      table.clinicId,
+      table.ownerUserId
+    ),
+  }),
+);
+
+export const erKpiDaily = pgTable(
+  "vt_er_kpi_daily",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    date: date("date", { mode: "string" }).notNull(),
+    doorToTriageMinutesP50: doublePrecision("door_to_triage_minutes_p50"),
+    missedHandoffRate: doublePrecision("missed_handoff_rate"),
+    medDelayRate: doublePrecision("med_delay_rate"),
+    sampleSizeIntakes: integer("sample_size_intakes")
+      .notNull()
+      .default(0),
+    sampleSizeHandoffs: integer("sample_size_handoffs")
+      .notNull()
+      .default(0),
+    sampleSizeMedTasks: integer("sample_size_med_tasks")
+      .notNull()
+      .default(0),
+    computedAt: timestamp("computed_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicDateUnique: uniqueIndex("vt_er_kpi_daily_clinic_date_unique").on(
+      table.clinicId,
+      table.date
+    ),
+    clinicDateIdx: index("idx_er_kpi_daily_clinic_date").on(
+      table.clinicId,
+      table.date
+    ),
+  }),
+);
+export const erBaselineSnapshots = pgTable(
+  "vt_er_baseline_snapshots",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    baselineStartDate: date("baseline_start_date", { mode: "string" }).notNull(),
+    baselineEndDate: date("baseline_end_date", { mode: "string" }).notNull(),
+    doorToTriageMinutesP50: doublePrecision("door_to_triage_minutes_p50"),
+    missedHandoffRate: doublePrecision("missed_handoff_rate"),
+    medDelayRate: doublePrecision("med_delay_rate"),
+    confidenceLevel: varchar("confidence_level", { length: 10 })
+      .notNull()
+      .default("low"),
+    capturedAt: timestamp("captured_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicCapturedIdx: index("idx_er_baseline_clinic_captured").on(
+      table.clinicId,
+      table.capturedAt
+    ),
+  }),
+);
+
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).
   // This function is kept as a thin wrapper for backwards compatibility.
