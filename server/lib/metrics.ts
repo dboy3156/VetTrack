@@ -23,7 +23,8 @@ type MetricName =
   | "suggestions_triggered"
   | "recommendations_shown"
   | "suggestions_suppressed"
-  | "scoring_runs";
+  | "scoring_runs"
+  | "er_mode_fail_open";
 
 type MetricBuckets = Record<MetricName, number>;
 
@@ -52,6 +53,8 @@ export interface MetricsSnapshot {
     idempotencyHits: number;
     circuitBreakerOpened: number;
     retriesAttempted: number;
+    /** Increments when ER allowlist middleware fails closed resolver and fails open (see ER_MODE_FAIL_OPEN_COUNT). */
+    erModeFailOpenCount: number;
   };
   realtime: {
     connections: number;
@@ -90,6 +93,7 @@ const DEFAULT_COUNTERS: MetricBuckets = {
   recommendations_shown: 0,
   suggestions_suppressed: 0,
   scoring_runs: 0,
+  er_mode_fail_open: 0,
 };
 
 const metrics: MetricBuckets = { ...DEFAULT_COUNTERS };
@@ -195,6 +199,7 @@ export function getMetricsSnapshot(): MetricsSnapshot {
         idempotencyHits: metrics.idempotency_hits,
         circuitBreakerOpened: metrics.circuit_breaker_opened,
         retriesAttempted: metrics.retries_attempted,
+        erModeFailOpenCount: metrics.er_mode_fail_open,
       },
       realtime: {
         connections: metrics.realtime_connections,
@@ -215,7 +220,7 @@ export function getMetricsSnapshot(): MetricsSnapshot {
       automation: { triggered: 0, executed: 0 },
       notifications: { sent: 0, failed: 0 },
       queue: { enqueued: 0, started: 0, completed: 0, failed: 0, deadLetter: 0 },
-      reliability: { idempotencyHits: 0, circuitBreakerOpened: 0, retriesAttempted: 0 },
+      reliability: { idempotencyHits: 0, circuitBreakerOpened: 0, retriesAttempted: 0, erModeFailOpenCount: 0 },
       realtime: { connections: 0, eventsSent: 0 },
       intelligence: {
         recommendationsGenerated: 0,

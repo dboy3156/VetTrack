@@ -18,7 +18,7 @@ pnpm test -- --reporter=verbose  # with detail
 pnpm test -- tests/some.test.ts  # single file
 
 # Database
-pnpm db:migrate             # run pending migrations (manual — NOT auto-run on boot)
+pnpm db:migrate             # apply pending migrations via CLI (server also runs runMigrations() on startup — see server/index.ts)
 npx drizzle-kit generate    # generate migration after schema changes in server/db.ts
 npx drizzle-kit push        # push schema directly (dev only)
 
@@ -105,7 +105,7 @@ All tables prefixed `vt_`. Schema is the single source of truth in `server/db.ts
 **Observability:** `vt_audit_logs`, `vt_bulk_audit_log`  
 **Config:** `vt_server_config`, `vt_formulary`, `vt_support_tickets`, `vt_integration_configs`
 
-Migrations are **manual** — after editing `server/db.ts`, run `npx drizzle-kit generate` then `pnpm db:migrate`. Migrations are never auto-run on boot.
+After editing `server/db.ts`, **generate and record** migrations with `npx drizzle-kit generate`, then apply with `pnpm db:migrate`. Pending migrations are **also applied automatically** when the API server starts (`runMigrations()` in `server/index.ts`). Use the CLI when you need to migrate without booting the server (CI, scripts).
 
 ### Medication execution flow
 

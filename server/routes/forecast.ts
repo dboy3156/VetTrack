@@ -499,6 +499,17 @@ router.post(
         contentHash,
       });
 
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "forecast_parse_saved",
+        performedBy: authUser.id,
+        performedByEmail: authUser.email ?? "",
+        targetId: parseId,
+        targetType: "pharmacy_forecast_parse",
+        metadata: { contentHash, windowHours, weekendMode },
+      });
+
       return res.json({ parseId, ...result });
     } catch (err) {
       console.error("[forecast/parse]", err);
@@ -837,6 +848,17 @@ router.post("/parse/:id/keepalive", requireAuth, ensureUserClinicMembership, req
         requestId,
       }));
     }
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "forecast_parse_keepalive",
+      performedBy: authUser.id,
+      performedByEmail: authUser.email ?? "",
+      targetId: parsedId.data,
+      targetType: "pharmacy_forecast_parse",
+      metadata: { expiresAt: updated[0]!.expiresAt?.toISOString() ?? null },
+    });
 
     return res.json({ parseId: updated[0]!.id, expiresAt: updated[0]!.expiresAt?.toISOString() ?? null });
   } catch (err) {

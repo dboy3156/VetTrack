@@ -8,7 +8,12 @@ export type RealtimeEventType =
   | "TASK_CANCELLED"
   | "TASK_UPDATED"
   | "AUTOMATION_TRIGGERED"
-  | "NOTIFICATION_SENT";
+  | "NOTIFICATION_SENT"
+  | "ER_INTAKE_CREATED"
+  | "ER_INTAKE_UPDATED"
+  | "ER_HANDOFF_CREATED"
+  | "ER_HANDOFF_ACKNOWLEDGED"
+  | "ER_HANDOFF_SLA_BREACHED";
 
 export type RealtimeEvent = {
   type: RealtimeEventType;

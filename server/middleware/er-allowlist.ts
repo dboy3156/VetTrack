@@ -1,31 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
 import type { ErModeState } from "../lib/er-mode.js";
 import { getClinicErModeState as defaultResolver } from "../lib/er-mode.js";
+import { incrementMetric } from "../lib/metrics.js";
+import { isErAllowedApiPath } from "../../shared/er-allowlist.js";
 
-// Paths that remain accessible in ER mode (decision 2).
-// Match as prefix so /api/patients/:id is covered by /api/patients.
-const ER_ALLOWED_API_PREFIXES = [
-  "/api/patients",
-  "/api/appointments",
-  "/api/shift-handover",
-  "/api/code-blue",
-  "/api/realtime",
-  "/api/er",
-  "/api/health",
-  "/api/healthz",
-  "/api/version",
-  "/api/webhooks",
-  "/api/integration-webhooks",
-];
-
-export function isErAllowedPath(path: string): boolean {
-  return ER_ALLOWED_API_PREFIXES.some(
-    (prefix) =>
-      path === prefix ||
-      path.startsWith(prefix + "/") ||
-      path.startsWith(prefix + "?"),
-  );
-}
+/** @deprecated Use `isErAllowedApiPath` from `shared/er-allowlist.ts` */
+export const isErAllowedPath = isErAllowedApiPath;
 
 export function createErAllowlistMiddleware(
   resolveMode: (clinicId: string) => Promise<ErModeState> = defaultResolver,
@@ -45,11 +25,19 @@ export function createErAllowlistMiddleware(
     try {
       mode = await resolveMode(clinicId);
     } catch (err) {
-      // Fail-open: do NOT block traffic if resolver fails
-      console.error("[er-allowlist] Failed to resolve ER mode, passing through", {
-        clinicId,
-        err,
-      });
+      // Fail-open: do NOT block traffic if resolver fails — must be observable for alerting.
+      incrementMetric("er_mode_fail_open");
+      console.error(
+        JSON.stringify({
+          level: "ERROR",
+          event: "ER_MODE_FAIL_OPEN",
+          metric: "ER_MODE_FAIL_OPEN_COUNT",
+          clinicId,
+          message: "ER mode resolver failed; allowing request (fail-open)",
+          error: err instanceof Error ? err.message : String(err),
+          ts: new Date().toISOString(),
+        }),
+      );
       next();
       return;
     }
@@ -59,7 +47,8 @@ export function createErAllowlistMiddleware(
       return;
     }
 
-    const allowed = isErAllowedPath(req.originalUrl.split("?")[0]);
+    const pathOnly = req.originalUrl?.split("?")[0] ?? req.path ?? "";
+    const allowed = isErAllowedApiPath(pathOnly);
 
     if (mode === "preview") {
       if (!allowed) {

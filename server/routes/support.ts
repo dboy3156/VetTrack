@@ -7,6 +7,7 @@ import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { requireClinicId } from "../middleware/tenant-context.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { sendPushToAll } from "../lib/push.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 /*
  * PERMISSIONS MATRIX — /api/support
@@ -105,6 +106,17 @@ router.post("/", requireAuth, validateBody(createTicketSchema), async (req, res)
       url: "/admin",
     }).catch(() => {});
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "support_ticket_created",
+      performedBy: req.authUser.id,
+      performedByEmail: req.authUser.email ?? "",
+      targetId: ticket.id,
+      targetType: "support_ticket",
+      metadata: { severity },
+    });
+
     res.status(201).json(ticket);
   } catch (err) {
     console.error(err);
@@ -195,6 +207,17 @@ router.patch("/:id", requireAuth, requireAdmin, validateUuid("id"), validateBody
         }),
       );
     }
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "support_ticket_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: ticket.id,
+      targetType: "support_ticket",
+      metadata: { status, hasAdminNote: adminNote !== undefined },
+    });
 
     res.json(ticket);
   } catch (err) {

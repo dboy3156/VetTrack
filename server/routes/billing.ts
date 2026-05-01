@@ -586,6 +586,16 @@ router.post("/inventory-jobs/:id/retry", requireAuth, requireAdmin, async (req, 
       .set({ status: "pending", failureReason: null, updatedAt: new Date() })
       .where(and(eq(inventoryJobs.id, id), eq(inventoryJobs.clinicId, clinicId)));
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "inventory_job_retried",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "inventory_job",
+    });
+
     return res.json({ ok: true, id });
   } catch (err) {
     console.error("[billing] inventory-jobs retry error", err);

@@ -80,6 +80,7 @@ import {
   getCachedScanLogs,
   getCachedFolders,
   getCachedRooms,
+  getCachedRoomById,
   cacheEquipment,
   cacheScanLogs,
   cacheFolders,
@@ -93,20 +94,6 @@ import {
 import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
 import { isOnline } from "./safe-browser";
-import type {
-  ErModeResponse,
-  ErBoardResponse,
-  ErIntakeResponse,
-  AssignErIntakeResponse,
-  ErAssigneesResponse,
-  AckErHandoffResponse,
-  ErImpactResponse,
-  CreateErIntakeRequest,
-  AssignErIntakeRequest,
-  AckErHandoffRequest,
-  ErKpiWindowDays,
-} from "../../shared/er-types.js";
-
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
 };
@@ -1050,7 +1037,6 @@ export const api = {
         return await request<Room>(`/api/rooms/${id}`);
       } catch (err) {
         if (isNetworkError(err)) {
-          const { getCachedRoomById } = await import("./offline-db");
           const cached = await getCachedRoomById(id);
           if (cached) return cached;
         }
@@ -1412,54 +1398,33 @@ export const api = {
   },
 };
 
-// ── ER Wedge API ──────────────────────────────────────────────────────────────
-export async function getErMode(): Promise<ErModeResponse> {
-  const res = await fetch("/api/er/mode", { credentials: "include" });
-  if (!res.ok) throw new Error(`GET /api/er/mode failed: ${res.status}`);
-  return res.json();
-}
-export async function getErBoard(): Promise<ErBoardResponse> {
-  const res = await fetch("/api/er/board", { credentials: "include" });
-  if (!res.ok) throw new Error(`GET /api/er/board failed: ${res.status}`);
-  return res.json();
-}
-export async function createErIntake(body: CreateErIntakeRequest): Promise<ErIntakeResponse> {
-  const res = await fetch("/api/er/intake", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`POST /api/er/intake failed: ${res.status}`);
-  return res.json();
-}
-export async function assignErIntake(id: string, body: AssignErIntakeRequest): Promise<AssignErIntakeResponse> {
-  const res = await fetch(`/api/er/intake/${id}/assign`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`PATCH /api/er/intake/${id}/assign failed: ${res.status}`);
-  return res.json();
-}
-export async function getErAssignees(): Promise<ErAssigneesResponse> {
-  const res = await fetch("/api/er/assignees", { credentials: "include" });
-  if (!res.ok) throw new Error(`GET /api/er/assignees failed: ${res.status}`);
-  return res.json();
-}
-export async function ackErHandoff(id: string, body: AckErHandoffRequest): Promise<AckErHandoffResponse> {
-  const res = await fetch(`/api/er/handoffs/${id}/ack`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`POST /api/er/handoffs/${id}/ack failed: ${res.status}`);
-  return res.json();
-}
-export async function getErImpact(windowDays: ErKpiWindowDays = 14): Promise<ErImpactResponse> {
-  const res = await fetch(`/api/er/impact?window=${windowDays}`, { credentials: "include" });
-  if (!res.ok) throw new Error(`GET /api/er/impact failed: ${res.status}`);
-  return res.json();
-}
+// ── ER Wedge API (see `er-api.ts` for implementation + not-implemented handling) ─
+export type {
+  AckErHandoffRequest,
+  AckErHandoffResponse,
+  AssignErIntakeRequest,
+  AssignErIntakeResponse,
+  CreateErHandoffRequest,
+  CreateErHandoffResponse,
+  CreateErIntakeRequest,
+  ErAssigneesResponse,
+  ErBoardResponse,
+  ErEligibleHospitalizationsResponse,
+  ErImpactResponse,
+  ErIntakeResponse,
+  ErKpiWindowDays,
+  ErModeResponse,
+} from "../../shared/er-types.js";
+export {
+  ER_API_IMPLEMENTED_ROUTES,
+  ErApiNotImplementedError,
+  ackErHandoff,
+  assignErIntake,
+  createErHandoff,
+  createErIntake,
+  getErEligibleHospitalizations,
+  getErAssignees,
+  getErBoard,
+  getErImpact,
+  getErMode,
+} from "./er-api";

@@ -13,6 +13,7 @@ import {
 } from "../lib/role-notification-scheduler.js";
 import { runExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
 import { runChargeAlertJobForReturn } from "../workers/chargeAlertWorker.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -149,6 +150,17 @@ router.post(
         payload: { equipmentName: item.name, testScenario: true },
       })
       .returning({ id: scheduledNotifications.id });
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "test_scheduled_notification_scenario_created",
+      performedBy: userId,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: row?.id ?? equipmentId,
+      targetType: "scheduled_notification",
+      metadata: { equipmentId },
+    });
 
     res.status(201).json({ success: true, scheduledNotificationId: row?.id });
   }

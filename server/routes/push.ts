@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { authSensitiveLimiter, pushTestLimiter } from "../middleware/rate-limiters.js";
 import { sendPushToUser, getVapidPublicKey, isVapidReady } from "../lib/push.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 /*
  * PERMISSIONS MATRIX — /api/push
@@ -207,6 +208,16 @@ router.post("/subscribe", requireAuth, authSensitiveLimiter, validateBody(subscr
       );
     }
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "push_subscription_created",
+      performedBy: req.authUser.id,
+      performedByEmail: req.authUser.email ?? "",
+      targetId: sub.id,
+      targetType: "push_subscription",
+    });
+
     return res.json({ success: true });
   } catch (err) {
     console.error("SUBSCRIBE DB insert failed:", err);
@@ -253,6 +264,16 @@ router.patch("/subscribe", requireAuth, validateBody(patchSubscribeSchema), asyn
         )
       );
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "push_subscription_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetType: "push_subscription",
+      metadata: { endpoint },
+    });
+
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -282,6 +303,16 @@ router.delete("/subscribe", requireAuth, validateBody(deleteSubscribeSchema), as
           eq(pushSubscriptions.userId, req.authUser!.id)
         )
       );
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "push_subscription_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetType: "push_subscription",
+      metadata: { endpoint },
+    });
 
     res.status(204).send();
   } catch (err) {

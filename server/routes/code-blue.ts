@@ -404,6 +404,17 @@ router.post("/sessions/:id/logs", requireAuth, validateUuid("id"), validateBody(
         .where(and(eq(equipment.id, body.equipmentId), eq(equipment.clinicId, clinicId)));
     }
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "code_blue_log_entry_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: sessionId,
+      targetType: "code_blue_session",
+      metadata: { entryId, category: body.category },
+    });
+
     res.status(201).json({ id: entryId, duplicate: false });
   } catch (err) {
     console.error("[code-blue] add log entry failed", err);
@@ -442,6 +453,16 @@ router.patch("/sessions/:id/presence", requireAuth, validateUuid("id"), async (r
         target: [codeBluePresence.sessionId, codeBluePresence.userId],
         set: { userName, lastSeenAt: new Date() },
       });
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "code_blue_presence_heartbeat",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: sessionId,
+      targetType: "code_blue_session",
+    });
 
     res.json({ ok: true });
   } catch (err) {

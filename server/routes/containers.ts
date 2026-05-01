@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
+import { billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
@@ -10,6 +10,7 @@ import { restockContainerInTx } from "../services/inventory.service.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
 import { enqueueBillingWebhookJob } from "../lib/queue.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import { captureConsumableBillingForDispenseLine } from "../lib/container-consumable-billing.js";
 
 const router = Router();
 
@@ -55,6 +56,16 @@ router.post("/bootstrap-defaults", requireAuth, requireEffectiveRole("technician
   try {
     const clinicId = req.clinicId!;
     const inserted = await seedDefaultContainersIfEmpty(clinicId);
+    if (inserted > 0) {
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "containers_defaults_seeded",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        metadata: { inserted },
+      });
+    }
     res.json({ inserted });
   } catch (err) {
     console.error(err);
@@ -166,7 +177,21 @@ router.post(
         roomId: b.roomId ?? null,
         nfcTagId: b.nfcTagId?.trim() || null,
       });
-      const [row] = await db.select().from(containers).where(eq(containers.id, id)).limit(1);
+      const [row] = await db
+        .select()
+        .from(containers)
+        .where(and(eq(containers.clinicId, clinicId), eq(containers.id, id)))
+        .limit(1);
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "container_created",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: id,
+        targetType: "container",
+        metadata: { name: b.name.trim() },
+      });
       res.status(201).json(row);
     } catch (err) {
       console.error(err);
@@ -297,11 +322,10 @@ router.post(
         });
       }
 
-      // Normal dispense
+      // Normal dispense — billing ledger rows commit with inventory logs (revenue invariant).
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
-      // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
+      let autoBilledCents = 0;
 
       await db.transaction(async (tx) => {
         const [container] = await tx
@@ -312,7 +336,6 @@ router.post(
         if (!container) throw Object.assign(new Error("CONTAINER_NOT_FOUND"), { statusCode: 404 });
 
         for (const lineItem of body.items) {
-          // Verify container item exists and has sufficient quantity
           const [ci] = await tx
             .select()
             .from(containerItems)
@@ -345,7 +368,6 @@ router.post(
             });
           }
 
-          // Get item label
           const [item] = await tx
             .select({ label: inventoryItems.label })
             .from(inventoryItems)
@@ -354,7 +376,6 @@ router.post(
 
           const newQty = ci.quantity - lineItem.quantity;
 
-          // Decrement container item quantity
           await tx
             .update(containerItems)
             .set({ quantity: newQty, updatedAt: new Date() })
@@ -366,8 +387,22 @@ router.post(
               ),
             );
 
-          // Insert inventory log
           const inventoryLogId = randomUUID();
+          const billing = await captureConsumableBillingForDispenseLine(tx, {
+            clinicId,
+            billingItemId: container.billingItemId,
+            inventoryLogId,
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            animalId: animalId ?? null,
+          });
+          if (!billing.billingEventId && !billing.exemptReason) {
+            throw Object.assign(new Error("BILLING_CAPTURE_INVARIANT_VIOLATION"), { statusCode: 500 });
+          }
+
+          const metadata: Record<string, unknown> = { isEmergency: false, itemId: lineItem.itemId };
+          if (billing.exemptReason) metadata.billingExemptReason = billing.exemptReason;
+
           await tx.insert(inventoryLogs).values({
             id: inventoryLogId,
             clinicId,
@@ -380,9 +415,15 @@ router.post(
             animalId: animalId ?? null,
             roomId: container.roomId,
             note: null,
-            metadata: { isEmergency: false, itemId: lineItem.itemId },
+            metadata,
             createdByUserId: actorUserId,
+            billingEventId: billing.billingEventId,
           });
+
+          if (billing.billingEventId) {
+            billingIds.push(billing.billingEventId);
+            autoBilledCents += billing.rowTotalCents;
+          }
 
           dispensedItems.push({
             itemId: lineItem.itemId,
@@ -390,56 +431,8 @@ router.post(
             quantity: lineItem.quantity,
             newStock: newQty,
           });
-
-          // Billing is handled by the auto-billing block below via billingItems.
-          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
-
-          // Queue auto-billing candidate for post-transaction insert
-          if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
-          }
         }
       });
-
-      // Auto-billing: insert billing ledger rows after the transaction commits
-      // Failures must NOT fail the dispense — log and continue
-      let autoBilledCents = 0;
-      for (const candidate of autoBillingCandidates) {
-        try {
-          const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
-            .from(inventoryItems)
-            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
-            .limit(1);
-          if (!item?.isBillable) continue;
-          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
-          const [bi] = await db
-            .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
-            .from(billingItems)
-            .where(and(eq(billingItems.id, candidate.billingItemId), eq(billingItems.clinicId, clinicId)))
-            .limit(1);
-          if (bi && bi.unitPriceCents > 0) {
-            const autoBillingId = randomUUID();
-            const rowTotal = bi.unitPriceCents * candidate.quantity;
-            await db.insert(billingLedger).values({
-              id: autoBillingId,
-              clinicId,
-              animalId: animalId ?? null,
-              itemType: "CONSUMABLE",
-              itemId: bi.id,
-              quantity: candidate.quantity,
-              unitPriceCents: bi.unitPriceCents,
-              totalAmountCents: rowTotal,
-              idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
-              status: "pending",
-            }).onConflictDoNothing();
-            billingIds.push(autoBillingId);
-            autoBilledCents += rowTotal;
-          }
-        } catch (autoBillingErr) {
-          console.error("[auto-billing] Failed to insert billing ledger row for dispense, continuing:", autoBillingErr);
-        }
-      }
 
       // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
@@ -532,8 +525,7 @@ router.patch(
 
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
-      // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
+      let autoBilledCents = 0;
 
       await db.transaction(async (tx) => {
         // Find the emergency event log
@@ -602,6 +594,25 @@ router.patch(
             );
 
           const inventoryLogId = randomUUID();
+          const billing = await captureConsumableBillingForDispenseLine(tx, {
+            clinicId,
+            billingItemId: container.billingItemId,
+            inventoryLogId,
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            animalId: animalId ?? null,
+          });
+          if (!billing.billingEventId && !billing.exemptReason) {
+            throw Object.assign(new Error("BILLING_CAPTURE_INVARIANT_VIOLATION"), { statusCode: 500 });
+          }
+
+          const lineMeta: Record<string, unknown> = {
+            isEmergency: true,
+            emergencyEventId: eventId,
+            itemId: lineItem.itemId,
+          };
+          if (billing.exemptReason) lineMeta.billingExemptReason = billing.exemptReason;
+
           await tx.insert(inventoryLogs).values({
             id: inventoryLogId,
             clinicId,
@@ -614,9 +625,15 @@ router.patch(
             animalId: animalId ?? null,
             roomId: container.roomId,
             note: null,
-            metadata: { isEmergency: true, emergencyEventId: eventId, itemId: lineItem.itemId },
+            metadata: lineMeta,
             createdByUserId: origLog.createdByUserId,
+            billingEventId: billing.billingEventId,
           });
+
+          if (billing.billingEventId) {
+            billingIds.push(billing.billingEventId);
+            autoBilledCents += billing.rowTotalCents;
+          }
 
           dispensedItems.push({
             itemId: lineItem.itemId,
@@ -624,14 +641,6 @@ router.patch(
             quantity: lineItem.quantity,
             newStock: newQty,
           });
-
-          // Billing is handled by the auto-billing block below via billingItems.
-          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
-
-          // Queue auto-billing candidate for post-transaction insert
-          if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
-          }
         }
 
         // Mark original emergency log as completed
@@ -642,43 +651,6 @@ router.patch(
           })
           .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, eventId)));
       });
-
-      // Auto-billing: insert billing ledger rows after the transaction commits
-      // Failures must NOT fail the dispense — log and continue
-      for (const candidate of autoBillingCandidates) {
-        try {
-          const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
-            .from(inventoryItems)
-            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
-            .limit(1);
-          if (!item?.isBillable) continue;
-          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
-          const [bi] = await db
-            .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
-            .from(billingItems)
-            .where(and(eq(billingItems.id, candidate.billingItemId), eq(billingItems.clinicId, clinicId)))
-            .limit(1);
-          if (bi && bi.unitPriceCents > 0) {
-            const autoBillingId = randomUUID();
-            await db.insert(billingLedger).values({
-              id: autoBillingId,
-              clinicId,
-              animalId: null, // emergencies are unregistered animals by definition
-              itemType: "CONSUMABLE",
-              itemId: bi.id,
-              quantity: candidate.quantity,
-              unitPriceCents: bi.unitPriceCents,
-              totalAmountCents: bi.unitPriceCents * candidate.quantity,
-              idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
-              status: "pending",
-            }).onConflictDoNothing();
-            billingIds.push(autoBillingId);
-          }
-        } catch (autoBillingErr) {
-          console.error("[auto-billing] Failed to insert billing ledger row for emergency dispense, continuing:", autoBillingErr);
-        }
-      }
 
       // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
@@ -715,7 +687,7 @@ router.patch(
         actorRole: resolveAuditActorRole(req),
         metadata: {
           dispensedItemCount: dispensedItems.length,
-          autoBilledCents: billingIds.length,
+          autoBilledCents,
           animalId: animalId ?? null,
           isEmergency: true,
         },
@@ -727,6 +699,7 @@ router.patch(
         takenBy: { userId: actorUserId, displayName: actorDisplayName },
         takenAt: takenAt.toISOString(),
         billingIds,
+        autoBilledCents,
       });
     } catch (err: unknown) {
       const e = err as Record<string, unknown>;

@@ -1,3 +1,7 @@
+---
+status: Canonical Product Definition - ER Wedge
+---
+
 # VetTrack ER Wedge
 
 VetTrack is defining an emergency-room wedge for veterinary clinics, optimized for high-pressure shift operations and measurable pilot outcomes. This context captures canonical ER terms so product, clinical, and engineering decisions use the same language.
@@ -13,7 +17,7 @@ The explicit set of pages and APIs that remain accessible in ER Mode.
 _Avoid_: Partial hide, soft block
 
 **Concealment 404**:
-The policy that non-allowlisted routes return not found in ER Mode.
+A security policy: non-allowlisted routes return not found (not forbidden) in ER Mode—reducing noise and keeping bedside workflows unblocked.
 _Avoid_: Forbidden mode, visible-disabled route
 
 **Intake Event**:

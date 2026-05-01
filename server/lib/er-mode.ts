@@ -1,7 +1,8 @@
 import { db, clinics } from "../db.js";
 import { eq } from "drizzle-orm";
+import type { ErModeState } from "../../shared/er-types.js";
 
-export type ErModeState = "disabled" | "preview" | "enforced";
+export type { ErModeState };
 
 // DbFetcher is separated for testability.
 export type ErModeDbFetcher = (clinicId: string) => Promise<ErModeState | null>;

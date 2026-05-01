@@ -1372,6 +1372,67 @@
     }
   },
 
+  "erImpact": {
+    "title": "מדדי תוצאות חדר מיון",
+    "subtitle": "חלון הדיווח הנוכחי מול צילום בסיס לפני עליה לאוויר (האחרון שנשמר).",
+    "windowLabel": "חלון",
+    "windowDays": "{n} ימים",
+    "baselinePeriod": "תקופת בסיס",
+    "generatedAt": "חושב ב",
+    "loadError": "לא ניתן לטעון מדדי השפעה.",
+    "noData": "אין עדיין שורות KPI יומיות בחלון זה.",
+    "metricBaseline": "בסיס",
+    "metricCurrent": "נוכחי",
+    "metricDelta": "Δ",
+    "metricDeltaPct": "Δ%",
+    "kpi": {
+      "doorToTriageMinutesP50": "זמן עד טריאז' (חציון, דקות)",
+      "missedHandoffRate": "שיעור החמצות העברה",
+      "medDelayRate": "שיעור עיכוב בתרופות"
+    },
+    "confidence": {
+      "low": "ביטחון נמוך",
+      "medium": "ביטחון בינוני",
+      "high": "ביטחון גבוה"
+    }
+  },
+
+  "erCommandCenter": {
+    "title": "מרכז פיקוד חדר מיון",
+    "lanes": {
+      "criticalNow": "קריטי עכשיו",
+      "next15m": "15 דק׳ הבאות",
+      "handoffRisk": "סיכון העברה"
+    },
+    "quickIntake": "קליטה מהירה",
+    "species": "מין",
+    "severity": "חומרה",
+    "complaint": "תלונה עיקרית",
+    "submitIntake": "צור קליטה",
+    "assign": "שייך",
+    "ack": "אשר קבלה",
+    "impactLink": "מדדי השפעה",
+    "refresh": "רענן",
+    "loadingBoard": "טוען לוח…",
+    "createHandoff": "צור העברת משמרת",
+    "handoffPatient": "מטופל מאושפז",
+    "handoffSelectPatient": "בחר מטופל",
+    "handoffActiveIssue": "סוגיה פעילה",
+    "handoffNextAction": "פעולה הבאה",
+    "handoffEtaMinutes": "זמן משוער (דקות)",
+    "handoffOwner": "אחראי",
+    "handoffOwnerUnassigned": "ללא שיוך",
+    "handoffAddItem": "הוסף שורה",
+    "handoffSubmit": "צור העברה",
+    "handoffNoPatients": "אין אשפוזים פעילים. יש לאשר קודם מטופל.",
+    "handoffItem": "שורה {{n}}",
+    "badges": {
+      "overdue": "באיחור",
+      "unassigned": "ללא שיוך",
+      "handoffRisk": "העברה"
+    }
+  },
+
   "appointmentsPage": {
     "administerMedication": "מתן תרופה",
     "startNow": "התחל עכשיו",

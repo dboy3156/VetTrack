@@ -1371,6 +1371,67 @@
     }
   },
 
+  "erImpact": {
+    "title": "ER outcome KPIs",
+    "subtitle": "Current reporting window compared to the latest pre-go-live baseline snapshot.",
+    "windowLabel": "Window",
+    "windowDays": "{n} days",
+    "baselinePeriod": "Baseline period",
+    "generatedAt": "Generated",
+    "loadError": "Could not load impact metrics.",
+    "noData": "No daily KPI rows in this window yet.",
+    "metricBaseline": "Baseline",
+    "metricCurrent": "Current",
+    "metricDelta": "Δ",
+    "metricDeltaPct": "Δ%",
+    "kpi": {
+      "doorToTriageMinutesP50": "Door-to-triage (median, minutes)",
+      "missedHandoffRate": "Missed handoff rate",
+      "medDelayRate": "Medication delay rate"
+    },
+    "confidence": {
+      "low": "Low confidence",
+      "medium": "Medium confidence",
+      "high": "High confidence"
+    }
+  },
+
+  "erCommandCenter": {
+    "title": "ER Command Center",
+    "lanes": {
+      "criticalNow": "Critical now",
+      "next15m": "Next 15 min",
+      "handoffRisk": "Handoff risk"
+    },
+    "quickIntake": "Quick intake",
+    "species": "Species",
+    "severity": "Severity",
+    "complaint": "Chief complaint",
+    "submitIntake": "Create intake",
+    "assign": "Assign",
+    "ack": "Acknowledge",
+    "impactLink": "Impact KPIs",
+    "refresh": "Refresh",
+    "loadingBoard": "Loading board…",
+    "createHandoff": "Create handoff",
+    "handoffPatient": "Hospitalized patient",
+    "handoffSelectPatient": "Select patient",
+    "handoffActiveIssue": "Active issue",
+    "handoffNextAction": "Next action",
+    "handoffEtaMinutes": "ETA (minutes)",
+    "handoffOwner": "Owner",
+    "handoffOwnerUnassigned": "Unassigned",
+    "handoffAddItem": "Add line item",
+    "handoffSubmit": "Create handoff",
+    "handoffNoPatients": "No active hospitalizations. Admit a patient first.",
+    "handoffItem": "Line {{n}}",
+    "badges": {
+      "overdue": "Overdue",
+      "unassigned": "Unassigned",
+      "handoffRisk": "Handoff"
+    }
+  },
+
   "appointmentsPage": {
     "administerMedication": "Administer Medication",
     "startNow": "Start now",

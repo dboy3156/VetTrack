@@ -11,6 +11,7 @@ import { validateBody } from "../middleware/validate.js";
 import { sendPushToUser, sendPushToRole } from "../lib/push.js";
 import { enqueueNotificationJob } from "../lib/queue.js";
 import { touchPresence, getPresence } from "../lib/shift-chat-presence.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -260,6 +261,17 @@ router.post(
         }).catch(() => {});
       }
 
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "shift_chat_message_posted",
+        performedBy: user.id,
+        performedByEmail: user.email ?? "",
+        targetId: message!.id,
+        targetType: "shift_message",
+        metadata: { type, isUrgent },
+      });
+
       return res.status(201).json({ message });
     } catch (err) {
       console.error("[shift-chat] POST /messages error:", err);
@@ -324,6 +336,17 @@ router.post(
         );
       }
 
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "shift_chat_broadcast_ack",
+        performedBy: userId,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: messageId,
+        targetType: "shift_message",
+        metadata: { status },
+      });
+
       return res.json({ ok: true });
     } catch (err) {
       console.error("[shift-chat] POST /messages/:id/ack error:", err);
@@ -377,6 +400,16 @@ router.post(
       if (!updated) {
         return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "MESSAGE_NOT_FOUND", message: "Message not found" }));
       }
+
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "shift_chat_message_pinned",
+        performedBy: userId,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: messageId,
+        targetType: "shift_message",
+      });
 
       return res.json({ ok: true, pinnedAt: now });
     } catch (err) {
@@ -439,12 +472,33 @@ router.post(
               eq(shiftMessageReactions.emoji, emoji),
             ),
           );
+        logAudit({
+          actorRole: resolveAuditActorRole(req),
+          clinicId,
+          actionType: "shift_chat_reaction_removed",
+          performedBy: userId,
+          performedByEmail: req.authUser!.email ?? "",
+          targetId: messageId,
+          targetType: "shift_message",
+          metadata: { emoji },
+        });
         return res.json({ action: "removed" });
       }
 
       await db
         .insert(shiftMessageReactions)
         .values({ messageId, userId, emoji });
+
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "shift_chat_reaction_added",
+        performedBy: userId,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: messageId,
+        targetType: "shift_message",
+        metadata: { emoji },
+      });
 
       return res.json({ action: "added" });
     } catch (err) {

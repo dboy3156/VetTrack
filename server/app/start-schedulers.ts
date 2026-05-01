@@ -12,6 +12,8 @@ import { startInventoryDeductionWorker } from "../workers/inventory-deduction.wo
 import { startIntegrationWorker } from "../workers/integration.worker.js";
 import { startIntegrationScheduleJobs } from "../integrations/jobs/integration-schedules.js";
 import { startIntegrationRetentionCron } from "../integrations/jobs/integration-retention.js";
+import { startErHandoffSlaScheduler } from "../services/er-handoff-sla.service.js";
+import { startErKpiDailyRollupScheduler } from "../services/er-kpi-rollup.service.js";
 
 export async function startBackgroundSchedulers() {
   await initVapid();
@@ -27,4 +29,6 @@ export async function startBackgroundSchedulers() {
   await startIntegrationWorker();
   startIntegrationScheduleJobs();
   startIntegrationRetentionCron();
+  startErKpiDailyRollupScheduler();
+  startErHandoffSlaScheduler();
 }

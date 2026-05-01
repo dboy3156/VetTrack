@@ -15,6 +15,7 @@
   },
   "include": [
     "server/**/*.ts",
+    "shared/**/*.ts",
     "src/types/index.ts",
     "src/shared/**/*.ts",
     "src/lib/constants/**/*.ts",

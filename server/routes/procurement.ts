@@ -267,7 +267,10 @@ router.patch("/:id/receive", requireAuth, requireEffectiveRole("technician"), va
       return res.status(409).json(apiError({ code: "CONFLICT", reason: "INVALID_STATUS", message: `Cannot receive a ${existing.status} order`, requestId }));
     }
 
-    const allLines = await db.select().from(poLines).where(eq(poLines.purchaseOrderId, req.params.id));
+    const allLines = await db
+      .select()
+      .from(poLines)
+      .where(and(eq(poLines.purchaseOrderId, req.params.id), eq(poLines.clinicId, clinicId)));
 
     await db.transaction(async (tx) => {
       for (const incoming of b.lines) {

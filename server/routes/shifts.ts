@@ -650,8 +650,17 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
     await db.insert(shifts).values(values).onConflictDoNothing();
 
     console.info(
-      `[shifts import] filename=${parsed.filename} totalRows=${parsed.totalRows} insertedRows=${values.length} skippedRows=${parsed.issues.length}`
+      `[shifts import] clinicId=${clinicId} filename=${parsed.filename} totalRows=${parsed.totalRows} insertedRows=${values.length} skippedRows=${parsed.issues.length}`
     );
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "shifts_csv_imported",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      metadata: { filename: parsed.filename, insertedRows: values.length, skippedRows: parsed.issues.length },
+    });
 
     return res.json({
       success: true,

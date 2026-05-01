@@ -1,6 +1,7 @@
 import { Route, Switch } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
+import { ErModeGuard } from "@/features/er/components/ErModeGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 
 const HomePage = lazy(() => import("@/pages/home"));
@@ -50,6 +51,8 @@ const ShiftLeaderboardPage = lazy(() => import("@/pages/shift-leaderboard"));
 const ShiftChatArchive = lazy(() =>
   import("@/features/shift-chat/components/ShiftChatArchive").then((m) => ({ default: m.ShiftChatArchive }))
 );
+const ErCommandCenterPage = lazy(() => import("@/pages/er-command-center"));
+const ErImpactPage = lazy(() => import("@/pages/er-impact"));
 
 // Root path stays public landing for all visitors.
 function RootRoute() {
@@ -59,6 +62,7 @@ function RootRoute() {
 export function AppRoutes() {
   return (
     <PageErrorBoundary fallbackLabel="Page rendering failed">
+      <ErModeGuard>
       <Switch>
         <Route path="/" component={RootRoute} />
         <Route path="/landing" component={LandingPage} />
@@ -108,8 +112,11 @@ export function AppRoutes() {
         <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
         <Route path="/pending-emergencies"><AuthGuard><PendingEmergenciesPage /></AuthGuard></Route>
         <Route path="/shift-chat/:shiftId"><AuthGuard><ShiftChatArchive /></AuthGuard></Route>
+        <Route path="/er/impact"><AuthGuard><ErImpactPage /></AuthGuard></Route>
+        <Route path="/er"><AuthGuard><ErCommandCenterPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
+      </ErModeGuard>
     </PageErrorBoundary>
   );
 }

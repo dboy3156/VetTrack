@@ -157,6 +157,17 @@ router.patch("/mappings/:id", requireAdmin, validateBody(mappingReviewPatchSchem
     return res.status(404).json(apiError({ code: "NOT_FOUND", reason: id, message: "Mapping review not found", requestId }));
   }
 
+  logAudit({
+    actorRole: resolveAuditActorRole(req),
+    clinicId,
+    actionType: "integration_mapping_review_updated",
+    performedBy: req.authUser!.id,
+    performedByEmail: req.authUser!.email ?? "",
+    targetId: id,
+    targetType: "integration_mapping_review",
+    metadata: { reviewStatus: body.reviewStatus },
+  });
+
   await invalidateIntegrationDashboardCache(clinicId);
   res.json({ item: updated });
 });
@@ -393,6 +404,17 @@ router.patch("/configs/:adapterId", requireAdmin, validateBody(patchConfigSchema
   if (!updated) {
     return res.status(404).json(apiError({ code: "CONFIG_NOT_FOUND", reason: "No config for this adapter", message: "Integration config not found", requestId }));
   }
+
+  logAudit({
+    actorRole: resolveAuditActorRole(req),
+    clinicId,
+    actionType: "integration_config_updated",
+    performedBy: req.authUser!.id,
+    performedByEmail: req.authUser!.email ?? "",
+    targetId: updated.id,
+    targetType: "integration_config",
+    metadata: { adapterId, patch: body },
+  });
 
   await invalidateIntegrationDashboardCache(clinicId);
   res.json({ config: updated });

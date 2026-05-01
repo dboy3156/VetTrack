@@ -82,6 +82,34 @@ export interface ErAssignee {
 export interface ErAssigneesResponse {
   assignees: ErAssignee[];
 }
+// ── GET /api/er/handoffs/eligible-hospitalizations ─────────────────────────────
+export interface ErEligibleHospitalizationRow {
+  id: string;
+  animalName: string;
+  status: string;
+}
+export interface ErEligibleHospitalizationsResponse {
+  hospitalizations: ErEligibleHospitalizationRow[];
+}
+// ── POST /api/er/handoffs ─────────────────────────────────────────────────────
+export interface CreateErHandoffItemInput {
+  activeIssue: string;
+  nextAction: string;
+  etaMinutes: number;
+  ownerUserId?: string | null;
+}
+export interface CreateErHandoffRequest {
+  hospitalizationId: string;
+  items: CreateErHandoffItemInput[];
+  outgoingUserId?: string | null;
+}
+export interface CreateErHandoffResponse {
+  id: string;
+  clinicId: string;
+  hospitalizationId: string | null;
+  itemIds: string[];
+  createdAt: string;
+}
 // ── POST /api/er/handoffs/:id/ack ─────────────────────────────────────────────
 export interface AckErHandoffRequest {
   overrideReason?: string;

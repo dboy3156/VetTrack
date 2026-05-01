@@ -5,6 +5,7 @@ import { db, crashCartChecks, crashCartItems, hospitalizations, animals } from "
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -129,6 +130,16 @@ router.post("/items", requireAuth, requireAdmin, validateBody(createItemSchema),
       active: true,
     }).returning();
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "crash_cart_item_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "crash_cart_item",
+      metadata: { key: body.key },
+    });
     res.status(201).json(created);
   } catch (err: unknown) {
     const msg = String(err);
@@ -162,6 +173,15 @@ router.patch("/items/:id", requireAuth, requireAdmin, validateBody(updateItemSch
     if (!updated) {
       return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "ITEM_NOT_FOUND", message: "Item not found", requestId }));
     }
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "crash_cart_item_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "crash_cart_item",
+    });
     res.json(updated);
   } catch (err) {
     console.error("[crash-cart] update item failed", err);
@@ -185,6 +205,15 @@ router.delete("/items/:id", requireAuth, requireAdmin, async (req, res) => {
     if (!deactivated) {
       return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "ITEM_NOT_FOUND", message: "Item not found", requestId }));
     }
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "crash_cart_item_deactivated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "crash_cart_item",
+    });
     res.status(204).send();
   } catch (err) {
     console.error("[crash-cart] delete item failed", err);
@@ -212,6 +241,16 @@ router.post("/checks", requireAuth, validateBody(submitCheckSchema), async (req,
       notes: notes ?? null,
     });
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "crash_cart_check_saved",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "crash_cart_check",
+      metadata: { allPassed, itemCount: items.length },
+    });
     res.status(201).json({ id, allPassed });
   } catch (err) {
     console.error("[crash-cart] submit check failed", err);

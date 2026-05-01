@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db, drugFormulary } from "../db.js";
 import { normalizeJsonStringArray, syncFormularyFromSeed } from "../lib/formulary-seed-sync.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -166,6 +167,16 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
           })
           .where(and(eq(drugFormulary.id, existing.id), eq(drugFormulary.clinicId, clinicId)))
           .returning();
+        logAudit({
+          actorRole: resolveAuditActorRole(req),
+          clinicId,
+          actionType: "formulary_entry_upserted",
+          performedBy: req.authUser!.id,
+          performedByEmail: req.authUser!.email ?? "",
+          targetId: reactivated!.id,
+          targetType: "drug_formulary",
+          metadata: { reactivated: true },
+        });
         return res.json(toResponseRow(reactivated));
       }
       return res.status(409).json(
@@ -202,6 +213,16 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
         deletedAt: null,
       })
       .returning();
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "formulary_entry_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: created!.id,
+      targetType: "drug_formulary",
+    });
 
     return res.status(201).json(toResponseRow(created));
   } catch (err) {
@@ -315,6 +336,16 @@ router.patch("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res) 
       );
     }
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "formulary_entry_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "drug_formulary",
+    });
+
     return res.json(toResponseRow(updated));
   } catch (err) {
     console.error("[formulary] patch failed", err);
@@ -359,6 +390,16 @@ router.delete("/:id", requireAuth, requireEffectiveRole("vet"), async (req, res)
         }),
       );
     }
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "formulary_entry_deleted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "drug_formulary",
+    });
 
     return res.status(204).send();
   } catch (err) {

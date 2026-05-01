@@ -1,4 +1,3 @@
-import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -14,7 +13,19 @@ const PATTERNS: Array<{ name: string; regex: RegExp }> = [
   { name: "Private key block", regex: /-----BEGIN (RSA |EC )?PRIVATE KEY-----/ },
 ];
 
-const EXCLUDE_DIRS = ["node_modules", ".git", "dist", ".local", "attached_assets"];
+/** Directory name segments to skip anywhere under a scan root (vendor trees, VCS, tooling caches). */
+const EXCLUDE_DIRS = [
+  "node_modules",
+  ".git",
+  "dist",
+  ".local",
+  "attached_assets",
+  ".worktrees",
+  ".venv",
+];
+
+/** Only first-party source (avoid scanning nested git worktrees / node_modules under .worktrees). */
+const DEFAULT_SCAN_ROOTS = ["server", "shared", "scripts", "src", "lib"] as const;
 const EXCLUDE_FILES = [
   "scan-secrets.ts",
   "envValidation.ts",
@@ -24,9 +35,14 @@ const EXCLUDE_FILES = [
   "*.log",
 ];
 
+function normalizePathSeparators(filePath: string): string {
+  return filePath.split(path.sep).join("/");
+}
+
 function shouldExclude(filePath: string): boolean {
+  const norm = normalizePathSeparators(filePath);
   for (const dir of EXCLUDE_DIRS) {
-    if (filePath.includes(`/${dir}/`) || filePath.startsWith(`${dir}/`)) return true;
+    if (norm.includes(`/${dir}/`) || norm.startsWith(`${dir}/`)) return true;
   }
   const base = path.basename(filePath);
   for (const pat of EXCLUDE_FILES) {
@@ -85,7 +101,30 @@ function getFiles(dir: string): string[] {
 
 function main() {
   const rootDir = process.cwd();
-  const files = getFiles(rootDir);
+  const scanRoots = DEFAULT_SCAN_ROOTS.map((name) => path.join(rootDir, name)).filter((p) => {
+    try {
+      return fs.existsSync(p) && fs.statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
+  if (scanRoots.length === 0) {
+    console.error("❌ Secret scan: none of the expected source roots exist — aborting.");
+    process.exit(1);
+  }
+
+  console.log(
+    `🔎 Secret scan: ${scanRoots.map((p) => path.relative(rootDir, p)).join(", ")}`,
+  );
+  console.log(`   Skipping directories: ${EXCLUDE_DIRS.join(", ")}`);
+  console.log("");
+
+  const files: string[] = [];
+  for (const dir of scanRoots) {
+    files.push(...getFiles(dir));
+  }
+
   let totalHits = 0;
 
   for (const file of files) {

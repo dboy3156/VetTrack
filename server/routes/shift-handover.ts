@@ -7,6 +7,7 @@ import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { enqueueShiftReportEmailJob } from "../lib/queue.js";
 import { postSystemMessage } from "../lib/shift-chat-presence.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 
@@ -277,6 +278,15 @@ router.post(
         startedByUserId: req.authUser!.id,
         note: note?.trim() || null,
       });
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "shift_session_started",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: id,
+        targetType: "shift_session",
+      });
       res.status(201).json({
         id,
         clinicId,
@@ -334,6 +344,17 @@ router.post(
         .update(shiftSessions)
         .set({ endedAt, note: mergedNote })
         .where(and(eq(shiftSessions.id, open.id), eq(shiftSessions.clinicId, clinicId)));
+
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "shift_session_ended",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: open.id,
+        targetType: "shift_session",
+        metadata: { endedAt: endedAt.toISOString() },
+      });
 
       // Fire-and-forget: look up manager_email and enqueue shift report email.
       // Use key pattern `{clinicId}:manager_email` for clinic-scoped config.
@@ -731,6 +752,17 @@ router.patch(
           .update(inventoryLogs)
           .set({ metadata: { ...meta, pendingCompletion: false } })
           .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, logId)));
+      });
+
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "emergency_dispense_reconciled",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: logId,
+        targetType: "inventory_log",
+        metadata: { ledgerId: billingId, animalId },
       });
 
       return res.json({ success: true, ledgerId: billingId, alreadyReconciled: false });

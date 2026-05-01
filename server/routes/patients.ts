@@ -5,6 +5,7 @@ import { z } from "zod";
 import { animals, db, hospitalizations, owners, users, type HospitalizationStatus } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { postSystemMessage } from "../lib/shift-chat-presence.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 const router = Router();
 router.use(requireAuth, requireEffectiveRole("technician"));
@@ -313,6 +314,16 @@ router.post("/", requireEffectiveRole("technician"), async (req, res) => {
       .limit(1);
 
     const r = rows[0]!;
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "patient_admitted",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: hospId,
+      targetType: "hospitalization",
+      metadata: { animalId },
+    });
     res.status(201).json({ patient: hospitalizationRow(r.h, r.a, r.o, r.vetName ?? null) });
   } catch (err) {
     console.error("[patients] admit failed", err);
@@ -352,6 +363,17 @@ router.patch("/:id/status", async (req, res) => {
       }).catch(() => {});
     }
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "hospitalization_status_updated",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "hospitalization",
+      metadata: { status: parse.data.status },
+    });
+
     res.json({ id: updated[0]!.id, status: parse.data.status });
   } catch (err) {
     console.error("[patients] status update failed", err);
@@ -383,6 +405,18 @@ router.patch("/:id/discharge", async (req, res) => {
       .returning({ id: hospitalizations.id, dischargedAt: hospitalizations.dischargedAt });
 
     if (!updated.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "patient_discharged",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "hospitalization",
+      metadata: { dischargedAt: updated[0]!.dischargedAt?.toISOString() ?? null },
+    });
+
     res.json({ id: updated[0]!.id, dischargedAt: updated[0]!.dischargedAt });
   } catch (err) {
     console.error("[patients] discharge failed", err);

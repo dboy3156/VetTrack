@@ -6,6 +6,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { format } from "date-fns";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 
 /**
  * Normalize to E.164 with leading '+' (for auth contexts).
@@ -136,8 +137,9 @@ router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateB
       ? `https://wa.me/${normalizePhoneNumber(phone)}?text=${encoded}`
       : `https://wa.me/?text=${encoded}`;
 
+    const alertId = randomUUID();
     await db.insert(whatsappAlerts).values({
-      id: randomUUID(),
+      id: alertId,
       clinicId,
       equipmentId,
       equipmentName,
@@ -146,6 +148,17 @@ router.post("/alert", requireAuth, requireEffectiveRole("technician"), validateB
       phoneNumber: phone || null,
       message,
       waUrl,
+    });
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "whatsapp_alert_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: alertId,
+      targetType: "whatsapp_alert",
+      metadata: { equipmentId, status },
     });
 
     res.json({ success: true, waUrl });

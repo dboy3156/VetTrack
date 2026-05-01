@@ -43,7 +43,7 @@ const app = express();
 // Trust first proxy so rate limiting derives client IPs correctly.
 app.set("trust proxy", 1);
 
-// Health checks must bypass all middleware (CORS, Clerk, CSP, body parsing, etc.).
+// Liveness/version must stay BEFORE helmet/cors/json/clerk/rate-limit so probes succeed without Clerk keys.
 function sendHealthOk(_req: express.Request, res: express.Response) {
   res.status(200).send("ok");
 }

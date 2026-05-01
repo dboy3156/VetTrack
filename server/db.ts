@@ -502,6 +502,10 @@ export const inventoryLogs = pgTable(
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    /** Set when a consumable dispense produced a vt_billing_ledger row (revenue capture). */
+    billingEventId: text("billing_event_id").references(() => billingLedger.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => ({
     taskClinicIdx: index("vt_inventory_logs_task_clinic_idx").on(table.taskId, table.clinicId),
@@ -1200,6 +1204,7 @@ export const shiftHandoffItems = pgTable(
     ackBy: text("ack_by")
       .references(() => users.id, { onDelete: "set null" }),
     ackAt: timestamp("ack_at"),
+    slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
     overriddenBy: text("overridden_by")
       .references(() => users.id, { onDelete: "set null" }),
     overrideReason: text("override_reason"),
@@ -1254,6 +1259,34 @@ export const erKpiDaily = pgTable(
     ),
   }),
 );
+/** Append-only ER board / intake / handoff / SLA workflow events (system of record). */
+export const erBoardEventLog = pgTable(
+  "vt_er_board_event_log",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    eventType: varchar("event_type", { length: 64 }).notNull(),
+    entityType: varchar("entity_type", { length: 32 }),
+    entityId: text("entity_id"),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicCreatedIdx: index("idx_er_board_event_log_clinic_created").on(
+      table.clinicId,
+      table.createdAt,
+    ),
+    entityIdx: index("idx_er_board_event_log_entity").on(
+      table.clinicId,
+      table.entityType,
+      table.entityId,
+    ),
+  }),
+);
+
 export const erBaselineSnapshots = pgTable(
   "vt_er_baseline_snapshots",
   {
