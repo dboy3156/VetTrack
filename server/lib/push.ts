@@ -218,7 +218,9 @@ export async function sendPushToRole(clinicId: string, role: string, payload: Pu
     userId: pushSubscriptions.userId,
   }).from(pushSubscriptions).where(eq(pushSubscriptions.clinicId, clinicId));
 
-  if (allSubs.length === 0) return;
+  if (allSubs.length === 0) {
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const userRows = await db
     .select({ id: users.id, role: users.role })
