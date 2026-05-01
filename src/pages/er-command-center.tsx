@@ -12,7 +12,7 @@ import {
   getErEligibleHospitalizations,
 } from "@/lib/er-api";
 import { connectRealtime, disconnectRealtime, EventIngestor } from "@/lib/realtime";
-import type { ErBoardItem, ErLane, ErSeverity } from "../../shared/er-types";
+import type { ErBoardItem, ErBoardResponse, ErLane, ErSeverity } from "../../shared/er-types";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,6 +79,85 @@ function emptyHandoffRow(): HandoffFormRow {
 
 const SEVERITIES: ErSeverity[] = ["low", "medium", "high", "critical"];
 
+/**
+ * Primary Lane Enforcement: reads `item.lane` as the authoritative Primary Lane for each
+ * ErBoardItem. Collapses any duplicate appearances from the server response (defensive guard)
+ * to a single placement, preventing card duplication across columns.
+ *
+ * The Unified ER Event Stream drives all lane transitions via applyEvent(); this function
+ * only enforces the single-placement invariant on each received board snapshot.
+ */
+function deduplicateByPrimaryLane(
+  raw: ErBoardResponse["lanes"],
+): Record<ErLane, ErBoardItem[]> {
+  const seen = new Set<string>();
+  const result: Record<ErLane, ErBoardItem[]> = {
+    criticalNow: [],
+    next15m: [],
+    handoffRisk: [],
+  };
+  // Merge all server lane arrays and route each item by its authoritative item.lane field.
+  const allItems = [...raw.criticalNow, ...raw.next15m, ...raw.handoffRisk];
+  for (const item of allItems) {
+    if (seen.has(item.id)) continue; // Enforce single-placement invariant — no card cloning.
+    seen.add(item.id);
+    result[item.lane].push(item);
+  }
+  return result;
+}
+
+/**
+ * Queue Severity urgency styling: applied as the base card border/background to reflect
+ * clinical severity. This is independent of Primary Lane placement — a patient in `next15m`
+ * with `critical` severity still renders with a critical border.
+ * Escalation-countdown urgency (erEscalationCardClass) is applied after and overrides when
+ * an active SLA countdown is in progress.
+ */
+function severityCardClass(severity: ErSeverity): string {
+  switch (severity) {
+    case "critical":
+      return "border-red-600/55 bg-red-500/[0.05]";
+    case "high":
+      return "border-orange-500/45 bg-orange-500/[0.04]";
+    case "medium":
+      return "border-yellow-500/30";
+    case "low":
+      return "";
+  }
+}
+
+/**
+ * Risk Badge: secondary clinical status indicator displayed on a card without changing its
+ * Primary Lane. Distinct visual weight per badge type:
+ *   overdue      — destructive red  (SLA breached — requires immediate attention)
+ *   handoffRisk  — amber warning    (pending handoff, incoming assignee not yet acknowledged)
+ *   unassigned   — muted gray       (no responsible clinician assigned)
+ */
+function RiskBadge({ badge }: { badge: "overdue" | "handoffRisk" | "unassigned" }) {
+  const label =
+    badge === "overdue"
+      ? t.erCommandCenter.badges.overdue
+      : badge === "handoffRisk"
+        ? t.erCommandCenter.badges.handoffRisk
+        : t.erCommandCenter.badges.unassigned;
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "text-xs font-medium",
+        badge === "overdue" &&
+          "border-destructive/40 bg-destructive/10 text-destructive dark:bg-destructive/20",
+        badge === "handoffRisk" &&
+          "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+        badge === "unassigned" && "border-border bg-muted text-muted-foreground",
+      )}
+    >
+      {label}
+    </Badge>
+  );
+}
+
 function canAssignRole(role: string): boolean {
   return ["admin", "vet", "senior_technician", "technician"].includes(role);
 }
@@ -135,6 +214,9 @@ function ErBoardLaneItemCard({
     <Card
       className={cn(
         "border-border shadow-sm transition-colors",
+        // Queue Severity sets the base urgency styling (border + subtle background).
+        // Escalation-countdown urgency is applied after and overrides when SLA is active.
+        severityCardClass(item.severity),
         erEscalationCardClass(ant.urgency),
         pulse && "motion-reduce:animate-none animate-pulse",
       )}
@@ -142,7 +224,8 @@ function ErBoardLaneItemCard({
       <CardContent className="space-y-2 p-3 text-sm">
         <div className="font-medium leading-snug">{item.patientLabel}</div>
         <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
-          <span>{item.severity}</span>
+          {/* Severity label only — Primary Lane determines column placement, not displayed here */}
+          <span className="font-medium uppercase tracking-wide">{item.severity}</span>
           <span>·</span>
           <span>{item.nextActionLabel}</span>
         </div>
@@ -163,17 +246,14 @@ function ErBoardLaneItemCard({
             {t.erCommandCenter.escalationOverdue}
           </div>
         ) : null}
-        <div className="flex flex-wrap gap-1">
-          {item.badges.map((b) => (
-            <Badge key={b} variant="secondary" className="text-xs">
-              {b === "overdue"
-                ? t.erCommandCenter.badges.overdue
-                : b === "unassigned"
-                  ? t.erCommandCenter.badges.unassigned
-                  : t.erCommandCenter.badges.handoffRisk}
-            </Badge>
-          ))}
-        </div>
+        {/* Risk Badges — secondary clinical status indicators. Do not affect Primary Lane placement. */}
+        {item.badges.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {item.badges.map((b) => (
+              <RiskBadge key={b} badge={b} />
+            ))}
+          </div>
+        ) : null}
         {item.type === "intake" && canAssign ? (
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Select
@@ -430,11 +510,12 @@ export default function ErCommandCenterPage() {
     onError: () => toast.error("Override failed"),
   });
 
-  const lanes: Record<ErLane, ErBoardItem[]> = boardQ.data?.lanes ?? {
-    criticalNow: [],
-    next15m: [],
-    handoffRisk: [],
-  };
+  // Primary Lane Enforcement: deduplicateByPrimaryLane guarantees each patient card is placed
+  // in exactly one column, using item.lane as the authoritative source of truth.
+  // The Unified ER Event Stream drives all transitions; this is a client-side safety net only.
+  const lanes = deduplicateByPrimaryLane(
+    boardQ.data?.lanes ?? { criticalNow: [], next15m: [], handoffRisk: [] },
+  );
 
   const handoffFormInvalid =
     handoffMut.isPending ||

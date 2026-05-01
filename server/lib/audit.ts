@@ -71,6 +71,7 @@ export type AuditActionType =
   | "er_intake_assigned"
   | "er_handoff_created"
   | "er_handoff_acknowledged"
+  | "er_handoff_forced_ack_override"
   | "container_created"
   | "containers_defaults_seeded"
   | "crash_cart_item_created"
