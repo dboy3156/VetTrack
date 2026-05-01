@@ -756,6 +756,9 @@ export default function ErCommandCenterPage() {
             <Button variant="outline" asChild>
               <Link href="/er/impact">{t.erCommandCenter.impactLink}</Link>
             </Button>
+            <Button variant="outline" asChild>
+              <Link href="/er/kpis">Outcome KPIs</Link>
+            </Button>
             <Button variant="ghost" onClick={() => void boardQ.refetch()}>
               {t.erCommandCenter.refresh}
             </Button>
