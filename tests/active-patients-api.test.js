@@ -66,8 +66,8 @@ describe("Active Patients — multi-tenancy isolation", () => {
   });
 
   it("New animal created on admit inherits clinicId", () => {
-    // db.insert(animals).values({ ..., clinicId, name: data.animalName! ... })
-    expect(patientsRoute).toContain("db.insert(animals)");
+    // tx.insert(animals).values({ ..., clinicId, name: data.animalName! ... }) inside admit transaction
+    expect(patientsRoute).toContain("insert(animals)");
     expect(patientsRoute).toContain("clinicId,");
     expect(patientsRoute).toContain("name: data.animalName");
   });

@@ -2,14 +2,18 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
+import { animals, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
 import { restockContainerInTx } from "../services/inventory.service.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
 import { enqueueBillingWebhookJob } from "../lib/queue.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import { captureConsumableBillingForDispenseLine } from "../lib/container-consumable-billing.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
+import { evaluateDispenseAgainstOrders } from "../lib/dispense-order-validation.js";
 
 const router = Router();
 
@@ -55,6 +59,16 @@ router.post("/bootstrap-defaults", requireAuth, requireEffectiveRole("technician
   try {
     const clinicId = req.clinicId!;
     const inserted = await seedDefaultContainersIfEmpty(clinicId);
+    if (inserted > 0) {
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "containers_defaults_seeded",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        metadata: { inserted },
+      });
+    }
     res.json({ inserted });
   } catch (err) {
     console.error(err);
@@ -166,7 +180,21 @@ router.post(
         roomId: b.roomId ?? null,
         nfcTagId: b.nfcTagId?.trim() || null,
       });
-      const [row] = await db.select().from(containers).where(eq(containers.id, id)).limit(1);
+      const [row] = await db
+        .select()
+        .from(containers)
+        .where(and(eq(containers.clinicId, clinicId), eq(containers.id, id)))
+        .limit(1);
+      logAudit({
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "container_created",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: id,
+        targetType: "container",
+        metadata: { name: b.name.trim() },
+      });
       res.status(201).json(row);
     } catch (err) {
       console.error(err);
@@ -243,11 +271,17 @@ const completeEmergencySchema = z.object({
   animalId: z.string().nullable().optional(),
 });
 
+const reconcileUnusedChargeSchema = z.object({
+  billingLedgerId: z.string().uuid(),
+  note: z.string().max(500).optional(),
+});
+
 // POST /api/containers/:id/dispense
 router.post(
   "/:id/dispense",
   requireAuth,
   requireEffectiveRole("technician"),
+  idempotencyMiddleware("containers.dispense"),
   validateUuid("id"),
   validateBody(dispenseSchema),
   async (req, res) => {
@@ -297,13 +331,19 @@ router.post(
         });
       }
 
-      // Normal dispense
+      // Normal dispense — billing ledger rows commit with inventory logs (revenue invariant).
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
-      // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
+      let autoBilledCents = 0;
 
       await db.transaction(async (tx) => {
+        const validationLines: Array<{
+          itemId: string;
+          quantity: number;
+          label: string;
+          code: string;
+        }> = [];
+
         const [container] = await tx
           .select()
           .from(containers)
@@ -312,7 +352,6 @@ router.post(
         if (!container) throw Object.assign(new Error("CONTAINER_NOT_FOUND"), { statusCode: 404 });
 
         for (const lineItem of body.items) {
-          // Verify container item exists and has sufficient quantity
           const [ci] = await tx
             .select()
             .from(containerItems)
@@ -345,16 +384,14 @@ router.post(
             });
           }
 
-          // Get item label
           const [item] = await tx
-            .select({ label: inventoryItems.label })
+            .select({ label: inventoryItems.label, code: inventoryItems.code })
             .from(inventoryItems)
             .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, lineItem.itemId)))
             .limit(1);
 
           const newQty = ci.quantity - lineItem.quantity;
 
-          // Decrement container item quantity
           await tx
             .update(containerItems)
             .set({ quantity: newQty, updatedAt: new Date() })
@@ -366,8 +403,22 @@ router.post(
               ),
             );
 
-          // Insert inventory log
           const inventoryLogId = randomUUID();
+          const billing = await captureConsumableBillingForDispenseLine(tx, {
+            clinicId,
+            billingItemId: container.billingItemId,
+            inventoryLogId,
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            animalId: animalId ?? null,
+          });
+          if (!billing.billingEventId && !billing.exemptReason) {
+            throw Object.assign(new Error("BILLING_CAPTURE_INVARIANT_VIOLATION"), { statusCode: 500 });
+          }
+
+          const metadata: Record<string, unknown> = { isEmergency: false, itemId: lineItem.itemId };
+          if (billing.exemptReason) metadata.billingExemptReason = billing.exemptReason;
+
           await tx.insert(inventoryLogs).values({
             id: inventoryLogId,
             clinicId,
@@ -380,8 +431,21 @@ router.post(
             animalId: animalId ?? null,
             roomId: container.roomId,
             note: null,
-            metadata: { isEmergency: false, itemId: lineItem.itemId },
+            metadata,
             createdByUserId: actorUserId,
+            billingEventId: billing.billingEventId,
+          });
+
+          if (billing.billingEventId) {
+            billingIds.push(billing.billingEventId);
+            autoBilledCents += billing.rowTotalCents;
+          }
+
+          validationLines.push({
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            label: item?.label ?? lineItem.itemId,
+            code: item?.code ?? "",
           });
 
           dispensedItems.push({
@@ -390,56 +454,79 @@ router.post(
             quantity: lineItem.quantity,
             newStock: newQty,
           });
-
-          // Billing is handled by the auto-billing block below via billingItems.
-          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
-
-          // Queue auto-billing candidate for post-transaction insert
-          if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
-          }
         }
-      });
 
-      // Auto-billing: insert billing ledger rows after the transaction commits
-      // Failures must NOT fail the dispense — log and continue
-      let autoBilledCents = 0;
-      for (const candidate of autoBillingCandidates) {
-        try {
-          const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
-            .from(inventoryItems)
-            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
+        const { orphanLines } = await evaluateDispenseAgainstOrders(tx, {
+          clinicId,
+          animalId: animalId ?? null,
+          containerId,
+          lines: validationLines,
+        });
+
+        let animalDisplayName: string | null = null;
+        if (animalId) {
+          const [an] = await tx
+            .select({ name: animals.name })
+            .from(animals)
+            .where(and(eq(animals.clinicId, clinicId), eq(animals.id, animalId)))
             .limit(1);
-          if (!item?.isBillable) continue;
-          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
-          const [bi] = await db
-            .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
-            .from(billingItems)
-            .where(and(eq(billingItems.id, candidate.billingItemId), eq(billingItems.clinicId, clinicId)))
-            .limit(1);
-          if (bi && bi.unitPriceCents > 0) {
-            const autoBillingId = randomUUID();
-            const rowTotal = bi.unitPriceCents * candidate.quantity;
-            await db.insert(billingLedger).values({
-              id: autoBillingId,
-              clinicId,
+          animalDisplayName = an?.name?.trim() || null;
+        }
+
+        if (orphanLines.length > 0) {
+          await insertRealtimeDomainEvent(tx, {
+            clinicId,
+            type: "POTENTIAL_ORPHAN_USE",
+            payload: {
               animalId: animalId ?? null,
-              itemType: "CONSUMABLE",
-              itemId: bi.id,
-              quantity: candidate.quantity,
-              unitPriceCents: bi.unitPriceCents,
-              totalAmountCents: rowTotal,
-              idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
-              status: "pending",
-            }).onConflictDoNothing();
-            billingIds.push(autoBillingId);
-            autoBilledCents += rowTotal;
-          }
-        } catch (autoBillingErr) {
-          console.error("[auto-billing] Failed to insert billing ledger row for dispense, continuing:", autoBillingErr);
+              animalDisplayName,
+              sourceContainerId: containerId,
+              technicianId: actorUserId,
+              orphanLines,
+              dispenseKind: "container_dispense",
+            },
+          });
         }
-      }
+
+        await logAudit({
+          tx,
+          clinicId,
+          actionType: "inventory_dispensed",
+          performedBy: actorUserId,
+          performedByEmail: req.authUser!.email ?? "",
+          targetId: containerId,
+          targetType: "container",
+          actorRole: resolveAuditActorRole(req),
+          metadata: {
+            dispensedItemCount: dispensedItems.length,
+            autoBilledCents,
+            animalId: animalId ?? null,
+            isEmergency: false,
+          },
+        });
+
+        await insertRealtimeDomainEvent(tx, {
+          clinicId,
+          type: "INVENTORY_ALERT",
+          payload: {
+            kind: "container_dispense",
+            containerId,
+            sourceContainerId: containerId,
+            technicianId: actorUserId,
+            animalId: animalId ?? null,
+            dispensedItemCount: dispensedItems.length,
+            autoBilledCents,
+            billingIds,
+            orphanLineCount: orphanLines.length,
+            lines: dispensedItems.map((d) => ({
+              itemId: d.itemId,
+              label: d.label,
+              quantity: d.quantity,
+              newStock: d.newStock,
+            })),
+          },
+        });
+      });
 
       // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
@@ -465,22 +552,6 @@ router.post(
       } catch (webhookErr) {
         console.error("[billing-webhook] Failed to enqueue webhook for dispense, continuing:", webhookErr);
       }
-
-      logAudit({
-        clinicId,
-        actionType: "inventory_dispensed",
-        performedBy: req.authUser!.id,
-        performedByEmail: req.authUser!.email ?? "",
-        targetId: containerId,
-        targetType: "container",
-        actorRole: resolveAuditActorRole(req),
-        metadata: {
-          dispensedItemCount: dispensedItems.length,
-          autoBilledCents,
-          animalId: animalId ?? null,
-          isEmergency: false,
-        },
-      });
 
       return res.json({
         success: true,
@@ -518,6 +589,7 @@ router.patch(
   "/emergency/:eventId/complete",
   requireAuth,
   requireEffectiveRole("technician"),
+  idempotencyMiddleware("containers.emergency_complete"),
   validateBody(completeEmergencySchema),
   async (req, res) => {
     const requestId = resolveRequestId(res, req.headers["x-request-id"]);
@@ -532,10 +604,16 @@ router.patch(
 
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
-      // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
+      let autoBilledCents = 0;
 
       await db.transaction(async (tx) => {
+        const validationLines: Array<{
+          itemId: string;
+          quantity: number;
+          label: string;
+          code: string;
+        }> = [];
+
         // Find the emergency event log
         const [origLog] = await tx
           .select()
@@ -583,7 +661,7 @@ router.patch(
           }
 
           const [item] = await tx
-            .select({ label: inventoryItems.label })
+            .select({ label: inventoryItems.label, code: inventoryItems.code })
             .from(inventoryItems)
             .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, lineItem.itemId)))
             .limit(1);
@@ -602,6 +680,25 @@ router.patch(
             );
 
           const inventoryLogId = randomUUID();
+          const billing = await captureConsumableBillingForDispenseLine(tx, {
+            clinicId,
+            billingItemId: container.billingItemId,
+            inventoryLogId,
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            animalId: animalId ?? null,
+          });
+          if (!billing.billingEventId && !billing.exemptReason) {
+            throw Object.assign(new Error("BILLING_CAPTURE_INVARIANT_VIOLATION"), { statusCode: 500 });
+          }
+
+          const lineMeta: Record<string, unknown> = {
+            isEmergency: true,
+            emergencyEventId: eventId,
+            itemId: lineItem.itemId,
+          };
+          if (billing.exemptReason) lineMeta.billingExemptReason = billing.exemptReason;
+
           await tx.insert(inventoryLogs).values({
             id: inventoryLogId,
             clinicId,
@@ -614,8 +711,21 @@ router.patch(
             animalId: animalId ?? null,
             roomId: container.roomId,
             note: null,
-            metadata: { isEmergency: true, emergencyEventId: eventId, itemId: lineItem.itemId },
+            metadata: lineMeta,
             createdByUserId: origLog.createdByUserId,
+            billingEventId: billing.billingEventId,
+          });
+
+          if (billing.billingEventId) {
+            billingIds.push(billing.billingEventId);
+            autoBilledCents += billing.rowTotalCents;
+          }
+
+          validationLines.push({
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            label: item?.label ?? lineItem.itemId,
+            code: item?.code ?? "",
           });
 
           dispensedItems.push({
@@ -624,14 +734,39 @@ router.patch(
             quantity: lineItem.quantity,
             newStock: newQty,
           });
+        }
 
-          // Billing is handled by the auto-billing block below via billingItems.
-          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
+        const { orphanLines } = await evaluateDispenseAgainstOrders(tx, {
+          clinicId,
+          animalId: animalId ?? null,
+          containerId,
+          lines: validationLines,
+        });
 
-          // Queue auto-billing candidate for post-transaction insert
-          if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
-          }
+        let animalDisplayNameEm: string | null = null;
+        if (animalId) {
+          const [an] = await tx
+            .select({ name: animals.name })
+            .from(animals)
+            .where(and(eq(animals.clinicId, clinicId), eq(animals.id, animalId)))
+            .limit(1);
+          animalDisplayNameEm = an?.name?.trim() || null;
+        }
+
+        if (orphanLines.length > 0) {
+          await insertRealtimeDomainEvent(tx, {
+            clinicId,
+            type: "POTENTIAL_ORPHAN_USE",
+            payload: {
+              animalId: animalId ?? null,
+              animalDisplayName: animalDisplayNameEm,
+              sourceContainerId: containerId,
+              technicianId: actorUserId,
+              orphanLines,
+              dispenseKind: "emergency_dispense_complete",
+              emergencyEventId: eventId,
+            },
+          });
         }
 
         // Mark original emergency log as completed
@@ -641,44 +776,47 @@ router.patch(
             metadata: { ...meta, pendingCompletion: false },
           })
           .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, eventId)));
-      });
 
-      // Auto-billing: insert billing ledger rows after the transaction commits
-      // Failures must NOT fail the dispense — log and continue
-      for (const candidate of autoBillingCandidates) {
-        try {
-          const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
-            .from(inventoryItems)
-            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
-            .limit(1);
-          if (!item?.isBillable) continue;
-          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
-          const [bi] = await db
-            .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
-            .from(billingItems)
-            .where(and(eq(billingItems.id, candidate.billingItemId), eq(billingItems.clinicId, clinicId)))
-            .limit(1);
-          if (bi && bi.unitPriceCents > 0) {
-            const autoBillingId = randomUUID();
-            await db.insert(billingLedger).values({
-              id: autoBillingId,
-              clinicId,
-              animalId: null, // emergencies are unregistered animals by definition
-              itemType: "CONSUMABLE",
-              itemId: bi.id,
-              quantity: candidate.quantity,
-              unitPriceCents: bi.unitPriceCents,
-              totalAmountCents: bi.unitPriceCents * candidate.quantity,
-              idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
-              status: "pending",
-            }).onConflictDoNothing();
-            billingIds.push(autoBillingId);
-          }
-        } catch (autoBillingErr) {
-          console.error("[auto-billing] Failed to insert billing ledger row for emergency dispense, continuing:", autoBillingErr);
-        }
-      }
+        await logAudit({
+          tx,
+          clinicId,
+          actionType: "emergency_dispense_reconciled",
+          performedBy: actorUserId,
+          performedByEmail: req.authUser!.email ?? "",
+          targetId: eventId,
+          targetType: "emergency_event",
+          actorRole: resolveAuditActorRole(req),
+          metadata: {
+            dispensedItemCount: dispensedItems.length,
+            autoBilledCents,
+            animalId: animalId ?? null,
+            isEmergency: true,
+          },
+        });
+
+        await insertRealtimeDomainEvent(tx, {
+          clinicId,
+          type: "INVENTORY_ALERT",
+          payload: {
+            kind: "emergency_dispense_complete",
+            emergencyEventId: eventId,
+            containerId,
+            sourceContainerId: containerId,
+            technicianId: actorUserId,
+            animalId: animalId ?? null,
+            dispensedItemCount: dispensedItems.length,
+            autoBilledCents,
+            billingIds,
+            orphanLineCount: orphanLines.length,
+            lines: dispensedItems.map((d) => ({
+              itemId: d.itemId,
+              label: d.label,
+              quantity: d.quantity,
+              newStock: d.newStock,
+            })),
+          },
+        });
+      });
 
       // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
@@ -705,28 +843,13 @@ router.patch(
         console.error("[billing-webhook] Failed to enqueue webhook for emergency dispense, continuing:", webhookErr);
       }
 
-      logAudit({
-        clinicId,
-        actionType: "inventory_dispensed",
-        performedBy: actorUserId,
-        performedByEmail: req.authUser!.email ?? "",
-        targetId: eventId,
-        targetType: "emergency_event",
-        actorRole: resolveAuditActorRole(req),
-        metadata: {
-          dispensedItemCount: dispensedItems.length,
-          autoBilledCents: billingIds.length,
-          animalId: animalId ?? null,
-          isEmergency: true,
-        },
-      });
-
       return res.json({
         success: true,
         dispensed: dispensedItems,
         takenBy: { userId: actorUserId, displayName: actorDisplayName },
         takenAt: takenAt.toISOString(),
         billingIds,
+        autoBilledCents,
       });
     } catch (err: unknown) {
       const e = err as Record<string, unknown>;
@@ -747,6 +870,178 @@ router.patch(
       }
       console.error(err);
       return res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "COMPLETE_EMERGENCY_FAILED", message: "Failed to complete emergency", requestId }));
+    }
+  },
+);
+
+// POST /api/containers/reconcile-unused-charge — void patient charge + return units to cabinet (unused dispense).
+router.post(
+  "/reconcile-unused-charge",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  idempotencyMiddleware("containers.reconcile_unused"),
+  validateBody(reconcileUnusedChargeSchema),
+  async (req, res) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    try {
+      const clinicId = req.clinicId!;
+      const actorUserId = req.authUser!.id;
+      const body = req.body as z.infer<typeof reconcileUnusedChargeSchema>;
+
+      const result = await db.transaction(async (tx) => {
+        const [ledger] = await tx
+          .select()
+          .from(billingLedger)
+          .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.id, body.billingLedgerId)))
+          .limit(1);
+        if (!ledger) {
+          throw Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });
+        }
+        if (ledger.status === "voided") {
+          throw Object.assign(new Error("ALREADY_VOIDED"), { statusCode: 409, code: "ALREADY_VOIDED" });
+        }
+        if (ledger.itemType !== "CONSUMABLE") {
+          throw Object.assign(new Error("NOT_CONSUMABLE"), { statusCode: 400, code: "INVALID_CHARGE_TYPE" });
+        }
+
+        const [origLog] = await tx
+          .select()
+          .from(inventoryLogs)
+          .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.billingEventId, body.billingLedgerId)))
+          .limit(1);
+        if (!origLog) {
+          throw Object.assign(new Error("NO_INVENTORY_LOG"), { statusCode: 404 });
+        }
+        if (origLog.quantityAdded >= 0) {
+          throw Object.assign(new Error("NOT_DISPENSE_LOG"), { statusCode: 400 });
+        }
+
+        const restoreQty = Math.abs(origLog.quantityAdded);
+        const metaRaw = origLog.metadata as Record<string, unknown> | null;
+        const itemIdForRow =
+          typeof metaRaw?.itemId === "string" && metaRaw.itemId.trim().length > 0 ? metaRaw.itemId.trim() : null;
+        if (!itemIdForRow) {
+          throw Object.assign(new Error("MISSING_ITEM_ON_LOG"), { statusCode: 400 });
+        }
+
+        const [ci] = await tx
+          .select()
+          .from(containerItems)
+          .where(
+            and(
+              eq(containerItems.clinicId, clinicId),
+              eq(containerItems.containerId, origLog.containerId),
+              eq(containerItems.itemId, itemIdForRow),
+            ),
+          )
+          .limit(1);
+
+        if (!ci) {
+          throw Object.assign(new Error("CONTAINER_ITEM_NOT_FOUND"), { statusCode: 409 });
+        }
+
+        const newQty = ci.quantity + restoreQty;
+        await tx
+          .update(containerItems)
+          .set({ quantity: newQty, updatedAt: new Date() })
+          .where(
+            and(
+              eq(containerItems.clinicId, clinicId),
+              eq(containerItems.containerId, origLog.containerId),
+              eq(containerItems.itemId, itemIdForRow),
+            ),
+          );
+
+        await tx
+          .update(billingLedger)
+          .set({ status: "voided" })
+          .where(and(eq(billingLedger.clinicId, clinicId), eq(billingLedger.id, body.billingLedgerId)));
+
+        const reconcileLogId = randomUUID();
+        await tx.insert(inventoryLogs).values({
+          id: reconcileLogId,
+          clinicId,
+          containerId: origLog.containerId,
+          taskId: null,
+          logType: "adjustment",
+          quantityBefore: ci.quantity,
+          quantityAdded: restoreQty,
+          quantityAfter: newQty,
+          animalId: origLog.animalId,
+          roomId: origLog.roomId,
+          note: body.note?.trim() || "reconcile_unused_charge",
+          metadata: {
+            kind: "reconcile_unused_charge",
+            restoredBillingLedgerId: body.billingLedgerId,
+            originalInventoryLogId: origLog.id,
+          },
+          createdByUserId: actorUserId,
+          billingEventId: null,
+        });
+
+        await logAudit({
+          tx,
+          clinicId,
+          actionType: "billing_voided",
+          performedBy: actorUserId,
+          performedByEmail: req.authUser!.email ?? "",
+          targetId: body.billingLedgerId,
+          targetType: "billing_ledger",
+          actorRole: resolveAuditActorRole(req),
+          metadata: {
+            reason: "reconcile_unused_dispense",
+            originalInventoryLogId: origLog.id,
+            reconcileInventoryLogId: reconcileLogId,
+            note: body.note ?? null,
+          },
+        });
+
+        await insertRealtimeDomainEvent(tx, {
+          clinicId,
+          type: "INVENTORY_ALERT",
+          payload: {
+            kind: "reconcile_unused_charge",
+            billingLedgerId: body.billingLedgerId,
+            containerId: origLog.containerId,
+            sourceContainerId: origLog.containerId,
+            technicianId: actorUserId,
+            restoredQuantity: restoreQty,
+            itemId: itemIdForRow,
+          },
+        });
+
+        await insertRealtimeDomainEvent(tx, {
+          clinicId,
+          type: "SHADOW_ORPHAN_ALERT_RESOLVED",
+          payload: {
+            billingLedgerId: body.billingLedgerId,
+            inventoryLogId: origLog.id,
+            resolution: "reconcile_unused_charge",
+          },
+        });
+
+        return {
+          billingLedgerId: body.billingLedgerId,
+          restoredQuantity: restoreQty,
+          containerId: origLog.containerId,
+          newStock: newQty,
+        };
+      });
+
+      return res.status(200).json({ success: true, ...result, requestId });
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown> & { statusCode?: number };
+      if (e.code === "ALREADY_VOIDED") {
+        return res.status(409).json(apiError({ code: "CONFLICT", reason: "ALREADY_VOIDED", message: "Charge already voided", requestId }));
+      }
+      if (e.statusCode === 404 || e.message === "NOT_FOUND") {
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "LEDGER_NOT_FOUND", message: "Billing entry not found", requestId }));
+      }
+      if (e.message === "NO_INVENTORY_LOG") {
+        return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "NO_INVENTORY_LOG", message: "No linked inventory log for this charge", requestId }));
+      }
+      console.error(err);
+      return res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "RECONCILE_FAILED", message: "Failed to reconcile charge", requestId }));
     }
   },
 );
