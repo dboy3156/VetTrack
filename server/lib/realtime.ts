@@ -16,6 +16,7 @@ export type RealtimeEventType =
   | "ER_HANDOFF_CREATED"
   | "ER_HANDOFF_ACKNOWLEDGED"
   | "ER_HANDOFF_SLA_BREACHED"
+  | "ER_HANDOFF_OVERRIDDEN"
   | "PATIENT_STATUS_UPDATED";
 
 export type RealtimeEvent = {
