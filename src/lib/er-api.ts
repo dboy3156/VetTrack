@@ -15,6 +15,9 @@ import type {
   ErModeResponse,
 } from "../../shared/er-types.js";
 
+/** React Query key — shared by ER concealment guard and layout. */
+export const ER_MODE_QUERY_KEY = ["er-mode-state"] as const;
+
 export class ErApiNotImplementedError extends Error {
   constructor(message = "ER API route not implemented") {
     super(message);

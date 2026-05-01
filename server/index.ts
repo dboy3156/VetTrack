@@ -24,6 +24,7 @@ import { runMigrations } from "./migrate.js";
 import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
+import { erModeConcealmentMiddleware } from "./middleware/er-mode-concealment.js";
 import { registerApiRoutes } from "./app/routes.js";
 import clerkWebhookRoutes from "./routes/webhooks.js";
 import inboundIntegrationWebhooks from "./integrations/webhooks/inbound.router.js";
@@ -228,6 +229,7 @@ if (authModeResolution.mode === "clerk") {
 app.use("/api", globalApiLimiter);
 app.use("/api", i18nMiddleware);
 app.use("/api", tenantContext);
+app.use("/api", erModeConcealmentMiddleware);
 
 registerApiRoutes(app);
 

@@ -4,6 +4,7 @@ import { useQRScanner } from "@/hooks/use-qr-scanner";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { ER_MODE_QUERY_KEY, getErMode } from "@/lib/er-api";
 import { computeAlerts } from "@/lib/utils";
 import {
   Home,
@@ -106,6 +107,19 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const QUICK_SETTINGS_MARGIN = 8;
 
   const [location, navigate] = useLocation();
+
+  const isNavItemActive = (href: string) => {
+    if (href === "/er") {
+      return (
+        location === "/er" ||
+        location === "/er/" ||
+        (location.startsWith("/er") && !location.startsWith("/er/impact"))
+      );
+    }
+    if (href === "/er/impact") return location.startsWith("/er/impact");
+    return location === href;
+  };
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
   const [quickSettingsUseViewportRight, setQuickSettingsUseViewportRight] = useState(false);
@@ -123,6 +137,13 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const navLockToastDebounceRef = useRef(false);
   const prevAlertCountRef = useRef(0);
   const { isAdmin, role, userId, effectiveRole } = useAuth();
+  const { data: erMode } = useQuery({
+    queryKey: ER_MODE_QUERY_KEY,
+    queryFn: getErMode,
+    enabled: Boolean(userId),
+    staleTime: 60_000,
+  });
+  const erConcealment = erMode?.state === "enforced";
   const resolvedNavRole = String(effectiveRole ?? role ?? "").trim().toLowerCase();
   const canAccessPharmacyForecastNav =
     resolvedNavRole === "technician" ||
@@ -334,7 +355,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const { data: equipment } = useQuery({
     queryKey: ["/api/equipment"],
     queryFn: api.equipment.list,
-    enabled: !!userId,
+    enabled: Boolean(userId) && !erConcealment,
     staleTime: 60_000,
     retry: false,
     refetchOnWindowFocus: false,
@@ -343,7 +364,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const { data: myEquipment } = useQuery({
     queryKey: ["/api/equipment/my"],
     queryFn: api.equipment.listMy,
-    enabled: !!userId,
+    enabled: Boolean(userId) && !erConcealment,
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
@@ -389,7 +410,19 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const canAccessHandoverInventory =
     role === "admin" || role === "vet" || role === "technician";
 
-  const navItems: NavItem[] = useMemo(() => [
+  const navItems: NavItem[] = useMemo(() => {
+    if (erConcealment) {
+      return [
+        { href: "/er", label: t.erCommandCenter.title, icon: <Monitor className="w-5 h-5" /> },
+        {
+          href: "/er/impact",
+          label: t.erCommandCenter.impactLink,
+          icon: <Gauge className="w-5 h-5" />,
+          menuOnly: true,
+        },
+      ];
+    }
+    return [
     { href: "/", label: lh.home, icon: <Home className="w-5 h-5" /> },
     { href: "/equipment", label: t.equipment.title, icon: <Package className="w-5 h-5" /> },
     {
@@ -466,35 +499,56 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     },
     { href: "/admin/code-blue-history", label: "היסטוריית CODE BLUE", icon: <Clock className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
-  ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, canAccessPharmacyForecastNav, myCount, lh, t]);
+    ];
+  }, [
+    erConcealment,
+    alertCount,
+    canAccessCodeBlue,
+    canAccessHandoverInventory,
+    canAccessPharmacyForecastNav,
+    myCount,
+    lh,
+    t,
+  ]);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   const operationMenuItems = useMemo(
     () =>
-      ["/", "/equipment", "/alerts", "/code-blue", "/crash-cart", "/my-equipment", "/appointments", "/patients", "/display", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
-        .map((href) => visibleItems.find((i) => i.href === href))
-        .filter((x): x is NavItem => x != null),
-    [visibleItems]
+      erConcealment
+        ? visibleItems
+        : ["/", "/equipment", "/alerts", "/code-blue", "/crash-cart", "/my-equipment", "/appointments", "/patients", "/display", "/meds", "/pharmacy-forecast", "/rooms", "/shift-handover", "/inventory"]
+            .map((href) => visibleItems.find((i) => i.href === href))
+            .filter((x): x is NavItem => x != null),
+    [erConcealment, visibleItems],
   );
   const managementMenuItems = useMemo(
     () =>
-      ["/analytics", "/billing", "/dashboard", "/inventory-items", "/procurement", "/admin", "/admin/shifts", "/stability", "/print"]
-        .map((href) => visibleItems.find((i) => i.href === href))
-        .filter((x): x is NavItem => x != null),
-    [visibleItems]
+      erConcealment
+        ? []
+        : ["/analytics", "/billing", "/dashboard", "/inventory-items", "/procurement", "/admin", "/admin/shifts", "/stability", "/print"]
+            .map((href) => visibleItems.find((i) => i.href === href))
+            .filter((x): x is NavItem => x != null),
+    [erConcealment, visibleItems],
   );
   const systemMenuItems = useMemo(
     () =>
-      ["/app-tour", "/whats-new", "/help", "/audit-log", "/admin/medication-integrity", "/admin/ops-dashboard", "/admin/code-blue-history", "/settings"]
-        .map((href) => visibleItems.find((i) => i.href === href))
-        .filter((x): x is NavItem => x != null),
-    [visibleItems]
+      erConcealment
+        ? []
+        : ["/app-tour", "/whats-new", "/help", "/audit-log", "/admin/medication-integrity", "/admin/ops-dashboard", "/admin/code-blue-history", "/settings"]
+            .map((href) => visibleItems.find((i) => i.href === href))
+            .filter((x): x is NavItem => x != null),
+    [erConcealment, visibleItems],
   );
 
   const bottomNavActive = useMemo(
     () => ({
       home: location === "/home" || location === "/" || location === "",
+      erCommand:
+        location === "/er" ||
+        location === "/er/" ||
+        (location.startsWith("/er") && !location.startsWith("/er/impact")),
+      erImpact: location.startsWith("/er/impact"),
       equipment: location.startsWith("/equipment"),
       rooms: location.startsWith("/rooms"),
     }),
@@ -502,12 +556,18 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
 
   const activeTabIndex = useMemo(() => {
+    if (erConcealment) {
+      if (menuOpen) return 2;
+      if (location.startsWith("/er/impact")) return 1;
+      if (location.startsWith("/er")) return 0;
+      return -1;
+    }
     if (menuOpen) return 4;
     if (bottomNavActive.rooms) return 3;
     if (bottomNavActive.equipment) return 1;
     if (bottomNavActive.home) return 0;
     return -1;
-  }, [bottomNavActive, menuOpen]);
+  }, [bottomNavActive, erConcealment, location, menuOpen]);
 
   const hasPending = pendingCount > 0;
   const hasFailed = failedCount > 0;
@@ -558,7 +618,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         <UpdateBanner />
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link
-            href="/home"
+            href={erConcealment ? "/er" : "/home"}
             className="flex items-center gap-2 group select-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div
@@ -661,7 +721,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
               />
             )}
 
-            {alertCount > 0 && (
+            {!erConcealment && alertCount > 0 && (
               <Link href="/alerts">
                 <Button
                   variant="ghost"
@@ -698,6 +758,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             )}
 
             <div className="relative" ref={quickSettingsRef}>
+              {!erConcealment && (
               <Button
                 ref={quickSettingsToggleRef}
                 variant="ghost"
@@ -712,8 +773,9 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
               >
                 <Settings className="w-4 h-4" />
               </Button>
+              )}
 
-              {qsMounted && (
+              {!erConcealment && qsMounted && (
                 <div
                   className={cn(
                     "w-72 bg-card border border-border rounded-2xl z-50 p-3 space-y-2",
@@ -822,7 +884,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             <nav className="flex flex-col gap-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-1 pb-0.5">Operations</p>
               {operationMenuItems.map((item, index) => {
-                const isActive = location === item.href;
+                const isActive = isNavItemActive(item.href);
                 return (
                   <Link
                     key={item.href}
@@ -869,9 +931,11 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 );
               })}
 
+              {managementMenuItems.length > 0 ? (
+                <>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">Management</p>
               {managementMenuItems.map((item, index) => {
-                const isActive = location === item.href;
+                const isActive = isNavItemActive(item.href);
                 const stagger = operationMenuItems.length + index;
                 return (
                   <Link
@@ -913,10 +977,14 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                   </Link>
                 );
               })}
+                </>
+              ) : null}
 
+              {systemMenuItems.length > 0 ? (
+                <>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">System</p>
               {systemMenuItems.map((item, index) => {
-                const isActive = location === item.href;
+                const isActive = isNavItemActive(item.href);
                 const stagger = operationMenuItems.length + managementMenuItems.length + index;
                 if (item.href === "/settings") {
                   return (
@@ -999,6 +1067,8 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                   </Link>
                 );
               })}
+                </>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {
@@ -1049,172 +1119,249 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         }}
         aria-label={lh.bottomMenu}
       >
-        <div className="relative grid grid-cols-5 max-w-2xl mx-auto items-end min-h-[68px] px-0.5 pt-1">
+        <div
+          className={cn(
+            "relative grid max-w-2xl mx-auto items-end min-h-[68px] px-0.5 pt-1",
+            erConcealment ? "grid-cols-3" : "grid-cols-5",
+          )}
+        >
           {activeTabIndex >= 0 && (
             <div
               aria-hidden
               className="vt-bottom-nav-tab-pill absolute top-1 h-[3px] w-6 rounded-full bg-ivory-green pointer-events-none"
               style={{
-                left: `calc(${activeTabIndex} * 20% + 10% - 12px)`,
+                left: erConcealment
+                  ? `calc(${activeTabIndex} * (100% / 3) + (100% / 6) - 12px)`
+                  : `calc(${activeTabIndex} * 20% + 10% - 12px)`,
               }}
             />
           )}
-          <Link
-            href="/home"
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
-            data-testid="bottom-nav-home"
-          >
-            <Home
-              className={cn(
-                "w-6 h-6 transition-all duration-200",
-                bottomNavActive.home ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100"
-              )}
-              aria-hidden
-            />
-            <span
-              className={cn(
-                "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
-                bottomNavActive.home ? "text-ivory-green" : "text-ivory-text3"
-              )}
-            >
-              {lh.bottomHome}
-            </span>
-          </Link>
-
-          <Link
-            href="/equipment"
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
-            data-testid="bottom-nav-equipment"
-          >
-            <Package
-              className={cn(
-                "w-6 h-6 transition-all duration-200",
-                bottomNavActive.equipment ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100"
-              )}
-              aria-hidden
-            />
-            <span
-              className={cn(
-                "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
-                bottomNavActive.equipment ? "text-ivory-green" : "text-ivory-text3"
-              )}
-            >
-              {lh.bottomEquipment}
-            </span>
-          </Link>
-
-          {/* ── Central scan button ── */}
-          <div className="flex flex-col items-center justify-end pb-1 relative">
-            {!scannerUIOpen && !navigationLocked && (
-              <span
-                className="absolute top-[-24px] w-[3.75rem] h-[3.75rem] rounded-2xl bg-ivory-green/20 pointer-events-none"
-                style={{ animation: "scanAmbient 2.8s ease-in-out infinite" }}
-                aria-hidden
-              />
-            )}
-
-            <button
-              type="button"
-              onClick={handleScanButtonClick}
-              className={cn(
-                "-mt-6 mb-0.5 flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-2xl",
-                "ring-4 ring-background dark:ring-background",
-                "active:scale-[0.93] motion-reduce:active:scale-100 transition-all duration-200 ease-out",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                "cursor-pointer",
-                scannerUIOpen
-                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600"
-                  : navigationLocked
-                    ? "bg-amber-500 text-white shadow-lg shadow-amber-500/35 hover:bg-amber-600"
-                    : "bg-ivory-green text-white shadow-lg shadow-ivory-green/30 hover:bg-ivory-greenMid"
-              )}
-              aria-label={scannerUIOpen ? lh.closeScannerAria : lh.bottomScan}
-              data-testid="bottom-nav-scan"
-            >
-              {scannerUIOpen ? (
-                <X className="w-8 h-8 transition-transform duration-150" aria-hidden />
-              ) : (
-                <QrCode
+          {erConcealment ? (
+            <>
+              <Link
+                href="/er"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                data-testid="bottom-nav-er-command"
+              >
+                <Monitor
                   className={cn(
-                    "w-8 h-8 transition-transform duration-150",
-                    navigationLocked && "[animation:scanAmbient_1.4s_ease-in-out_infinite]"
+                    "w-6 h-6 transition-all duration-200",
+                    bottomNavActive.erCommand ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100",
                   )}
                   aria-hidden
                 />
-              )}
-            </button>
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold leading-tight text-center max-w-[5rem] truncate px-0.5",
+                    bottomNavActive.erCommand ? "text-ivory-green" : "text-ivory-text3",
+                  )}
+                >
+                  {t.erCommandCenter.title}
+                </span>
+              </Link>
 
-            <span
-              className={cn(
-                "text-[10px] font-bold leading-tight text-center transition-colors duration-200",
-                scannerUIOpen
-                  ? "text-emerald-600"
-                  : navigationLocked
-                    ? "text-amber-600"
-                    : "text-ivory-text2"
-              )}
-            >
-              {scannerUIOpen ? lh.bottomScanClose : lh.bottomScan}
-            </span>
-          </div>
+              <Link
+                href="/er/impact"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                data-testid="bottom-nav-er-impact"
+              >
+                <Gauge
+                  className={cn(
+                    "w-6 h-6 transition-all duration-200",
+                    bottomNavActive.erImpact ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100",
+                  )}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold leading-tight text-center max-w-[5rem] truncate px-0.5",
+                    bottomNavActive.erImpact ? "text-ivory-green" : "text-ivory-text3",
+                  )}
+                >
+                  {t.erCommandCenter.impactLink}
+                </span>
+              </Link>
 
-          <Link
-            href="/rooms"
-            className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
-            data-testid="bottom-nav-rooms"
-          >
-            <Map
-              className={cn(
-                "w-6 h-6 transition-all duration-200",
-                bottomNavActive.rooms ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100"
-              )}
-              aria-hidden
-            />
-            <span
-              className={cn(
-                "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate px-0.5",
-                bottomNavActive.rooms ? "text-ivory-green" : "text-ivory-text3"
-              )}
-            >
-              {lh.bottomRooms}
-            </span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            className={cn(
-              "flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full",
-              "active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100",
-              "rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-              "cursor-pointer",
-              navigationLocked && "opacity-40"
-            )}
-            aria-expanded={menuOpen}
-            aria-label={menuOpen ? t.common.closeNavigationMenu : lh.bottomMenu}
-            data-testid="bottom-nav-menu"
-          >
-            {menuOpen ? (
-              <X
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
                 className={cn(
-                  "w-6 h-6 transition-all duration-200",
-                  "text-ivory-green scale-110"
+                  "flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full",
+                  "active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100",
+                  "rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "cursor-pointer",
+                  navigationLocked && "opacity-40",
                 )}
-                aria-hidden
-              />
-            ) : (
-              <Menu
+                aria-expanded={menuOpen}
+                aria-label={menuOpen ? t.common.closeNavigationMenu : lh.bottomMenu}
+                data-testid="bottom-nav-menu"
+              >
+                {menuOpen ? (
+                  <X
+                    className={cn("w-6 h-6 transition-all duration-200", "text-ivory-green scale-110")}
+                    aria-hidden
+                  />
+                ) : (
+                  <Menu className={cn("w-6 h-6 transition-all duration-200", "text-ivory-text3 scale-100")} aria-hidden />
+                )}
+                <span className={cn("text-[10px] font-semibold", menuOpen ? "text-ivory-green" : "text-ivory-text3")}>
+                  {lh.bottomMenu}
+                </span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/home"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                data-testid="bottom-nav-home"
+              >
+                <Home
+                  className={cn(
+                    "w-6 h-6 transition-all duration-200",
+                    bottomNavActive.home ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100",
+                  )}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
+                    bottomNavActive.home ? "text-ivory-green" : "text-ivory-text3",
+                  )}
+                >
+                  {lh.bottomHome}
+                </span>
+              </Link>
+
+              <Link
+                href="/equipment"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                data-testid="bottom-nav-equipment"
+              >
+                <Package
+                  className={cn(
+                    "w-6 h-6 transition-all duration-200",
+                    bottomNavActive.equipment ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100",
+                  )}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate",
+                    bottomNavActive.equipment ? "text-ivory-green" : "text-ivory-text3",
+                  )}
+                >
+                  {lh.bottomEquipment}
+                </span>
+              </Link>
+
+              <div className="flex flex-col items-center justify-end pb-1 relative">
+                {!scannerUIOpen && !navigationLocked && (
+                  <span
+                    className="absolute top-[-24px] w-[3.75rem] h-[3.75rem] rounded-2xl bg-ivory-green/20 pointer-events-none"
+                    style={{ animation: "scanAmbient 2.8s ease-in-out infinite" }}
+                    aria-hidden
+                  />
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleScanButtonClick}
+                  className={cn(
+                    "-mt-6 mb-0.5 flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-2xl",
+                    "ring-4 ring-background dark:ring-background",
+                    "active:scale-[0.93] motion-reduce:active:scale-100 transition-all duration-200 ease-out",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "cursor-pointer",
+                    scannerUIOpen
+                      ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600"
+                      : navigationLocked
+                        ? "bg-amber-500 text-white shadow-lg shadow-amber-500/35 hover:bg-amber-600"
+                        : "bg-ivory-green text-white shadow-lg shadow-ivory-green/30 hover:bg-ivory-greenMid",
+                  )}
+                  aria-label={scannerUIOpen ? lh.closeScannerAria : lh.bottomScan}
+                  data-testid="bottom-nav-scan"
+                >
+                  {scannerUIOpen ? (
+                    <X className="w-8 h-8 transition-transform duration-150" aria-hidden />
+                  ) : (
+                    <QrCode
+                      className={cn(
+                        "w-8 h-8 transition-transform duration-150",
+                        navigationLocked && "[animation:scanAmbient_1.4s_ease-in-out_infinite]",
+                      )}
+                      aria-hidden
+                    />
+                  )}
+                </button>
+
+                <span
+                  className={cn(
+                    "text-[10px] font-bold leading-tight text-center transition-colors duration-200",
+                    scannerUIOpen
+                      ? "text-emerald-600"
+                      : navigationLocked
+                        ? "text-amber-600"
+                        : "text-ivory-text2",
+                  )}
+                >
+                  {scannerUIOpen ? lh.bottomScanClose : lh.bottomScan}
+                </span>
+              </div>
+
+              <Link
+                href="/rooms"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                data-testid="bottom-nav-rooms"
+              >
+                <Map
+                  className={cn(
+                    "w-6 h-6 transition-all duration-200",
+                    bottomNavActive.rooms ? "text-ivory-green scale-110" : "text-ivory-text3 scale-100",
+                  )}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold leading-tight text-center max-w-[4.5rem] truncate px-0.5",
+                    bottomNavActive.rooms ? "text-ivory-green" : "text-ivory-text3",
+                  )}
+                >
+                  {lh.bottomRooms}
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
                 className={cn(
-                  "w-6 h-6 transition-all duration-200",
-                  "text-ivory-text3 scale-100"
+                  "flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full",
+                  "active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100",
+                  "rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "cursor-pointer",
+                  navigationLocked && "opacity-40",
                 )}
-                aria-hidden
-              />
-            )}
-            <span className={cn("text-[10px] font-semibold", menuOpen ? "text-ivory-green" : "text-ivory-text3")}>
-              {lh.bottomMenu}
-            </span>
-          </button>
+                aria-expanded={menuOpen}
+                aria-label={menuOpen ? t.common.closeNavigationMenu : lh.bottomMenu}
+                data-testid="bottom-nav-menu"
+              >
+                {menuOpen ? (
+                  <X
+                    className={cn("w-6 h-6 transition-all duration-200", "text-ivory-green scale-110")}
+                    aria-hidden
+                  />
+                ) : (
+                  <Menu
+                    className={cn("w-6 h-6 transition-all duration-200", "text-ivory-text3 scale-100")}
+                    aria-hidden
+                  />
+                )}
+                <span className={cn("text-[10px] font-semibold", menuOpen ? "text-ivory-green" : "text-ivory-text3")}>
+                  {lh.bottomMenu}
+                </span>
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
