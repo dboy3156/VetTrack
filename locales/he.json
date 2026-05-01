@@ -72,7 +72,7 @@
       "move": "העבר",
       "delete": "מחק",
       "working": "מעבד...",
-      "exportExcel": "ייצוא לאקסל"
+      "exportExcel": "ייצא לאקסל"
     },
     "empty": {
       "message": "לא נמצא ציוד",
@@ -88,14 +88,14 @@
       "deleteError": "המחיקה נכשלה",
       "moveSuccess": "הועבר בהצלחה",
       "moveError": "ההעברה נכשלה",
-      "checkoutError": "לקיחת הציוד נכשלה",
+      "checkoutError": "ההוצאה לשימוש נכשלה",
       "returnError": "ההחזרה נכשלה"
     },
     "linkedInUse": "בשימוש אצל: {name}"
   },
 
   "shiftHandoverPage": {
-    "title": "חפיפת משמרת",
+    "title": "מסירת משמרת",
     "subtitle": "סיכום כספי ותפעולי לתקופה הנוכחית",
     "windowLabel": "תקופת הדוח",
     "windowOpenShift": "משמרת פתוחה",
@@ -107,7 +107,7 @@
     "expiringTitle": "פגי תוקף בקרוב",
     "expiryLabel": "תאריך תוקף",
     "hotTitle": "ציוד עם הכי הרבה סריקות",
-    "copySummary": "ייצוא סיכום",
+    "copySummary": "ייצא סיכום",
     "copied": "הסיכום הועתק בהצלחה",
     "startShift": "התחל משמרת",
     "endShift": "סיים משמרת",
@@ -117,7 +117,7 @@
     "shiftConflict": "כבר קיימת משמרת פתוחה",
     "noOpenShift": "אין משמרת פתוחה לסיום",
     "dischargeTitle": "רשימת ציוד פתוח למטופל",
-    "dischargeEmpty": "אין סשני שימוש פתוחים",
+    "dischargeEmpty": "אין מחזורי שימוש פתוחים",
     "dischargeClose": "סגור"
   },
 
@@ -151,7 +151,7 @@
     "manufacturer": "יצרן",
     "purchaseDate": "תאריך רכישה",
     "location": "מיקום",
-    "maintenanceInterval": "מרווח תחזוקה",
+    "maintenanceInterval": "תדירות תחזוקה",
     "lastMaintenance": "תחזוקה אחרונה",
     "lastSterilization": "חיטוי אחרון",
     "issuePhoto": "תמונת תקלה",
@@ -176,7 +176,7 @@
       "trying": "מנסה...",
       "tryAgain": "נסה שוב",
       "duplicateEquipment": "שכפל ציוד",
-      "checkoutFailedDefault": "לקיחת הציוד נכשלה",
+      "checkoutFailedDefault": "ההוצאה לשימוש נכשלה",
       "returned": "הציוד זמין",
       "returnFailedDefault": "ההחזרה נכשלה",
       "deleted": "הציוד נמחק",
@@ -288,7 +288,7 @@
     },
     "actions": {
       "copy": "העתק",
-      "exportExcel": "ייצוא לאקסל"
+      "exportExcel": "ייצא לאקסל"
     }
   },
 
@@ -304,23 +304,25 @@
       }
     },
     "guard": {
-      "pendingTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
+      "pendingTitle": "החשבון ממתין לאישור הנהלת ביה״ח",
+      "syncFailedTitle": "לא ניתן לאמת את החשבון מול השרת",
       "blockedTitle": "גישה חסומה",
       "blockedDescription": "פנה למחלקת מערכות מידע לבירור.",
       "accessDeniedTitle": "אין גישה",
       "accessDeniedDescription": "לא ניתן לשייך את ההפעלה שלך למרפאה.",
       "retry": "נסה שוב",
       "signOut": "התנתק",
-      "loadingApp": "טוען מערכת...",
+      "loadingApp": "המערכת בטעינה...",
       "reasons": {
         "missingClinicId": "המשתמש לא משויך למרפאה. התנתק והתחבר מחדש, ואם הבעיה נמשכת פנה למנהל המערכת.",
-        "dbFallbackDisabled": "נדרש הקשר מרפאה. ודא שבסשן Clerk יש ארגון, או פנה למנהל המערכת.",
+        "dbFallbackDisabled": "נדרש הקשר מרפאה. ודא שחשבון Clerk משויך לארגון, או פנה למנהל המערכת.",
         "missingClinicContext": "לא התקבל הקשר מרפאה בבקשה. נסה שוב.",
         "tenantMismatch": "המרפאה של החשבון לא תואמת למרפאה הפעילה.",
         "insufficientRole": "אין לך הרשאה לגשת לאזור זה.",
         "accountDeleted": "החשבון הוסר מהמערכת.",
         "accountBlocked": "החשבון חסום.",
-        "accountPendingApproval": "החשבון ממתין לאישור."
+        "accountPendingApproval": "החשבון ממתין לאישור.",
+        "authSyncFailed": "השרת לא החזיר נתוני פרופיל (אין רשת, שגיאת API או DATABASE_URL שגוי). ודא שהשרת פועל ונסה שוב."
       }
     }
   },
@@ -343,11 +345,11 @@
   },
 
   "app": {
-    "pendingApprovalTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
+    "pendingApprovalTitle": "החשבון ממתין לאישור הנהלת ביה״ח",
     "blockedAccessTitle": "גישה חסומה",
     "blockedAccessSubtitle": "פנה למחלקת מערכות מידע לבירור.",
     "signOut": "התנתק",
-    "loadingSystem": "טוען מערכת..."
+    "loadingSystem": "המערכת בטעינה..."
   },
 
   "api": {
@@ -417,9 +419,9 @@
   },
 
   "qrScanner": {
-    "unknownQrFormat": "פורמט קוד QR לא מוכר",
+    "unknownQrFormat": "תבנית קוד QR לא מוכרת",
     "torchUnavailable": "פנס לא זמין במכשיר זה",
-    "invalidCodeFormat": "פורמט קוד לא תקין",
+    "invalidCodeFormat": "מבנה קוד לא תקין",
     "title": "סרוק קוד QR",
     "guideAim": "כוון אל קוד ה-QR של VetTrack",
     "permissionDeniedTitle": "הגישה למצלמה נדחתה",
@@ -441,13 +443,13 @@
     "step2": {
       "tag": "שלב 2 מתוך 3",
       "title": "עקוב אחר הציוד",
-      "description": "פתח פריט ולחץ 'הוצא לשימוש' כדי לסמן אותו בשימושך. לחץ 'החזר' כשסיימת כדי שהצוות ידע היכן הציוד.",
-      "tip": "הפריטים שלקחת מופיעים בלשונית 'שלי' בניווט התחתון."
+      "description": "פתח פריט ולחץ ״הוצא לשימוש״ כדי לסמן אותו בשימושך. לחץ ״החזר״ כשסיימת כדי שהצוות ידע היכן הציוד.",
+      "tip": "הפריטים שלקחת מופיעים בלשונית ״שלי״ בניווט התחתון."
     },
     "step3": {
       "tag": "שלב 3 מתוך 3",
       "title": "דווח על תקלות מיידית",
-      "description": "זיהית ציוד פגום? לחץ 'דווח על תקלה' בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
+      "description": "זיהית ציוד פגום? לחץ ״דווח על תקלה״ בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
       "tip": "ניתן גם לדווח על תקלות מאייקון התפריט בפינה הימנית העליונה."
     },
     "step1Tag": "שלב 1 מתוך 3",
@@ -456,11 +458,11 @@
     "step1Tip": "כפתור הסריקה תמיד נראה במרכז הסרגל התחתון — ניתן לסרוק מכל מסך.",
     "step2Tag": "שלב 2 מתוך 3",
     "step2Title": "עקוב אחר הציוד",
-    "step2Description": "פתח פריט ולחץ 'הוצא לשימוש' כדי לסמן אותו בשימושך. לחץ 'החזר' כשסיימת כדי שהצוות ידע היכן הציוד.",
-    "step2Tip": "הפריטים שלקחת מופיעים בלשונית 'שלי' בניווט התחתון.",
+    "step2Description": "פתח פריט ולחץ ״הוצא לשימוש״ כדי לסמן אותו בשימושך. לחץ ״החזר״ כשסיימת כדי שהצוות ידע היכן הציוד.",
+    "step2Tip": "הפריטים שלקחת מופיעים בלשונית ״שלי״ בניווט התחתון.",
     "step3Tag": "שלב 3 מתוך 3",
     "step3Title": "דווח על תקלות מיידית",
-    "step3Description": "זיהית ציוד פגום? לחץ 'דווח על תקלה' בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
+    "step3Description": "זיהית ציוד פגום? לחץ ״דווח על תקלה״ בדף פרטי הפריט. הצוות מקבל התראה מיידית.",
     "step3Tip": "ניתן גם לדווח על תקלות מאייקון התפריט בפינה הימנית העליונה.",
     "gotIt": "הבנתי!",
     "next": "הבא"
@@ -542,9 +544,9 @@
     "criticalAlerts": "התראות קריטיות",
     "criticalAlertsDescription": "הפעל שמע להתראות ציוד דחופות",
     "dateAndTime": "תאריך ושעה",
-    "timeFormat": "פורמט שעה",
+    "timeFormat": "תבנית שעה",
     "timeFormatDescription": "איך השעות מוצגות",
-    "dateFormat": "פורמט תאריך",
+    "dateFormat": "תבנית תאריך",
     "dateFormatDescription": "איך התאריכים מוצגים",
     "reset": "איפוס",
     "resetToDefault": "שחזר לברירת מחדל",
@@ -570,7 +572,7 @@
     "confirmImportButton": "אשר ייבוא",
     "confirmImporting": "מייבא...",
     "previewSummaryTitle": "סיכום תצוגה מקדימה",
-    "totalRows": "סה\"כ שורות",
+    "totalRows": "סה״כ שורות",
     "validRows": "שורות תקינות",
     "skippedRows": "שורות שדולגו",
     "previewRowsTitle": "שורות שייובאו",
@@ -724,7 +726,7 @@
     "quoteStarsAria": "5 מתוך 5 כוכבים",
     "quoteBody": "הפסקנו ״לשחק טלפונים״ על אונקים ומוניטורים. כשכולם רואים את אותו מקור אמת — הרצפה מאורגנת מעצמה.",
     "quoteAttribution": "צוות מיון וטיפול נמרץ",
-    "quoteOrg": "בית חולים וטרינרי רב-תחומי",
+    "quoteOrg": "בית חולים וטרינרי רב־תחומי",
     "quoteMultiSite": "מוכן לרב־אתרים",
     "finalTitle": "להחזיר שליטה בציוד",
     "finalBody": "הצוות כבר זז. VetTrack נפגש איתו שם—PWA, סנכרון אופליין והתראות שמכבדות טיפול נמרץ.",
@@ -744,13 +746,13 @@
     "alerts": "התראות",
     "backToDashboard": "חזרה ללוח הבקרה",
     "scanQrTitle": "סרוק קוד QR",
-    "scanQrDescription": "לחץ על כפתור הסריקה הכחול בתחתית המסך לסריקת ציוד. טוען מיד את הסטטוס וההיסטוריה.",
+    "scanQrDescription": "לחץ על כפתור הסריקה הכחול בתחתית המסך לסריקת ציוד. האפליקציה טוענת מיד את הסטטוס וההיסטוריה.",
     "checkoutTitle": "הוצאת ציוד לשימוש",
-    "checkoutDescription": "פתח פריט ← לחץ 'הוצא לשימוש'. שמך יופיע על הפריט כדי שהצוות ידע מי מחזיק בו.",
+    "checkoutDescription": "פתח פריט ← לחץ ״הוצא לשימוש״. שמך יופיע על הפריט כדי שהצוות ידע מי מחזיק בו.",
     "returnTitle": "החזרת ציוד",
-    "returnDescription": "פתח את הפריט שלקחת ← לחץ 'החזר'. מסיר את שמך ומסמן כזמין.",
+    "returnDescription": "פתח את הפריט שלקחת ← לחץ ״החזר״. מסיר את שמך ומסמן כזמין.",
     "reportIssueTitle": "דיווח על תקלה",
-    "reportIssueDescription": "מצאת ציוד פגום? פתח פריט ← לחץ 'תקלה'. הצוות מקבל התראה מיידית.",
+    "reportIssueDescription": "מצאת ציוד פגום? פתח פריט ← לחץ ״תקלה״. הצוות מקבל התראה מיידית.",
     "okDescription": "הציוד נסרק ומוכן לשימוש.",
     "sterilizedTitle": "עבר חיטוי — נקי ומוכן",
     "sterilizedDescription": "הפריט עבר חיטוי. יתריע כשחלון החיטוי יפוג.",
@@ -793,7 +795,7 @@
     "verifiedReset": "אומת (חדר אופס)",
     "verifiedNow": "אומת עכשיו",
     "verifyFailed": "האימות נכשל",
-    "loadingRoom": "טוען חדר...",
+    "loadingRoom": "החדר בטעינה...",
     "noAvailableEquipment": "אין ציוד זמין",
     "allCheckedOutSubMessage": "כל הפריטים בחדר זה מוצאים כרגע.",
     "verifyAllInRoom": "אמת הכל ב- {roomName}"
@@ -868,7 +870,7 @@
     "enabled": "מופעל",
     "testResults": "תוצאות בדיקה",
     "internalLog": "לוג פעולות פנימי",
-    "noResultsHint": "אין תוצאות בדיקה. לחץ על 'הרץ את כל הבדיקות' כדי להתחיל."
+    "noResultsHint": "אין תוצאות בדיקה. לחץ על ״הרץ את כל הבדיקות״ כדי להתחיל."
   },
 
   "shiftSummaryPage": {
@@ -961,7 +963,7 @@
     "importFailed": "ייבוא המשמרות נכשל",
     "noRowsToImport": "אין שורות תקינות לייבוא",
     "previewSummary": "סיכום תצוגה מקדימה",
-    "totalRows": "סה\"כ שורות",
+    "totalRows": "סה״כ שורות",
     "validRows": "שורות תקינות",
     "skippedRows": "שורות שדולגו",
     "previewRowsTitle": "שורות תקינות",
@@ -1006,7 +1008,7 @@
     "blockUserTitle": "לחסום את {name}?",
     "blockUserBody": "פעולה זו תבטל מיידית את הגישה שלהם ל-VetTrack. הם לא יוכלו להתחבר עד שהסטטוס ישונה חזרה לפעיל.",
     "blockUserConfirm": "כן, חסום",
-    "formularyDeleteTitle": "מחיקת \"{name}\"?",
+    "formularyDeleteTitle": "מחיקת ״{name}״?",
     "formularyDeleteBody": "פעולה זו תסיר את התרופה מהרשימה של הקליניקה. תמיד ניתן להוסיף אותה מחדש."
   },
 
@@ -1022,7 +1024,7 @@
     "bottomRooms": "רדאר חדרים",
     "bottomMenu": "תפריט",
     "radar": "רדאר",
-    "shiftHandover": "חפיפת משמרת",
+    "shiftHandover": "מסירת משמרת",
     "inventory": "מלאי ומתכלים",
     "analytics": "ניתוח נתונים",
     "billing": "לוח חיובים",
@@ -1036,6 +1038,8 @@
     "appTour": "סיור באפליקציה",
     "whatsNew": "מה חדש",
     "auditLog": "יומן ביקורת",
+    "opsDashboard": "בריאות המערכת",
+    "medIntegrity": "תקינות תרופות",
     "quickGuide": "מדריך מהיר",
     "settings": "הגדרות",
     "about": "אודות VetTrack",
@@ -1092,7 +1096,7 @@
     "sectionEquipment": "ציוד פעיל",
     "equipmentInUse": "בשימוש",
     "equipmentLinked": "מקושר למטופל",
-    "equipmentOpenUsage": "סשני שימוש פתוחים",
+    "equipmentOpenUsage": "מחזורי שימוש פתוחים",
     "equipmentEmpty": "אין ציוד פעיל מקושר עדיין",
     "equipmentEmptySub": "קשרו ציוד למטופל ממסך פרטי הציוד, או סגרו שימוש פתוח במסירת משמרת.",
     "sectionBilling": "חיובים אחרונים",
@@ -1119,7 +1123,7 @@
     "actionMeds": "תרופות",
     "actionMedsHint": "מרכז תרופות",
     "actionBilling": "חיובים",
-    "actionBillingHint": "פנקס מלא",
+    "actionBillingHint": "פירוט חיובים",
     "actionRoom": "מכ״ם חדרים",
     "actionRoomHint": "מיקום ו־NFC",
     "actionHandover": "מסירה",
@@ -1136,7 +1140,7 @@
     "chargeVoidFailed": "ביטול חיוב נכשל",
     "loadError": "טעינת רשומות חיוב נכשלה",
     "noEntries": "אין חיובים בטווח הזמן שנבחר",
-    "totalBilled": "סה\"כ חויב",
+    "totalBilled": "סה״כ חויב",
     "totalPending": "ממתין לסנכרון",
     "totalSynced": "מסונכרן",
     "totalVoided": "בוטל",
@@ -1157,7 +1161,7 @@
     "colAnimal": "בעל חיים",
     "colType": "סוג",
     "colUnit": "מחיר יחידה",
-    "colTotal": "סה\"כ",
+    "colTotal": "סה״כ",
     "filter_all": "הכל",
     "filter_pending": "ממתין",
     "filter_synced": "מסונכרן",
@@ -1282,7 +1286,7 @@
     "unspecifiedDrug": "לא צוין",
     "approved": "מאושר",
     "awaitingApproval": "ממתין לאישורך",
-    "awaitingApprovalNote": "הטכנאי ממתין לאישורך. לחץ על \"מתן תרופה\" בדף המשימות.",
+    "awaitingApprovalNote": "הטכנאי ממתין לאישורך. לחץ על ״מתן תרופה״ בדף המשימות.",
     "completeDisabledStatus": "המשימה חייבת להיות בביצוע לפני השלמתה.",
     "completeDisabledAck": "רק הטכנאי שאישר את המשימה יכול להשלים אותה.",
     "startDisabledStatus": "המשימה אינה במצב שניתן להפעיל.",
@@ -1297,7 +1301,7 @@
     "accessDenied": "אין הרשאה",
     "accessDeniedDetail": "דף זה זמין לצוות קליני ומנהלים.",
     "pharmacyEmailMissing": "יש להגדיר כתובת מייל למרקחה בהגדרות הקליניקה לפני שליחת ההזמנה.",
-    "weekendBanner": "יום חמישי — ברירת המחדל היא חלון 72 שעות לסופ\"ש.",
+    "weekendBanner": "יום חמישי — ברירת המחדל היא חלון 72 שעות לסופ״ש.",
     "switchTo24": "עבור ל-24 שעות",
     "modePaste": "הדבקה",
     "modePdf": "PDF",
@@ -1308,8 +1312,8 @@
     "parseAction": "נתח והמשך לסקירה",
     "parseOk": "הניתוח הושלם",
     "parseFailed": "הניתוח נכשל",
-    "sessionRestored": "טיוטה שוחזרה מהסשן הקודם",
-    "sessionKeepaliveFailed": "לא הצלחנו להאריך את תוקף סשן הניתוח. אפשר להמשיך; אם יפוג יתבצע ניתוח מחדש ברקע.",
+    "sessionRestored": "טיוטה שוחזרה מהפעילות הקודמת",
+    "sessionKeepaliveFailed": "לא הצלחנו להאריך את תוקף סבב הניתוח. אפשר להמשיך; אם יפוג יתבצע ניתוח מחדש ברקע.",
     "back": "חזרה",
     "tabReview": "סקירה",
     "tabEmail": "תצוגת מייל",
@@ -1331,15 +1335,15 @@
     "pharmacistDoseAckLabel": "אישור רוקח/ית לחריגת מנה",
     "quantity": "כמות",
     "quantityFrequencyBasis": "{per24} מתן ב-24 ש׳ · {inWindow} סה״כ במשך חלון {hours} ש׳",
-    "approveNote": "לאחר האישור נפתח חלון דוא\"ל עם ההזמנה הממוזגת.",
+    "approveNote": "לאחר האישור נפתח חלון דוא״ל עם ההזמנה הממוזגת.",
     "approveOk": "ההזמנה נשלחה לעריכה במייל",
     "approveOkSmtp": "ההזמנה נשלחה לבית המרקחת",
     "approveOkMailto": "נפתחה טיוטת מייל — לחצו שלח באפליקציית המייל כדי לשלוח את ההזמנה",
     "approveOkMailtoNoClient": "טיוטת המייל לא נפתחה אוטומטית — העתיקו את הקישור מההזמנה או הגדירו SMTP לשליחה ישירה",
     "approveFailed": "שליחת ההזמנה נכשלה",
-    "approveRecoveringSession": "הסשן פג, משחזר ברקע…",
-    "sessionRecovered": "הסשן שוחזר בהצלחה, ממשיך בשליחה.",
-    "sessionRecoveryFailed": "לא ניתן לשחזר את הסשן אוטומטית. הריצו ניתוח מחדש לפני שליחה.",
+    "approveRecoveringSession": "סבב הניתוח פג — משחזר ברקע…",
+    "sessionRecovered": "סבב הניתוח שוחזר בהצלחה; ממשיך בשליחה.",
+    "sessionRecoveryFailed": "לא ניתן לשחזר את סבב הניתוח אוטומטית. הריצו ניתוח מחדש לפני שליחה.",
     "approveSend": "אשר ופתח שליחת מייל",
     "approveGateUnresolvedPatientFlags": "פתור את כל אזהרות המטופל לפני אישור ההזמנה למרקחה",
     "approveGateUnresolvedDrugFlags": "פתור את כל אזהרות התרופות לפני אישור ההזמנה למרקחה",
@@ -1347,13 +1351,13 @@
     "approveGateNoDrugLines": "אין תרופות להזמנה — בדקו את הקלט או כללי הסינון",
     "approveCannotShort": "לא ניתן לאשר עדיין",
     "emailPreviewSummary": "ICU · {patientCount} מטופלים · {hours} ש׳",
-    "emailPreviewLayoutNote": "תצוגה מסודרת של כמויות סופיות. במייל שנפתח תופיע הודעה מלאה בפורמט למרקחה.",
+    "emailPreviewLayoutNote": "תצוגה מסודרת של כמויות סופיות. במייל שנפתח תופיע הודעה מלאה בתבנית למרקחה.",
     "parseFailuresTitle": "קבצים שלא פוענחו — נדרשת בדיקה ידנית",
-    "pdfSourceFormatLabel": "פורמט מקור PDF",
+    "pdfSourceFormatLabel": "תבנית מקור PDF",
     "pdfSourceFormatSmartflow": "SmartFlow Flowsheet",
     "pdfSourceFormatGeneric": "Generic / Other",
-    "pdfSourceFormatCurrent": "פורמט ניתוח נוכחי:",
-    "pharmacySettingsCta": "הגדרות מייל ופורמט",
+    "pdfSourceFormatCurrent": "תבנית ניתוח נוכחית:",
+    "pharmacySettingsCta": "הגדרות מייל ותבנית",
     "mailtoTruncatedWarning": "קישור המייל קוצר בגלל אורך; ההזמנה המלאה נשמרת ב-VetTrack.",
     "smtpFallbackWarning": "שליחה דרך SMTP נכשלה — נפתחת טיוטת מייל באפליקציית המייל ({reason}).",
     "approveBlocked": "פתור {n} שדות כמות לפני האישור",
@@ -1370,6 +1374,69 @@
     }
   },
 
+  "erImpact": {
+    "title": "מדדי תוצאות חדר מיון",
+    "subtitle": "חלון הדיווח הנוכחי מול צילום בסיס לפני עליה לאוויר (האחרון שנשמר).",
+    "windowLabel": "חלון",
+    "windowDays": "{n} ימים",
+    "baselinePeriod": "תקופת בסיס",
+    "generatedAt": "חושב ב",
+    "loadError": "לא ניתן לטעון מדדי השפעה.",
+    "noData": "אין עדיין שורות KPI יומיות בחלון זה.",
+    "metricBaseline": "בסיס",
+    "metricCurrent": "נוכחי",
+    "metricDelta": "Δ",
+    "metricDeltaPct": "Δ%",
+    "kpi": {
+      "doorToTriageMinutesP50": "זמן עד טריאז' (חציון, דקות)",
+      "missedHandoffRate": "שיעור החמצות העברה",
+      "medDelayRate": "שיעור עיכוב בתרופות"
+    },
+    "confidence": {
+      "low": "ביטחון נמוך",
+      "medium": "ביטחון בינוני",
+      "high": "ביטחון גבוה"
+    }
+  },
+
+  "erCommandCenter": {
+    "title": "מרכז פיקוד חדר מיון",
+    "lanes": {
+      "criticalNow": "קריטי עכשיו",
+      "next15m": "15 דק׳ הבאות",
+      "handoffRisk": "סיכון העברה"
+    },
+    "quickIntake": "קליטה מהירה",
+    "species": "מין",
+    "severity": "חומרה",
+    "complaint": "תלונה עיקרית",
+    "submitIntake": "צור קליטה",
+    "assign": "שייך",
+    "ack": "אשר קבלה",
+    "impactLink": "מדדי השפעה",
+    "refresh": "רענן",
+    "loadingBoard": "הלוח בטעינה…",
+    "createHandoff": "צור העברת משמרת",
+    "handoffPatient": "מטופל מאושפז",
+    "handoffSelectPatient": "בחר מטופל",
+    "handoffActiveIssue": "סוגיה פעילה",
+    "handoffNextAction": "פעולה הבאה",
+    "handoffEtaMinutes": "זמן משוער (דקות)",
+    "handoffOwner": "אחראי",
+    "handoffOwnerUnassigned": "ללא שיוך",
+    "handoffAddItem": "הוסף שורה",
+    "handoffSubmit": "צור העברה",
+    "handoffNoPatients": "אין אשפוזים פעילים. יש לאשר קודם מטופל.",
+    "handoffItem": "שורה {{n}}",
+    "badges": {
+      "overdue": "באיחור",
+      "unassigned": "ללא שיוך",
+      "handoffRisk": "העברה"
+    },
+    "escalationTimer": "עליית חומרה בעוד {{time}}",
+    "escalationOverdue": "הגיע זמן העלייה — מסתנכרן…"
+  },
+
   "appointmentsPage": {
     "administerMedication": "מתן תרופה",
     "startNow": "התחל עכשיו",
@@ -1379,6 +1446,63 @@
     "tasks": "משימות",
     "createTask": "צור משימה",
     "quickTask": "משימה מהירה"
+  },
+
+  "cop": {
+    "discrepancyTitle": "אי-התאמה בתרופות (Smart Cop)",
+    "discrepancySubtitle": "חשד לשימוש „יתום” — חיוב מטופל ללא הזמנה פעילה או אשפוז מתאים.",
+    "chargedNoAdminTitle": "חשד למלאי צל (חויב, לא ניתן)",
+    "chargedNoAdminSubtitle": "חויב מתן מהארון למטופל זה, אך לא נרשם מתן תרופה תואם בחלון המדיניות.",
+    "chargedNoAdminDetail": "אסמכתא חיוב {billingId}… · חלון מתן {hours} ש׳",
+    "adminNoDispenseTitle": "שימוש יתום סביר (ניתן ללא משיכת ארון)",
+    "adminNoDispenseSubtitle": "משימת התרופה הושלמה ללא משיכה תואמת מהארון עבור המטופל והתרופה בחלון הבדיקה — אפשר שימוש ביתרת מלאי.",
+    "adminNoDispenseDetail": "משימה {taskId}… · חיפוש משיכה {hours} ש׳",
+    "resolveOnlyFooter": "ניקוי רק דרך התאמת חיובים (החזרת חיוב לא מנוצל למלאי) או קישור חיוב רטרואקטיבי — לא בסגירת הבאנר.",
+    "patientLabel": "מטופל",
+    "unknownPatient": "מטופל לא ידוע",
+    "drugLine": "{drug} × {qty}",
+    "reasonsPrefix": "סיבות",
+    "dismiss": "סגור",
+    "reason_NO_PATIENT_LINKED": "לא קושר מטופל למתן",
+    "reason_NO_ACTIVE_HOSPITALIZATION": "אין אשפוז פעיל ברישום",
+    "reason_NO_ACTIVE_ORDER": "אין הזמנת תרופה תואמת לשורת הארון",
+    "reason_QUANTITY_EXCEEDS_ORDER": "הכמות חורגת מההזמנה"
+  },
+
+  "adminMedicationIntegrity": {
+    "title": "תקינות תרופות",
+    "accessDenied": "נדרשת הרשאת מנהל.",
+    "subtitle": "מתן ממלאי מול אשפוז פעיל (פיקוח ניהולי).",
+    "empty": "אין רשומות מתן בחלון.",
+    "colTime": "זמן",
+    "colPatient": "מטופל",
+    "colContainer": "ארון",
+    "colBilling": "חיוב",
+    "colFlags": "סימונים",
+    "flagNoHosp": "אין אשפוז פעיל"
+  },
+
+  "adminOpsDashboard": {
+    "title": "לוח פעולות",
+    "subtitle": "בריאות זמן אמת וצינור האירועים לקליניקה זו.",
+    "accessDenied": "נדרשת הרשאת מנהל.",
+    "liveHint": "מתעדכן כל 10 שניות.",
+    "publishLag": "עיכוב פרסום נוכחי",
+    "publishLagMs": "מ״ש",
+    "publishLagEmpty": "אין תור ממתין",
+    "eventsPerSec": "אירועים לשנייה",
+    "deadLetterCount": "מספר dead letter",
+    "dlqPermanentCount": "DLQ — קבוע (סופי)",
+    "dlqTransientCount": "DLQ — חולף",
+    "dlqUnclassifiedCount": "DLQ — ללא סיווג",
+    "gapResyncCount": "סנכרון מחדש אחרי פער",
+    "duplicateDropsCount": "השלכות כפילות",
+    "nextRetryWave": "גל ניסיון חוזר הבא",
+    "nextRetryWaveHint": "מתי השורה הבאה תיחשף שוב לפרסום אחרי המתנה.",
+    "nextRetryWaveEmpty": "אין זמן המתנה מתוזמן",
+    "maxRetryHorizon": "ניסיון חוזר מתוזמן אחרון",
+    "maxRetryHorizonHint": "ההמתנה הארוכה ביותר בין הניסיונות הממתינים.",
+    "maxRetryHorizonEmpty": "—"
   },
 
   "errors": {

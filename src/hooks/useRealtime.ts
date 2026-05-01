@@ -5,6 +5,6 @@ import { connectRealtime, disconnectRealtime } from "@/lib/realtime";
 export function useRealtime(onEvent: (event: RealtimeEvent) => void) {
   useEffect(() => {
     connectRealtime(onEvent);
-    return () => disconnectRealtime();
+    return () => disconnectRealtime({ legacy: onEvent });
   }, [onEvent]);
 }

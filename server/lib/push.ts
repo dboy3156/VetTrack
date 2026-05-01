@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
 import { isCircuitOpen, recordFailure, recordSuccess } from "./circuit-breaker.js";
 import { incrementMetric } from "./metrics.js";
-import { broadcast } from "./realtime.js";
+import { insertRealtimeDomainEvent } from "./realtime-outbox.js";
 import { withTimeout } from "./timeout.js";
 
 let vapidReady = false;
@@ -87,6 +87,27 @@ export interface PushPayload {
   silent?: boolean;
 }
 
+/** Correlates Web Push delivery with a `NOTIFICATION_REQUESTED` outbox row (`vt_event_outbox.id`). */
+export interface PushDeliveryContext {
+  requestedOutboxId?: number;
+  /** When true, skips NOTIFICATION_SENT / NOTIFICATION_FAILED inserts so the caller can aggregate (multi-send flows). */
+  deferTerminalOutbox?: boolean;
+}
+
+export interface PushSendResult {
+  deliveredAny: boolean;
+  transientFailures: number;
+  invalidOrGoneCount: number;
+}
+
+export function mergePushStats(a: PushSendResult, b: PushSendResult): PushSendResult {
+  return {
+    deliveredAny: a.deliveredAny || b.deliveredAny,
+    transientFailures: a.transientFailures + b.transientFailures,
+    invalidOrGoneCount: a.invalidOrGoneCount + b.invalidOrGoneCount,
+  };
+}
+
 function assertClinicId(clinicId: string): void {
   if (!clinicId || clinicId.trim() === "") {
     throw new Error("Missing clinicId for push operation");
@@ -110,15 +131,33 @@ export function checkDedupe(equipmentId: string, eventType: string, windowMs: nu
   return isDuplicate(`${equipmentId}:${eventType}`, windowMs);
 }
 
+const PUSH_DISPATCH_ATTEMPTS = 3;
+const TRANSIENT_BACKOFF_MS = [500, 1500, 3500];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function pushStatusCode(err: unknown): number | undefined {
+  const e = err as { statusCode?: number };
+  return typeof e?.statusCode === "number" ? e.statusCode : undefined;
+}
+
+/** Whether this HTTP status should be retried with backoff (rate limits + server errors + unknown/network). */
+function isTransientPushFailure(statusCode: number | undefined): boolean {
+  if (statusCode === undefined) return true;
+  if (statusCode === 429) return true;
+  if (statusCode >= 500) return true;
+  return false;
+}
+
 async function dispatchToSub(
   sub: { endpoint: string; p256dh: string; auth: string },
-  payload: string
-): Promise<"ok" | "expired" | "error"> {
+  payload: string,
+): Promise<"ok" | "expired" | "invalid" | "error"> {
   if (isCircuitOpen("push")) {
     return "error";
   }
-  // S5 — Breadcrumb on every attempt so the Sentry timeline shows push activity.
-  // Guard with SENTRY_DSN so these are no-ops when monitoring is not configured.
   if (process.env.SENTRY_DSN) {
     Sentry.addBreadcrumb({
       category: "push.send",
@@ -127,41 +166,67 @@ async function dispatchToSub(
     });
   }
 
-  try {
-    await withTimeout(
-      webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload,
-        { TTL: 60 }
-      ),
-      5000,
-      "web-push send"
-    );
-    recordSuccess("push");
-    incrementMetric("notifications_sent");
-    return "ok";
-  } catch (err: unknown) {
-    recordFailure("push");
-    const e = err as { statusCode?: number };
-    if (e?.statusCode === 410 || e?.statusCode === 404) return "expired";
+  for (let attempt = 0; attempt < PUSH_DISPATCH_ATTEMPTS; attempt++) {
+    try {
+      await withTimeout(
+        webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload,
+          { TTL: 60 },
+        ),
+        5000,
+        "web-push send",
+      );
+      recordSuccess("push");
+      incrementMetric("notifications_sent");
+      return "ok";
+    } catch (err: unknown) {
+      recordFailure("push");
+      const statusCode = pushStatusCode(err);
 
-    // S5 — Capture non-expiry send errors as distinct Sentry events so they
-    // appear in the "push.failure" tag query on the Sentry dashboard.
-    if (process.env.SENTRY_DSN) {
-      Sentry.captureEvent({
-        message: "Push notification send failed",
-        level: "error",
-        tags: { "push.failure": "true" },
-        extra: {
-          endpoint: sub.endpoint.slice(-40),
-          statusCode: e?.statusCode ?? "unknown",
-        },
-      });
+      if (statusCode === 404 || statusCode === 410) {
+        incrementMetric("notifications_failed");
+        return "expired";
+      }
+
+      if (statusCode !== undefined && statusCode >= 400 && statusCode < 500 && statusCode !== 429) {
+        if (process.env.SENTRY_DSN) {
+          Sentry.captureEvent({
+            message: "Push notification send failed (invalid subscription)",
+            level: "warning",
+            tags: { "push.failure": "true", "push.invalid": "true" },
+            extra: { endpoint: sub.endpoint.slice(-40), statusCode },
+          });
+        }
+        incrementMetric("notifications_failed");
+        return "invalid";
+      }
+
+      const transient = isTransientPushFailure(statusCode);
+      if (transient && attempt < PUSH_DISPATCH_ATTEMPTS - 1) {
+        await sleep(TRANSIENT_BACKOFF_MS[attempt] ?? 2000);
+        continue;
+      }
+
+      if (process.env.SENTRY_DSN) {
+        Sentry.captureEvent({
+          message: "Push notification send failed",
+          level: "error",
+          tags: { "push.failure": "true" },
+          extra: {
+            endpoint: sub.endpoint.slice(-40),
+            statusCode: statusCode ?? "unknown",
+            attempts: attempt + 1,
+          },
+        });
+      }
+
+      incrementMetric("notifications_failed");
+      return "error";
     }
-
-    incrementMetric("notifications_failed");
-    return "error";
   }
+
+  return "error";
 }
 
 async function cleanupExpiredEndpoints(endpoints: string[]): Promise<void> {
@@ -173,17 +238,90 @@ async function cleanupExpiredEndpoints(endpoints: string[]): Promise<void> {
   }
 }
 
-export async function sendPushToAll(clinicId: string, payload: PushPayload): Promise<void> {
+/** Completes the NOTIFICATION_REQUESTED → terminal outcome chain when Web Push cannot deliver. */
+async function emitNotificationFailedOutbox(clinicId: string, payload: Record<string, unknown>): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "NOTIFICATION_FAILED",
+        payload,
+      });
+    });
+  } catch (err) {
+    console.error("[push] NOTIFICATION_FAILED outbox insert failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** Single terminal event for a deferred multi-send notification request. */
+export async function finalizeNotificationRequestOutbox(
+  clinicId: string,
+  requestedOutboxId: number,
+  stats: PushSendResult,
+): Promise<void> {
+  const trimmed = clinicId.trim();
+  if (!trimmed) return;
+
+  if (stats.deliveredAny) {
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId: trimmed,
+        type: "NOTIFICATION_SENT",
+        payload: { requestedOutboxId, scope: "aggregate" },
+      });
+    });
+    return;
+  }
+
+  if (stats.transientFailures === 0 && stats.invalidOrGoneCount === 0) {
+    await emitNotificationFailedOutbox(trimmed, {
+      requestedOutboxId,
+      reason: "no_active_subscription",
+    });
+    return;
+  }
+
+  const reason =
+    stats.transientFailures > 0 && stats.invalidOrGoneCount === 0 ? "max_retries_exceeded" : "invalid_subscription";
+  await emitNotificationFailedOutbox(trimmed, {
+    requestedOutboxId,
+    reason,
+    failedSubscriptions: stats.transientFailures,
+    invalidSubscriptions: stats.invalidOrGoneCount,
+  });
+}
+
+export async function sendPushToAll(
+  clinicId: string,
+  payload: PushPayload,
+  delivery?: PushDeliveryContext,
+): Promise<PushSendResult> {
   assertClinicId(clinicId);
-  if (!vapidReady) return;
+  if (!vapidReady) {
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const subs = await db
     .select()
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.clinicId, clinicId));
-  if (subs.length === 0) return;
+  if (subs.length === 0) {
+    if (delivery?.requestedOutboxId !== undefined && !delivery.deferTerminalOutbox) {
+      await emitNotificationFailedOutbox(clinicId, {
+        scope: "all",
+        reason: "no_active_subscription",
+        requestedOutboxId: delivery.requestedOutboxId,
+        tag: payload.tag ?? null,
+        title: payload.title,
+      });
+    }
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const expired: string[] = [];
+  let deliveredAny = false;
+  let transientFailures = 0;
+  let invalidOrGoneCount = 0;
 
   await Promise.all(
     subs.map(async (sub) => {
@@ -199,14 +337,57 @@ export async function sendPushToAll(clinicId: string, payload: PushPayload): Pro
       });
 
       const result = await dispatchToSub(sub, notificationPayload);
-      if (result === "expired") expired.push(sub.endpoint);
-    })
+      if (result === "ok") deliveredAny = true;
+      if (result === "expired" || result === "invalid") {
+        expired.push(sub.endpoint);
+        invalidOrGoneCount += 1;
+      }
+      if (result === "error") transientFailures += 1;
+    }),
   );
 
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
+
+  const attemptedAny = subs.some((s) => s.alertsEnabled);
+  const defer = delivery?.deferTerminalOutbox === true;
+  if (!defer && attemptedAny && !deliveredAny && (transientFailures > 0 || invalidOrGoneCount > 0)) {
+    const reason =
+      transientFailures > 0 && invalidOrGoneCount === 0 ? "max_retries_exceeded" : "invalid_subscription";
+    await emitNotificationFailedOutbox(clinicId, {
+      scope: "all",
+      failedSubscriptions: transientFailures,
+      expiredSubscriptions: invalidOrGoneCount,
+      tag: payload.tag ?? null,
+      title: payload.title,
+      ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+      reason,
+    });
+  }
+
+  if (!defer && deliveredAny) {
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "NOTIFICATION_SENT",
+        payload: {
+          scope: "all",
+          tag: payload.tag ?? null,
+          title: payload.title,
+          ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+        },
+      });
+    });
+  }
+
+  return { deliveredAny, transientFailures, invalidOrGoneCount };
 }
 
-export async function sendPushToRole(clinicId: string, role: string, payload: PushPayload): Promise<void> {
+export async function sendPushToRole(
+  clinicId: string,
+  role: string,
+  payload: PushPayload,
+  delivery?: PushDeliveryContext,
+): Promise<PushSendResult> {
   assertClinicId(clinicId);
 
   const allSubs = await db.select({
@@ -218,7 +399,9 @@ export async function sendPushToRole(clinicId: string, role: string, payload: Pu
     userId: pushSubscriptions.userId,
   }).from(pushSubscriptions).where(eq(pushSubscriptions.clinicId, clinicId));
 
-  if (allSubs.length === 0) return;
+  if (allSubs.length === 0) {
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const userRows = await db
     .select({ id: users.id, role: users.role })
@@ -227,9 +410,26 @@ export async function sendPushToRole(clinicId: string, role: string, payload: Pu
   const roleMap = new Map(userRows.map((u) => [u.id, u.role]));
 
   const subs = allSubs.filter((s) => roleMap.get(s.userId) === role);
-  if (subs.length === 0) return;
+  const defer = delivery?.deferTerminalOutbox === true;
+  if (subs.length === 0) {
+    if (delivery?.requestedOutboxId !== undefined && !defer) {
+      await emitNotificationFailedOutbox(clinicId, {
+        scope: "role",
+        role,
+        reason: "no_active_subscription",
+        requestedOutboxId: delivery.requestedOutboxId,
+        recipientCount: 0,
+        tag: payload.tag ?? null,
+        title: payload.title,
+      });
+    }
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const expired: string[] = [];
+  let transientFailures = 0;
+  let invalidOrGoneCount = 0;
+  let deliveredRoleCount = 0;
 
   await Promise.all(
     subs.map(async (sub) => {
@@ -242,31 +442,98 @@ export async function sendPushToRole(clinicId: string, role: string, payload: Pu
         silent: effectiveSilent,
       });
       const result = await dispatchToSub(sub, notificationPayload);
-      if (result === 'expired') expired.push(sub.endpoint);
-      if (result === "ok") {
-        broadcast(clinicId, {
-          type: "NOTIFICATION_SENT",
-          payload: { scope: "role", role, userId: sub.userId, tag: payload.tag ?? null, title: payload.title },
-        });
+      if (result === "expired" || result === "invalid") {
+        expired.push(sub.endpoint);
+        invalidOrGoneCount += 1;
       }
-    })
+      if (result === "error") transientFailures += 1;
+      if (result === "ok") {
+        deliveredRoleCount += 1;
+        if (!defer) {
+          await db.transaction(async (tx) => {
+            await insertRealtimeDomainEvent(tx, {
+              clinicId,
+              type: "NOTIFICATION_SENT",
+              payload: {
+                scope: "role",
+                role,
+                userId: sub.userId,
+                tag: payload.tag ?? null,
+                title: payload.title,
+                ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+              },
+            });
+          });
+        }
+      }
+    }),
   );
 
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
+
+  if (
+    !defer &&
+    subs.length > 0 &&
+    deliveredRoleCount === 0 &&
+    (transientFailures > 0 || invalidOrGoneCount > 0)
+  ) {
+    const reason =
+      transientFailures > 0 && invalidOrGoneCount === 0 ? "max_retries_exceeded" : "invalid_subscription";
+    await emitNotificationFailedOutbox(clinicId, {
+      scope: "role",
+      role,
+      failedSubscriptions: transientFailures,
+      expiredSubscriptions: invalidOrGoneCount,
+      recipientCount: subs.length,
+      tag: payload.tag ?? null,
+      title: payload.title,
+      ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+      reason,
+    });
+  }
+
+  return {
+    deliveredAny: deliveredRoleCount > 0,
+    transientFailures,
+    invalidOrGoneCount,
+  };
 }
 
-export async function sendPushToOthers(clinicId: string, excludeUserId: string, payload: PushPayload): Promise<void> {
+export async function sendPushToOthers(
+  clinicId: string,
+  excludeUserId: string,
+  payload: PushPayload,
+  delivery?: PushDeliveryContext,
+): Promise<PushSendResult> {
   assertClinicId(clinicId);
-  if (!vapidReady) return;
+  if (!vapidReady) {
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const allSubs = await db
     .select()
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.clinicId, clinicId));
   const subs = allSubs.filter((s) => s.userId !== excludeUserId);
-  if (subs.length === 0) return;
+  if (subs.length === 0) {
+    if (delivery?.requestedOutboxId !== undefined && !delivery.deferTerminalOutbox) {
+      await emitNotificationFailedOutbox(clinicId, {
+        scope: "others",
+        excludeUserId,
+        reason: "no_active_subscription",
+        requestedOutboxId: delivery.requestedOutboxId,
+        tag: payload.tag ?? null,
+        title: payload.title,
+      });
+    }
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const expired: string[] = [];
+  let deliveredAny = false;
+  let transientFailures = 0;
+  let invalidOrGoneCount = 0;
+  const defer = delivery?.deferTerminalOutbox === true;
 
   await Promise.all(
     subs.map(async (sub) => {
@@ -282,27 +549,88 @@ export async function sendPushToOthers(clinicId: string, excludeUserId: string, 
       });
 
       const result = await dispatchToSub(sub, notificationPayload);
-      if (result === "expired") expired.push(sub.endpoint);
-    })
+      if (result === "ok") deliveredAny = true;
+      if (result === "expired" || result === "invalid") {
+        expired.push(sub.endpoint);
+        invalidOrGoneCount += 1;
+      }
+      if (result === "error") transientFailures += 1;
+    }),
   );
 
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
+
+  const attemptedAny = subs.some((s) => s.alertsEnabled);
+  if (!defer && attemptedAny && !deliveredAny && (transientFailures > 0 || invalidOrGoneCount > 0)) {
+    const reason =
+      transientFailures > 0 && invalidOrGoneCount === 0 ? "max_retries_exceeded" : "invalid_subscription";
+    await emitNotificationFailedOutbox(clinicId, {
+      scope: "others",
+      excludeUserId,
+      failedSubscriptions: transientFailures,
+      expiredSubscriptions: invalidOrGoneCount,
+      tag: payload.tag ?? null,
+      title: payload.title,
+      ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+      reason,
+    });
+  }
+
+  if (!defer && deliveredAny) {
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "NOTIFICATION_SENT",
+        payload: {
+          scope: "others",
+          excludeUserId,
+          tag: payload.tag ?? null,
+          title: payload.title,
+          ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+        },
+      });
+    });
+  }
+
+  return { deliveredAny, transientFailures, invalidOrGoneCount };
 }
 
-export async function sendPushToUser(clinicId: string, userId: string, payload: PushPayload): Promise<void> {
+export async function sendPushToUser(
+  clinicId: string,
+  userId: string,
+  payload: PushPayload,
+  delivery?: PushDeliveryContext,
+): Promise<PushSendResult> {
   assertClinicId(clinicId);
-  if (!vapidReady) return;
+  if (!vapidReady) {
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const subs = await db
     .select()
     .from(pushSubscriptions)
     .where(and(eq(pushSubscriptions.clinicId, clinicId), eq(pushSubscriptions.userId, userId)));
 
-  if (subs.length === 0) return;
+  const defer = delivery?.deferTerminalOutbox === true;
+
+  if (subs.length === 0) {
+    if (delivery?.requestedOutboxId !== undefined && !defer) {
+      await emitNotificationFailedOutbox(clinicId, {
+        scope: "user",
+        userId,
+        reason: "no_active_subscription",
+        requestedOutboxId: delivery.requestedOutboxId,
+        tag: payload.tag ?? null,
+        title: payload.title,
+      });
+    }
+    return { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
+  }
 
   const expired: string[] = [];
   let deliveredCount = 0;
-  let failedCount = 0;
+  let transientFailures = 0;
+  let invalidOrGoneCount = 0;
 
   await Promise.all(
     subs.map(async (sub) => {
@@ -317,22 +645,56 @@ export async function sendPushToUser(clinicId: string, userId: string, payload: 
 
       const result = await dispatchToSub(sub, notificationPayload);
       if (result === "ok") deliveredCount += 1;
-      if (result === "error") failedCount += 1;
-      if (result === "expired") expired.push(sub.endpoint);
-      if (result === "ok") {
-        broadcast(clinicId, {
-          type: "NOTIFICATION_SENT",
-          payload: { scope: "user", userId, tag: payload.tag ?? null, title: payload.title },
+      if (result === "error") transientFailures += 1;
+      if (result === "expired" || result === "invalid") {
+        expired.push(sub.endpoint);
+        invalidOrGoneCount += 1;
+      }
+      if (result === "ok" && !defer) {
+        await db.transaction(async (tx) => {
+          await insertRealtimeDomainEvent(tx, {
+            clinicId,
+            type: "NOTIFICATION_SENT",
+            payload: {
+              scope: "user",
+              userId,
+              tag: payload.tag ?? null,
+              title: payload.title,
+              ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+            },
+          });
         });
       }
-    })
+    }),
   );
 
   if (expired.length > 0) await cleanupExpiredEndpoints(expired);
 
-  if (deliveredCount === 0 && failedCount > 0) {
-    throw new Error(`Push delivery failed for user ${userId}`);
+  if (
+    !defer &&
+    subs.length > 0 &&
+    deliveredCount === 0 &&
+    (transientFailures > 0 || invalidOrGoneCount > 0)
+  ) {
+    const reason =
+      transientFailures > 0 && invalidOrGoneCount === 0 ? "max_retries_exceeded" : "invalid_subscription";
+    await emitNotificationFailedOutbox(clinicId, {
+      scope: "user",
+      userId,
+      failedSubscriptions: transientFailures,
+      expiredSubscriptions: invalidOrGoneCount,
+      tag: payload.tag ?? null,
+      title: payload.title,
+      ...(delivery?.requestedOutboxId !== undefined ? { requestedOutboxId: delivery.requestedOutboxId } : {}),
+      reason,
+    });
   }
+
+  return {
+    deliveredAny: deliveredCount > 0,
+    transientFailures,
+    invalidOrGoneCount,
+  };
 }
 
 const PUSH_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;

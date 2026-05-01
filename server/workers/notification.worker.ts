@@ -25,7 +25,7 @@ import { createRedisConnection, getRedis } from "../lib/redis.js";
 import { incrementMetric } from "../lib/metrics.js";
 import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
 import { isCircuitOpen } from "../lib/circuit-breaker.js";
-import { checkDedupe, initVapid, sendPushToRole, sendPushToUser } from "../lib/push.js";
+import { checkDedupe, initVapid, sendPushToAll, sendPushToRole, sendPushToUser } from "../lib/push.js";
 import { withTimeout } from "../lib/timeout.js";
 import { BROADCAST_TEMPLATES } from "../routes/shift-chat.js";
 import { safeRedisSetex } from "../lib/redis.js";
@@ -217,6 +217,19 @@ async function processSendNotification(data: NotificationJobData): Promise<void>
       }),
       5_000,
       "overdue medication alert",
+    );
+    return;
+  }
+  if (data.type === "code_blue_broadcast") {
+    await withTimeout(
+      sendPushToAll(data.clinicId, {
+        title: data.title,
+        body: data.body,
+        tag: data.tag,
+        url: "/code-blue",
+      }),
+      10_000,
+      "code blue broadcast",
     );
     return;
   }

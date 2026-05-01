@@ -80,6 +80,7 @@ import {
   getCachedScanLogs,
   getCachedFolders,
   getCachedRooms,
+  getCachedRoomById,
   cacheEquipment,
   cacheScanLogs,
   cacheFolders,
@@ -93,7 +94,6 @@ import {
 import { authFetch } from "./auth-fetch";
 import { navigate } from "wouter/use-browser-location";
 import { isOnline } from "./safe-browser";
-
 const BASE_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
 };
@@ -1037,7 +1037,6 @@ export const api = {
         return await request<Room>(`/api/rooms/${id}`);
       } catch (err) {
         if (isNetworkError(err)) {
-          const { getCachedRoomById } = await import("./offline-db");
           const cached = await getCachedRoomById(id);
           if (cached) return cached;
         }
@@ -1127,6 +1126,54 @@ export const api = {
       request<InventoryContainerWithItems>(
         `/api/containers?nfcTagId=${encodeURIComponent(nfcTagId)}`,
       ),
+    reconcileUnusedCharge: (body: { billingLedgerId: string; note?: string }) =>
+      request<{
+        success: boolean;
+        billingLedgerId: string;
+        restoredQuantity: number;
+        containerId: string;
+        newStock: number;
+        requestId: string;
+      }>("/api/containers/reconcile-unused-charge", { method: "POST", body: JSON.stringify(body) }),
+  },
+  adminMedicationIntegrity: {
+    list: () =>
+      request<{
+        clinicId: string;
+        rows: Array<{
+          inventoryLogId: string;
+          createdAt: string;
+          animalId: string | null;
+          animalName: string | null;
+          containerId: string;
+          quantityAdded: number;
+          billingEventId: string | null;
+          billingTotalCents: number | null;
+          billingStatus: string | null;
+          activeHospitalizationId: string | null;
+          discrepancyFlags: string[];
+        }>;
+        requestId: string;
+      }>("/api/admin/medication-integrity"),
+  },
+  adminOutboxHealth: {
+    get: () =>
+      request<{
+        clinicId: string;
+        publish_lag_ms: number | null;
+        outbox_size: number;
+        events_per_sec: number;
+        duplicate_drops_count: number;
+        gap_resync_count: number;
+        failed_publish_attempts: number;
+        dead_letter_count: number;
+        dlq_permanent_count: number;
+        dlq_transient_count: number;
+        dlq_unclassified_count: number;
+        next_retry_wave_in_ms: number | null;
+        max_retry_horizon_ms: number | null;
+        requestId: string;
+      }>("/api/admin/outbox-health"),
   },
   restock: {
     start: (containerId: string) =>
@@ -1397,4 +1444,56 @@ export const api = {
     snapshot: (): Promise<DisplaySnapshot> =>
       request<DisplaySnapshot>("/api/display/snapshot"),
   },
+  realtime: {
+    outboxHead: () => request<{ maxPublishedId: number }>("/api/realtime/outbox-head"),
+    replay: (fromId: number) =>
+      request<{
+        events: Array<{
+          id: number;
+          type: string;
+          payload: unknown;
+          timestamp: string;
+          outboxId: number;
+          eventVersion: number;
+          publishedAt: string | null;
+        }>;
+        hasMore: boolean;
+      }>(`/api/realtime/replay?from_id=${encodeURIComponent(String(fromId))}`),
+    telemetry: (body: { duplicateDrop?: boolean; gapResync?: boolean }) =>
+      request<{ ok: boolean }>("/api/realtime/telemetry", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  },
 };
+
+// ── ER Wedge API (see `er-api.ts` for implementation + not-implemented handling) ─
+export type {
+  AckErHandoffRequest,
+  AckErHandoffResponse,
+  AssignErIntakeRequest,
+  AssignErIntakeResponse,
+  CreateErHandoffRequest,
+  CreateErHandoffResponse,
+  CreateErIntakeRequest,
+  ErAssigneesResponse,
+  ErBoardResponse,
+  ErEligibleHospitalizationsResponse,
+  ErImpactResponse,
+  ErIntakeResponse,
+  ErKpiWindowDays,
+  ErModeResponse,
+} from "../../shared/er-types.js";
+export {
+  ER_API_IMPLEMENTED_ROUTES,
+  ErApiNotImplementedError,
+  ackErHandoff,
+  assignErIntake,
+  createErHandoff,
+  createErIntake,
+  getErEligibleHospitalizations,
+  getErAssignees,
+  getErBoard,
+  getErImpact,
+  getErMode,
+} from "./er-api";

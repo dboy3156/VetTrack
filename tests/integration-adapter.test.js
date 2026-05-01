@@ -267,7 +267,7 @@ describe("server/db.ts — integration tables and sync columns", () => {
   });
   it("appointments table has external sync columns", () => {
     const start = src.indexOf('export const appointments = pgTable("vt_appointments"');
-    const body = src.slice(start, start + 2000);
+    const body = src.slice(start, start + 4000);
     expect(body).toContain("externalId");
     expect(body).toContain("externalSource");
     expect(body).toContain("externalSyncedAt");

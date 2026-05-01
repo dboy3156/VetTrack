@@ -200,6 +200,14 @@ export type NotificationJobData =
       drugName: string;
       minutesLate: number;
       animalId: string;
+    }
+  | {
+      type: "code_blue_broadcast";
+      clinicId: string;
+      title: string;
+      body: string;
+      tag: string;
+      notificationRequestOutboxId?: number;
     };
 
 /**
@@ -254,6 +262,15 @@ export async function enqueueNotificationJob(data: NotificationJobData, opts?: {
     if (!ok) {
       queueMetrics.droppedRateLimit++;
       console.warn("[queue] enqueue dropped — automation push rate limit", { clinicId });
+      return;
+    }
+  }
+
+  if (data.type === "code_blue_broadcast") {
+    const ok = await allowEnqueue(data.clinicId, null);
+    if (!ok) {
+      queueMetrics.droppedRateLimit++;
+      console.warn("[queue] enqueue dropped — code blue broadcast rate limit", { clinicId: data.clinicId });
       return;
     }
   }

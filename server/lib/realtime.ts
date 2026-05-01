@@ -8,7 +8,15 @@ export type RealtimeEventType =
   | "TASK_CANCELLED"
   | "TASK_UPDATED"
   | "AUTOMATION_TRIGGERED"
-  | "NOTIFICATION_SENT";
+  | "NOTIFICATION_REQUESTED"
+  | "NOTIFICATION_SENT"
+  | "ER_INTAKE_CREATED"
+  | "ER_INTAKE_UPDATED"
+  | "QUEUE_SEVERITY_ESCALATED"
+  | "ER_HANDOFF_CREATED"
+  | "ER_HANDOFF_ACKNOWLEDGED"
+  | "ER_HANDOFF_SLA_BREACHED"
+  | "PATIENT_STATUS_UPDATED";
 
 export type RealtimeEvent = {
   type: RealtimeEventType;
@@ -20,10 +28,6 @@ const clientsByClinic = new Map<string, Set<Response>>();
 const heartbeats = new Map<Response, NodeJS.Timeout>();
 // 150 concurrent SSE connections per clinic — accounts for service workers + tabs
 const MAX_CLIENTS_PER_CLINIC = 150;
-
-function toSse(event: RealtimeEvent): string {
-  return `data: ${JSON.stringify(event)}\n\n`;
-}
 
 function safeWrite(res: Response, chunk: string): boolean {
   try {
@@ -98,22 +102,22 @@ export function unsubscribe(res: Response): void {
   }
 }
 
-export function broadcast(clinicId: string, event: Omit<RealtimeEvent, "timestamp">): void {
-  try {
-    const normalizedClinicId = clinicId.trim();
-    if (!normalizedClinicId) return;
-    const clients = clientsByClinic.get(normalizedClinicId);
-    if (!clients || clients.size === 0) return;
-
-    const payload: RealtimeEvent = { ...event, timestamp: new Date().toISOString() };
-    const data = toSse(payload);
-    const stale: Response[] = [];
-    for (const client of clients) {
-      if (!safeWrite(client, data)) stale.push(client);
-      else incrementMetric("realtime_events_sent");
-    }
-    for (const dead of stale) unsubscribe(dead);
-  } catch {
-    // Never throw from broadcast.
+/** Push lightweight SSE notifications to connected tabs (no outbox persistence). */
+export function broadcast(
+  clinicId: string,
+  event: { type: RealtimeEventType; payload: unknown; timestamp?: string },
+): void {
+  const normalizedClinicId = clinicId.trim();
+  if (!normalizedClinicId) return;
+  const set = clientsByClinic.get(normalizedClinicId);
+  if (!set || set.size === 0) return;
+  const envelope = {
+    type: event.type,
+    payload: event.payload,
+    timestamp: event.timestamp ?? new Date().toISOString(),
+  };
+  const chunk = `data: ${JSON.stringify(envelope)}\n\n`;
+  for (const res of set) {
+    safeWrite(res, chunk);
   }
 }

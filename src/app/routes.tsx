@@ -1,6 +1,7 @@
 import { Route, Switch } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
+import { ErModeGuard } from "@/features/er/components/ErModeGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 
 const HomePage = lazy(() => import("@/pages/home"));
@@ -26,6 +27,8 @@ const SettingsPage = lazy(() => import("@/pages/settings"));
 const HelpPage = lazy(() => import("@/pages/help"));
 const AuditLogPage = lazy(() => import("@/pages/audit-log"));
 const AdminShiftsPage = lazy(() => import("@/pages/admin-shifts"));
+const AdminMedicationIntegrityPage = lazy(() => import("@/pages/admin-medication-integrity"));
+const AdminOpsDashboardPage = lazy(() => import("@/pages/admin-ops-dashboard"));
 const AppointmentsPage = lazy(() => import("@/pages/appointments"));
 const MedicationHubPage = lazy(() => import("@/pages/meds"));
 const PharmacyForecastPage = lazy(() => import("@/pages/pharmacy-forecast"));
@@ -50,6 +53,8 @@ const ShiftLeaderboardPage = lazy(() => import("@/pages/shift-leaderboard"));
 const ShiftChatArchive = lazy(() =>
   import("@/features/shift-chat/components/ShiftChatArchive").then((m) => ({ default: m.ShiftChatArchive }))
 );
+const ErCommandCenterPage = lazy(() => import("@/pages/er-command-center"));
+const ErImpactPage = lazy(() => import("@/pages/er-impact"));
 
 // Root path stays public landing for all visitors.
 function RootRoute() {
@@ -59,6 +64,7 @@ function RootRoute() {
 export function AppRoutes() {
   return (
     <PageErrorBoundary fallbackLabel="Page rendering failed">
+      <ErModeGuard>
       <Switch>
         <Route path="/" component={RootRoute} />
         <Route path="/landing" component={LandingPage} />
@@ -83,6 +89,8 @@ export function AppRoutes() {
         <Route path="/print"><AuthGuard><QrPrintPage /></AuthGuard></Route>
         <Route path="/admin"><AuthGuard><AdminPage /></AuthGuard></Route>
         <Route path="/admin/shifts"><AuthGuard><AdminShiftsPage /></AuthGuard></Route>
+        <Route path="/admin/medication-integrity"><AuthGuard><AdminMedicationIntegrityPage /></AuthGuard></Route>
+        <Route path="/admin/ops-dashboard"><AuthGuard><AdminOpsDashboardPage /></AuthGuard></Route>
         <Route path="/appointments"><AuthGuard><AppointmentsPage /></AuthGuard></Route>
         <Route path="/meds"><AuthGuard><MedicationHubPage /></AuthGuard></Route>
         <Route path="/pharmacy-forecast"><AuthGuard><PharmacyForecastPage /></AuthGuard></Route>
@@ -108,8 +116,11 @@ export function AppRoutes() {
         <Route path="/procurement"><AuthGuard><ProcurementPage /></AuthGuard></Route>
         <Route path="/pending-emergencies"><AuthGuard><PendingEmergenciesPage /></AuthGuard></Route>
         <Route path="/shift-chat/:shiftId"><AuthGuard><ShiftChatArchive /></AuthGuard></Route>
+        <Route path="/er/impact"><AuthGuard><ErImpactPage /></AuthGuard></Route>
+        <Route path="/er"><AuthGuard><ErCommandCenterPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
+      </ErModeGuard>
     </PageErrorBoundary>
   );
 }

@@ -38,6 +38,10 @@ import crashCartRoutes from "../routes/crash-cart.js";
 import integrationsRoutes from "../routes/integrations.js";
 import shiftChatRoutes from "../routes/shift-chat.js";
 import displayRoutes from "../routes/display.js";
+import erRoutes from "../routes/er.js";
+import adminOutboxHealthRoutes from "../routes/admin-outbox-health.js";
+import adminOutboxDlqRoutes from "../routes/admin-outbox-dlq.js";
+import adminMedicationIntegrityRoutes from "../routes/admin-medication-integrity.js";
 
 export function registerApiRoutes(app: express.Express) {
   app.use("/api/users", userRoutes);
@@ -77,6 +81,10 @@ export function registerApiRoutes(app: express.Express) {
   app.use("/api/integrations", integrationsRoutes);
   app.use("/api/shift-chat", shiftChatRoutes);
   app.use("/api/display", displayRoutes);
+  app.use("/api/er", erRoutes);
+  app.use("/api/admin", adminOutboxHealthRoutes);
+  app.use("/api/admin", adminOutboxDlqRoutes);
+  app.use("/api/admin", adminMedicationIntegrityRoutes);
   app.use("/api/test", testRoutes);
   app.use("/api/health", healthRoutes);
   app.use("/api/health/ready", healthRoutes);
