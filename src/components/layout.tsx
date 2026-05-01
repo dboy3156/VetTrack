@@ -50,6 +50,7 @@ import {
   FileText,
   Stethoscope,
   Monitor,
+  Gauge,
 } from "lucide-react";
 import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -449,6 +450,20 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     { href: "/whats-new", label: lh.whatsNew, icon: <Sparkles className="w-5 h-5" />, menuOnly: true },
     { href: "/help", label: lh.quickGuide, icon: <HelpCircle className="w-5 h-5" />, menuOnly: true },
     { href: "/audit-log", label: lh.auditLog, icon: <FileText className="w-5 h-5" />, adminOnly: true, menuOnly: true },
+    {
+      href: "/admin/medication-integrity",
+      label: lh.medIntegrity,
+      icon: <Pill className="w-5 h-5" />,
+      adminOnly: true,
+      menuOnly: true,
+    },
+    {
+      href: "/admin/ops-dashboard",
+      label: lh.opsDashboard,
+      icon: <Gauge className="w-5 h-5" />,
+      adminOnly: true,
+      menuOnly: true,
+    },
     { href: "/admin/code-blue-history", label: "היסטוריית CODE BLUE", icon: <Clock className="w-5 h-5" />, adminOnly: true, menuOnly: true },
     { href: "/settings", label: lh.settings, icon: <Settings className="w-5 h-5" />, menuOnly: true },
   ], [alertCount, canAccessCodeBlue, canAccessHandoverInventory, canAccessPharmacyForecastNav, myCount, lh, t]);
@@ -471,7 +486,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   );
   const systemMenuItems = useMemo(
     () =>
-      ["/app-tour", "/whats-new", "/help", "/audit-log", "/admin/code-blue-history", "/settings"]
+      ["/app-tour", "/whats-new", "/help", "/audit-log", "/admin/medication-integrity", "/admin/ops-dashboard", "/admin/code-blue-history", "/settings"]
         .map((href) => visibleItems.find((i) => i.href === href))
         .filter((x): x is NavItem => x != null),
     [visibleItems]

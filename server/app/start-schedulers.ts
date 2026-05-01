@@ -12,9 +12,19 @@ import { startInventoryDeductionWorker } from "../workers/inventory-deduction.wo
 import { startIntegrationWorker } from "../workers/integration.worker.js";
 import { startIntegrationScheduleJobs } from "../integrations/jobs/integration-schedules.js";
 import { startIntegrationRetentionCron } from "../integrations/jobs/integration-retention.js";
+import { startErHandoffSlaScheduler } from "../services/er-handoff-sla.service.js";
+import { startErIntakeEscalationScheduler } from "../services/er-intake-escalation.service.js";
+import { startErKpiDailyRollupScheduler } from "../services/er-kpi-rollup.service.js";
+import { startShadowInventoryScheduler } from "../services/shadow-inventory.service.js";
+import { startSystemHealthMonitor } from "../services/system-health-monitor.js";
+import { startEventOutboxPublisher } from "../lib/event-publisher.js";
+import { startOutboxJanitor } from "../lib/outbox-janitor.js";
 
 export async function startBackgroundSchedulers() {
   await initVapid();
+  startEventOutboxPublisher();
+  startOutboxJanitor();
+  startSystemHealthMonitor();
   startPushCleanupScheduler();
   startCleanupScheduler();
   startAccessDeniedMetricsWindowScheduler();
@@ -27,4 +37,8 @@ export async function startBackgroundSchedulers() {
   await startIntegrationWorker();
   startIntegrationScheduleJobs();
   startIntegrationRetentionCron();
+  startErKpiDailyRollupScheduler();
+  startErHandoffSlaScheduler();
+  startErIntakeEscalationScheduler();
+  startShadowInventoryScheduler();
 }

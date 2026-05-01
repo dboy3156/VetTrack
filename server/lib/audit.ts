@@ -1,5 +1,6 @@
-import { db, auditLogs } from "../db.js";
 import { randomUUID } from "crypto";
+import { db, auditLogs, eventOutbox } from "../db.js";
+import { OUTBOX_TYPE_AUDIT_LOG } from "./event-publisher.js";
 
 export type AuditActionType =
   | "pharmacy_order_sent"
@@ -65,7 +66,48 @@ export type AuditActionType =
   | "integration_vendor_promoted"
   | "users_hard_purged"
   | "inventory_dispensed"
-  | "code_blue_session_reconciled";
+  | "code_blue_session_reconciled"
+  | "er_intake_created"
+  | "er_intake_assigned"
+  | "er_handoff_created"
+  | "er_handoff_acknowledged"
+  | "container_created"
+  | "containers_defaults_seeded"
+  | "crash_cart_item_created"
+  | "crash_cart_item_updated"
+  | "crash_cart_item_deactivated"
+  | "crash_cart_check_saved"
+  | "forecast_parse_saved"
+  | "patient_admitted"
+  | "shift_session_started"
+  | "shift_session_ended"
+  | "shifts_csv_imported"
+  | "whatsapp_alert_created"
+  | "code_blue_log_entry_created"
+  | "code_blue_presence_heartbeat"
+  | "forecast_parse_keepalive"
+  | "formulary_entry_upserted"
+  | "formulary_entry_created"
+  | "formulary_entry_updated"
+  | "formulary_entry_deleted"
+  | "integration_mapping_review_updated"
+  | "hospitalization_status_updated"
+  | "patient_discharged"
+  | "push_subscription_created"
+  | "push_subscription_updated"
+  | "push_subscription_deleted"
+  | "shift_chat_message_posted"
+  | "shift_chat_broadcast_ack"
+  | "shift_chat_message_pinned"
+  | "shift_chat_reaction_removed"
+  | "shift_chat_reaction_added"
+  | "emergency_dispense_reconciled"
+  | "support_ticket_created"
+  | "support_ticket_updated"
+  | "inventory_job_retried"
+  | "test_scheduled_notification_scenario_created"
+  | "outbox_dlq_retry_all"
+  | "outbox_dlq_drop";
 
 export interface LogAuditParams {
   clinicId: string;
@@ -81,6 +123,11 @@ export interface LogAuditParams {
    */
   actorRole?: string | null;
 }
+
+/** Drizzle transaction client from `db.transaction` — use with `logAudit` for atomic business + audit + outbox. */
+export type AuditDbExecutor = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type LogAuditWithTxParams = LogAuditParams & { tx: AuditDbExecutor };
 
 /** Minimal shape for Express `req` after auth middleware (avoids importing Express in this module). */
 export type AuditActorSource = {
@@ -106,23 +153,60 @@ function mergeAuditMetadata(
   return Object.keys(base).length > 0 ? base : null;
 }
 
-export function logAudit(params: LogAuditParams): void {
+async function insertAuditAndOutbox(
+  executor: AuditDbExecutor | typeof db,
+  params: LogAuditParams,
+): Promise<void> {
+  const auditId = randomUUID();
+  const occurredAt = new Date();
+  const mergedMetadata = mergeAuditMetadata(params.metadata, params.actorRole);
+
+  await executor.insert(auditLogs).values({
+    id: auditId,
+    clinicId: params.clinicId,
+    actionType: params.actionType,
+    performedBy: params.performedBy,
+    performedByEmail: params.performedByEmail,
+    targetId: params.targetId ?? null,
+    targetType: params.targetType ?? null,
+    metadata: mergedMetadata,
+    timestamp: occurredAt,
+  });
+
+  await executor.insert(eventOutbox).values({
+    clinicId: params.clinicId,
+    type: OUTBOX_TYPE_AUDIT_LOG,
+    payload: {
+      auditLogId: auditId,
+      actionType: params.actionType,
+      performedBy: params.performedBy,
+      performedByEmail: params.performedByEmail,
+      targetId: params.targetId ?? null,
+      targetType: params.targetType ?? null,
+      metadata: mergedMetadata,
+    },
+    occurredAt,
+  });
+}
+
+export function logAudit(params: LogAuditWithTxParams): Promise<void>;
+export function logAudit(params: LogAuditParams): void;
+export function logAudit(params: LogAuditParams & { tx?: AuditDbExecutor }): void | Promise<void> {
   try {
     if (!params.clinicId) {
       console.error("[audit] skipped: missing clinicId", { actionType: params.actionType });
       return;
     }
-    const mergedMetadata = mergeAuditMetadata(params.metadata, params.actorRole);
-    db.insert(auditLogs)
-      .values({
-        id: randomUUID(),
-        clinicId: params.clinicId,
-        actionType: params.actionType,
-        performedBy: params.performedBy,
-        performedByEmail: params.performedByEmail,
-        targetId: params.targetId ?? null,
-        targetType: params.targetType ?? null,
-        metadata: mergedMetadata,
+
+    const { tx, ...auditParams } = params;
+
+    if (tx) {
+      return insertAuditAndOutbox(tx, auditParams);
+    }
+
+    void db
+      .transaction(async (innerTx) => {
+        await insertAuditAndOutbox(innerTx, auditParams);
       })
       .catch((err) => {
         console.error("[audit] Failed to write audit log:", err);

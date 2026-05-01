@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
 import { enqueueNotificationJob } from "../lib/queue.js";
 import { postSystemMessage } from "../lib/shift-chat-presence.js";
 
@@ -209,18 +210,31 @@ router.post("/sessions", requireAuth, validateBody(startSessionSchema), async (r
     const id = randomUUID();
     const startedAt = body.localStartedAt ? new Date(body.localStartedAt) : new Date();
 
-    await db.insert(codeBlueSessions).values({
-      id,
-      clinicId,
-      startedAt,
-      startedBy: userId,
-      startedByName: req.authUser!.name,
-      managerUserId: managerUser.id,
-      managerUserName: managerUser.name,
-      patientId: body.patientId ?? null,
-      hospitalizationId: body.hospitalizationId ?? null,
-      preCheckPassed: body.preCheckPassed ?? null,
-      status: "active",
+    let codeBlueNotificationRequestOutboxId: number | undefined;
+    await db.transaction(async (tx) => {
+      await tx.insert(codeBlueSessions).values({
+        id,
+        clinicId,
+        startedAt,
+        startedBy: userId,
+        startedByName: req.authUser!.name,
+        managerUserId: managerUser.id,
+        managerUserName: managerUser.name,
+        patientId: body.patientId ?? null,
+        hospitalizationId: body.hospitalizationId ?? null,
+        preCheckPassed: body.preCheckPassed ?? null,
+        status: "active",
+      });
+      codeBlueNotificationRequestOutboxId = await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "NOTIFICATION_REQUESTED",
+        payload: {
+          channel: "code_blue_role_broadcast",
+          sessionId: id,
+          tag: `code-blue-${id}`,
+        },
+        occurredAt: startedAt,
+      });
     });
 
     postSystemMessage(clinicId, "code_blue_start", {
@@ -239,18 +253,18 @@ router.post("/sessions", requireAuth, validateBody(startSessionSchema), async (r
       metadata: { startedAt: startedAt.toISOString(), managerUserId: body.managerUserId },
     });
 
-    // Push notification to all staff — fire and forget
-    const roles = ["admin", "vet", "senior_technician", "technician"] as const;
-    for (const role of roles) {
-      void enqueueNotificationJob({
-        type: "automation_push_role",
-        clinicId,
-        role,
-        title: "⚠ CODE BLUE",
-        body: `CODE BLUE הופעל ע״י ${req.authUser!.name}`,
-        tag: `code-blue-${id}`,
-      }).catch(() => { /* non-critical */ });
-    }
+    void enqueueNotificationJob({
+      type: "code_blue_broadcast",
+      clinicId,
+      title: "⚠ CODE BLUE",
+      body: `CODE BLUE הופעל ע״י ${req.authUser!.name}`,
+      tag: `code-blue-${id}`,
+      ...(codeBlueNotificationRequestOutboxId !== undefined
+        ? { notificationRequestOutboxId: codeBlueNotificationRequestOutboxId }
+        : {}),
+    }).catch(() => {
+      /* non-critical */
+    });
 
     res.status(201).json({ id, startedAt: startedAt.toISOString() });
   } catch (err) {
@@ -404,6 +418,17 @@ router.post("/sessions/:id/logs", requireAuth, validateUuid("id"), validateBody(
         .where(and(eq(equipment.id, body.equipmentId), eq(equipment.clinicId, clinicId)));
     }
 
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "code_blue_log_entry_created",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: sessionId,
+      targetType: "code_blue_session",
+      metadata: { entryId, category: body.category },
+    });
+
     res.status(201).json({ id: entryId, duplicate: false });
   } catch (err) {
     console.error("[code-blue] add log entry failed", err);
@@ -442,6 +467,16 @@ router.patch("/sessions/:id/presence", requireAuth, validateUuid("id"), async (r
         target: [codeBluePresence.sessionId, codeBluePresence.userId],
         set: { userName, lastSeenAt: new Date() },
       });
+
+    logAudit({
+      actorRole: resolveAuditActorRole(req),
+      clinicId,
+      actionType: "code_blue_presence_heartbeat",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: sessionId,
+      targetType: "code_blue_session",
+    });
 
     res.json({ ok: true });
   } catch (err) {
@@ -721,6 +756,8 @@ const manualBillingSchema = z.object({
   quantity: z.number().int().min(1),
   unitPriceCents: z.number().int().min(0),
   animalId: z.string().nullable().optional(),
+  /** When set, clears matching `PROBABLE_ORPHAN_USAGE` Smart Cop alert after billing linkage. */
+  resolveTaskId: z.string().uuid().optional(),
 });
 
 router.post("/sessions/:id/manual-billing", requireAuth, requireAdmin, validateBody(manualBillingSchema), async (req, res) => {
@@ -740,19 +777,34 @@ router.post("/sessions/:id/manual-billing", requireAuth, requireAdmin, validateB
     const { randomUUID } = await import("crypto");
     const id = randomUUID();
     const idempotencyKey = `adjustment_${b.inventoryLogId}`;
-    await db.insert(billingLedger).values({
-      id,
-      clinicId,
-      animalId: b.animalId ?? null,
-      itemType: "CONSUMABLE",
-      itemId: b.itemId,
-      quantity: b.quantity,
-      unitPriceCents: b.unitPriceCents,
-      totalAmountCents: b.unitPriceCents * b.quantity,
-      idempotencyKey,
-      status: "pending",
-    }).onConflictDoNothing();
-    const [row] = await db.select().from(billingLedger).where(eq(billingLedger.idempotencyKey, idempotencyKey)).limit(1);
+    const [row] = await db.transaction(async (tx) => {
+      await tx.insert(billingLedger).values({
+        id,
+        clinicId,
+        animalId: b.animalId ?? null,
+        itemType: "CONSUMABLE",
+        itemId: b.itemId,
+        quantity: b.quantity,
+        unitPriceCents: b.unitPriceCents,
+        totalAmountCents: b.unitPriceCents * b.quantity,
+        idempotencyKey,
+        status: "pending",
+      }).onConflictDoNothing();
+      const [ledgerRow] = await tx.select().from(billingLedger).where(eq(billingLedger.idempotencyKey, idempotencyKey)).limit(1);
+      const resolvedId = ledgerRow?.id ?? id;
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "SHADOW_ORPHAN_ALERT_RESOLVED",
+        payload: {
+          billingLedgerId: resolvedId,
+          inventoryLogId: b.inventoryLogId,
+          resolution: "retroactive_billing_link",
+          source: "code_blue_manual_billing",
+          ...(b.resolveTaskId ? { taskId: b.resolveTaskId } : {}),
+        },
+      });
+      return [ledgerRow] as const;
+    });
     logAudit({
       clinicId,
       actionType: "billing_charge_created",

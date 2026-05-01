@@ -1,5 +1,7 @@
 // src/pages/display.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { connectRealtime, disconnectRealtime, EventIngestor } from "@/lib/realtime";
 import { useDisplaySnapshot } from "@/hooks/useDisplaySnapshot";
 import type {
   DisplaySnapshot,
@@ -513,6 +515,28 @@ function CodeBlueOverlay({
 // ── WardDisplayPage ───────────────────────────────────────────────────────────
 
 export default function WardDisplayPage() {
+  const qc = useQueryClient();
+  const realtimeIngestor = useMemo(() => new EventIngestor(qc), [qc]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        await realtimeIngestor.replayHttpCatchUpAfter(realtimeIngestor.getLastAppliedEventId());
+      } catch {
+        // Replay is best-effort; SSE + snapshot queries still converge.
+      }
+      if (!cancelled) {
+        connectRealtime(() => {}, { queryClient: qc, ingestor: realtimeIngestor });
+      }
+    })();
+    return () => {
+      cancelled = true;
+      disconnectRealtime({ ingestor: realtimeIngestor });
+      realtimeIngestor.dispose();
+    };
+  }, [qc, realtimeIngestor]);
+
   const snapshot = useDisplaySnapshot();
 
   if (!snapshot) {

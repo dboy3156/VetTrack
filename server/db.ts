@@ -19,6 +19,7 @@ import {
   uniqueIndex,
   primaryKey,
   doublePrecision,
+  bigserial,
 } from "drizzle-orm/pg-core";
 
 // Managed Postgres providers (Neon, Supabase, Heroku, Railway public proxy, …)
@@ -70,6 +71,11 @@ export const clinics = pgTable("vt_clinics", {
   id: text("id").primaryKey(),
   pharmacyEmail: text("pharmacy_email"),
   forecastPdfSourceFormat: varchar("forecast_pdf_source_format", { length: 20 }).notNull().default("smartflow"),
+  erModeState: varchar("er_mode_state", { length: 20 }).notNull().default("disabled"),
+  /** Minutes until a low-severity intake auto-escalates to medium (SLA aging). */
+  erIntakeEscalateLowMinutes: integer("er_intake_escalate_low_minutes").notNull().default(15),
+  /** Minutes a medium-severity intake waits before auto-escalating to high. */
+  erIntakeEscalateMediumMinutes: integer("er_intake_escalate_medium_minutes").notNull().default(15),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -110,6 +116,8 @@ export const appointments = pgTable("vt_appointments", {
   taskType: varchar("task_type", { length: 20 }),
   /** Medication: inventory container for billing + stock deduction (see also metadata.containerId legacy). */
   containerId: text("container_id"),
+  /** Medication: primary vt_items row for the cabinet line (Smart Cop / orphan checks). */
+  inventoryItemId: text("inventory_item_id"),
   /** Automation: overdue escalation target — does not replace vet_id (technician ownership). */
   escalatedTo: text("escalated_to").references(() => users.id, { onDelete: "set null" }),
   escalatedAt: timestamp("escalated_at", { withTimezone: true }),
@@ -501,6 +509,10 @@ export const inventoryLogs = pgTable(
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    /** Set when a consumable dispense produced a vt_billing_ledger row (revenue capture). */
+    billingEventId: text("billing_event_id").references(() => billingLedger.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => ({
     taskClinicIdx: index("vt_inventory_logs_task_clinic_idx").on(table.taskId, table.clinicId),
@@ -825,6 +837,32 @@ export const auditLogs = pgTable("vt_audit_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+/** Transactional outbox for durable, ordered clinical/domain events (see `server/lib/event-publisher.ts`). */
+export const eventOutbox = pgTable(
+  "vt_event_outbox",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    payload: jsonb("payload").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** Incremented when the outbox publisher fails while processing this row's batch. */
+    retryCount: integer("retry_count").notNull().default(0),
+    /** Last time a publish attempt failed for this row (set with retry_count bump). */
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    /** After a transient publish failure, row is not eligible until this time (exponential backoff). */
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    /** Schema evolution for payload shape; default 1 for all new rows. */
+    eventVersion: integer("event_version").notNull().default(1),
+    /** Set on publish failure: `transient` (auto-retry) vs `permanent` (excluded from publisher loop). */
+    errorType: varchar("error_type", { length: 20 }),
+  },
+  (table) => ({
+    unpublishedIdx: index("idx_vt_event_outbox_unpublished").on(table.id).where(sql`${table.publishedAt} IS NULL`),
+  }),
+);
+
 export const poStatusEnum = pgEnum("vt_po_status", ["draft", "ordered", "partial", "received", "cancelled"]);
 
 export const purchaseOrders = pgTable(
@@ -1092,6 +1130,249 @@ export const shiftMessageReactions = pgTable(
 export type ShiftMessage = typeof shiftMessages.$inferSelect;
 export type ShiftMessageAck = typeof shiftMessageAcks.$inferSelect;
 export type ShiftMessageReaction = typeof shiftMessageReactions.$inferSelect;
+
+export const erIntakeEvents = pgTable(
+  "vt_er_intake_events",
+  {
+    id: text("id").primaryKey(),
+
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+
+    animalId: text("animal_id")
+      .references(() => animals.id, { onDelete: "set null" }),
+
+    ownerName: text("owner_name"),
+
+    species: text("species").notNull(),
+
+    severity: varchar("severity", { length: 20 }).notNull(),
+
+    chiefComplaint: text("chief_complaint").notNull(),
+
+    waitingSince: timestamp("waiting_since", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    assignedUserId: text("assigned_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+
+    status: varchar("status", { length: 20 })
+      .notNull()
+      .default("waiting"),
+
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull(),
+
+    escalatesAt: timestamp("escalates_at", { withTimezone: true }),
+  },
+  (table) => ({
+    clinicStatusIdx: index("idx_er_intake_clinic_status").on(
+      table.clinicId,
+      table.status
+    ),
+    clinicWaitingIdx: index("idx_er_intake_clinic_waiting").on(
+      table.clinicId,
+      table.waitingSince
+    ),
+    /** Scheduler scans due escalations (low/medium tiers only). */
+    escalatesAtIdx: index("idx_er_intake_escalates_at")
+      .on(table.escalatesAt)
+      .where(
+        sql`${table.escalatesAt} IS NOT NULL AND ${table.severity} IN ('low', 'medium') AND ${table.status} IN ('waiting', 'assigned', 'in_progress')`,
+      ),
+  }),
+);
+
+export const shiftHandoffs = pgTable(
+  "vt_shift_handoffs",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    hospitalizationId: text("hospitalization_id")
+      .references(() => hospitalizations.id, { onDelete: "set null" }),
+    outgoingUserId: text("outgoing_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 20 })
+      .notNull()
+      .default("open"),
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicStatusIdx: index("idx_shift_handoffs_clinic_status").on(
+      table.clinicId,
+      table.status
+    ),
+    clinicCreatedIdx: index("idx_shift_handoffs_clinic_created").on(
+      table.clinicId,
+      table.createdAt
+    ),
+  }),
+);
+export const shiftHandoffItems = pgTable(
+  "vt_shift_handoff_items",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    handoffId: text("handoff_id")
+      .notNull()
+      .references(() => shiftHandoffs.id, { onDelete: "cascade" }),
+    activeIssue: text("active_issue").notNull(),
+    nextAction: text("next_action").notNull(),
+    etaMinutes: integer("eta_minutes").notNull(),
+    ownerUserId: text("owner_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+    riskFlags: jsonb("risk_flags")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    pendingMedicationTaskId: text("pending_medication_task_id"),
+    note: text("note"),
+    ackBy: text("ack_by")
+      .references(() => users.id, { onDelete: "set null" }),
+    ackAt: timestamp("ack_at"),
+    slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
+    overriddenBy: text("overridden_by")
+      .references(() => users.id, { onDelete: "set null" }),
+    overrideReason: text("override_reason"),
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    handoffIdx: index("idx_shift_handoff_items_handoff").on(table.handoffId),
+    clinicOwnerIdx: index("idx_shift_handoff_items_clinic_owner").on(
+      table.clinicId,
+      table.ownerUserId
+    ),
+  }),
+);
+
+export const erKpiDaily = pgTable(
+  "vt_er_kpi_daily",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    date: date("date", { mode: "string" }).notNull(),
+    doorToTriageMinutesP50: doublePrecision("door_to_triage_minutes_p50"),
+    missedHandoffRate: doublePrecision("missed_handoff_rate"),
+    medDelayRate: doublePrecision("med_delay_rate"),
+    sampleSizeIntakes: integer("sample_size_intakes")
+      .notNull()
+      .default(0),
+    sampleSizeHandoffs: integer("sample_size_handoffs")
+      .notNull()
+      .default(0),
+    sampleSizeMedTasks: integer("sample_size_med_tasks")
+      .notNull()
+      .default(0),
+    computedAt: timestamp("computed_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicDateUnique: uniqueIndex("vt_er_kpi_daily_clinic_date_unique").on(
+      table.clinicId,
+      table.date
+    ),
+    clinicDateIdx: index("idx_er_kpi_daily_clinic_date").on(
+      table.clinicId,
+      table.date
+    ),
+  }),
+);
+/** Append-only ER board / intake / handoff / SLA workflow events (system of record). */
+export const erBoardEventLog = pgTable(
+  "vt_er_board_event_log",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    eventType: varchar("event_type", { length: 64 }).notNull(),
+    entityType: varchar("entity_type", { length: 32 }),
+    entityId: text("entity_id"),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicCreatedIdx: index("idx_er_board_event_log_clinic_created").on(
+      table.clinicId,
+      table.createdAt,
+    ),
+    entityIdx: index("idx_er_board_event_log_entity").on(
+      table.clinicId,
+      table.entityType,
+      table.entityId,
+    ),
+  }),
+);
+
+export const erBaselineSnapshots = pgTable(
+  "vt_er_baseline_snapshots",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    baselineStartDate: date("baseline_start_date", { mode: "string" }).notNull(),
+    baselineEndDate: date("baseline_end_date", { mode: "string" }).notNull(),
+    doorToTriageMinutesP50: doublePrecision("door_to_triage_minutes_p50"),
+    missedHandoffRate: doublePrecision("missed_handoff_rate"),
+    medDelayRate: doublePrecision("med_delay_rate"),
+    confidenceLevel: varchar("confidence_level", { length: 10 })
+      .notNull()
+      .default("low"),
+    capturedAt: timestamp("captured_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    clinicCapturedIdx: index("idx_er_baseline_clinic_captured").on(
+      table.clinicId,
+      table.capturedAt
+    ),
+  }),
+);
+
+/** Cached HTTP responses for Idempotency-Key replays (financial / clinical mutations). */
+export const idempotencyKeys = pgTable(
+  "vt_idempotency_keys",
+  {
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    endpoint: text("endpoint").notNull(),
+    requestHash: text("request_hash").notNull(),
+    responseBody: jsonb("response_body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.clinicId, table.key] }),
+    clinicCreatedIdx: index("idx_vt_idempotency_keys_clinic_created").on(table.clinicId, table.createdAt),
+  }),
+);
 
 export async function initDb() {
   // Schema initialization is now handled by the migration runner (server/migrate.ts).

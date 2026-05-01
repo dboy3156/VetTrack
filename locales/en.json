@@ -304,6 +304,7 @@
     },
     "guard": {
       "pendingTitle": "Account pending hospital management approval",
+      "syncFailedTitle": "Could not verify account with server",
       "blockedTitle": "Access blocked",
       "blockedDescription": "Contact IT department for assistance.",
       "accessDeniedTitle": "Access denied",
@@ -319,7 +320,8 @@
         "insufficientRole": "You do not have permission to access this area.",
         "accountDeleted": "Your account was removed.",
         "accountBlocked": "Your account is blocked.",
-        "accountPendingApproval": "Your account is pending approval."
+        "accountPendingApproval": "Your account is pending approval.",
+        "authSyncFailed": "The server did not return profile data (offline, API error, or wrong DATABASE_URL). Check that the API is running, then retry."
       }
     }
   },
@@ -1036,6 +1038,8 @@
     "appTour": "App tour",
     "whatsNew": "What's new",
     "auditLog": "Audit log",
+    "opsDashboard": "System health",
+    "medIntegrity": "Medication integrity",
     "settings": "Settings",
     "about": "About VetTrack",
     "offline": "Offline",
@@ -1369,6 +1373,69 @@
     }
   },
 
+  "erImpact": {
+    "title": "ER outcome KPIs",
+    "subtitle": "Current reporting window compared to the latest pre-go-live baseline snapshot.",
+    "windowLabel": "Window",
+    "windowDays": "{n} days",
+    "baselinePeriod": "Baseline period",
+    "generatedAt": "Generated",
+    "loadError": "Could not load impact metrics.",
+    "noData": "No daily KPI rows in this window yet.",
+    "metricBaseline": "Baseline",
+    "metricCurrent": "Current",
+    "metricDelta": "Δ",
+    "metricDeltaPct": "Δ%",
+    "kpi": {
+      "doorToTriageMinutesP50": "Door-to-triage (median, minutes)",
+      "missedHandoffRate": "Missed handoff rate",
+      "medDelayRate": "Medication delay rate"
+    },
+    "confidence": {
+      "low": "Low confidence",
+      "medium": "Medium confidence",
+      "high": "High confidence"
+    }
+  },
+
+  "erCommandCenter": {
+    "title": "ER Command Center",
+    "lanes": {
+      "criticalNow": "Critical now",
+      "next15m": "Next 15 min",
+      "handoffRisk": "Handoff risk"
+    },
+    "quickIntake": "Quick intake",
+    "species": "Species",
+    "severity": "Severity",
+    "complaint": "Chief complaint",
+    "submitIntake": "Create intake",
+    "assign": "Assign",
+    "ack": "Acknowledge",
+    "impactLink": "Impact KPIs",
+    "refresh": "Refresh",
+    "loadingBoard": "Loading board…",
+    "createHandoff": "Create handoff",
+    "handoffPatient": "Hospitalized patient",
+    "handoffSelectPatient": "Select patient",
+    "handoffActiveIssue": "Active issue",
+    "handoffNextAction": "Next action",
+    "handoffEtaMinutes": "ETA (minutes)",
+    "handoffOwner": "Owner",
+    "handoffOwnerUnassigned": "Unassigned",
+    "handoffAddItem": "Add line item",
+    "handoffSubmit": "Create handoff",
+    "handoffNoPatients": "No active hospitalizations. Admit a patient first.",
+    "handoffItem": "Line {{n}}",
+    "badges": {
+      "overdue": "Overdue",
+      "unassigned": "Unassigned",
+      "handoffRisk": "Handoff"
+    },
+    "escalationTimer": "Queue escalates in {{time}}",
+    "escalationOverdue": "Escalation due — syncing…"
+  },
+
   "appointmentsPage": {
     "administerMedication": "Administer Medication",
     "startNow": "Start now",
@@ -1378,6 +1445,63 @@
     "tasks": "Tasks",
     "createTask": "Create task",
     "quickTask": "Quick task"
+  },
+
+  "cop": {
+    "discrepancyTitle": "Medication discrepancy (Smart Cop)",
+    "discrepancySubtitle": "Possible orphan drug use — patient charge does not match an active order or inpatient stay.",
+    "chargedNoAdminTitle": "Suspected orphan stock (charged, not administered)",
+    "chargedNoAdminSubtitle": "A cabinet dispense was billed to this patient, but no matching medication administration was recorded within the policy window.",
+    "chargedNoAdminDetail": "Charge reference {billingId}… · administration window {hours} h",
+    "adminNoDispenseTitle": "Probable orphan usage (administered without cabinet dispense)",
+    "adminNoDispenseSubtitle": "This medication task was completed without a matching cabinet pull for this patient and drug in the lookback window — possible use of leftover stock.",
+    "adminNoDispenseDetail": "Task {taskId}… · dispense lookback {hours} h",
+    "resolveOnlyFooter": "Clear through billing reconciliation (return unused charge to stock) or retroactive billing linkage — not by dismissing this banner.",
+    "patientLabel": "Patient",
+    "unknownPatient": "Unknown patient",
+    "drugLine": "{drug} × {qty}",
+    "reasonsPrefix": "Issues",
+    "dismiss": "Dismiss",
+    "reason_NO_PATIENT_LINKED": "No patient linked to dispense",
+    "reason_NO_ACTIVE_HOSPITALIZATION": "No active hospitalization on record",
+    "reason_NO_ACTIVE_ORDER": "No matching active medication order for this cabinet line",
+    "reason_QUANTITY_EXCEEDS_ORDER": "Quantity exceeds ordered amount"
+  },
+
+  "adminMedicationIntegrity": {
+    "title": "Medication integrity",
+    "accessDenied": "Administrator access required.",
+    "subtitle": "Dispensed consumables vs active hospitalizations (management oversight).",
+    "empty": "No dispense rows in window.",
+    "colTime": "Time",
+    "colPatient": "Patient",
+    "colContainer": "Cabinet",
+    "colBilling": "Charge",
+    "colFlags": "Flags",
+    "flagNoHosp": "No active hospitalization"
+  },
+
+  "adminOpsDashboard": {
+    "title": "Operations dashboard",
+    "subtitle": "Realtime and event pipeline health for this clinic.",
+    "accessDenied": "Administrator access required.",
+    "liveHint": "Updates every 10 seconds.",
+    "publishLag": "Current publish lag",
+    "publishLagMs": "ms",
+    "publishLagEmpty": "No backlog",
+    "eventsPerSec": "Events per second",
+    "deadLetterCount": "Dead letter count",
+    "dlqPermanentCount": "DLQ — permanent (terminal)",
+    "dlqTransientCount": "DLQ — transient",
+    "dlqUnclassifiedCount": "DLQ — unclassified",
+    "gapResyncCount": "Gap resync count",
+    "duplicateDropsCount": "Duplicate drops count",
+    "nextRetryWave": "Next retry wave",
+    "nextRetryWaveHint": "Soonest time rows become eligible again after backoff.",
+    "nextRetryWaveEmpty": "No scheduled backoff",
+    "maxRetryHorizon": "Latest scheduled retry",
+    "maxRetryHorizonHint": "Furthest backoff among pending retries.",
+    "maxRetryHorizonEmpty": "—"
   },
 
   "errors": {

@@ -305,6 +305,7 @@
     },
     "guard": {
       "pendingTitle": "החשבון ממתין לאישור הנהלת ביה\"ח",
+      "syncFailedTitle": "לא ניתן לאמת את החשבון מול השרת",
       "blockedTitle": "גישה חסומה",
       "blockedDescription": "פנה למחלקת מערכות מידע לבירור.",
       "accessDeniedTitle": "אין גישה",
@@ -320,7 +321,8 @@
         "insufficientRole": "אין לך הרשאה לגשת לאזור זה.",
         "accountDeleted": "החשבון הוסר מהמערכת.",
         "accountBlocked": "החשבון חסום.",
-        "accountPendingApproval": "החשבון ממתין לאישור."
+        "accountPendingApproval": "החשבון ממתין לאישור.",
+        "authSyncFailed": "השרת לא החזיר נתוני פרופיל (אין רשת, שגיאת API או DATABASE_URL שגוי). ודא שהשרת פועל ונסה שוב."
       }
     }
   },
@@ -1036,6 +1038,8 @@
     "appTour": "סיור באפליקציה",
     "whatsNew": "מה חדש",
     "auditLog": "יומן ביקורת",
+    "opsDashboard": "בריאות המערכת",
+    "medIntegrity": "תקינות תרופות",
     "quickGuide": "מדריך מהיר",
     "settings": "הגדרות",
     "about": "אודות VetTrack",
@@ -1370,6 +1374,69 @@
     }
   },
 
+  "erImpact": {
+    "title": "מדדי תוצאות חדר מיון",
+    "subtitle": "חלון הדיווח הנוכחי מול צילום בסיס לפני עליה לאוויר (האחרון שנשמר).",
+    "windowLabel": "חלון",
+    "windowDays": "{n} ימים",
+    "baselinePeriod": "תקופת בסיס",
+    "generatedAt": "חושב ב",
+    "loadError": "לא ניתן לטעון מדדי השפעה.",
+    "noData": "אין עדיין שורות KPI יומיות בחלון זה.",
+    "metricBaseline": "בסיס",
+    "metricCurrent": "נוכחי",
+    "metricDelta": "Δ",
+    "metricDeltaPct": "Δ%",
+    "kpi": {
+      "doorToTriageMinutesP50": "זמן עד טריאז' (חציון, דקות)",
+      "missedHandoffRate": "שיעור החמצות העברה",
+      "medDelayRate": "שיעור עיכוב בתרופות"
+    },
+    "confidence": {
+      "low": "ביטחון נמוך",
+      "medium": "ביטחון בינוני",
+      "high": "ביטחון גבוה"
+    }
+  },
+
+  "erCommandCenter": {
+    "title": "מרכז פיקוד חדר מיון",
+    "lanes": {
+      "criticalNow": "קריטי עכשיו",
+      "next15m": "15 דק׳ הבאות",
+      "handoffRisk": "סיכון העברה"
+    },
+    "quickIntake": "קליטה מהירה",
+    "species": "מין",
+    "severity": "חומרה",
+    "complaint": "תלונה עיקרית",
+    "submitIntake": "צור קליטה",
+    "assign": "שייך",
+    "ack": "אשר קבלה",
+    "impactLink": "מדדי השפעה",
+    "refresh": "רענן",
+    "loadingBoard": "טוען לוח…",
+    "createHandoff": "צור העברת משמרת",
+    "handoffPatient": "מטופל מאושפז",
+    "handoffSelectPatient": "בחר מטופל",
+    "handoffActiveIssue": "סוגיה פעילה",
+    "handoffNextAction": "פעולה הבאה",
+    "handoffEtaMinutes": "זמן משוער (דקות)",
+    "handoffOwner": "אחראי",
+    "handoffOwnerUnassigned": "ללא שיוך",
+    "handoffAddItem": "הוסף שורה",
+    "handoffSubmit": "צור העברה",
+    "handoffNoPatients": "אין אשפוזים פעילים. יש לאשר קודם מטופל.",
+    "handoffItem": "שורה {{n}}",
+    "badges": {
+      "overdue": "באיחור",
+      "unassigned": "ללא שיוך",
+      "handoffRisk": "העברה"
+    },
+    "escalationTimer": "עליית חומרה בעוד {{time}}",
+    "escalationOverdue": "הגיע זמן העלייה — מסתנכרן…"
+  },
+
   "appointmentsPage": {
     "administerMedication": "מתן תרופה",
     "startNow": "התחל עכשיו",
@@ -1379,6 +1446,63 @@
     "tasks": "משימות",
     "createTask": "צור משימה",
     "quickTask": "משימה מהירה"
+  },
+
+  "cop": {
+    "discrepancyTitle": "אי-התאמה בתרופות (Smart Cop)",
+    "discrepancySubtitle": "חשד לשימוש „יתום” — חיוב מטופל ללא הזמנה פעילה או אשפוז מתאים.",
+    "chargedNoAdminTitle": "חשד למלאי צל (חויב, לא ניתן)",
+    "chargedNoAdminSubtitle": "חויב מתן מהארון למטופל זה, אך לא נרשם מתן תרופה תואם בחלון המדיניות.",
+    "chargedNoAdminDetail": "אסמכתא חיוב {billingId}… · חלון מתן {hours} ש׳",
+    "adminNoDispenseTitle": "שימוש יתום סביר (ניתן ללא משיכת ארון)",
+    "adminNoDispenseSubtitle": "משימת התרופה הושלמה ללא משיכה תואמת מהארון עבור המטופל והתרופה בחלון הבדיקה — אפשר שימוש ביתרת מלאי.",
+    "adminNoDispenseDetail": "משימה {taskId}… · חיפוש משיכה {hours} ש׳",
+    "resolveOnlyFooter": "ניקוי רק דרך התאמת חיובים (החזרת חיוב לא מנוצל למלאי) או קישור חיוב רטרואקטיבי — לא בסגירת הבאנר.",
+    "patientLabel": "מטופל",
+    "unknownPatient": "מטופל לא ידוע",
+    "drugLine": "{drug} × {qty}",
+    "reasonsPrefix": "סיבות",
+    "dismiss": "סגור",
+    "reason_NO_PATIENT_LINKED": "לא קושר מטופל למתן",
+    "reason_NO_ACTIVE_HOSPITALIZATION": "אין אשפוז פעיל ברישום",
+    "reason_NO_ACTIVE_ORDER": "אין הזמנת תרופה תואמת לשורת הארון",
+    "reason_QUANTITY_EXCEEDS_ORDER": "הכמות חורגת מההזמנה"
+  },
+
+  "adminMedicationIntegrity": {
+    "title": "תקינות תרופות",
+    "accessDenied": "נדרשת הרשאת מנהל.",
+    "subtitle": "מתן ממלאי מול אשפוז פעיל (פיקוח ניהולי).",
+    "empty": "אין רשומות מתן בחלון.",
+    "colTime": "זמן",
+    "colPatient": "מטופל",
+    "colContainer": "ארון",
+    "colBilling": "חיוב",
+    "colFlags": "סימונים",
+    "flagNoHosp": "אין אשפוז פעיל"
+  },
+
+  "adminOpsDashboard": {
+    "title": "לוח פעולות",
+    "subtitle": "בריאות זמן אמת וצינור האירועים לקליניקה זו.",
+    "accessDenied": "נדרשת הרשאת מנהל.",
+    "liveHint": "מתעדכן כל 10 שניות.",
+    "publishLag": "עיכוב פרסום נוכחי",
+    "publishLagMs": "מ״ש",
+    "publishLagEmpty": "אין תור ממתין",
+    "eventsPerSec": "אירועים לשנייה",
+    "deadLetterCount": "מספר dead letter",
+    "dlqPermanentCount": "DLQ — קבוע (סופי)",
+    "dlqTransientCount": "DLQ — חולף",
+    "dlqUnclassifiedCount": "DLQ — ללא סיווג",
+    "gapResyncCount": "סנכרון מחדש אחרי פער",
+    "duplicateDropsCount": "השלכות כפילות",
+    "nextRetryWave": "גל ניסיון חוזר הבא",
+    "nextRetryWaveHint": "מתי השורה הבאה תיחשף שוב לפרסום אחרי המתנה.",
+    "nextRetryWaveEmpty": "אין זמן המתנה מתוזמן",
+    "maxRetryHorizon": "ניסיון חוזר מתוזמן אחרון",
+    "maxRetryHorizonHint": "ההמתנה הארוכה ביותר בין הניסיונות הממתינים.",
+    "maxRetryHorizonEmpty": "—"
   },
 
   "errors": {

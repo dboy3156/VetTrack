@@ -385,6 +385,66 @@ const translations = {
 
   appointmentsPage: d.appointmentsPage,
 
+  cop: {
+    ...d.cop,
+    drugLine: (drug: string, qty: number) => tr(d.cop.drugLine, { drug, qty }),
+    chargedNoAdminDetail: (params: { billingId: string; hours: number }) =>
+      tr(d.cop.chargedNoAdminDetail, { billingId: params.billingId, hours: params.hours }),
+    adminNoDispenseDetail: (params: { taskId: string; hours: number }) =>
+      tr(d.cop.adminNoDispenseDetail, { taskId: params.taskId, hours: params.hours }),
+  },
+
+  adminMedicationIntegrity: d.adminMedicationIntegrity,
+
+  adminOpsDashboard: d.adminOpsDashboard,
+
+  erCommandCenter: {
+    title: d.erCommandCenter.title,
+    lanes: d.erCommandCenter.lanes,
+    quickIntake: d.erCommandCenter.quickIntake,
+    species: d.erCommandCenter.species,
+    severity: d.erCommandCenter.severity,
+    complaint: d.erCommandCenter.complaint,
+    submitIntake: d.erCommandCenter.submitIntake,
+    assign: d.erCommandCenter.assign,
+    ack: d.erCommandCenter.ack,
+    impactLink: d.erCommandCenter.impactLink,
+    refresh: d.erCommandCenter.refresh,
+    loadingBoard: d.erCommandCenter.loadingBoard,
+    createHandoff: d.erCommandCenter.createHandoff,
+    handoffPatient: d.erCommandCenter.handoffPatient,
+    handoffSelectPatient: d.erCommandCenter.handoffSelectPatient,
+    handoffActiveIssue: d.erCommandCenter.handoffActiveIssue,
+    handoffNextAction: d.erCommandCenter.handoffNextAction,
+    handoffEtaMinutes: d.erCommandCenter.handoffEtaMinutes,
+    handoffOwner: d.erCommandCenter.handoffOwner,
+    handoffOwnerUnassigned: d.erCommandCenter.handoffOwnerUnassigned,
+    handoffAddItem: d.erCommandCenter.handoffAddItem,
+    handoffSubmit: d.erCommandCenter.handoffSubmit,
+    handoffNoPatients: d.erCommandCenter.handoffNoPatients,
+    handoffItem: (n: number) => tr(d.erCommandCenter.handoffItem, { n: String(n) }),
+    badges: d.erCommandCenter.badges,
+    escalationTimer: (time: string) => tr(d.erCommandCenter.escalationTimer, { time }),
+    escalationOverdue: d.erCommandCenter.escalationOverdue,
+  },
+
+  erImpact: {
+    title: d.erImpact.title,
+    subtitle: d.erImpact.subtitle,
+    windowLabel: d.erImpact.windowLabel,
+    windowDays: (n: number) => tr(d.erImpact.windowDays, { n }),
+    baselinePeriod: d.erImpact.baselinePeriod,
+    generatedAt: d.erImpact.generatedAt,
+    loadError: d.erImpact.loadError,
+    noData: d.erImpact.noData,
+    metricBaseline: d.erImpact.metricBaseline,
+    metricCurrent: d.erImpact.metricCurrent,
+    metricDelta: d.erImpact.metricDelta,
+    metricDeltaPct: d.erImpact.metricDeltaPct,
+    kpi: d.erImpact.kpi,
+    confidence: d.erImpact.confidence,
+  },
+
 } as const;
 
 return translations;
