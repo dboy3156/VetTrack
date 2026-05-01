@@ -59,7 +59,7 @@ export function createErAllowlistMiddleware(
       return;
     }
 
-    const allowed = isErAllowedPath(req.path);
+    const allowed = isErAllowedPath(req.originalUrl.split("?")[0]);
 
     if (mode === "preview") {
       if (!allowed) {
@@ -67,7 +67,7 @@ export function createErAllowlistMiddleware(
           JSON.stringify({
             event: "ER_MODE_PREVIEW_BLOCKED",
             clinicId,
-            path: req.path,
+            path: req.originalUrl.split("?")[0],
             method: req.method,
             ts: new Date().toISOString(),
           }),
