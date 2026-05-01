@@ -1,39 +1,68 @@
-export type CopAlertVariant = "order_mismatch" | "charged_no_admin" | "admin_no_dispense";
+export type OrphanReasonCode =
+  | "NO_PATIENT_LINKED"
+  | "NO_ACTIVE_HOSPITALIZATION"
+  | "NO_ACTIVE_ORDER"
+  | "QUANTITY_EXCEEDS_ORDER";
 
-/** Payload from `POTENTIAL_ORPHAN_USE` realtime events (union-friendly). */
-export interface PotentialOrphanUsePayload {
-  billingLedgerId?: string;
-  inventoryLogId?: string;
-  taskId?: string;
-  animalId?: string;
-  medicationLabel?: string;
-  hoursSinceCharge?: number;
-}
+/** Payload subset mirrored from server `POTENTIAL_ORPHAN_USE` outbox events (client-safe). */
+export type OrphanLineClient = {
+  itemId: string;
+  quantity: number;
+  label: string;
+  reasons: OrphanReasonCode[];
+  matchingOrderIds: string[];
+};
 
-export interface SuspectedOrphanStockPayload {
-  billingLedgerId?: string;
-  inventoryLogId?: string;
-  animalId?: string;
-  hoursSinceCharge?: number;
-}
+export type PotentialOrphanUsePayload = {
+  animalId: string | null;
+  /** Resolved patient display name when `animalId` is set (best-effort). */
+  animalDisplayName?: string | null;
+  sourceContainerId: string;
+  technicianId: string;
+  orphanLines: OrphanLineClient[];
+  dispenseKind: string;
+  emergencyEventId?: string;
+};
 
-export interface ProbableOrphanUsagePayload {
-  taskId?: string;
-  animalId?: string;
-  medicationLabel?: string;
-  hoursSinceAdmin?: number;
-}
+export type SuspectedOrphanStockPayload = {
+  billingLedgerId: string;
+  inventoryLogId: string;
+  animalId: string;
+  animalDisplayName?: string | null;
+  inventoryItemId: string;
+  dispensedAt: string;
+  windowHours: number;
+};
 
-export interface CopAlertEntry {
-  variant: CopAlertVariant;
-  dismissable: boolean;
-  eventId: number;
-  receivedAt: string;
-  billingLedgerId?: string;
-  inventoryLogId?: string;
-  taskId?: string;
-  animalId?: string;
-  medicationLabel?: string;
-  hoursSinceCharge?: number;
-  hoursSinceAdmin?: number;
-}
+export type ProbableOrphanUsagePayload = {
+  taskId: string;
+  animalId: string;
+  animalDisplayName?: string | null;
+  inventoryItemId: string;
+  containerId: string;
+  completedAt: string;
+  lookbackHours: number;
+};
+
+export type CopAlertEntry =
+  | (PotentialOrphanUsePayload & {
+      variant: "order_mismatch";
+      eventId: number;
+      receivedAt: string;
+      dismissable: true;
+    })
+  | (SuspectedOrphanStockPayload & {
+      variant: "charged_no_admin";
+      eventId: number;
+      receivedAt: string;
+      dismissable: false;
+    })
+  | (ProbableOrphanUsagePayload & {
+      variant: "admin_no_dispense";
+      eventId: number;
+      receivedAt: string;
+      dismissable: false;
+    });
+
+/** @deprecated Use CopAlertEntry — kept for gradual migration in components. */
+export type OrphanDrugAlertEntry = CopAlertEntry;

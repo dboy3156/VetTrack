@@ -85,7 +85,8 @@ check(
     appointmentsService.includes("completed_at") &&
     appointmentsService.includes("completionIdempotencyKey") &&
     appointmentsService.includes("await tx.insert(billingLedger).values({") &&
-    appointmentsService.includes("broadcast(clinicId, { type: \"TASK_UPDATED\""),
+    appointmentsService.includes("insertRealtimeDomainEvent(tx, {") &&
+    appointmentsService.includes("\"TASK_UPDATED\""),
   "Medication flow keeps active queue statuses aligned with start/complete auditing, billing, and realtime updates",
 );
 

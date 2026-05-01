@@ -9,6 +9,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const redis = fs.readFileSync(path.join(repoRoot, "server", "lib", "redis.ts"), "utf8");
 const queue = fs.readFileSync(path.join(repoRoot, "server", "lib", "queue.ts"), "utf8");
 const taskNotification = fs.readFileSync(path.join(repoRoot, "server", "lib", "task-notification.ts"), "utf8");
+const appointmentsService = fs.readFileSync(path.join(repoRoot, "server", "services", "appointments.service.ts"), "utf8");
 const recall = fs.readFileSync(path.join(repoRoot, "server", "services", "task-recall.service.ts"), "utf8");
 const worker = fs.readFileSync(path.join(repoRoot, "server", "workers", "notification.worker.ts"), "utf8");
 const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
@@ -42,12 +43,13 @@ describe("Phase 3.3.5 Production hardening (static checks)", () => {
     ).toBe(true);
   });
 
-  it("Task notifications enqueue from API path; worker calls dispatchTaskNotificationSync", () => {
+  it("Task notifications enqueue from API path; worker calls dispatchTaskNotificationSync; domain logs notification request to outbox", () => {
     expect(
       taskNotification.includes("enqueueNotificationJob") &&
         taskNotification.includes("dispatchTaskNotificationSync") &&
         taskNotification.includes("await enqueueNotificationJob") &&
-        taskNotification.includes("NOTIFICATION_SENT")
+        appointmentsService.includes("NOTIFICATION_REQUESTED") &&
+        appointmentsService.includes("buildTaskNotificationRequestedPayload")
     ).toBe(true);
   });
 

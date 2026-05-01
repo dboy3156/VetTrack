@@ -3,15 +3,31 @@
 // Boundaries are marked with === SECTION === comments below.
 
 import { randomUUID } from "crypto";
-import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
-import { animals, appointments, billingItems, billingLedger, containers, db, inventoryJobs, owners, shifts, users } from "../db.js";
+import {
+  animals,
+  appointments,
+  billingItems,
+  billingLedger,
+  containerItems,
+  containers,
+  db,
+  inventoryJobs,
+  owners,
+  shifts,
+  users,
+} from "../db.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { markIdempotentAsync } from "../lib/idempotency.js";
 import { validateJustificationText, MedJustificationError, resolvePresetLabel } from "../lib/med-justification.js";
 import { incrementMetric } from "../lib/metrics.js";
-import { broadcast } from "../lib/realtime.js";
-import { sendTaskNotification } from "../lib/task-notification.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
+import { buildTaskNotificationRequestedPayload, sendTaskNotification } from "../lib/task-notification.js";
+import {
+  DISPENSE_LOOKBACK_BEFORE_ADMIN_HOURS,
+  hasRecentDispenseForAnimalItem,
+} from "./shadow-inventory.service.js";
 import { canPerformMedicationTaskAction } from "../lib/task-rbac.js";
 import { inventoryDeductionQueue } from "../queues/inventory-deduction.queue.js";
 import { doseDeviationRatio, justificationTier, requiresDoseJustification } from "../../shared/medication-justification.js";
@@ -53,11 +69,12 @@ export interface MedicationExecutionTask {
   createdAt: string;
   updatedAt: string;
   animalWeightKg: number | null;
+  inventoryItemId: string | null;
 }
 
 export type { TaskPriority, TaskType } from "../domain/service-task.adapter.js";
 
-type AppointmentRecord = typeof appointments.$inferSelect;
+export type AppointmentRecord = typeof appointments.$inferSelect;
 
 const PRIORITIES: TaskPriority[] = ["critical", "high", "normal"];
 const TASK_TYPES: TaskType[] = ["maintenance", "repair", "inspection", "medication"];
@@ -375,6 +392,21 @@ export function resolveMedicationTaskContainerId(
 function resolvePublicContainerId(row: AppointmentRecord): string | null {
   const resolved = resolveMedicationTaskContainerId(row);
   return resolved.length > 0 ? resolved : null;
+}
+
+export async function resolveMedicationInventoryItemIdFromContainer(
+  executor: Pick<typeof db, "select">,
+  clinicId: string,
+  containerId: string | null,
+): Promise<string | null> {
+  if (!containerId?.trim()) return null;
+  const [row] = await executor
+    .select({ itemId: containerItems.itemId })
+    .from(containerItems)
+    .where(and(eq(containerItems.clinicId, clinicId), eq(containerItems.containerId, containerId.trim())))
+    .orderBy(asc(containerItems.itemId))
+    .limit(1);
+  return typeof row?.itemId === "string" && row.itemId.trim().length > 0 ? row.itemId.trim() : null;
 }
 
 /**
@@ -795,9 +827,12 @@ function auditTaskChange(
 
 function serializeAppointment(row: AppointmentRecord) {
   const resolvedContainerId = resolvePublicContainerId(row);
+  const invRaw = row.inventoryItemId;
+  const inv = typeof invRaw === "string" && invRaw.trim().length > 0 ? invRaw.trim() : null;
   return {
     ...row,
     containerId: resolvedContainerId,
+    inventoryItemId: inv,
     vetId: row.vetId ?? null,
     startTime: new Date(row.startTime).toISOString(),
     endTime: new Date(row.endTime).toISOString(),
@@ -807,6 +842,11 @@ function serializeAppointment(row: AppointmentRecord) {
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
+}
+
+/** Shared realtime/task API shape (also used by automation worker). */
+export function serializeTaskForRealtime(row: AppointmentRecord): ReturnType<typeof serializeAppointment> {
+  return serializeAppointment(row);
 }
 
 type SerializedAppointmentRow = ReturnType<typeof serializeAppointment>;
@@ -915,33 +955,58 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
     throw new AppointmentServiceError("OVERRIDE_REASON_REQUIRED", 400, "overrideReason is required when conflictOverride is true");
   }
 
+  const medContainerIdForCreate = isMedicationTaskType(taskType)
+    ? extractMedicationContainerIdFromMetadata(metadataRecord ?? null)
+    : null;
+  const resolvedInventoryItemId = medContainerIdForCreate
+    ? await resolveMedicationInventoryItemIdFromContainer(db, clinicId, medContainerIdForCreate)
+    : null;
+
   const now = new Date();
-  const [created] = await db
-    .insert(appointments)
-    .values({
-      id: randomUUID(),
+  let taskNotificationOutboxId: number | undefined;
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(appointments)
+      .values({
+        id: randomUUID(),
+        clinicId,
+        animalId,
+        ownerId,
+        vetId,
+        startTime,
+        endTime,
+        scheduledAt,
+        completedAt: status === "completed" ? now : null,
+        status,
+        conflictOverride: finalConflictOverride,
+        overrideReason: finalOverrideReason,
+        notes,
+        metadata: metadataRecord,
+        priority,
+        taskType,
+        containerId: medContainerIdForCreate,
+        inventoryItemId: resolvedInventoryItemId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    if (!row) {
+      throw new AppointmentServiceError("INTERNAL_ERROR", 500, "Failed to create appointment");
+    }
+    await insertRealtimeDomainEvent(tx, {
       clinicId,
-      animalId,
-      ownerId,
-      vetId,
-      startTime,
-      endTime,
-      scheduledAt,
-      completedAt: status === "completed" ? now : null,
-      status,
-      conflictOverride: finalConflictOverride,
-      overrideReason: finalOverrideReason,
-      notes,
-      metadata: metadataRecord,
-      priority,
-      taskType,
-      containerId: isMedicationTaskType(taskType)
-        ? extractMedicationContainerIdFromMetadata(metadataRecord ?? null)
-        : null,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
+      type: "TASK_CREATED",
+      payload: serializeAppointment(row),
+      occurredAt: now,
+    });
+    taskNotificationOutboxId = await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "NOTIFICATION_REQUESTED",
+      payload: buildTaskNotificationRequestedPayload("TASK_CREATED", row.id),
+      occurredAt: now,
+    });
+    return row;
+  });
 
   const serialized = serializeAppointment(created);
   incrementMetric("tasks_created");
@@ -965,8 +1030,7 @@ export async function createAppointment(clinicIdInput: string, payload: Appointm
       });
     }
   }
-  void sendTaskNotification("TASK_CREATED", serialized, actor).catch(() => {});
-  broadcast(clinicId, { type: "TASK_CREATED", payload: serialized });
+  void sendTaskNotification("TASK_CREATED", serialized, actor, taskNotificationOutboxId).catch(() => {});
   return serialized;
 }
 
@@ -1114,29 +1178,47 @@ export async function updateAppointment(
   const nextContainerIdForRow = isMedicationTaskType(nextTaskType)
     ? extractedContainer ?? persistedContainerId
     : null;
+  const nextInventoryItemId =
+    isMedicationTaskType(nextTaskType) && nextContainerIdForRow
+      ? await resolveMedicationInventoryItemIdFromContainer(db, clinicId, nextContainerIdForRow)
+      : null;
 
-  const [updated] = await db
-    .update(appointments)
-    .set({
-      vetId: nextVetId,
-      animalId: nextAnimalId,
-      ownerId: nextOwnerId,
-      startTime: nextStartTime,
-      endTime: nextEndTime,
-      scheduledAt: nextScheduledAt,
-      completedAt: nextStatus === "completed" ? (existing.completedAt ?? new Date()) : existing.completedAt,
-      status: nextStatus,
-      conflictOverride: finalConflictOverride,
-      overrideReason: finalOverrideReason,
-      notes: nextNotes,
-      metadata: nextMetadata,
-      priority: nextPriority,
-      taskType: nextTaskType,
-      containerId: nextContainerIdForRow,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(appointments)
+      .set({
+        vetId: nextVetId,
+        animalId: nextAnimalId,
+        ownerId: nextOwnerId,
+        startTime: nextStartTime,
+        endTime: nextEndTime,
+        scheduledAt: nextScheduledAt,
+        completedAt: nextStatus === "completed" ? (existing.completedAt ?? new Date()) : existing.completedAt,
+        status: nextStatus,
+        conflictOverride: finalConflictOverride,
+        overrideReason: finalOverrideReason,
+        notes: nextNotes,
+        metadata: nextMetadata,
+        priority: nextPriority,
+        taskType: nextTaskType,
+        containerId: nextContainerIdForRow,
+        inventoryItemId: nextInventoryItemId,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
+      .returning();
+    if (!row) {
+      throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+    }
+    const occurredAt = new Date();
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_UPDATED",
+      payload: serializeAppointment(row),
+      occurredAt,
+    });
+    return row;
+  });
 
   const serialized = serializeAppointment(updated);
   if (actor) {
@@ -1164,7 +1246,6 @@ export async function updateAppointment(
       });
     }
   }
-  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 
@@ -1182,26 +1263,49 @@ export async function cancelAppointment(clinicIdInput: string, appointmentId: st
 
   const previousSnapshot = { ...serializeAppointment(existing) };
   const notes = normalizeNotes(reason);
-  const [updated] = await db
-    .update(appointments)
-    .set({
-      status: "cancelled",
-      ...(notes !== null ? { notes } : {}),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
-    .returning();
+  let taskNotificationOutboxId: number | undefined;
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(appointments)
+      .set({
+        status: "cancelled",
+        ...(notes !== null ? { notes } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
+      .returning();
 
-  if (!updated) {
-    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
-  }
+    if (!row) {
+      throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+    }
+    const occurredAt = new Date();
+    const payload = serializeAppointment(row);
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_CANCELLED",
+      payload,
+      occurredAt,
+    });
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_UPDATED",
+      payload,
+      occurredAt,
+    });
+    taskNotificationOutboxId = await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "NOTIFICATION_REQUESTED",
+      payload: buildTaskNotificationRequestedPayload("TASK_CANCELLED", appointmentId),
+      occurredAt,
+    });
+    return row;
+  });
+
   const serialized = serializeAppointment(updated);
   if (actor) {
     auditTaskChange("task_cancelled", clinicId, actor, appointmentId, previousSnapshot, { ...serialized });
   }
-  void sendTaskNotification("TASK_CANCELLED", serialized, actor).catch(() => {});
-  broadcast(clinicId, { type: "TASK_CANCELLED", payload: serialized });
-  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
+  void sendTaskNotification("TASK_CANCELLED", serialized, actor, taskNotificationOutboxId).catch(() => {});
   return serialized;
 }
 
@@ -1253,16 +1357,43 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     metadata.scheduled_at = new Date(existing.scheduledAt ?? existing.startTime).toISOString();
   }
   const previousSnapshot = { ...serializeAppointment(existing) };
-  const [updated] = await db
-    .update(appointments)
-    .set({
-      status: "in_progress",
-      ...(metadata ? { metadata } : {}),
-      scheduledAt: existing.scheduledAt ?? existing.startTime,
-      updatedAt: now,
-    })
-    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
-    .returning();
+  let taskNotificationOutboxId: number | undefined;
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(appointments)
+      .set({
+        status: "in_progress",
+        ...(metadata ? { metadata } : {}),
+        scheduledAt: existing.scheduledAt ?? existing.startTime,
+        updatedAt: now,
+      })
+      .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+      .returning();
+    if (!row) {
+      throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+    }
+    const occurredAt = new Date();
+    const payload = serializeAppointment(row);
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_STARTED",
+      payload,
+      occurredAt,
+    });
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_UPDATED",
+      payload,
+      occurredAt,
+    });
+    taskNotificationOutboxId = await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "NOTIFICATION_REQUESTED",
+      payload: buildTaskNotificationRequestedPayload("TASK_STARTED", taskId),
+      occurredAt,
+    });
+    return row;
+  });
 
   const serialized = serializeAppointment(updated);
   incrementMetric("tasks_started");
@@ -1276,9 +1407,7 @@ export async function startTask(clinicIdInput: string, taskId: string, actor: Ta
     targetType: "task",
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
   });
-  void sendTaskNotification("TASK_STARTED", serialized, actor).catch(() => {});
-  broadcast(clinicId, { type: "TASK_STARTED", payload: serialized });
-  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
+  void sendTaskNotification("TASK_STARTED", serialized, actor, taskNotificationOutboxId).catch(() => {});
   return serialized;
 }
 
@@ -1351,7 +1480,7 @@ export async function completeTask(
   const completedAt = new Date();
   const completionIdempotencyKey = `medication-task-complete:${taskId}`;
   const normalizedExecution = normalizeMedicationExecutionInput(executionInput);
-  const [{ row: updated, medicationBilling }] = await db.transaction(async (tx) => {
+  const [{ row: updated, medicationBilling, notificationRequestOutboxId }] = await db.transaction(async (tx) => {
     let medicationBilling: Awaited<ReturnType<typeof resolveMedicationBillingForCompletion>> | null = null;
     if (isMedicationTask && existing.animalId) {
       medicationBilling = await resolveMedicationBillingForCompletion(
@@ -1411,7 +1540,64 @@ export async function completeTask(
       }).onConflictDoNothing();
     }
 
-    return [{ row, medicationBilling }] as const;
+    const payload = serializeAppointment(row);
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_COMPLETED",
+      payload,
+      occurredAt: completedAt,
+    });
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_UPDATED",
+      payload,
+      occurredAt: completedAt,
+    });
+    const notificationRequestOutboxId = await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "NOTIFICATION_REQUESTED",
+      payload: buildTaskNotificationRequestedPayload("TASK_COMPLETED", taskId),
+      occurredAt: completedAt,
+    });
+
+    if (isMedicationTask && row.animalId) {
+      const invId =
+        typeof row.inventoryItemId === "string" && row.inventoryItemId.trim().length > 0
+          ? row.inventoryItemId.trim()
+          : await resolveMedicationInventoryItemIdFromContainer(tx, clinicId, resolveMedicationTaskContainerId(row));
+      if (invId) {
+        const hasDispense = await hasRecentDispenseForAnimalItem(tx, {
+          clinicId,
+          animalId: row.animalId,
+          inventoryItemId: invId,
+          completedAt,
+        });
+        if (!hasDispense) {
+          const [animalRow] = await tx
+            .select({ name: animals.name })
+            .from(animals)
+            .where(and(eq(animals.clinicId, clinicId), eq(animals.id, row.animalId)))
+            .limit(1);
+          const animalDisplayName = animalRow?.name?.trim() || null;
+          await insertRealtimeDomainEvent(tx, {
+            clinicId,
+            type: "PROBABLE_ORPHAN_USAGE",
+            payload: {
+              taskId,
+              animalId: row.animalId,
+              animalDisplayName,
+              inventoryItemId: invId,
+              containerId: resolveMedicationTaskContainerId(row),
+              completedAt: completedAt.toISOString(),
+              lookbackHours: DISPENSE_LOOKBACK_BEFORE_ADMIN_HOURS,
+            },
+            occurredAt: completedAt,
+          });
+        }
+      }
+    }
+
+    return [{ row, medicationBilling, notificationRequestOutboxId }] as const;
   });
 
   let inventoryJobInserted = false;
@@ -1466,9 +1652,7 @@ export async function completeTask(
     targetType: "task",
     metadata: { previousState: previousSnapshot, newState: { ...serialized } },
   });
-  void sendTaskNotification("TASK_COMPLETED", serialized, actor).catch(() => {});
-  broadcast(clinicId, { type: "TASK_COMPLETED", payload: serialized });
-  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
+  void sendTaskNotification("TASK_COMPLETED", serialized, actor, notificationRequestOutboxId).catch(() => {});
   if (isMedicationTask) {
     await markIdempotentAsync(completionIdempotencyKey);
   }
@@ -1509,15 +1693,25 @@ export async function vetApproveTask(clinicIdInput: string, taskId: string, acto
   metadata.vetApprovedBy = actorIdentifier;
   metadata.vetApprovedAt = new Date().toISOString();
 
-  const [updated] = await db
-    .update(appointments)
-    .set({ metadata, updatedAt: new Date() })
-    .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(appointments)
+      .set({ metadata, updatedAt: new Date() })
+      .where(and(eq(appointments.id, taskId), eq(appointments.clinicId, clinicId)))
+      .returning();
 
-  if (!updated) {
-    throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
-  }
+    if (!row) {
+      throw new AppointmentServiceError("APPOINTMENT_NOT_FOUND", 404, "Appointment not found");
+    }
+    const occurredAt = new Date();
+    await insertRealtimeDomainEvent(tx, {
+      clinicId,
+      type: "TASK_UPDATED",
+      payload: serializeAppointment(row),
+      occurredAt,
+    });
+    return row;
+  });
 
   const serialized = serializeAppointment(updated);
   logAudit({
@@ -1530,7 +1724,6 @@ export async function vetApproveTask(clinicIdInput: string, taskId: string, acto
     targetType: "task",
     metadata: { action: "vet_approved", vetApprovedBy: actorIdentifier },
   });
-  broadcast(clinicId, { type: "TASK_UPDATED", payload: serialized });
   return serialized;
 }
 

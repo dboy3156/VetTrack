@@ -13,6 +13,10 @@ const migration = fs.readFileSync(path.join(repoRoot, "migrations", "031_task_re
 const api = fs.readFileSync(path.join(repoRoot, "src", "lib", "api.ts"), "utf8");
 const appointmentsPage = fs.readFileSync(path.join(repoRoot, "src", "pages", "appointments.tsx"), "utf8");
 const worker = fs.readFileSync(path.join(repoRoot, "server", "workers", "notification.worker.ts"), "utf8");
+const notificationWorkerService = fs.readFileSync(
+  path.join(repoRoot, "server", "services", "notification-worker.ts"),
+  "utf8",
+);
 
 function computeIsOverdue(endTimeIso, nowMs) {
   return new Date(endTimeIso).getTime() < nowMs;
@@ -70,7 +74,8 @@ describe("Phase 3.3 Daily Recall Engine (production checks)", () => {
   });
 
   it("Overdue reminder runs in worker with hourly dedupe", () => {
-    expect(worker.includes("OVERDUE_REMINDER") && worker.includes("3_600_000")).toBe(true);
+    const src = `${worker}\n${notificationWorkerService}`;
+    expect(src.includes("OVERDUE_REMINDER") && src.includes("3_600_000")).toBe(true);
   });
 
   it("checkDedupe supports custom window", () => {

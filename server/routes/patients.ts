@@ -4,7 +4,10 @@ import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { animals, db, hospitalizations, owners, users, type HospitalizationStatus } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import { postSystemMessage } from "../lib/shift-chat-presence.js";
+import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
 
 const router = Router();
 router.use(requireAuth, requireEffectiveRole("technician"));
@@ -233,7 +236,7 @@ router.get("/:id", async (req, res) => {
 // ─── POST /api/patients ──────────────────────────────────────────────────────
 // Admit a patient (create hospitalization; create animal/owner if needed)
 
-router.post("/", requireEffectiveRole("technician"), async (req, res) => {
+router.post("/", idempotencyMiddleware("patients.admit"), requireEffectiveRole("technician"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parse = admitSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json(apiError({ code: "VALIDATION_ERROR", reason: "ADMIT_VALIDATION_FAILED", message: parse.error.flatten().formErrors.join(", ") || "Invalid request", requestId }));
@@ -242,79 +245,107 @@ router.post("/", requireEffectiveRole("technician"), async (req, res) => {
   const clinicId = req.clinicId!;
 
   try {
-    let animalId = data.animalId;
+    const payload = await db.transaction(async (tx) => {
+      let animalId = data.animalId;
 
-    if (!animalId) {
-      // Find or create animal
-      const existing = await db
-        .select({ id: animals.id })
-        .from(animals)
-        .where(and(eq(animals.clinicId, clinicId), eq(animals.name, data.animalName!)))
-        .limit(1);
+      if (!animalId) {
+        const existing = await tx
+          .select({ id: animals.id })
+          .from(animals)
+          .where(and(eq(animals.clinicId, clinicId), eq(animals.name, data.animalName!)))
+          .limit(1);
 
-      if (existing.length) {
-        animalId = existing[0]!.id;
-      } else {
-        // Optionally create owner first
-        let ownerId: string | null = null;
-        if (data.ownerName?.trim()) {
-          const ownedId = randomUUID();
-          await db.insert(owners).values({
-            id: ownedId,
+        if (existing.length) {
+          animalId = existing[0]!.id;
+        } else {
+          let ownerId: string | null = null;
+          if (data.ownerName?.trim()) {
+            const ownedId = randomUUID();
+            await tx.insert(owners).values({
+              id: ownedId,
+              clinicId,
+              fullName: data.ownerName.trim(),
+              phone: data.ownerPhone?.trim() || null,
+            });
+            ownerId = ownedId;
+          }
+
+          const newAnimalId = randomUUID();
+          await tx.insert(animals).values({
+            id: newAnimalId,
             clinicId,
-            fullName: data.ownerName.trim(),
-            phone: data.ownerPhone?.trim() || null,
+            ownerId,
+            name: data.animalName!,
+            species: data.species?.trim() || null,
+            breed: data.breed?.trim() || null,
+            sex: data.sex?.trim() || null,
+            weightKg: data.weightKg ? String(data.weightKg) : null,
           });
-          ownerId = ownedId;
+          animalId = newAnimalId;
         }
-
-        const newAnimalId = randomUUID();
-        await db.insert(animals).values({
-          id: newAnimalId,
-          clinicId,
-          ownerId,
-          name: data.animalName!,
-          species: data.species?.trim() || null,
-          breed: data.breed?.trim() || null,
-          sex: data.sex?.trim() || null,
-          weightKg: data.weightKg ? String(data.weightKg) : null,
-        });
-        animalId = newAnimalId;
+      } else {
+        const check = await tx
+          .select({ id: animals.id })
+          .from(animals)
+          .where(and(eq(animals.id, animalId), eq(animals.clinicId, clinicId)))
+          .limit(1);
+        if (!check.length) {
+          const err = new Error("ANIMAL_NOT_IN_CLINIC");
+          (err as Error & { code: string }).code = "ANIMAL_NOT_IN_CLINIC";
+          throw err;
+        }
       }
-    } else {
-      // Verify animal belongs to this clinic
-      const check = await db
-        .select({ id: animals.id })
-        .from(animals)
-        .where(and(eq(animals.id, animalId), eq(animals.clinicId, clinicId)))
-        .limit(1);
-      if (!check.length) return res.status(400).json(apiError({ code: "ANIMAL_NOT_FOUND", reason: "ANIMAL_NOT_IN_CLINIC", message: "Animal not found in this clinic", requestId }));
-    }
 
-    const hospId = randomUUID();
-    await db.insert(hospitalizations).values({
-      id: hospId,
-      clinicId,
-      animalId,
-      admissionReason: data.admissionReason?.trim() || null,
-      ward: data.ward?.trim() || null,
-      bay: data.bay?.trim() || null,
-      admittingVetId: data.admittingVetId || null,
+      const hospId = randomUUID();
+      await tx.insert(hospitalizations).values({
+        id: hospId,
+        clinicId,
+        animalId,
+        admissionReason: data.admissionReason?.trim() || null,
+        ward: data.ward?.trim() || null,
+        bay: data.bay?.trim() || null,
+        admittingVetId: data.admittingVetId || null,
+      });
+
+      await logAudit({
+        tx,
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "patient_admitted",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: hospId,
+        targetType: "hospitalization",
+        metadata: { animalId },
+      });
+
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "PATIENT_STATUS_UPDATED",
+        payload: { hospitalizationId: hospId, status: "admitted" as const },
+      });
+
+      const rows = await tx
+        .select({ h: hospitalizations, a: animals, o: owners, vetName: users.name })
+        .from(hospitalizations)
+        .innerJoin(animals, eq(hospitalizations.animalId, animals.id))
+        .leftJoin(owners, eq(animals.ownerId, owners.id))
+        .leftJoin(users, eq(hospitalizations.admittingVetId, users.id))
+        .where(eq(hospitalizations.id, hospId))
+        .limit(1);
+
+      const r = rows[0];
+      if (!r) throw new Error("HOSPITALIZATION_ROW_MISSING");
+      return r;
     });
 
-    // Return full record
-    const rows = await db
-      .select({ h: hospitalizations, a: animals, o: owners, vetName: users.name })
-      .from(hospitalizations)
-      .innerJoin(animals, eq(hospitalizations.animalId, animals.id))
-      .leftJoin(owners, eq(animals.ownerId, owners.id))
-      .leftJoin(users, eq(hospitalizations.admittingVetId, users.id))
-      .where(eq(hospitalizations.id, hospId))
-      .limit(1);
-
-    const r = rows[0]!;
-    res.status(201).json({ patient: hospitalizationRow(r.h, r.a, r.o, r.vetName ?? null) });
+    res.status(201).json({ patient: hospitalizationRow(payload.h, payload.a, payload.o, payload.vetName ?? null) });
   } catch (err) {
+    const code = err instanceof Error ? (err as Error & { code?: string }).code : undefined;
+    if (code === "ANIMAL_NOT_IN_CLINIC") {
+      res.status(400).json(apiError({ code: "ANIMAL_NOT_FOUND", reason: "ANIMAL_NOT_IN_CLINIC", message: "Animal not found in this clinic", requestId }));
+      return;
+    }
     console.error("[patients] admit failed", err);
     res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_ADMIT_FAILED", message: "Failed to admit patient", requestId }));
   }
@@ -322,7 +353,7 @@ router.post("/", requireEffectiveRole("technician"), async (req, res) => {
 
 // ─── PATCH /api/patients/:id/status ─────────────────────────────────────────
 
-router.patch("/:id/status", async (req, res) => {
+router.patch("/:id/status", idempotencyMiddleware("patients.status"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parse = statusSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json(apiError({ code: "VALIDATION_ERROR", reason: "STATUS_VALIDATION_FAILED", message: "Invalid status value", requestId }));
@@ -331,19 +362,43 @@ router.patch("/:id/status", async (req, res) => {
     const clinicId = req.clinicId!;
     const { id } = req.params;
 
-    const updated = await db
-      .update(hospitalizations)
-      .set({ status: parse.data.status, updatedAt: new Date() })
-      .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId), isNull(hospitalizations.dischargedAt)))
-      .returning({ id: hospitalizations.id });
+    const updated = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(hospitalizations)
+        .set({ status: parse.data.status, updatedAt: new Date() })
+        .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId), isNull(hospitalizations.dischargedAt)))
+        .returning({ id: hospitalizations.id });
 
-    if (!updated.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
+      if (!rows.length) return null;
+
+      await logAudit({
+        tx,
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "hospitalization_status_updated",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: id,
+        targetType: "hospitalization",
+        metadata: { status: parse.data.status },
+      });
+
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "PATIENT_STATUS_UPDATED",
+        payload: { hospitalizationId: id, status: parse.data.status },
+      });
+
+      return rows[0]!;
+    });
+
+    if (!updated) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
 
     const newStatus = parse.data.status;
     if (newStatus === "critical" || newStatus === "discharged" || newStatus === "deceased") {
       const eventType =
-        newStatus === "critical"  ? "hosp_critical"  :
-        newStatus === "deceased"  ? "hosp_deceased"  :
+        newStatus === "critical" ? "hosp_critical" :
+        newStatus === "deceased" ? "hosp_deceased" :
         "hosp_discharged";
       postSystemMessage(clinicId, eventType, {
         hospitalizationId: id,
@@ -352,7 +407,7 @@ router.patch("/:id/status", async (req, res) => {
       }).catch(() => {});
     }
 
-    res.json({ id: updated[0]!.id, status: parse.data.status });
+    res.json({ id: updated.id, status: parse.data.status });
   } catch (err) {
     console.error("[patients] status update failed", err);
     res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_STATUS_FAILED", message: "Failed to update status", requestId }));
@@ -361,7 +416,7 @@ router.patch("/:id/status", async (req, res) => {
 
 // ─── PATCH /api/patients/:id/discharge ──────────────────────────────────────
 
-router.patch("/:id/discharge", async (req, res) => {
+router.patch("/:id/discharge", idempotencyMiddleware("patients.discharge"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parse = dischargeSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json(apiError({ code: "VALIDATION_ERROR", reason: "DISCHARGE_VALIDATION_FAILED", message: "Invalid discharge request", requestId }));
@@ -371,19 +426,44 @@ router.patch("/:id/discharge", async (req, res) => {
     const { id } = req.params;
     const now = new Date();
 
-    const updated = await db
-      .update(hospitalizations)
-      .set({
-        dischargedAt: now,
-        status: "discharged",
-        dischargeNotes: parse.data.dischargeNotes?.trim() || null,
-        updatedAt: now,
-      })
-      .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId), isNull(hospitalizations.dischargedAt)))
-      .returning({ id: hospitalizations.id, dischargedAt: hospitalizations.dischargedAt });
+    const updated = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(hospitalizations)
+        .set({
+          dischargedAt: now,
+          status: "discharged",
+          dischargeNotes: parse.data.dischargeNotes?.trim() || null,
+          updatedAt: now,
+        })
+        .where(and(eq(hospitalizations.id, id), eq(hospitalizations.clinicId, clinicId), isNull(hospitalizations.dischargedAt)))
+        .returning({ id: hospitalizations.id, dischargedAt: hospitalizations.dischargedAt });
 
-    if (!updated.length) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
-    res.json({ id: updated[0]!.id, dischargedAt: updated[0]!.dischargedAt });
+      if (!rows.length) return null;
+
+      await logAudit({
+        tx,
+        actorRole: resolveAuditActorRole(req),
+        clinicId,
+        actionType: "patient_discharged",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        targetId: id,
+        targetType: "hospitalization",
+        metadata: { dischargedAt: rows[0]!.dischargedAt?.toISOString() ?? null },
+      });
+
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "PATIENT_STATUS_UPDATED",
+        payload: { hospitalizationId: id, status: "discharged" as const },
+      });
+
+      return rows[0]!;
+    });
+
+    if (!updated) return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "HOSPITALIZATION_NOT_FOUND", message: "Hospitalization not found or already discharged", requestId }));
+
+    res.json({ id: updated.id, dischargedAt: updated.dischargedAt });
   } catch (err) {
     console.error("[patients] discharge failed", err);
     res.status(500).json(apiError({ code: "INTERNAL_ERROR", reason: "PATIENTS_DISCHARGE_FAILED", message: "Failed to discharge patient", requestId }));

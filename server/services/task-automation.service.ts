@@ -8,7 +8,8 @@ import { appointments, db, users } from "../db.js";
 import { logAudit } from "../lib/audit.js";
 import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
 import { incrementMetric } from "../lib/metrics.js";
-import { broadcast } from "../lib/realtime.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
+import { serializeTaskForRealtime } from "./appointments.service.js";
 import {
   enqueueAutomationExecuteJob,
   enqueueAutomationNotificationJobs,
@@ -126,9 +127,12 @@ async function enqueueOverdueEscalations(): Promise<void> {
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "overdue_escalation", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
     incrementMetric("automation_triggered");
-    broadcast(row.clinicId, {
-      type: "AUTOMATION_TRIGGERED",
-      payload: { rule: "overdue_escalation", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId: row.clinicId,
+        type: "AUTOMATION_TRIGGERED",
+        payload: { rule: "overdue_escalation", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+      });
     });
     await enqueueAutomationExecuteJob({ kind: "escalate_overdue", taskId: row.id, clinicId: row.clinicId });
   }
@@ -152,9 +156,12 @@ async function enqueueUnassignedAutoAssign(): Promise<void> {
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
     incrementMetric("automation_triggered");
-    broadcast(row.clinicId, {
-      type: "AUTOMATION_TRIGGERED",
-      payload: { rule: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId: row.clinicId,
+        type: "AUTOMATION_TRIGGERED",
+        payload: { rule: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+      });
     });
     await enqueueAutomationExecuteJob({ kind: "auto_assign_unassigned", taskId: row.id, clinicId: row.clinicId });
   }
@@ -179,9 +186,12 @@ async function enqueueStuckRecovery(): Promise<void> {
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "stuck_recovery", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
     incrementMetric("automation_triggered");
-    broadcast(row.clinicId, {
-      type: "AUTOMATION_TRIGGERED",
-      payload: { rule: "stuck_recovery", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId: row.clinicId,
+        type: "AUTOMATION_TRIGGERED",
+        payload: { rule: "stuck_recovery", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+      });
     });
     await enqueueAutomationExecuteJob({ kind: "stuck_recovery", taskId: row.id, clinicId: row.clinicId });
   }
@@ -208,9 +218,12 @@ async function enqueuePrestartReminders(): Promise<void> {
   for (const row of rows) {
     console.log("AUTOMATION_RULE_TRIGGERED", { rule: "prestart_reminder", taskId: row.id, clinicId: row.clinicId, reason: "candidate" });
     incrementMetric("automation_triggered");
-    broadcast(row.clinicId, {
-      type: "AUTOMATION_TRIGGERED",
-      payload: { rule: "prestart_reminder", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+    await db.transaction(async (tx) => {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId: row.clinicId,
+        type: "AUTOMATION_TRIGGERED",
+        payload: { rule: "prestart_reminder", taskId: row.id, clinicId: row.clinicId, reason: "candidate" },
+      });
     });
     await enqueueAutomationExecuteJob({ kind: "prestart_reminder", taskId: row.id, clinicId: row.clinicId });
   }
@@ -257,25 +270,35 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           return;
         }
         const now = new Date();
-        const [updated] = await db
-          .update(appointments)
-          .set({
-            escalatedTo: adminId,
-            escalatedAt: now,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(appointments.id, taskId),
-              eq(appointments.clinicId, c),
-              isNull(appointments.escalatedAt),
-              lt(appointments.endTime, sql`now()`),
-              notInArray(appointments.status, [...TERMINAL]),
-            ),
-          )
-          .returning({ id: appointments.id });
+        const updatedRow = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(appointments)
+            .set({
+              escalatedTo: adminId,
+              escalatedAt: now,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(appointments.id, taskId),
+                eq(appointments.clinicId, c),
+                isNull(appointments.escalatedAt),
+                lt(appointments.endTime, sql`now()`),
+                notInArray(appointments.status, [...TERMINAL]),
+              ),
+            )
+            .returning();
+          if (!row) return null;
+          await insertRealtimeDomainEvent(tx, {
+            clinicId: c,
+            type: "TASK_UPDATED",
+            payload: serializeTaskForRealtime(row),
+            occurredAt: now,
+          });
+          return row;
+        });
 
-        if (!updated) {
+        if (!updatedRow) {
           console.log("AUTOMATION_RULE_SKIPPED", { rule: payload.kind, taskId, clinicId: c, reason: "db_idempotent_noop" });
           return;
         }
@@ -317,20 +340,30 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           return;
         }
         const now = new Date();
-        const [assigned] = await db
-          .update(appointments)
-          .set({ vetId: techId, status: "assigned", updatedAt: now })
-          .where(
-            and(
-              eq(appointments.id, taskId),
-              eq(appointments.clinicId, c),
-              eq(appointments.status, "pending"),
-              isNull(appointments.vetId),
-            ),
-          )
-          .returning({ id: appointments.id });
+        const assignedRow = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(appointments)
+            .set({ vetId: techId, status: "assigned", updatedAt: now })
+            .where(
+              and(
+                eq(appointments.id, taskId),
+                eq(appointments.clinicId, c),
+                eq(appointments.status, "pending"),
+                isNull(appointments.vetId),
+              ),
+            )
+            .returning();
+          if (!row) return null;
+          await insertRealtimeDomainEvent(tx, {
+            clinicId: c,
+            type: "TASK_UPDATED",
+            payload: serializeTaskForRealtime(row),
+            occurredAt: now,
+          });
+          return row;
+        });
 
-        if (!assigned) {
+        if (!assignedRow) {
           console.log("AUTOMATION_RULE_SKIPPED", { rule: payload.kind, taskId, clinicId: c, reason: "db_idempotent_noop" });
           return;
         }
@@ -366,21 +399,31 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
           return;
         }
         const now = new Date();
-        const [marked] = await db
-          .update(appointments)
-          .set({ stuckNotifiedAt: now, updatedAt: now })
-          .where(
-            and(
-              eq(appointments.id, taskId),
-              eq(appointments.clinicId, c),
-              inArray(appointments.status, ["assigned", "in_progress", "scheduled", "arrived"]),
-              lt(appointments.updatedAt, stuckCutoff),
-              isNull(appointments.stuckNotifiedAt),
-            ),
-          )
-          .returning({ id: appointments.id });
+        const markedRow = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(appointments)
+            .set({ stuckNotifiedAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(appointments.id, taskId),
+                eq(appointments.clinicId, c),
+                inArray(appointments.status, ["assigned", "in_progress", "scheduled", "arrived"]),
+                lt(appointments.updatedAt, stuckCutoff),
+                isNull(appointments.stuckNotifiedAt),
+              ),
+            )
+            .returning();
+          if (!row) return null;
+          await insertRealtimeDomainEvent(tx, {
+            clinicId: c,
+            type: "TASK_UPDATED",
+            payload: serializeTaskForRealtime(row),
+            occurredAt: now,
+          });
+          return row;
+        });
 
-        if (!marked) {
+        if (!markedRow) {
           console.log("AUTOMATION_RULE_SKIPPED", { rule: payload.kind, taskId, clinicId: c, reason: "db_idempotent_noop" });
           return;
         }
@@ -420,23 +463,33 @@ export async function executeAutomationJob(payload: AutomationExecutePayload): P
         const t0 = new Date();
         const t1 = new Date(Date.now() + PRESTART_MS);
         const now = new Date();
-        const [rem] = await db
-          .update(appointments)
-          .set({ prestartReminderAt: now, updatedAt: now })
-          .where(
-            and(
-              eq(appointments.id, taskId),
-              eq(appointments.clinicId, c),
-              isNotNull(appointments.vetId),
-              inArray(appointments.status, [...NOT_STARTED]),
-              gte(appointments.startTime, t0),
-              lte(appointments.startTime, t1),
-              isNull(appointments.prestartReminderAt),
-            ),
-          )
-          .returning({ id: appointments.id });
+        const remRow = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(appointments)
+            .set({ prestartReminderAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(appointments.id, taskId),
+                eq(appointments.clinicId, c),
+                isNotNull(appointments.vetId),
+                inArray(appointments.status, [...NOT_STARTED]),
+                gte(appointments.startTime, t0),
+                lte(appointments.startTime, t1),
+                isNull(appointments.prestartReminderAt),
+              ),
+            )
+            .returning();
+          if (!row) return null;
+          await insertRealtimeDomainEvent(tx, {
+            clinicId: c,
+            type: "TASK_UPDATED",
+            payload: serializeTaskForRealtime(row),
+            occurredAt: now,
+          });
+          return row;
+        });
 
-        if (!rem) {
+        if (!remRow) {
           console.log("AUTOMATION_RULE_SKIPPED", { rule: payload.kind, taskId, clinicId: c, reason: "db_idempotent_noop" });
           return;
         }

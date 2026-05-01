@@ -19,6 +19,9 @@ import { ErrorCard } from "@/components/ui/error-card";
 import { api } from "@/lib/api";
 import { leaderPoll } from "@/lib/leader";
 import { useRealtime } from "@/hooks/useRealtime";
+import { CopDiscrepancyBanner } from "@/components/cop-discrepancy-banner";
+import { applyEvent } from "@/lib/event-reducer";
+import type { RealtimeEvent } from "@/types/realtime-events";
 import { useAuth } from "@/hooks/use-auth";
 import { useDrugFormulary } from "@/hooks/useDrugFormulary";
 import type { MedicationExecutionPayload, MedicationExecutionTask } from "@/types";
@@ -203,17 +206,26 @@ export default function MedicationHubPage() {
     onError: (error: Error) => toast.error(error.message || t.medsPage.taskCompleteFailed),
   });
 
-  const handleRealtimeEvent = useCallback((event: { type: string }) => {
-    if (
-      event.type === "TASK_UPDATED" ||
-      event.type === "TASK_STARTED" ||
-      event.type === "TASK_COMPLETED" ||
-      event.type === "TASK_CREATED" ||
-      event.type === "TASK_CANCELLED"
-    ) {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
-    }
-  }, [queryClient]);
+  const handleRealtimeEvent = useCallback(
+    (event: RealtimeEvent) => {
+      if (
+        event.type === "TASK_UPDATED" ||
+        event.type === "TASK_STARTED" ||
+        event.type === "TASK_COMPLETED" ||
+        event.type === "TASK_CREATED" ||
+        event.type === "TASK_CANCELLED"
+      ) {
+        queryClient.invalidateQueries({ queryKey: ["/api/tasks/medication-active"], exact: true });
+      }
+      if (event.type === "INVENTORY_ALERT") {
+        queryClient.invalidateQueries({ queryKey: ["/api/containers"] });
+      }
+      if (event.type === "POTENTIAL_ORPHAN_USE") {
+        void applyEvent(queryClient, event);
+      }
+    },
+    [queryClient],
+  );
 
   useRealtime(handleRealtimeEvent);
 
@@ -241,6 +253,7 @@ export default function MedicationHubPage() {
   const pageContent = (
     <>
       <div className="space-y-4 pb-24">
+        <CopDiscrepancyBanner />
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold flex items-center gap-2">
