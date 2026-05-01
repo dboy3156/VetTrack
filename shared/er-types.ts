@@ -141,6 +141,31 @@ export interface ErKpiComparison {
   percentDelta: number | null;
   confidence: ErConfidenceLevel;
 }
+// ── Outcome KPI extensions (optional fields; do not remove or rename above fields) ──
+/** Handoff Integrity KPI: rate of Structured Clinical Handoffs acknowledged directly by the
+ *  incoming assignee vs. resolved via Forced Ack Override. */
+export interface ErHandoffIntegrityKpi {
+  totalHandoffs: number;
+  directAckCount: number;
+  forcedAckOverrideCount: number;
+  /** 0–1 fraction; null when totalHandoffs === 0. */
+  directAckRate: number | null;
+  /** Pre-Go-Live Baseline direct-ack rate; null if no baseline snapshot exists. */
+  baselineDirectAckRate: number | null;
+}
+/** SLA Performance KPI: frequency of Time Aging Escalation triggers within the window. */
+export interface ErSlaEscalationKpi {
+  escalationCount: number;
+  /** Pre-Go-Live Baseline escalation count (same window length); null if no baseline. */
+  baselineEscalationCount: number | null;
+}
+/** Financial Correlation KPI: captured billing revenue within the window vs. baseline average. */
+export interface ErFinancialCorrelationKpi {
+  capturedRevenueThisPeriodCents: number;
+  currentAvgDailyRevenueCents: number;
+  /** Average daily revenue in the Pre-Go-Live Baseline window; null if no baseline data. */
+  baselineAvgDailyRevenueCents: number | null;
+}
 export interface ErImpactResponse {
   clinicId: string;
   windowDays: ErKpiWindowDays;
@@ -148,4 +173,8 @@ export interface ErImpactResponse {
   baselineEndDate: string;
   comparisons: ErKpiComparison[];
   generatedAt: string;
+  // Outcome KPI supplemental data (optional — populated when source data is available)
+  handoffIntegrity?: ErHandoffIntegrityKpi | null;
+  slaEscalation?: ErSlaEscalationKpi | null;
+  financialCorrelation?: ErFinancialCorrelationKpi | null;
 }

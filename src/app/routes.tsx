@@ -55,6 +55,7 @@ const ShiftChatArchive = lazy(() =>
 );
 const ErCommandCenterPage = lazy(() => import("@/pages/er-command-center"));
 const ErImpactPage = lazy(() => import("@/pages/er-impact"));
+const ErImpactKpisPage = lazy(() => import("@/pages/er-impact-kpis"));
 
 // Root path stays public landing for all visitors.
 function RootRoute() {
@@ -117,6 +118,7 @@ export function AppRoutes() {
         <Route path="/pending-emergencies"><AuthGuard><PendingEmergenciesPage /></AuthGuard></Route>
         <Route path="/shift-chat/:shiftId"><AuthGuard><ShiftChatArchive /></AuthGuard></Route>
         <Route path="/er/impact"><AuthGuard><ErImpactPage /></AuthGuard></Route>
+        <Route path="/er/kpis"><AuthGuard><ErImpactKpisPage /></AuthGuard></Route>
         <Route path="/er"><AuthGuard><ErCommandCenterPage /></AuthGuard></Route>
         <Route component={NotFoundPage} />
       </Switch>
