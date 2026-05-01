@@ -1234,6 +1234,9 @@ export const shiftHandoffItems = pgTable(
       .references(() => shiftHandoffs.id, { onDelete: "cascade" }),
     activeIssue: text("active_issue").notNull(),
     nextAction: text("next_action").notNull(),
+    currentStability: text("current_stability").notNull().default(""),
+    pendingTasks: text("pending_tasks").notNull().default(""),
+    criticalWarnings: text("critical_warnings").notNull().default(""),
     etaMinutes: integer("eta_minutes").notNull(),
     ownerUserId: text("owner_user_id")
       .references(() => users.id, { onDelete: "set null" }),

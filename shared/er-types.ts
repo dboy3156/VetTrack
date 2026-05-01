@@ -97,6 +97,12 @@ export interface ErEligibleHospitalizationsResponse {
 }
 // ── POST /api/er/handoffs ─────────────────────────────────────────────────────
 export interface CreateErHandoffItemInput {
+  /** Structured Clinical Handoff — current patient stability (mandatory). */
+  currentStability: string;
+  /** Structured Clinical Handoff — outstanding tasks for incoming owner (mandatory). */
+  pendingTasks: string;
+  /** Structured Clinical Handoff — critical warnings incoming owner must know (mandatory). */
+  criticalWarnings: string;
   activeIssue: string;
   nextAction: string;
   etaMinutes: number;

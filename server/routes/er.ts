@@ -30,6 +30,10 @@ const createHandoffSchema = z.object({
   items: z
     .array(
       z.object({
+        // Structured Clinical Handoff — three mandatory artifact fields.
+        currentStability: z.string().trim().min(1, "Current Stability is required").max(1000),
+        pendingTasks: z.string().trim().min(1, "Pending Tasks is required").max(2000),
+        criticalWarnings: z.string().trim().min(1, "Critical Warnings is required").max(1000),
         activeIssue: z.string().trim().min(1).max(2000),
         nextAction: z.string().trim().min(1).max(500),
         etaMinutes: z.number().int().min(0).max(2880),
@@ -40,7 +44,8 @@ const createHandoffSchema = z.object({
 });
 
 const ackHandoffSchema = z.object({
-  overrideReason: z.string().trim().max(500).optional(),
+  // Forced Ack Override — admin/vet must supply a non-empty reason for audit purposes.
+  overrideReason: z.string().trim().min(1).max(500).optional(),
 });
 
 function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
@@ -291,15 +296,18 @@ router.post("/handoffs/:id/ack", async (req: Request, res: Response) => {
     const clinicId = req.authUser!.clinicId;
     const itemId = req.params.id as string;
     const row = await ackErHandoffItem(clinicId, { id: req.authUser!.id, role: req.authUser!.role }, itemId, parsed.data);
+    const isOverride = Boolean(parsed.data.overrideReason?.trim());
     logAudit({
       clinicId,
-      actionType: "er_handoff_acknowledged",
+      actionType: isOverride ? "er_handoff_forced_ack_override" : "er_handoff_acknowledged",
       performedBy: req.authUser!.id,
       performedByEmail: req.authUser!.email ?? "",
       targetId: itemId,
       targetType: "shift_handoff_item",
       actorRole: resolveAuditActorRole(req),
-      metadata: {},
+      metadata: isOverride
+        ? { overrideReason: parsed.data.overrideReason, forcedAckOverride: true }
+        : {},
     });
     res.status(200).json(row);
   } catch (err) {

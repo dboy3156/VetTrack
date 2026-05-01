@@ -81,6 +81,10 @@ export async function createErHandoff(
         id: itemIds[i]!,
         clinicId,
         handoffId,
+        // Structured Clinical Handoff artifact fields.
+        currentStability: item.currentStability.trim(),
+        pendingTasks: item.pendingTasks.trim(),
+        criticalWarnings: item.criticalWarnings.trim(),
         activeIssue: item.activeIssue.trim(),
         nextAction: item.nextAction.trim(),
         etaMinutes: item.etaMinutes,
@@ -175,11 +179,22 @@ export async function ackErHandoffItem(
       throw err;
     }
 
+    // Incoming Assignee Ack path: emit standard acknowledged event.
     await insertRealtimeDomainEvent(tx, {
       clinicId,
       type: "ER_HANDOFF_ACKNOWLEDGED",
       payload: { itemId },
     });
+
+    // Forced Ack Override path: also emit a dedicated event so the Command
+    // Center can surface the override reason in real-time.
+    if (!isOwner) {
+      await insertRealtimeDomainEvent(tx, {
+        clinicId,
+        type: "ER_HANDOFF_OVERRIDDEN",
+        payload: { itemId, overriddenBy: actor.id, overrideReason: body.overrideReason?.trim() ?? "" },
+      });
+    }
 
     return {
       id: itemId,

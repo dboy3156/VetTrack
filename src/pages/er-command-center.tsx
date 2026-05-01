@@ -56,6 +56,9 @@ const ASSIGNEES_QUERY = ER_ASSIGNEES_QUERY_KEY;
 const ELIGIBLE_HOSP_QUERY = ER_ELIGIBLE_HOSP_QUERY_KEY;
 
 type HandoffFormRow = {
+  currentStability: string;
+  pendingTasks: string;
+  criticalWarnings: string;
   activeIssue: string;
   nextAction: string;
   etaMinutes: string;
@@ -63,7 +66,15 @@ type HandoffFormRow = {
 };
 
 function emptyHandoffRow(): HandoffFormRow {
-  return { activeIssue: "", nextAction: "", etaMinutes: "60", ownerUserId: "" };
+  return {
+    currentStability: "",
+    pendingTasks: "",
+    criticalWarnings: "",
+    activeIssue: "",
+    nextAction: "",
+    etaMinutes: "60",
+    ownerUserId: "",
+  };
 }
 
 const SEVERITIES: ErSeverity[] = ["low", "medium", "high", "critical"];
@@ -72,25 +83,54 @@ function canAssignRole(role: string): boolean {
   return ["admin", "vet", "senior_technician", "technician"].includes(role);
 }
 
+function canForceAck(role: string): boolean {
+  return role === "admin" || role === "vet";
+}
+
+/** Incoming Assignee Ack enforcement: determines if the current user can ack
+ *  an item directly (as owner) or via Forced Ack Override (admin/vet only). */
+function resolveAckAccess(
+  itemAssignedUserId: string | null,
+  currentUserId: string | null,
+  currentRole: string,
+): { canAck: boolean; requiresOverride: boolean } {
+  const isOwner = !!currentUserId && itemAssignedUserId === currentUserId;
+  if (isOwner) return { canAck: true, requiresOverride: false };
+  if (canForceAck(currentRole)) return { canAck: true, requiresOverride: true };
+  return { canAck: false, requiresOverride: false };
+}
+
 function ErBoardLaneItemCard({
   item,
   assignees,
   canAssign,
+  currentUserId,
+  currentRole,
   onAssign,
   onAck,
+  onForcedAckOverride,
   assigningId,
   ackingId,
 }: {
   item: ErBoardItem;
   assignees: { id: string; name: string }[];
   canAssign: boolean;
+  currentUserId: string | null;
+  currentRole: string;
   onAssign: (intakeId: string, userId: string) => void;
   onAck: (itemId: string) => void;
+  onForcedAckOverride: (itemId: string) => void;
   assigningId: string | null;
   ackingId: string | null;
 }) {
   const ant = useErEscalationAnticipation(item.escalatesAt, item.type);
   const pulse = ant.urgency === "imminent" || ant.urgency === "past";
+
+  const ackAccess =
+    item.type === "hospitalization"
+      ? resolveAckAccess(item.assignedUserId, currentUserId, currentRole)
+      : null;
+
   return (
     <Card
       className={cn(
@@ -153,15 +193,33 @@ function ErBoardLaneItemCard({
             </Select>
           </div>
         ) : null}
-        {item.type === "hospitalization" ? (
+        {/* Incoming Assignee Ack — button is disabled for non-owners without admin/vet role. */}
+        {item.type === "hospitalization" && ackAccess ? (
           <Button
             size="sm"
             variant="secondary"
             className="h-8"
-            disabled={ackingId === item.id}
-            onClick={() => onAck(item.id)}
+            disabled={!ackAccess.canAck || ackingId === item.id}
+            title={
+              !ackAccess.canAck
+                ? t.erCommandCenter.ackDeniedTooltip
+                : ackAccess.requiresOverride
+                  ? t.erCommandCenter.ackOverrideTooltip
+                  : undefined
+            }
+            onClick={() => {
+              if (ackAccess.requiresOverride) {
+                onForcedAckOverride(item.id);
+              } else {
+                onAck(item.id);
+              }
+            }}
           >
-            {t.erCommandCenter.ack}
+            {ackingId === item.id
+              ? t.erCommandCenter.ack
+              : ackAccess.requiresOverride
+                ? t.erCommandCenter.ackOverride
+                : t.erCommandCenter.ack}
           </Button>
         ) : null}
       </CardContent>
@@ -174,8 +232,11 @@ function LaneColumn({
   items,
   assignees,
   canAssign,
+  currentUserId,
+  currentRole,
   onAssign,
   onAck,
+  onForcedAckOverride,
   assigningId,
   ackingId,
 }: {
@@ -183,8 +244,11 @@ function LaneColumn({
   items: ErBoardItem[];
   assignees: { id: string; name: string }[];
   canAssign: boolean;
+  currentUserId: string | null;
+  currentRole: string;
   onAssign: (intakeId: string, userId: string) => void;
   onAck: (itemId: string) => void;
+  onForcedAckOverride: (itemId: string) => void;
   assigningId: string | null;
   ackingId: string | null;
 }) {
@@ -203,8 +267,11 @@ function LaneColumn({
               item={item}
               assignees={assignees}
               canAssign={canAssign}
+              currentUserId={currentUserId}
+              currentRole={currentRole}
               onAssign={onAssign}
               onAck={onAck}
+              onForcedAckOverride={onForcedAckOverride}
               assigningId={assigningId}
               ackingId={ackingId}
             />
@@ -218,7 +285,8 @@ function LaneColumn({
 export default function ErCommandCenterPage() {
   const qc = useQueryClient();
   const auth = useAuth();
-  const assignRole = canAssignRole(auth.effectiveRole ?? auth.role ?? "");
+  const effectiveRole = auth.effectiveRole ?? auth.role ?? "";
+  const assignRole = canAssignRole(effectiveRole);
 
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
@@ -229,6 +297,10 @@ export default function ErCommandCenterPage() {
   const [complaint, setComplaint] = useState("");
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [ackingId, setAckingId] = useState<string | null>(null);
+
+  // Forced Ack Override modal state.
+  const [overrideTargetId, setOverrideTargetId] = useState<string | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const boardQ = useQuery({
     queryKey: ER_QUERY,
@@ -312,6 +384,9 @@ export default function ErCommandCenterPage() {
       createErHandoff({
         hospitalizationId: handoffHospId.trim(),
         items: handoffItems.map((row) => ({
+          currentStability: row.currentStability.trim(),
+          pendingTasks: row.pendingTasks.trim(),
+          criticalWarnings: row.criticalWarnings.trim(),
           activeIssue: row.activeIssue.trim(),
           nextAction: row.nextAction.trim(),
           etaMinutes: Math.min(2880, Math.max(0, Number.parseInt(row.etaMinutes, 10) || 0)),
@@ -319,7 +394,7 @@ export default function ErCommandCenterPage() {
         })),
       }),
     onSuccess: () => {
-      toast.success("Handoff created");
+      toast.success("Structured Clinical Handoff created");
       setHandoffOpen(false);
       setHandoffHospId("");
       setHandoffItems([emptyHandoffRow()]);
@@ -328,6 +403,7 @@ export default function ErCommandCenterPage() {
     onError: () => toast.error("Handoff failed"),
   });
 
+  // Incoming Assignee Ack: direct acknowledgment by the designated incoming owner.
   const ackMut = useMutation({
     mutationFn: (id: string) => ackErHandoff(id, {}),
     onMutate: (id) => setAckingId(id),
@@ -339,11 +415,38 @@ export default function ErCommandCenterPage() {
     onError: () => toast.error("Ack failed"),
   });
 
+  // Forced Ack Override: admin/vet acknowledges on behalf of the incoming owner.
+  const overrideMut = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      ackErHandoff(id, { overrideReason: reason }),
+    onMutate: ({ id }) => setAckingId(id),
+    onSettled: () => setAckingId(null),
+    onSuccess: () => {
+      toast.success("Forced Ack Override recorded");
+      setOverrideTargetId(null);
+      setOverrideReason("");
+      invalidateEr();
+    },
+    onError: () => toast.error("Override failed"),
+  });
+
   const lanes: Record<ErLane, ErBoardItem[]> = boardQ.data?.lanes ?? {
     criticalNow: [],
     next15m: [],
     handoffRisk: [],
   };
+
+  const handoffFormInvalid =
+    handoffMut.isPending ||
+    !handoffHospId.trim() ||
+    handoffItems.some(
+      (r) =>
+        !r.currentStability.trim() ||
+        !r.pendingTasks.trim() ||
+        !r.criticalWarnings.trim() ||
+        !r.activeIssue.trim() ||
+        !r.nextAction.trim(),
+    );
 
   return (
     <Layout title={t.erCommandCenter.title}>
@@ -397,6 +500,46 @@ export default function ErCommandCenterPage() {
                       <div key={idx} className="border-border space-y-3 rounded-md border p-3">
                         <div className="text-muted-foreground text-xs font-medium">
                           {t.erCommandCenter.handoffItem(idx + 1)}
+                        </div>
+                        {/* Structured Clinical Handoff — mandatory artifact fields */}
+                        <div className="grid gap-2">
+                          <Label>{t.erCommandCenter.handoffCurrentStability}</Label>
+                          <Textarea
+                            value={row.currentStability}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setHandoffItems((prev) =>
+                                prev.map((r, i) => (i === idx ? { ...r, currentStability: v } : r)),
+                              );
+                            }}
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>{t.erCommandCenter.handoffPendingTasks}</Label>
+                          <Textarea
+                            value={row.pendingTasks}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setHandoffItems((prev) =>
+                                prev.map((r, i) => (i === idx ? { ...r, pendingTasks: v } : r)),
+                              );
+                            }}
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>{t.erCommandCenter.handoffCriticalWarnings}</Label>
+                          <Textarea
+                            value={row.criticalWarnings}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setHandoffItems((prev) =>
+                                prev.map((r, i) => (i === idx ? { ...r, criticalWarnings: v } : r)),
+                              );
+                            }}
+                            rows={2}
+                          />
                         </div>
                         <div className="grid gap-2">
                           <Label>{t.erCommandCenter.handoffActiveIssue}</Label>
@@ -477,11 +620,7 @@ export default function ErCommandCenterPage() {
                   </div>
                   <DialogFooter>
                     <Button
-                      disabled={
-                        handoffMut.isPending ||
-                        !handoffHospId.trim() ||
-                        handoffItems.some((r) => !r.activeIssue.trim() || !r.nextAction.trim())
-                      }
+                      disabled={handoffFormInvalid}
                       onClick={() => handoffMut.mutate()}
                     >
                       {t.erCommandCenter.handoffSubmit}
@@ -553,34 +692,102 @@ export default function ErCommandCenterPage() {
               items={lanes.criticalNow}
               assignees={assignees}
               canAssign={assignRole}
+              currentUserId={auth.userId}
+              currentRole={effectiveRole}
               assigningId={assigningId}
               ackingId={ackingId}
               onAssign={(id, uid) => assignMut.mutate({ id, uid })}
               onAck={(id) => ackMut.mutate(id)}
+              onForcedAckOverride={(id) => {
+                setOverrideTargetId(id);
+                setOverrideReason("");
+              }}
             />
             <LaneColumn
               title={t.erCommandCenter.lanes.next15m}
               items={lanes.next15m}
               assignees={assignees}
               canAssign={assignRole}
+              currentUserId={auth.userId}
+              currentRole={effectiveRole}
               assigningId={assigningId}
               ackingId={ackingId}
               onAssign={(id, uid) => assignMut.mutate({ id, uid })}
               onAck={(id) => ackMut.mutate(id)}
+              onForcedAckOverride={(id) => {
+                setOverrideTargetId(id);
+                setOverrideReason("");
+              }}
             />
             <LaneColumn
               title={t.erCommandCenter.lanes.handoffRisk}
               items={lanes.handoffRisk}
               assignees={assignees}
               canAssign={assignRole}
+              currentUserId={auth.userId}
+              currentRole={effectiveRole}
               assigningId={assigningId}
               ackingId={ackingId}
               onAssign={(id, uid) => assignMut.mutate({ id, uid })}
               onAck={(id) => ackMut.mutate(id)}
+              onForcedAckOverride={(id) => {
+                setOverrideTargetId(id);
+                setOverrideReason("");
+              }}
             />
           </div>
         )}
       </div>
+
+      {/* Forced Ack Override modal — admin/vet must provide a mandatory reason. */}
+      <Dialog
+        open={overrideTargetId !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setOverrideTargetId(null);
+            setOverrideReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.erCommandCenter.overrideModalTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <p className="text-muted-foreground text-sm">{t.erCommandCenter.overrideModalDesc}</p>
+            <div className="grid gap-2">
+              <Label>{t.erCommandCenter.overrideReasonLabel}</Label>
+              <Textarea
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                rows={3}
+                placeholder={t.erCommandCenter.overrideReasonPlaceholder}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOverrideTargetId(null);
+                setOverrideReason("");
+              }}
+            >
+              {t.erCommandCenter.overrideCancel}
+            </Button>
+            <Button
+              disabled={!overrideReason.trim() || overrideMut.isPending}
+              onClick={() => {
+                if (overrideTargetId && overrideReason.trim()) {
+                  overrideMut.mutate({ id: overrideTargetId, reason: overrideReason.trim() });
+                }
+              }}
+            >
+              {t.erCommandCenter.overrideConfirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
