@@ -140,7 +140,7 @@ export type ShiftReportEmailPayload = {
   managerEmail: string;
 };
 
-export type NotificationJobData =
+export type NotificationJobData = (
   | {
       type: "task_notification";
       event: "TASK_CREATED" | "TASK_STARTED" | "TASK_COMPLETED" | "TASK_CANCELLED";
@@ -207,13 +207,16 @@ export type NotificationJobData =
       title: string;
       body: string;
       tag: string;
-      notificationRequestOutboxId?: number;
-    };
+    }
+) & { notificationRequestOutboxId?: number };
 
 /**
  * Enqueue a notification job. Never throws — API stays safe if Redis/queue down.
  */
-export async function enqueueNotificationJob(data: NotificationJobData, opts?: { delay?: number }): Promise<void> {
+export async function enqueueNotificationJob(
+  data: NotificationJobData,
+  opts?: { delay?: number; jobId?: string },
+): Promise<void> {
   if (isCircuitOpen("queue")) {
     incrementMetric("circuit_breaker_opened");
     console.warn("[queue] circuit open; enqueue skipped");
@@ -278,7 +281,11 @@ export async function enqueueNotificationJob(data: NotificationJobData, opts?: {
   try {
     console.log("QUEUE_JOB_ENQUEUED", data.type);
     await timedRedisOp("queue.add.send_notification", () =>
-      q.add("send_notification", data, { ...defaultJobOptions(), ...(opts?.delay ? { delay: opts.delay } : {}) }),
+      q.add("send_notification", data, {
+        ...defaultJobOptions(),
+        ...(opts?.delay ? { delay: opts.delay } : {}),
+        ...(opts?.jobId ? { jobId: opts.jobId } : {}),
+      }),
     );
     queueMetrics.enqueued++;
     incrementMetric("queue_jobs_enqueued");

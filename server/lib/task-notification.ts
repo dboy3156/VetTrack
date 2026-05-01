@@ -6,7 +6,15 @@
 import { logAudit } from "./audit.js";
 import { incrementMetric } from "./metrics.js";
 import { enqueueNotificationJob } from "./queue.js";
-import { checkDedupe, sendPushToRole, sendPushToUser } from "./push.js";
+import {
+  checkDedupe,
+  finalizeNotificationRequestOutbox,
+  mergePushStats,
+  sendPushToRole,
+  sendPushToUser,
+  type PushDeliveryContext,
+  type PushSendResult,
+} from "./push.js";
 
 /** Task lifecycle events that trigger web push orchestration (not DB enums). */
 export type TaskNotificationEvent = "TASK_CREATED" | "TASK_STARTED" | "TASK_COMPLETED" | "TASK_CANCELLED";
@@ -34,6 +42,14 @@ function taskTag(event: TaskNotificationEvent, taskId: string): string {
   return `task-${event}-${taskId}`;
 }
 
+/** Payload for `NOTIFICATION_REQUESTED` rows (same transaction as the task mutation). */
+export function buildTaskNotificationRequestedPayload(
+  taskEvent: TaskNotificationEvent,
+  taskId: string,
+): { channel: "task_notification"; taskEvent: TaskNotificationEvent; taskId: string } {
+  return { channel: "task_notification", taskEvent, taskId };
+}
+
 function formatWindow(startIso: string, endIso: string): string {
   try {
     const s = new Date(startIso);
@@ -52,12 +68,20 @@ export async function dispatchTaskNotificationSync(
   event: TaskNotificationEvent,
   task: TaskNotificationTask,
   actor?: TaskNotificationActor | null,
+  notificationRequestOutboxId?: number,
 ): Promise<void> {
   const clinicId = task.clinicId?.trim();
   if (!clinicId) return;
 
   const priority = task.priority ?? "normal";
   const isCritical = priority === "critical";
+
+  const delivery: PushDeliveryContext | undefined =
+    notificationRequestOutboxId !== undefined
+      ? { requestedOutboxId: notificationRequestOutboxId, deferTerminalOutbox: true }
+      : undefined;
+
+  let agg: PushSendResult = { deliveredAny: false, transientFailures: 0, invalidOrGoneCount: 0 };
 
   const windowLabel = formatWindow(task.startTime, task.endTime);
   const asset = task.animalId?.trim() || "Unassigned asset";
@@ -74,12 +98,16 @@ export async function dispatchTaskNotificationSync(
   try {
     if (event === "TASK_CREATED") {
       if (isCritical) {
-        await sendPushToRole(
-          clinicId,
-          "technician",
-          payloadFor(
-            "Critical task created",
-            `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""} · ${task.id.slice(0, 8)}…`,
+        agg = mergePushStats(
+          agg,
+          await sendPushToRole(
+            clinicId,
+            "technician",
+            payloadFor(
+              "Critical task created",
+              `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""} · ${task.id.slice(0, 8)}…`,
+            ),
+            delivery,
           ),
         );
         logAudit({
@@ -96,48 +124,46 @@ export async function dispatchTaskNotificationSync(
             audience: "technician_role",
           },
         });
-        if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: null, clinicId, type: event });
-        return;
-      }
-      if (task.vetId) {
-        await sendPushToUser(
-          clinicId,
-          task.vetId,
-          payloadFor(
-            "New task assigned",
-            `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""}`,
+        if (process.env.NODE_ENV !== "production") console.log("[task-notification] push dispatched", { userId: null, clinicId, type: event });
+      } else if (task.vetId) {
+        agg = mergePushStats(
+          agg,
+          await sendPushToUser(
+            clinicId,
+            task.vetId,
+            payloadFor(
+              "New task assigned",
+              `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""}`,
+            ),
+            delivery,
           ),
         );
-        if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: task.vetId, clinicId, type: event });
+        if (process.env.NODE_ENV !== "production") console.log("[task-notification] push dispatched", { userId: task.vetId, clinicId, type: event });
       }
-      return;
-    }
-
-    if (event === "TASK_STARTED") {
+    } else if (event === "TASK_STARTED") {
       const body = `${typeLabel} · ${asset} · ${task.vetId ?? "tech"}${windowLabel ? ` · ${windowLabel}` : ""}`;
-      await sendPushToRole(clinicId, "admin", payloadFor("Task started", body));
-      await sendPushToRole(clinicId, "vet", payloadFor("Task started", body));
-      if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
-      return;
-    }
-
-    if (event === "TASK_COMPLETED") {
+      agg = mergePushStats(agg, await sendPushToRole(clinicId, "admin", payloadFor("Task started", body), delivery));
+      agg = mergePushStats(agg, await sendPushToRole(clinicId, "vet", payloadFor("Task started", body), delivery));
+      if (process.env.NODE_ENV !== "production") console.log("[task-notification] push dispatched", { userId: task.vetId ?? null, clinicId, type: event });
+    } else if (event === "TASK_COMPLETED") {
       const body = `${typeLabel} · ${asset} · ${task.vetId ?? "tech"}${windowLabel ? ` · ${windowLabel}` : ""}`;
-      await sendPushToRole(clinicId, "admin", payloadFor("Task completed", body));
-      await sendPushToRole(clinicId, "vet", payloadFor("Task completed", body));
-      if (process.env.NODE_ENV !== "production") console.log("NOTIFICATION_SENT", { userId: task.vetId ?? null, clinicId, type: event });
-      return;
-    }
-
-    if (event === "TASK_CANCELLED") {
-      if (task.vetId) {
+      agg = mergePushStats(agg, await sendPushToRole(clinicId, "admin", payloadFor("Task completed", body), delivery));
+      agg = mergePushStats(agg, await sendPushToRole(clinicId, "vet", payloadFor("Task completed", body), delivery));
+      if (process.env.NODE_ENV !== "production") console.log("[task-notification] push dispatched", { userId: task.vetId ?? null, clinicId, type: event });
+    } else if (event === "TASK_CANCELLED" && task.vetId) {
+      agg = mergePushStats(
+        agg,
         await sendPushToUser(
           clinicId,
           task.vetId,
           payloadFor("Task cancelled", `${typeLabel} · ${asset}${windowLabel ? ` · ${windowLabel}` : ""}`),
-        );
-      }
-      return;
+          delivery,
+        ),
+      );
+    }
+
+    if (notificationRequestOutboxId !== undefined) {
+      await finalizeNotificationRequestOutbox(clinicId, notificationRequestOutboxId, agg);
     }
   } catch (err) {
     incrementMetric("notifications_failed");
@@ -154,6 +180,7 @@ export async function sendTaskNotification(
   event: TaskNotificationEvent,
   task: TaskNotificationTask,
   actor?: TaskNotificationActor | null,
+  notificationRequestOutboxId?: number,
 ): Promise<void> {
   const clinicId = task.clinicId?.trim();
   if (!clinicId) return;
@@ -170,5 +197,6 @@ export async function sendTaskNotification(
     event,
     task,
     actor: actor ?? null,
+    ...(notificationRequestOutboxId !== undefined ? { notificationRequestOutboxId } : {}),
   });
 }

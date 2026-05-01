@@ -7,7 +7,6 @@ import "dotenv/config";
 import crypto from "crypto";
 import { Worker } from "bullmq";
 import nodemailer from "nodemailer";
-import { dispatchTaskNotificationSync } from "../lib/task-notification.js";
 import {
   NOTIFICATION_DLQ_NAME,
   NOTIFICATION_QUEUE_NAME,
@@ -23,54 +22,24 @@ import {
 } from "../lib/queue.js";
 import { createRedisConnection, getRedis } from "../lib/redis.js";
 import { incrementMetric } from "../lib/metrics.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
 import { checkIdempotentAsync, markIdempotentAsync } from "../lib/idempotency.js";
-import { isCircuitOpen } from "../lib/circuit-breaker.js";
-import { checkDedupe, initVapid, sendPushToAll, sendPushToRole, sendPushToUser } from "../lib/push.js";
+import { initVapid } from "../lib/push.js";
 import { withTimeout } from "../lib/timeout.js";
-import { BROADCAST_TEMPLATES } from "../routes/shift-chat.js";
 import { safeRedisSetex } from "../lib/redis.js";
 import { decryptConfigValue } from "../lib/config-crypto.js";
 import { getUsersWithOverdueTaskCounts } from "../services/task-recall.service.js";
 import { executeAutomationJob, scanAndEnqueueAutomationJobs } from "../services/task-automation.service.js";
-import { db, animals, appointments, billingLedger, inventoryLogs, serverConfig, shiftSessions, users } from "../db.js";
+import {
+  processNotificationJobPayload,
+  sweepOrphanedNotificationRequests,
+} from "../services/notification-worker.js";
+import { db, animals, appointments, billingLedger, inventoryLogs, serverConfig, shiftSessions } from "../db.js";
 import { and, eq, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
-import { getLocaleDictionaries } from "../../lib/i18n/loader.js";
-import { translate } from "../../lib/i18n/index.js";
 
 const OVERDUE_SCAN_MS = 5 * 60 * 1000;
 const AUTOMATION_TICK_MS = 90 * 1000;
-
-async function getUserLocale(userId: string): Promise<string> {
-  try {
-    const [row] = await db
-      .select({ preferredLocale: users.preferredLocale })
-      .from(users)
-      .where(eq(users.clerkId, userId))
-      .limit(1);
-    return row?.preferredLocale ?? "en";
-  } catch (err) {
-    console.warn("[worker] getUserLocale failed, falling back to 'en':", (err as Error).message);
-    return "en";
-  }
-}
-
-function tPush(locale: string, key: string, params?: Record<string, string | number | boolean>): string {
-  const { primary, fallback } = getLocaleDictionaries(locale);
-  return translate(primary, key, params, { fallbackDict: fallback, locale });
-}
-
-async function handleOverdueReminder(d: { clinicId: string; userId: string; count: number }): Promise<void> {
-  if (d.count <= 0) return;
-  if (checkDedupe(d.userId, "OVERDUE_REMINDER", 3_600_000)) return;
-  const locale = await getUserLocale(d.userId);
-  const bodyKey = d.count === 1 ? "push.overdue.body" : "push.overdue.bodyPlural";
-  await sendPushToUser(d.clinicId, d.userId, {
-    title: tPush(locale, "push.overdue.title"),
-    body: tPush(locale, bodyKey, { count: d.count }),
-    tag: "overdue-reminder",
-    url: "/appointments",
-  });
-}
+const NOTIFICATION_ORPHAN_SWEEP_MS = 5 * 60 * 1000;
 
 async function scanOverdueAndEnqueue(): Promise<void> {
   const rows = await getUsersWithOverdueTaskCounts();
@@ -116,27 +85,49 @@ async function scanOverdueMedications(): Promise<void> {
 
   if (candidates.length === 0) return;
 
-  // Phase 2: atomically claim the rows by stamping overdueNotifiedAt.
-  // Two concurrent workers may both complete Phase 1 before either writes here.
-  // The extra isNull guard ensures only the first writer claims each row.
   const ids = candidates.map((a) => a.id);
-  const claimed = await db
-    .update(appointments)
-    .set({ overdueNotifiedAt: now })
-    .where(and(inArray(appointments.id, ids), isNull(appointments.overdueNotifiedAt)))
-    .returning({ id: appointments.id });
 
-  const claimedIds = new Set(claimed.map((c) => c.id));
+  const requestOutboxByTaskId = new Map<string, number>();
 
-  // Phase 3: enqueue only for rows this worker actually claimed
+  const claimedIds = await db.transaction(async (tx) => {
+    const claimedRows = await tx
+      .update(appointments)
+      .set({ overdueNotifiedAt: now })
+      .where(and(inArray(appointments.id, ids), isNull(appointments.overdueNotifiedAt)))
+      .returning({ id: appointments.id });
+
+    const set = new Set(claimedRows.map((c) => c.id));
+
+    for (const appt of candidates) {
+      if (!set.has(appt.id)) continue;
+      if (!appt.animalId || !appt.clinicId || !appt.vetId) continue;
+      const outboxId = await insertRealtimeDomainEvent(tx, {
+        clinicId: appt.clinicId,
+        type: "NOTIFICATION_REQUESTED",
+        payload: {
+          channel: "overdue_medication_alert",
+          taskId: appt.id,
+          userId: appt.vetId,
+          animalId: appt.animalId,
+        },
+        occurredAt: now,
+      });
+      if (outboxId !== undefined) requestOutboxByTaskId.set(appt.id, outboxId);
+    }
+
+    return set;
+  });
+
+  // Enqueue only for rows this worker claimed + recorded in the same TX as the stamp.
   let notified = 0;
   for (const appt of candidates) {
-    if (!claimedIds.has(appt.id)) continue; // another worker beat us to this row
+    if (!claimedIds.has(appt.id)) continue;
     if (!appt.animalId || !appt.clinicId || !appt.vetId) continue;
 
     const minutesLate = Math.floor((now.getTime() - appt.startTime.getTime()) / 60_000);
     const drugName = appt.notes ?? "תרופה";
 
+    const notificationRequestOutboxId = requestOutboxByTaskId.get(appt.id);
     await enqueueNotificationJob({
       type: "overdue_medication_alert",
       clinicId: appt.clinicId,
@@ -145,93 +136,13 @@ async function scanOverdueMedications(): Promise<void> {
       drugName,
       minutesLate,
       animalId: appt.animalId,
+      ...(notificationRequestOutboxId !== undefined ? { notificationRequestOutboxId } : {}),
     });
     notified++;
   }
 
   if (process.env.NODE_ENV !== "production") {
     console.log("OVERDUE_MED_SCAN", { scanned: candidates.length, notified });
-  }
-}
-
-async function processSendNotification(data: NotificationJobData): Promise<void> {
-  if (isCircuitOpen("push")) {
-    incrementMetric("circuit_breaker_opened");
-    console.warn("[worker] push circuit open; skipping notification job");
-    return;
-  }
-  if (data.type === "shift_chat_snooze") {
-    const label = BROADCAST_TEMPLATES[data.broadcastKey]?.label ?? data.broadcastKey;
-    await withTimeout(
-      sendPushToUser(data.clinicId, data.userId, {
-        title: `📢 תזכורת: ${label}`,
-        body: "טרם אישרת קבלת הפקודה",
-        tag: `shift-chat-snooze-${data.messageId}`,
-      }),
-      5000,
-      "shift_chat_snooze",
-    );
-    return;
-  }
-  if (data.type === "task_notification") {
-    await withTimeout(dispatchTaskNotificationSync(data.event, data.task, data.actor), 5000, "task notification");
-    return;
-  }
-  if (data.type === "overdue_reminder") {
-    await withTimeout(handleOverdueReminder(data), 5000, "overdue reminder");
-    return;
-  }
-  if (data.type === "automation_push_user") {
-    await withTimeout(
-      sendPushToUser(data.clinicId, data.userId, {
-        title: data.title,
-        body: data.body,
-        tag: data.tag,
-        url: "/appointments",
-      }),
-      5000,
-      "automation push user",
-    );
-    return;
-  }
-  if (data.type === "automation_push_role") {
-    await withTimeout(
-      sendPushToRole(data.clinicId, data.role, {
-        title: data.title,
-        body: data.body,
-        tag: data.tag,
-        url: "/appointments",
-      }),
-      5000,
-      "automation push role",
-    );
-    return;
-  }
-  if (data.type === "overdue_medication_alert") {
-    await withTimeout(
-      sendPushToUser(data.clinicId, data.userId, {
-        title: "💊 תרופה באיחור",
-        body: `${data.animalName} — ${data.drugName} · ${data.minutesLate} דק׳ באיחור`,
-        tag: `overdue-med-${data.animalId}`,
-        url: `/patients/${data.animalId}`,
-      }),
-      5_000,
-      "overdue medication alert",
-    );
-    return;
-  }
-  if (data.type === "code_blue_broadcast") {
-    await withTimeout(
-      sendPushToAll(data.clinicId, {
-        title: data.title,
-        body: data.body,
-        tag: data.tag,
-        url: "/code-blue",
-      }),
-      10_000,
-      "code blue broadcast",
-    );
-    return;
   }
 }
 
@@ -516,9 +427,22 @@ async function main(): Promise<void> {
     },
   );
 
+  await queue.add(
+    "sweep_notification_orphans",
+    {},
+    {
+      jobId: "repeat-notification-orphan-sweep",
+      repeat: { every: NOTIFICATION_ORPHAN_SWEEP_MS },
+      removeOnComplete: 50,
+    },
+  );
+
   void scanOverdueAndEnqueue().catch((err) => console.error("[worker] initial overdue scan failed:", err));
   void scanAndEnqueueAutomationJobs().catch((err) => console.error("[worker] initial automation scan failed:", err));
   void scanOverdueMedications().catch((err) => console.error("[worker] initial overdue med scan failed:", err));
+  void sweepOrphanedNotificationRequests().catch((err) =>
+    console.error("[worker] initial notification orphan sweep failed:", err),
+  );
 
   // Heartbeat: health checks read this key to confirm the worker is alive.
   // TTL is 120s; we write every 30s, so two missed writes = dead worker alert.
@@ -549,6 +473,8 @@ async function main(): Promise<void> {
           await scanOverdueAndEnqueue();
         } else if (job.name === "scan_overdue_medications") {
           await scanOverdueMedications();
+        } else if (job.name === "sweep_notification_orphans") {
+          await sweepOrphanedNotificationRequests();
         } else if (job.name === "automation_tick") {
           await scanAndEnqueueAutomationJobs();
         } else if (job.name === "automation_execute") {
@@ -561,7 +487,7 @@ async function main(): Promise<void> {
             if (process.env.NODE_ENV !== "production") console.log("QUEUE_JOB_SKIPPED_IDEMPOTENT", { id: jid, name: job.name });
             return;
           }
-          await processSendNotification(job.data as NotificationJobData);
+          await processNotificationJobPayload(job.data as NotificationJobData);
           await markIdempotentAsync(key);
         } else if (job.name === "shift_report_email") {
           await withTimeout(

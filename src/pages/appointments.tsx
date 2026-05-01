@@ -560,7 +560,12 @@ export default function AppointmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks/recommendations"], exact: true });
       return;
     }
-    if (event.type === "NOTIFICATION_SENT") return;
+    if (
+      event.type === "NOTIFICATION_REQUESTED" ||
+      event.type === "NOTIFICATION_SENT" ||
+      event.type === "NOTIFICATION_FAILED"
+    )
+      return;
   }, [day, meUserId, queryClient]);
 
   useRealtime(handleRealtimeEvent);
