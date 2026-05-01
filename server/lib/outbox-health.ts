@@ -13,12 +13,16 @@ export const DEAD_LETTER_MIN_UNPUBLISHED_MS = 30 * 60_000;
  */
 export function deadLetterConditionForClinic(clinicId: string): SQL {
   const unpublishedAgeCutoff = new Date(Date.now() - DEAD_LETTER_MIN_UNPUBLISHED_MS);
-  return and(
+  const predicate = and(
     eq(eventOutbox.clinicId, clinicId),
     isNull(eventOutbox.publishedAt),
     gt(eventOutbox.retryCount, DEAD_LETTER_MIN_RETRY_EXCEEDED),
     lt(sql`COALESCE(${eventOutbox.lastAttemptAt}, ${eventOutbox.occurredAt})`, unpublishedAgeCutoff),
   );
+  if (!predicate) {
+    throw new Error("deadLetterConditionForClinic: failed to build predicate");
+  }
+  return predicate;
 }
 
 export interface OutboxHealthEvaluation {

@@ -101,3 +101,23 @@ export function unsubscribe(res: Response): void {
     // Best-effort cleanup.
   }
 }
+
+/** Push lightweight SSE notifications to connected tabs (no outbox persistence). */
+export function broadcast(
+  clinicId: string,
+  event: { type: RealtimeEventType; payload: unknown; timestamp?: string },
+): void {
+  const normalizedClinicId = clinicId.trim();
+  if (!normalizedClinicId) return;
+  const set = clientsByClinic.get(normalizedClinicId);
+  if (!set || set.size === 0) return;
+  const envelope = {
+    type: event.type,
+    payload: event.payload,
+    timestamp: event.timestamp ?? new Date().toISOString(),
+  };
+  const chunk = `data: ${JSON.stringify(envelope)}\n\n`;
+  for (const res of set) {
+    safeWrite(res, chunk);
+  }
+}
