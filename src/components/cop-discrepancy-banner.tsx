@@ -6,6 +6,9 @@ import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CopAlertEntry } from "@/types/cop-alerts";
 
+/** Stable fallback — `useSyncExternalStore` requires referentially stable snapshots when data is unchanged. */
+const EMPTY_COP_ALERTS: CopAlertEntry[] = [];
+
 function labelFor(entry: CopAlertEntry): string {
   if (entry.variant === "order_mismatch") {
     return t.cop.discrepancySubtitle;
@@ -28,8 +31,8 @@ export function CopDiscrepancyBanner() {
 
   const alerts = useSyncExternalStore(
     (onChange) => qc.getQueryCache().subscribe(onChange),
-    () => qc.getQueryData<CopAlertEntry[]>(ORPHAN_DRUG_ALERTS_QUERY_KEY) ?? [],
-    () => [],
+    () => qc.getQueryData<CopAlertEntry[]>(ORPHAN_DRUG_ALERTS_QUERY_KEY) ?? EMPTY_COP_ALERTS,
+    () => EMPTY_COP_ALERTS,
   );
 
   if (alerts.length === 0) return null;
