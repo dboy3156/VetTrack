@@ -628,6 +628,33 @@
     "itemsLabel": "פריטים"
   },
 
+  "outcomeKpiDashboard": {
+    "title": "מדדי תוצאה ו־ROI",
+    "metaDescription": "מבט הנהלה: זמן עד טריאז', שלמות מסירה, ושחזור הכנסות מול 14 הימים שלפני ההפעלה.",
+    "subtitle": "השוואה בין התקופה האחרונה אחרי ההפעלה ל־14 הימים שלפני on-boarding. נדרש תאריך הפעלה בקונפיגורציית השרת.",
+    "backAnalytics": "ניתוח ציוד",
+    "erRollingBaseline": "לוח מדדי ER (חלון נגלל)",
+    "loadError": "טעינת מדדי תוצאה נכשלה.",
+    "noActivationTitle": "תאריך הפעלה לא הוגדר",
+    "noActivationBody": "יש להגדיר את רגע ה-go-live ב-PostgreSQL כדי לחשב חלונות בסיס ונוכחי מנתוני תפעול אמיתיים.",
+    "noActivationKeyHint": "INSERT INTO vt_server_config (key, value) VALUES ('outcome_kpi_activation_at:' || '<מזהה-מרפאה>', '<חותמת-זמן ISO-8601>') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();",
+    "activationLabel": "הפעלה",
+    "baselineWindowLabel": "חלון בסיס",
+    "currentWindowLabel": "חלון נוכחי",
+    "generatedAt": "חושב ב־",
+    "baselinePeriod": "בסיס (לפני הפעלה)",
+    "currentPeriod": "נוכחי (מחוון אחורי)",
+    "chartBaselineShort": "בסיס",
+    "chartCurrentShort": "נוכחי",
+    "kpiTriageTitle": "זמן עד טריאז'",
+    "kpiTriageDesc": "חציון דקות מקבלה ועד שיוך ראשון (P50), אותה מתודולוגיה כמו מדדי ER.",
+    "kpiHandoffTitle": "שלמות מסירה",
+    "kpiHandoffDesc": "אחוז מסירות קליניות מובנות שאושרו ישירות ע״י הגורם המקבל (ללא עקיפה כפויה).",
+    "kpiRevenueRecoveryTitle": "שחזור הכנסות",
+    "kpiRevenueRecoveryDesc": "ציון לכידה: 100 פחות דליפת חיוב לצרכים (מול ביצע). ערך גבוה = פחות חיובים שחמקו.",
+    "methodologyNote": "ההפרשים מכוונים כך שאחוז חיובי = שיפור (טריאז' מהיר יותר, שלמות גבוהה יותר, לכידה כספית חזקה יותר)."
+  },
+
   "myEquipmentPage": {
     "scanQr": "סרוק QR",
     "shiftSummary": "סיכום משמרת",

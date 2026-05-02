@@ -627,6 +627,33 @@
     "itemsLabel": "items"
   },
 
+  "outcomeKpiDashboard": {
+    "title": "Outcome KPI & ROI",
+    "metaDescription": "Hospital leadership view: time to triage, handoff integrity, and revenue recovery vs the 14-day pre-activation baseline.",
+    "subtitle": "Compare the trailing post-activation period to the 14 days before go-live. Requires an activation timestamp in server configuration.",
+    "backAnalytics": "Equipment analytics",
+    "erRollingBaseline": "ER rolling baseline dashboard",
+    "loadError": "Could not load outcome KPI data.",
+    "noActivationTitle": "Activation date not configured",
+    "noActivationBody": "Set the hospital go-live instant in PostgreSQL so baseline and current windows can be computed from real operational data.",
+    "noActivationKeyHint": "INSERT INTO vt_server_config (key, value) VALUES ('outcome_kpi_activation_at:' || '<your-clinic-id>', '<ISO-8601 instant>') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();",
+    "activationLabel": "Go-live",
+    "baselineWindowLabel": "Baseline window",
+    "currentWindowLabel": "Current window",
+    "generatedAt": "Generated",
+    "baselinePeriod": "Baseline (pre-activation)",
+    "currentPeriod": "Current (trailing)",
+    "chartBaselineShort": "Baseline",
+    "chartCurrentShort": "Current",
+    "kpiTriageTitle": "Time to Triage",
+    "kpiTriageDesc": "Median minutes from intake to first assignment (P50), same methodology as ER impact metrics.",
+    "kpiHandoffTitle": "Handoff Integrity",
+    "kpiHandoffDesc": "Share of structured clinical handoffs acknowledged directly by the incoming assignee (excludes forced overrides).",
+    "kpiRevenueRecoveryTitle": "Revenue Recovery",
+    "kpiRevenueRecoveryDesc": "Capture score: 100 minus consumable billing leakage (dispensed vs billed quantities). Higher means fewer missed charges.",
+    "methodologyNote": "Deltas are oriented so positive percentages indicate improvement (faster triage, higher integrity, stronger revenue capture)."
+  },
+
   "myEquipmentPage": {
     "scanQr": "Scan QR",
     "shiftSummary": "Shift summary",

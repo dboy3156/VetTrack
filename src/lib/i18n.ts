@@ -276,6 +276,8 @@ const translations = {
     itemsLabelEn: d.analyticsPage.itemsLabel,
   },
 
+  outcomeKpiDashboard: d.outcomeKpiDashboard,
+
   myEquipmentPage: d.myEquipmentPage,
 
   notFoundPage: d.notFoundPage,
