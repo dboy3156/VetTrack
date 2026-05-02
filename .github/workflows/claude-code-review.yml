@@ -31,8 +31,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Optional bot review: failures are often OAuth/API quota ("You've hit your limit"),
+      # not code issues — do not fail the PR check for that.
       - name: Run Claude Code Review
         id: claude-review
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
