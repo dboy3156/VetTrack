@@ -229,8 +229,9 @@ if (authModeResolution.mode === "clerk") {
 // Global API limiter runs before route-specific limiters.
 app.use("/api", globalApiLimiter);
 app.use("/api", i18nMiddleware);
+// ER concealment order: tenant hint → session (authUser + clinicId) → concealment 404.
+// `erModeConcealmentMiddleware` must run after `tenantContext` and `sessionContextMiddleware`.
 app.use("/api", tenantContext);
-// Session before Concealment 404 so `req.authUser` / `req.clinicId` are available for ER policy.
 app.use("/api", sessionContextMiddleware);
 app.use("/api", erModeConcealmentMiddleware);
 

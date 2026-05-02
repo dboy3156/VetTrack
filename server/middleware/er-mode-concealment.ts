@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import type { ErModeState } from "../../shared/er-types.js";
 import { isErApiPathAllowlisted, normalizeApiPathAfterPrefix } from "../config/er-mode.js";
 import { getClinicErModeStateCached, isErConcealmentEnforced } from "../lib/er-mode.js";
 import { incrementMetric } from "../lib/metrics.js";
@@ -23,8 +24,10 @@ function recordFailOpen(reason: string, err: unknown): void {
  * Concealment 404: when the clinic is in ER Mode (`enforced`), respond with 404 for any
  * `/api/*` path outside the ER Allowlist — never 403 (spec).
  * Any resolver failure fails open: clinical requests must not hard-error on policy middleware.
+ *
+ * Must run after tenant context (clinic hint) and session middleware (`req.authUser`).
  */
-export async function erModeConcealmentMiddleware(
+async function erModeConcealmentAsync(
   req: Request,
   res: Response,
   next: NextFunction,
@@ -47,7 +50,15 @@ export async function erModeConcealmentMiddleware(
       return;
     }
 
-    const state = await getClinicErModeStateCached(clinicId);
+    let state: ErModeState;
+    try {
+      state = await getClinicErModeStateCached(clinicId);
+    } catch (stateErr) {
+      recordFailOpen("state_retrieval", stateErr);
+      next();
+      return;
+    }
+
     if (!isErConcealmentEnforced(state)) {
       next();
       return;
@@ -62,4 +73,19 @@ export async function erModeConcealmentMiddleware(
     recordFailOpen("middleware", err);
     next();
   }
+}
+
+/**
+ * Express 4 does not reliably invoke `next(err)` for rejections from async middleware.
+ * Fail-open on any escaped rejection so concealment never surfaces as 500.
+ */
+export function erModeConcealmentMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  void erModeConcealmentAsync(req, res, next).catch((err) => {
+    recordFailOpen("async_rejection", err);
+    next();
+  });
 }
