@@ -13,6 +13,38 @@ export type ErNextActionCode =
   | "prepare_handoff"
   | "acknowledge_handoff"
   | "monitor";
+/**
+ * ICU / monitoring snapshot for ER board hydration (handoff rows only; optional on ErBoardItem).
+ * Times are ISO 8601; numeric vitals use SI/clinical units stated in field names.
+ * `extensions` carries device-specific or site-defined parameters without breaking the contract.
+ */
+export interface ErPhysiologicSnapshot {
+  recordedAt: string;
+  /** SpO₂ — peripheral oxygen saturation (0–100). */
+  spo2Percent?: number | null;
+  /** EtCO₂ — end-tidal CO₂ (mmHg); normalize at ingestion if the monitor reports kPa. */
+  etco2MmHg?: number | null;
+  /** Respiratory rate (breaths/min). */
+  rrPerMin?: number | null;
+  /** Heart rate (beats/min). */
+  hrBpm?: number | null;
+  /** Systolic blood pressure (mmHg). */
+  bpSystolicMmHg?: number | null;
+  /** Diastolic blood pressure (mmHg). */
+  bpDiastolicMmHg?: number | null;
+  /** Temperature (°C). */
+  tempCelsius?: number | null;
+  /** Inspired O₂ fraction (0–100). */
+  fio2Percent?: number | null;
+  /** PEEP (cm H₂O). */
+  peepCmH2o?: number | null;
+  /** Ventilator or oxygen-delivery mode label when applicable. */
+  ventilationMode?: string | null;
+  /** True when ventilatory support is active at snapshot time (invasive or non-invasive). */
+  isVentilated?: boolean | null;
+  /** Additional parameters (device keys, wave indices, site-defined numerics). */
+  extensions?: Record<string, number | string | boolean | null>;
+}
 // ── GET /api/er/mode ──────────────────────────────────────────────────────────
 export interface ErModeResponse {
   clinicId: string;
@@ -34,6 +66,8 @@ export interface ErBoardItem {
   nextActionLabel: string;
   badges: Array<"handoffRisk" | "overdue" | "unassigned">;
   overdueAt: string | null;
+  /** Latest ICU monitor snapshot for this stay when `type === "hospitalization"` and source data exists. */
+  icuSignals?: ErPhysiologicSnapshot | null;
 }
 export interface ErBoardResponse {
   clinicId: string;
@@ -177,4 +211,36 @@ export interface ErImpactResponse {
   handoffIntegrity?: ErHandoffIntegrityKpi | null;
   slaEscalation?: ErSlaEscalationKpi | null;
   financialCorrelation?: ErFinancialCorrelationKpi | null;
+}
+
+// ── GET /api/analytics/outcome-kpi-roi — Phase 7 leadership ROI (activation-anchored baseline) ──
+export interface OutcomeKpiRoiMetric {
+  baseline: number | null;
+  current: number | null;
+  /** Oriented so positive = improvement vs baseline (faster triage, higher integrity / recovery). */
+  improvementPercent: number | null;
+  baselineSampleSize: number;
+  currentSampleSize: number;
+}
+
+export interface OutcomeKpiRoiWindowInfo {
+  start: string;
+  end: string;
+  days: number;
+  label: "pre_activation_14d" | "trailing_post_activation_14d";
+}
+
+export interface OutcomeKpiRoiResponse {
+  clinicId: string;
+  hasActivation: boolean;
+  activationAt: string | null;
+  baselineWindow: OutcomeKpiRoiWindowInfo | null;
+  currentWindow: OutcomeKpiRoiWindowInfo | null;
+  generatedAt: string;
+  timeToTriageMinutesP50: OutcomeKpiRoiMetric;
+  /** Direct acknowledge rate % (0–100), excluding forced overrides. */
+  handoffIntegrityDirectAckPercent: OutcomeKpiRoiMetric;
+  /** 100 − consumable billing leakage gap % (dispensed vs billed); higher = better capture. */
+  revenueRecoveryScore: OutcomeKpiRoiMetric;
+  avgDailyBillingCents: OutcomeKpiRoiMetric;
 }

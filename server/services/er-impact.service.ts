@@ -56,7 +56,7 @@ async function resolveBaselineWindow(
  * assignment (updated_at proxy) for all intakes assigned within the given window.
  * Clinic-scoped. Returns null when no assigned intakes exist in the window.
  */
-async function computeDoorToTriageP50(
+export async function computeDoorToTriageP50(
   clinicId: string,
   windowStart: Date,
   windowEnd: Date,
@@ -86,7 +86,7 @@ async function computeDoorToTriageP50(
  * Compute missedHandoffRate: proportion of Structured Clinical Handoff items that breached
  * their SLA (sla_breached_at IS NOT NULL) in the given window. Returns null when no items exist.
  */
-async function computeMissedHandoffRate(
+export async function computeMissedHandoffRate(
   clinicId: string,
   windowStart: Date,
   windowEnd: Date,
@@ -263,6 +263,57 @@ async function computeFinancialCorrelation(
     baselineDays > 0 ? Math.round(baselineTotal / baselineDays) : null;
 
   return { capturedRevenueThisPeriodCents, currentAvgDailyRevenueCents, baselineAvgDailyRevenueCents };
+}
+
+/** Direct acknowledge rate (0–1) for Structured Clinical Handoff items in the window. */
+export async function computeDirectAckRate(
+  clinicId: string,
+  windowStart: Date,
+  windowEnd: Date,
+): Promise<number | null> {
+  const [row] = await db
+    .select({
+      total: count(),
+      directAck: sql<number>`COUNT(*) FILTER (WHERE ${shiftHandoffItems.ackBy} IS NOT NULL AND ${shiftHandoffItems.overriddenBy} IS NULL)`.as("direct_ack"),
+    })
+    .from(shiftHandoffItems)
+    .where(
+      and(
+        eq(shiftHandoffItems.clinicId, clinicId),
+        gte(shiftHandoffItems.createdAt, windowStart),
+        lt(shiftHandoffItems.createdAt, windowEnd),
+      ),
+    );
+
+  const total = Number(row?.total ?? 0);
+  if (total === 0) return null;
+  return Math.round((Number(row?.directAck ?? 0) / total) * 10000) / 10000;
+}
+
+/** Average non-voided billing ledger revenue per calendar day in [windowStart, windowEnd). */
+export async function computeAvgDailyBillingRevenueCents(
+  clinicId: string,
+  windowStart: Date,
+  windowEnd: Date,
+): Promise<number | null> {
+  const [row] = await db
+    .select({
+      total: sql<number>`COALESCE(SUM(${billingLedger.totalAmountCents}), 0)`.as("total"),
+    })
+    .from(billingLedger)
+    .where(
+      and(
+        eq(billingLedger.clinicId, clinicId),
+        sql`${billingLedger.status} != 'voided'`,
+        gte(billingLedger.createdAt, windowStart),
+        lt(billingLedger.createdAt, windowEnd),
+      ),
+    );
+
+  const sum = Number(row?.total ?? 0);
+  const dayMs = 86_400_000;
+  const days = Math.max(1, Math.round((windowEnd.getTime() - windowStart.getTime()) / dayMs));
+  return Math.round(sum / days);
 }
 
 function computeConfidence(sampleSize: number): ErConfidenceLevel {

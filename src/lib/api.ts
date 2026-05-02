@@ -70,6 +70,7 @@ import type {
   ManualBillingRequest,
   ShiftCompletionResult,
 } from "@/types";
+import type { OutcomeKpiRoiResponse } from "../../shared/er-types.js";
 import { getStoredLocale, t } from "@/lib/i18n";
 import { toast } from "sonner";
 import type { PendingSyncType } from "./offline-db";
@@ -757,6 +758,7 @@ export const api = {
   },
   analytics: {
     summary: () => request<AnalyticsSummary>("/api/analytics"),
+    outcomeKpiRoi: () => request<OutcomeKpiRoiResponse>("/api/analytics/outcome-kpi-roi"),
     shiftCompletion: (from?: string, to?: string) => {
       const qs = new URLSearchParams();
       if (from) qs.set("from", from);
