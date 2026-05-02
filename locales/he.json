@@ -358,6 +358,15 @@
     "networkUnavailable": "לא ניתן לגשת לשרת. ייתכן שאתה לא מחובר או שהשרת נפל."
   },
 
+  "dispenseSheet": {
+    "orphanOverrideTitle": "לא נמצאה הזמנה תואמת — האם זה חירום?",
+    "orphanOverrideHint": "בחר סיבה לאשר משיכת חירום. הפעולה מתועדת בביקורת.",
+    "bypassEmergencyCpr": "חירום / החייאה",
+    "bypassProtocol": "חריגה מהפרוטוקול",
+    "bypassTechError": "טעות טכנית / רישום",
+    "confirmEmergencyDispense": "אשר משיכת חירום"
+  },
+
   "syncEngine": {
     "pausedTooManyErrors": "הסנכרון הושהה — יותר מדי שגיאות",
     "resumedTryingPending": "הסנכרון חודש — מנסה שוב שינויים ממתינים",
@@ -1433,6 +1442,9 @@
       "next15m": "15 דק׳ הבאות",
       "handoffRisk": "סיכון העברה"
     },
+    "quickScan": "סריקה מהירה",
+    "quickScanNoPatient": "יש לקשר חיה לקליטה לפני סריקה מהירה.",
+    "quickScanPickPatientFirst": "בחרו תחילה ״סריקה מהירה״ בכרטיס מטופל.",
     "quickIntake": "קליטה מהירה",
     "species": "מין",
     "severity": "חומרה",

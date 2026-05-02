@@ -6,6 +6,25 @@ import { getOrCreateDefaultConsumableBillingItem } from "./container-billing.js"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbTx = any;
 
+/**
+ * Input for a single consumable billing line from cabinet dispense.
+ * Must be executed inside the caller's database transaction.
+ */
+export interface BillingLineInput {
+  clinicId: string;
+  billingItemId: string | null;
+  inventoryLogId: string;
+  itemId: string;
+  patientId: string | null;
+  qty: number;
+  /** Resolved ledger idempotency key for this line (includes HTTP Idempotency-Key when present). */
+  idempotencyKey: string;
+  /** Override unit price in cents; when omitted, resolved from billing items / defaults. */
+  unitPriceCents?: number;
+  /** When set (only from routes gated by `VETTRACK_TEST_FORCE_BILLING_FAIL`), throws to verify TX rollback. */
+  testForceBillingFail?: boolean;
+}
+
 export type ConsumableCaptureResult = {
   billingEventId: string | null;
   exemptReason?: string;
@@ -13,21 +32,32 @@ export type ConsumableCaptureResult = {
 };
 
 /**
- * Creates (or reuses) a `vt_billing_ledger` row for a single dispense line, keyed by
- * `adjustment_${inventoryLogId}` — aligns with Smart Cop / shadow orphan reconciliation.
+ * Creates (or reuses) a `vt_billing_ledger` row for a single dispense line.
  */
 export async function captureConsumableBillingForDispenseLine(
   tx: DbTx,
-  params: {
-    clinicId: string;
-    billingItemId: string | null;
-    inventoryLogId: string;
-    itemId: string;
-    quantity: number;
-    animalId: string | null;
-  },
+  input: BillingLineInput,
 ): Promise<ConsumableCaptureResult> {
-  const { clinicId, billingItemId, inventoryLogId, itemId, quantity, animalId } = params;
+  const {
+    clinicId,
+    billingItemId,
+    inventoryLogId,
+    itemId,
+    patientId,
+    qty: quantity,
+    idempotencyKey: rawKey,
+    unitPriceCents: unitPriceCentsOverride,
+    testForceBillingFail,
+  } = input;
+
+  if (testForceBillingFail) {
+    throw Object.assign(new Error("TEST_FORCE_BILLING_FAIL"), { statusCode: 500 });
+  }
+
+  const idempotencyKey = rawKey.trim();
+  if (!idempotencyKey) {
+    throw new Error("idempotencyKey is required for consumable billing capture");
+  }
 
   const [invItem] = await tx
     .select({
@@ -46,12 +76,14 @@ export async function captureConsumableBillingForDispenseLine(
     return { billingEventId: null, exemptReason: "below_minimum_dispense", rowTotalCents: 0 };
   }
 
-  if (!animalId) {
+  if (!patientId) {
     return { billingEventId: null, exemptReason: "no_patient", rowTotalCents: 0 };
   }
 
   let unitPriceCents: number;
-  if (billingItemId) {
+  if (unitPriceCentsOverride !== undefined) {
+    unitPriceCents = unitPriceCentsOverride;
+  } else if (billingItemId) {
     const [bi] = await tx
       .select({ unitPriceCents: billingItems.unitPriceCents })
       .from(billingItems)
@@ -68,8 +100,6 @@ export async function captureConsumableBillingForDispenseLine(
     unitPriceCents = def.unitPriceCents;
   }
 
-  const idempotencyKey = `adjustment_${inventoryLogId}`;
-
   const [existing] = await tx
     .select({ id: billingLedger.id, totalAmountCents: billingLedger.totalAmountCents })
     .from(billingLedger)
@@ -85,7 +115,7 @@ export async function captureConsumableBillingForDispenseLine(
   await tx.insert(billingLedger).values({
     id: ledgerId,
     clinicId,
-    animalId,
+    animalId: patientId,
     itemType: "CONSUMABLE",
     itemId,
     quantity,
@@ -97,3 +127,6 @@ export async function captureConsumableBillingForDispenseLine(
 
   return { billingEventId: ledgerId, rowTotalCents };
 }
+
+/** Documented bypass reasons for emergency cabinet dispense (route validates / persists separately). */
+export type ConsumableBillingBypassReason = "EMERGENCY_CPR" | "PROTOCOL_OVERRIDE" | "TECH_ERROR";

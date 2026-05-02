@@ -111,6 +111,7 @@ function sortBoardItems(items: ErBoardItem[]): ErBoardItem[] {
 
 export interface IntakeBoardInput {
   id: string;
+  animalId: string | null;
   severityRaw: string;
   status: string;
   waitingSince: Date;
@@ -126,6 +127,7 @@ export interface IntakeBoardInput {
 
 export interface HandoffItemBoardInput {
   id: string;
+  animalId: string | null;
   waitingSince: Date;
   etaMinutes: number;
   slaOverdue: boolean;
@@ -157,6 +159,7 @@ export function intakeRowToBoardItem(row: IntakeBoardInput, now: Date): ErBoardI
 
   return {
     id: row.id,
+    animalId: row.animalId,
     type: "intake",
     lane,
     severity,
@@ -186,6 +189,7 @@ export function handoffItemRowToBoardItem(row: HandoffItemBoardInput, _now: Date
 
   return {
     id: row.id,
+    animalId: row.animalId,
     type: "hospitalization",
     lane,
     severity,
@@ -258,6 +262,7 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
       .select({
         item: shiftHandoffItems,
         animalName: animals.name,
+        animalId: hospitalizations.animalId,
         hospStatus: hospitalizations.status,
         ownerDisplay: users.displayName,
         ownerName: users.name,
@@ -281,6 +286,7 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
     const esc = r.row.escalatesAt;
     return {
       id: r.row.id,
+      animalId: r.row.animalId,
       severityRaw: r.row.severity,
       status: r.row.status,
       waitingSince: r.row.waitingSince instanceof Date ? r.row.waitingSince : new Date(r.row.waitingSince),
@@ -309,6 +315,7 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
     const minutesWaiting = (now.getTime() - created.getTime()) / 60_000;
     return {
       id: r.item.id,
+      animalId: r.animalId,
       waitingSince: created,
       etaMinutes: r.item.etaMinutes,
       slaOverdue: minutesWaiting >= ER_HANDOFF_SLA_MINUTES,

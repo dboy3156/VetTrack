@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,6 +49,8 @@ import { ActiveAssistancePanel } from "@/components/er/active-assistance-panel";
 import { CodeBlueAssistancePanel } from "@/components/er/code-blue-assistance-panel";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
+import { QrScanner } from "@/components/qr-scanner";
+import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 import {
   erEscalationCardClass,
   useErEscalationAnticipation,
@@ -195,6 +197,7 @@ function ErBoardLaneItemCard({
   onForcedAckOverride,
   assigningId,
   ackingId,
+  onScan,
 }: {
   item: ErBoardItem;
   assignees: { id: string; name: string }[];
@@ -206,6 +209,7 @@ function ErBoardLaneItemCard({
   onForcedAckOverride: (itemId: string) => void;
   assigningId: string | null;
   ackingId: string | null;
+  onScan: (patientId: string) => void;
 }) {
   const ant = useErEscalationAnticipation(item.escalatesAt, item.type);
   const pulse = ant.urgency === "imminent" || ant.urgency === "past";
@@ -284,6 +288,15 @@ function ErBoardLaneItemCard({
           </div>
         ) : null}
         {/* Incoming Assignee Ack — button is disabled for non-owners without admin/vet role. */}
+        {item.animalId ? (
+          <button
+            type="button"
+            className="border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors"
+            onClick={() => onScan(item.animalId!)}
+          >
+            {t.erCommandCenter.quickScan}
+          </button>
+        ) : null}
         {item.type === "hospitalization" && ackAccess ? (
           <Button
             size="sm"
@@ -329,6 +342,7 @@ function LaneColumn({
   onForcedAckOverride,
   assigningId,
   ackingId,
+  onScan,
 }: {
   title: string;
   items: ErBoardItem[];
@@ -341,6 +355,7 @@ function LaneColumn({
   onForcedAckOverride: (itemId: string) => void;
   assigningId: string | null;
   ackingId: string | null;
+  onScan: (patientId: string) => void;
 }) {
   return (
     <Card className="flex min-h-[320px] flex-1 flex-col">
@@ -364,6 +379,7 @@ function LaneColumn({
               onForcedAckOverride={onForcedAckOverride}
               assigningId={assigningId}
               ackingId={ackingId}
+              onScan={onScan}
             />
           ))
         )}
@@ -391,6 +407,10 @@ export default function ErCommandCenterPage() {
   // Forced Ack Override modal state.
   const [overrideTargetId, setOverrideTargetId] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [activePatientId, setActivePatientId] = useState<string | null>(null);
+  const [scannedContainerId, setScannedContainerId] = useState<string | null>(null);
+  const activePatientIdRef = useRef<string | null>(null);
   const [activeAssistanceOpen, setActiveAssistanceOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -401,6 +421,10 @@ export default function ErCommandCenterPage() {
   });
 
   useEffect(() => {
+    activePatientIdRef.current = activePatientId;
+  }, [activePatientId]);
+
+  useEffect(() => {
     try {
       if (activeAssistanceOpen) sessionStorage.setItem(ACTIVE_ASSISTANCE_STORAGE_KEY, "1");
       else sessionStorage.removeItem(ACTIVE_ASSISTANCE_STORAGE_KEY);
@@ -408,6 +432,26 @@ export default function ErCommandCenterPage() {
       // ignore
     }
   }, [activeAssistanceOpen]);
+
+  const handleScan = useCallback((patientId?: string) => {
+    setScannedContainerId(null);
+    if (patientId) {
+      setActivePatientId(patientId);
+      setScannerOpen(true);
+      return;
+    }
+    if (!activePatientIdRef.current) {
+      toast.info(t.erCommandCenter.quickScanPickPatientFirst);
+      return;
+    }
+    setScannerOpen(true);
+  }, []);
+
+  const handleCloseScan = useCallback(() => {
+    setScannerOpen(false);
+    setActivePatientId(null);
+    setScannedContainerId(null);
+  }, []);
 
   const boardQ = useQuery({
     queryKey: ER_QUERY,
@@ -557,7 +601,12 @@ export default function ErCommandCenterPage() {
     );
 
   return (
-    <Layout title={t.erCommandCenter.title}>
+    <Layout
+      title={t.erCommandCenter.title}
+      onScan={handleScan}
+      scannerOpen={scannerOpen}
+      onCloseScan={handleCloseScan}
+    >
       <Helmet>
         <title>{t.erCommandCenter.title}</title>
       </Helmet>
@@ -834,6 +883,7 @@ export default function ErCommandCenterPage() {
                 setOverrideTargetId(id);
                 setOverrideReason("");
               }}
+              onScan={handleScan}
             />
             <LaneColumn
               title={t.erCommandCenter.lanes.next15m}
@@ -850,6 +900,7 @@ export default function ErCommandCenterPage() {
                 setOverrideTargetId(id);
                 setOverrideReason("");
               }}
+              onScan={handleScan}
             />
             <LaneColumn
               title={t.erCommandCenter.lanes.handoffRisk}
@@ -866,10 +917,29 @@ export default function ErCommandCenterPage() {
                 setOverrideTargetId(id);
                 setOverrideReason("");
               }}
+              onScan={handleScan}
             />
           </div>
         )}
       </div>
+
+      {scannerOpen && activePatientId && !scannedContainerId ? (
+        <QrScanner
+          onClose={handleCloseScan}
+          onDispense={(containerId) => {
+            setScannedContainerId(containerId);
+          }}
+        />
+      ) : null}
+
+      {scannerOpen && activePatientId && scannedContainerId ? (
+        <DispenseSheet
+          containerId={scannedContainerId}
+          isOpen
+          patientId={activePatientId}
+          onClose={handleCloseScan}
+        />
+      ) : null}
 
       {/* Forced Ack Override modal — admin/vet must provide a mandatory reason. */}
       <Dialog

@@ -1,144 +1,204 @@
-# VetTrack — Cursor rules (architecture invariants)
+# VetTrack — AI-assisted development rules
 
-These rules govern **all AI-assisted development** on this repository: a production veterinary hospital operations stack (React/Vite + Express + PostgreSQL + Drizzle + BullMQ/Redis + Clerk + Dexie offline sync). They supplement stacked project rules under `.cursor/rules/*.mdc` (especially `engineering-and-agent-principles.mdc`, `typescript-standards.mdc`, `express-server.mdc`). Prefer **evidence from `server/`, `src/`, `shared/`** over generic advice.
+These rules govern all AI-assisted work on this repository. They extend the focused workflow in `.cursor/.cursorrules` (minimal diffs, safe-fix-first) and must be read together: **architectural invariants below do not override “small, safe changes” unless a change is explicitly architectural**.
 
-**How to use:** Keep this file at the repo root; work **one focused feature at a time**; after substantive edits run `npx tsc --noEmit` (zero errors before merge). Schema-first: start with `server/db.ts` before routes/UI.
+**Zero dead code:** Do not add exports, routes, workers, schema columns, locale keys, or sync types without a same-changeset consumer; remove features in the **Removal Protocol** order at the end of this file. Run `knip` (see `knip.json` ignores) and `npx tsc --noEmit` after removals.
 
 ---
 
 ## Multi-tenancy
 
-- Treat **`clinicId` as a security boundary**, not a stylistic filter: every `select` / `insert` / `update` / `delete` against tenant data must constrain rows by the **request’s** `clinicId` (from `req.authUser.clinicId` / `req.clinicId` after auth middleware — see `server/middleware/auth.ts`).
-- **Never infer tenant scope only from a join** on another table; the **target row’s table** must include `eq(table.clinicId, clinicId)` (or equivalent) so OR conditions cannot widen tenancy.
-- The string **`dev-clinic-default`** is the dev-bypass default clinic (`server/middleware/auth.ts` `DEV_USER`); **never hardcode** it in production-only code paths. Production **must** have `CLERK_SECRET_KEY` or the server refuses to start (`server/middleware/auth.ts`).
-- Cross-clinic reads/writes are **security defects**, not style issues.
-- New `pgTable` definitions in **`server/db.ts`** must include **`clinicId`** scoped to the clinic/tenant (pattern used across `vt_*` tables). Follow existing table ordering in that file for consistency.
+- Treat `clinicId` as a **security boundary** for every read/write: **every** Drizzle query that touches tenant data must constrain the **target table** with `eq(<table>.clinicId, clinicId)` (or equivalent), not only via joins.
+- Never satisfy tenancy by joining alone if the target row’s table is not also filtered by `clinicId`.
+- **Never** hardcode `dev-clinic-default` in production-only code paths; it is the dev-bypass default clinic on `AuthUser` in `server/middleware/auth.ts` (`DEV_USER`) and `ensureDevUserRecord`.
+- Cross-clinic access is a **defect**, not a style issue.
+- New `pgTable` definitions in `server/db.ts` must include tenant scope: `clinicId` is **not null** and references `clinics` where the rest of the schema does; place it **immediately after the primary key** for new tables unless an existing table family uses a different column order (match neighbors).
 
 ## Auth
 
-- **Auth mode (contract):** `server/lib/auth-mode.ts` — `clerk` when `CLERK_SECRET_KEY` is set **and** `CLERK_ENABLED !== "false"`; otherwise `dev-bypass`. **`resolveAuthModeFromEnv()`** is used for startup logging and tooling.
-- **Runtime API auth (`resolveAuthUser`):** Development bypass applies when **`NODE_ENV !== "production"`** and **`CLERK_SECRET_KEY` is absent** (`server/middleware/auth.ts`). Clerk middleware is mounted only when `authModeResolution.mode === "clerk"` (`server/index.ts`).
-- **`sessionContextMiddleware`** (`server/middleware/auth.ts`) runs globally on `/api` and **best-effort** attaches `req.authUser`, `req.clinicId`, `req.locale` without returning 401; routes that require authentication must still use **`requireAuth`** / **`requireAuthAny`**.
-- **Role source of truth:** After Clerk upsert, **`role` is always read from `vt_users.role`** in the database; JWT/session claims are **not** trusted for authorization (`server/middleware/auth.ts` comment near upsert).
-- **Numeric role floor** (`ROLE_HIERARCHY` in `server/middleware/auth.ts`): `admin` **40**, `vet` **30**, `senior_technician` **25**, `lead_technician` **22**, `technician` / `vet_tech` **20**, `student` **10**. **`requireRole(minRole)`** compares these floors.
-- **Middleware:** `requireAuth` — active users only (`status === "pending"` → 403 `ACCOUNT_PENDING_APPROVAL`; `status === "blocked"` → 403 `ACCOUNT_BLOCKED`); `requireAdmin` — **`role === "admin"`** only; `requireRole(minRole)` — DB role hierarchy; **`requireEffectiveRole(minRole)`** — uses **`resolveCurrentRole`** (`server/lib/role-resolution.js`) for shift-context effective role; admins short-circuit.
-- **Deleted users:** `deletedAt` set → 403 with **`ACCOUNT_DELETED`** (`server/middleware/auth.ts`).
-- **Dev-only headers** (`X-Dev-Role-Override`, `X-Dev-User-ID-Override`, `X-Dev-Clinic-ID-Override`): honored only in **development bypass** path (`server/middleware/auth.ts`).
+- **Auth mode (config):** `server/lib/auth-mode.ts` — `clerk` when `CLERK_SECRET_KEY` is non-empty and `CLERK_ENABLED !== "false"`; otherwise `dev-bypass`. Use `resolveAuthModeFromEnv()` for startup/diagnostics.
+- **Runtime API resolution:** In `server/middleware/auth.ts`, `resolveAuthUser` uses **dev bypass** when `NODE_ENV !== "production"` **and** `CLERK_SECRET_KEY` is unset; otherwise Clerk. This can differ from `resolveAuthModeFromEnv()` when `CLERK_ENABLED` is `"false"` — treat **runtime** behavior as authoritative for handlers.
+- `sessionContextMiddleware` runs on `/api` and **best-effort** sets `req.authUser`, `req.clinicId`, `req.locale`; it does **not** replace `requireAuth` on protected routes.
+- **Role source of truth:** After resolution, `role` on `AuthUser` is taken from **`vt_users.role`** in the database (see upsert/lookup paths in `server/middleware/auth.ts`); do not trust JWT/session claims for authorization.
+- **Numeric role floor** `ROLE_HIERARCHY` in `server/middleware/auth.ts`: `admin` **40**, `vet` **30**, `senior_technician` **25**, `lead_technician` **22**, `vet_tech` **20**, `technician` **20**, `student` **10**.
+- **Guards:** `requireAuth` (active users; blocks `pending` and `blocked`), `requireAuthAny`, `requireAdmin` (`admin` only), `requireRole(minRole)`, `requireEffectiveRole(minRole)` (uses `resolveCurrentRole` from `server/lib/role-resolution.js` for shift context).
+- **Account states:** `status === "pending"` → 403 `ACCOUNT_PENDING_APPROVAL`; `status === "blocked"` → 403 `ACCOUNT_BLOCKED`; `deletedAt` set on user row → 403 `ACCOUNT_DELETED`.
+- **Dev-only headers** (`x-dev-role-override`, `x-dev-user-id-override`, `x-dev-clinic-id-override`): honored only in **dev bypass** path inside `resolveAuthUser` (`server/middleware/auth.ts`).
 
 ## Database schema
 
-- **Single source of truth:** all Drizzle table definitions live in **`server/db.ts`** only.
-- **Authoring workflow:** edit **`server/db.ts`** → **`npx drizzle-kit generate`** → **`pnpm db:migrate`**. Use **`npx drizzle-kit push`** only for **local dev** — never against production (`CLAUDE.md`).
-- **Boot behavior:** **`server/index.ts`** calls **`runMigrations()`** from **`server/migrate.ts`** before starting background schedulers; pending SQL migrations apply at process start.
-- Table names use the **`vt_`** prefix (e.g. `vt_users`, `vt_billing_ledger`).
-- **Soft delete:** pattern `deletedAt` / `deletedBy` where present — queries must filter **`isNull(table.deletedAt)`** unless intentionally including deleted rows (users, equipment, folders, formulary, etc.).
-- **`vt_equipment`:** optimistic locking via **`version`** — updates must increment **`version`** and enforce expected version on write where the codebase already does (follow existing equipment routes/services).
-- **Formulary uniqueness:** filtered unique on **`(clinicId, genericName, concentrationMgMl)`** with **`WHERE deleted_at IS NULL`** (see `server/db.ts` `drugFormulary` indexes).
-- **JSONB** (`metadata`, `calculationSnapshot`, payloads): pass **typed objects** through Drizzle; never build SQL by concatenating JSON strings.
+- **Single source of truth:** all Drizzle `pgTable` / enums live in **`server/db.ts` only**.
+- **Workflow:** edit `server/db.ts` → `npx drizzle-kit generate` → `pnpm db:migrate`. Use `npx drizzle-kit push` **local dev only**, never production (`CLAUDE.md`).
+- **Boot:** `server/index.ts` calls `runMigrations()` **before** `startBackgroundSchedulers()`, inventory recovery `setInterval`, and medication task recovery `setInterval`. Migration failure aborts scheduler startup for that process.
+- Table names use prefix **`vt_`**.
+- **Soft delete:** pattern `deletedAt` / `deletedBy` on `vt_equipment` and others — default queries use `isNull(table.deletedAt)` unless explicitly including deleted rows.
+- **Equipment:** `vt_equipment.version` optimistic locking — updates must increment `version` and enforce expected version where the code already does (equipment routes/services).
+- **Drug formulary:** partial unique index `vt_drug_formulary_clinic_generic_conc_uq` on `(clinicId, lower(trim(genericName)), concentrationMgMl) WHERE deleted_at IS NULL` in `server/db.ts`.
+- **JSONB** (`calculationSnapshot`, `metadata`, audit payloads, etc.): pass structured objects through Drizzle; do not build JSON with string concatenation of user input.
 
 ## Service layer
 
-- **`server/services/`** exports **async functions** (no service classes); **`clinicId` is an explicit parameter** — never read from global/env for tenant scope.
-- Return **typed DTOs** or throw **domain errors** (e.g. **`MedTaskError`**, **`MedicationCalculationError`**, **`InventoryError`** patterns).
-- Multi-step writes: **`await db.transaction(async (tx) => { ... })`** for atomicity.
-- **`logAudit()`** (`server/lib/audit.ts`): **do not `await`** on critical paths unless passing **`tx`** for same-transaction audit; non-tx call wraps its own transaction and **swallows errors** — treat as fire-and-forget from handlers.
-- **`insertRealtimeDomainEvent(tx, { clinicId, type, payload })`** (`server/lib/realtime-outbox.ts`): call **inside the same transaction** as the domain write so outbox rows roll back with failed commits.
+- `server/services/` export **async functions** (no service classes); **`clinicId` is an explicit parameter**, never from global/env inside the service.
+- Return typed DTOs or throw domain errors (`MedTaskError`, `MedicationCalculationError`, `InventoryError` patterns).
+- Multi-step writes: `await db.transaction(async (tx) => { ... })`.
+- `logAudit()` (`server/lib/audit.ts`): without `tx`, scheduling is **fire-and-forget** (`void db.transaction(...).catch`); with `tx`, it returns a Promise and writes audit + outbox in the same executor — do not `await` the no-`tx` form on hot paths; use `tx` variant when audit must commit with the domain write.
 
 ## Transactional event outbox
 
-- Domain-facing realtime: insert into **`vt_event_outbox`** via **`insertRealtimeDomainEvent`** in the **same DB transaction** as the mutation (`server/lib/realtime-outbox.ts`).
-- **Publisher:** **`server/lib/event-publisher.ts`** polls every **`750`** ms (`POLL_MS`), batch size **100**, backoff constants **`OUTBOX_MAX_RETRY_COUNT = 50`** for DLQ — do not build parallel polling loops for the same table.
-- **`outboxEmitter`** (`server/lib/event-publisher.ts`) emits after publish; consumers attach there for push/SSE fan-out — follow existing patterns instead of ad-hoc DB polling for “live” UX.
-- **`logAudit`** without `tx` also inserts **`vt_event_outbox`** rows with type **`audit_log`** (`OUTBOX_TYPE_AUDIT_LOG`).
+- Domain realtime: `insertRealtimeDomainEvent(tx, { clinicId, type, payload, occurredAt?, eventVersion? })` in `server/lib/realtime-outbox.ts` must run **in the same transaction** as the state change when loss on rollback is unacceptable.
+- **Publisher:** `server/lib/event-publisher.ts` — `POLL_MS = 750`, `BATCH_SIZE = 100`, `OUTBOX_MAX_RETRY_COUNT = 50` (rows then DLQ / permanent failure). Do not add a second publisher loop.
+- **Consumers** subscribe to `outboxEmitter` (`EventEmitter` in `server/lib/event-publisher.ts`); do not poll `vt_event_outbox` from random features for “live” UX.
+- `logAudit` without `tx` also inserts `vt_event_outbox` with type `OUTBOX_TYPE_AUDIT_LOG` (`"audit_log"`).
 
-## Background workers (BullMQ / schedulers)
+## Background workers (BullMQ) and schedulers
 
-- Register every new worker/scheduler startup path in **`server/app/start-schedulers.ts`** (e.g. **`await startExpiryCheckWorker()`**, **`await startChargeAlertWorker()`**, **`await startInventoryDeductionWorker()`**, **`await startIntegrationWorker()`**, plus **`startErIntakeEscalationScheduler`**, **`startErHandoffSlaScheduler`**, etc.). If it is not started here, it does not run in production.
-- **Redis:** optional in dev — workers log disabled when Redis is missing; production expects Redis for queues (`server/workers/chargeAlertWorker.ts`, `inventory-deduction.worker.ts` patterns).
-- **Charge alert queue:** `charge-alert`, job name **`check-plug`**, deterministic **`jobId`** via **`buildChargeAlertJobId(returnId)`** (`plug-check-${returnId}`); enqueue with **`delay`** from deadline minutes; cancel with **`cancelChargeAlertJob`** / **`job.remove()`** when plug-in state clears (`server/workers/chargeAlertWorker.ts`).
-- **Cron-style queues:** e.g. expiry worker uses BullMQ **repeat** / cron patterns — do not replace with **`setInterval`** for those domains (see `server/workers/expiryCheckWorker.ts`).
-- **Inventory deduction:** medication task completion enqueues **`vt_inventory_jobs`** and BullMQ processes **`inventory-deduction`** queue (`server/workers/inventory-deduction.worker.ts`); **`recoverPendingInventoryJobs`** runs on startup and on a **`10 * 60 * 1000`** ms interval (`server/index.ts`, `server/lib/inventory-job-recovery.ts`) — keep this recovery path.
-- **ER schedulers (not BullMQ):** intake escalation **`startErIntakeEscalationScheduler`** — **`setInterval(..., 60 * 1000)`** (`server/services/er-intake-escalation.service.ts`); handoff SLA **`startErHandoffSlaScheduler`** — **`setInterval(..., 5 * 60 * 1000)`** (`server/services/er-handoff-sla.service.ts`).
+- New BullMQ **worker** must be **`await` imported** in `server/app/start-schedulers.ts` (e.g. `await startInventoryDeductionWorker()`). If not started there, it does not run. **Note:** `startBackgroundSchedulers` also starts non-BullMQ schedulers (VAPID, outbox, ER rollups, etc.) — follow existing import patterns.
+- **Redis:** `createRedisConnection()` / `getRedisUrl()` in `server/lib/redis.ts` — if Redis is missing, workers log **disabled** (e.g. charge alert: `"[charge-alert-worker] queue disabled (Redis unavailable)"`; inventory: `"[inventory-deduction] worker disabled (Redis unavailable)"`); `getRedis` warns `REDIS_DISABLED: running without Redis`. Production expects Redis for queues.
+- **Idempotent jobs:** e.g. `buildChargeAlertJobId(returnId)` → `plug-check-${returnId}`; pass as `jobId` in `queue.add()` in `server/workers/chargeAlertWorker.ts`. **Cancel** via `cancelChargeAlertJob` → `chargeAlertQueue.getJob(id)` then `job.remove()`.
+- **Cron-style BullMQ:** e.g. `server/workers/expiryCheckWorker.ts` — `EXPIRY_CHECK_CRON = "0 8 * * *"` on the `expiry-check` queue. Do not replace domain queues with ad-hoc `setInterval` where BullMQ repeat is already the pattern.
+- **In-process timers (allowed in this repo):** `server/services/er-intake-escalation.service.ts` — `setInterval(tick, 60 * 1000)` (60s); `server/services/er-handoff-sla.service.ts` — `setInterval(tick, 5 * 60 * 1000)` (5 min); `server/index.ts` — `recoverPendingInventoryJobs` every `10 * 60 * 1000` ms; stale medication `releaseStaleMedicationTasks` every `5 * 60 * 1000` ms. New **similar** schedulers must be registered from `start-schedulers` or `index.ts` with clear tick constants — do not duplicate inventory/ER logic elsewhere.
+- **Inventory deduction async path:** task completion enqueues/inserts `vt_inventory_jobs`; `server/workers/inventory-deduction.worker.ts` processes `INVENTORY_DEDUCTION_QUEUE_NAME`. Brief inconsistency between billing and inventory after `completeTask` return is **expected**. Recovery: `server/lib/inventory-job-recovery.ts` re-enqueues stale/failed jobs (pending older than 5 minutes or failed under `MAX_INVENTORY_JOB_RETRIES`).
 
 ## Medication safety
 
-- **Liquid draw volume:** **`volumeMl = (weightKg * prescribedDoseMgPerKg) / concentrationMgPerMl`** with **`prescribedDoseMgPerKg`** derived from prescribed dose + unit (`server/services/medication-calculation.service.ts` **`calculateMedicationVolumeMl`**). Tablet flows use tablet math — see same file when `doseUnit === "tablet"`.
-- **Hard upper bound:** calculated volume must satisfy **`volumeMl > 0`** and **`volumeMl < 100`** ml (**`MAX_SAFE_VOLUME_ML`** / **`MAX_EXCLUSIVE_VOLUME_ML`**); validation errors use **`MedicationCalculationError`** / **`MedTaskError`** with statuses defined on those classes (routes map them — see `server/routes/medication-tasks.ts`).
-- **Safety levels** from dose deviation: **`blocked`** / **`critical`** / **`warning`** / **`safe`** (`medication-calculation.service.ts`). **`blocked`** doses **cannot be created** as tasks (`createMedicationTask` throws **`DOSE_BLOCKED`**).
-- **Warnings:** when **`requiresReason`** is true, **`overrideReason`** must be provided on create (`REASON_REQUIRED`).
-- **Snapshot shape** stored on **`vt_medication_tasks.calculationSnapshot`:** **`{ version: 1, data: CalculationResult }`** (`server/services/medication-tasks.service.ts`).
-- **Completion:** **`validateCompletionVolume`** enforces finite volume, **`> 0`**, **`< 100`**, and **at most two decimal places** (`server/services/medication-tasks.service.ts`).
-- **Duplicate open tasks:** one row per **`(clinicId, animalId, drugId, route)`** with **`status IN ('pending','in_progress')`** — enforced by DB partial unique index + **`findOpenMedicationTaskDuplicate`** (`server/services/medication-tasks.service.ts`).
-- **Valid routes:** **`IV`**, **`IM`**, **`PO`**, **`SC`** (normalized uppercase).
+- **Liquid volume** (`server/services/medication-calculation.service.ts`): `volumeMl = (weightKg * prescribedDoseMgPerKg) / concentrationMgPerMl` with `prescribedDoseMgPerKg` from `convertDoseToMgPerKg` (handles `mcg_per_kg`, `mEq_per_kg`, tablet). **Upper bound** `MAX_SAFE_VOLUME_ML = 100` — calculated `volumeMl` must be **&lt; 100** (strict) for liquids; `validateCompletionVolume` in `server/services/medication-tasks.service.ts` uses `MAX_EXCLUSIVE_VOLUME_ML = 100` (completed volume must be **&lt; 100** ml, **&gt; 0**, at most **2** decimal places).
+- **Tablet path:** separate branch; `roundedVolumeMl` can represent tablet count (0.25 steps).
+- **Create task:** `blocked` safety level → `MedTaskError` `DOSE_BLOCKED` **400** (cannot create). `requiresReason` true without `overrideReason` → `REASON_REQUIRED` **400**.
+- **Valid routes:** `IV`, `IM`, `PO`, `SC` (uppercase) — `server/services/medication-tasks.service.ts`.
+- **Snapshot shape on insert:** `calculationSnapshot: { version: 1, data: CalculationResult }` in `server/services/medication-tasks.service.ts`.
+- **Duplicate open tasks:** partial unique `vt_med_tasks_open_animal_drug_route_uq` on `(clinicId, animalId, drugId, route) WHERE status IN ('pending','in_progress')` in `server/db.ts`; service also uses `findOpenMedicationTaskDuplicate` and `23505` handling.
 
-## Billing & idempotency
+## Billing and idempotency
 
-- **`vt_billing_ledger`:** **`idempotency_key`** is **`notNull().unique()`** — duplicates must be handled by **idempotent read-or-insert** / **`ON CONFLICT`** patterns (`server/lib/equipment-seen.ts`, `server/services/appointments.service.ts` patterns).
-- **`animalId`** is **nullable** on **`vt_billing_ledger`** for pre-patient captures (`server/db.ts` comment).
-- **Status enum:** **`pending` → `synced` → `voided`** (`billingLedgerStatusEnum` in `server/db.ts`); design transitions explicitly — no silent backwards moves.
-- **`vt_usage_sessions`:** billing lifecycle uses **`startedAt`**, **`lastBilledThrough`**, **`endedAt`**, **`status`** — follow existing session billing services when closing sessions.
+- `vt_billing_ledger.idempotency_key` is **not null** and **unique** (see `server/db.ts`). Inserts must use deterministic idempotency (see `server/lib/equipment-seen.ts`, `server/services/appointments.service.ts` patterns) — duplicate key should return or fetch existing row, not 500.
+- `animalId` is **nullable** on `vt_billing_ledger` (comment in `server/db.ts` — e.g. Code Blue pre-patient); do not reject solely for null `animalId`.
+- `billingLedgerStatusEnum`: **`pending` | `synced` | `voided`** — design transitions explicitly.
+- `vt_usage_sessions` (`server/db.ts`): `startedAt`, `lastBilledThrough`, `endedAt`, `status` — follow existing session billing services for lifecycle.
 
 ## ER (emergency)
 
-- **Escalation timing:** per-clinic columns **`erIntakeEscalateLowMinutes`** and **`erIntakeEscalateMediumMinutes`** on **`vt_clinics`** (defaults **15** / **15** in `server/db.ts`). **`computeInitialEscalatesAt`** (`server/services/er-intake-escalation.service.ts`): **`low`** → now + low minutes; **`medium`** → now + medium minutes; **`high`** → **`escalatesAt = null`** (no auto timer). Scheduler runs **`scanErIntakeEscalations`** on a **`60`** second tick (same file).
-- **Handoff SLA:** constant **`ER_HANDOFF_SLA_MINUTES = 60`** (`server/services/er-board.service.ts`); breach scan sets **`slaBreachedAt`** and emits **`ER_HANDOFF_SLA_BREACHED`** via outbox (`server/services/er-handoff-sla.service.ts`). Scheduler interval **`5`** minutes.
-- **Routes:** **`server/routes/er.ts`** uses **`requireAuth`** globally; **`requireAssignableRole`** allows **`admin` | `vet` | `senior_technician` | `technician`** for assign/handoff POST/PATCH; **`PATCH /mode`** uses **`requireRole("admin")`**.
-- **`vt_er_board_event_log`:** **append-only** event history (`server/db.ts`) — do not **`UPDATE`** / **`DELETE`** rows; insert new events only.
+- Intake escalation minutes: **`clinics.erIntakeEscalateLowMinutes`**, **`clinics.erIntakeEscalateMediumMinutes`** (defaults **15** / **15** via `DEFAULT_ER_INTAKE_ESCALATE_*` in `server/services/er-intake-escalation.service.ts`). `computeInitialEscalatesAt`: `low` → `now + escalateLowMinutes`; `medium` → `now + escalateMediumMinutes`; `high` / `critical` → `escalatesAt = null` (no auto bump from `computeInitialEscalatesAt` for high).
+- **Escalation scan:** `scanErIntakeEscalations` in `server/services/er-intake-escalation.service.ts`; scheduler **`setInterval(..., 60 * 1000)`** (60 seconds, not 10s). Bumps severity `low → medium → high` when `escalatesAt <= now`; emits `insertRealtimeDomainEvent` type **`QUEUE_SEVERITY_ESCALATED`**.
+- **Handoff SLA:** `ER_HANDOFF_SLA_MINUTES = 60` in `server/services/er-board.service.ts`; `scanErHandoffSlaBreaches` in `server/services/er-handoff-sla.service.ts` sets `slaBreachedAt` and emits **`ER_HANDOFF_SLA_BREACHED`**. Scheduler tick: **`5 * 60 * 1000` ms** (5 minutes), not 30 seconds.
+- **Routes** `server/routes/er.ts`: `router.use(requireAuth)`; `requireAssignableRole` allows **`admin` | `vet` | `senior_technician` | `technician`** for assign/handoff-related endpoints; `PATCH /mode` uses `requireRole("admin")` (currently `notImplemented` 501). **Do not** document “all ER routes require vet (≥30)” — technician (**20**) is allowed where `requireAssignableRole` is used.
 
-## Offline-first & sync
+## Offline-first / sync engine
 
-- All browser API traffic goes through **`src/lib/api.ts`** **`request()`** / helpers — do not scatter raw **`fetch()`** for backend calls in feature code.
-- When **`request()`** receives **`offline`** options and the failure is a **network** error, the call **must** enqueue **`pendingSync`** in Dexie (**`addPendingSync`** / **`offline-db.ts`**) — never drop the mutation silently.
-- **`src/lib/sync-engine.ts`:** **`MAX_RETRIES = 5`**; delay bases **`RETRY_DELAYS_MS = [2000, 5000, 10000]`** (additional retries reuse the last delay); **`CIRCUIT_THRESHOLD = 5`** consecutive transient failures opens circuit **`20000`** ms; items use **`ITEM_TIMEOUT_MS = 30000`** for fetch attempts.
-- Dexie: **`offline-db.ts`** — bump **`this.version(n)`** when adding stores/indexes; never edit a lower version in place.
+- All browser API traffic goes through **`src/lib/api.ts`** (`request`, helpers) — no raw `fetch()` in feature code for backend APIs.
+- When `request()` is called with **`offline`** options and failure is a **network** error, mutations **must** enqueue **`pendingSync`** via `addPendingSync` / `offline-db.ts` — never drop silently.
+- **`src/lib/sync-engine.ts`:** `MAX_RETRIES = 5`; `RETRY_DELAYS_MS = [2000, 5000, 10000]` — after the array ends, **`RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]`** is reused; `CIRCUIT_THRESHOLD = 5`; `CIRCUIT_COOLDOWN_MS = 20_000`; `ITEM_TIMEOUT_MS = 30_000`; `BURST_LIMIT = 50`; `BURST_DELAY_MS = 500`.
 
-## API client & types
+## API client and types
 
-- New endpoints: add a typed **`request<T>()`** wrapper in **`src/lib/api.ts`** and types under **`src/types/`** (import pattern at top of `api.ts`).
-- Use **`request<MyType>(...)`** generics for JSON responses.
-- **Timeouts:** default **`FETCH_TIMEOUT_MS = 30_000`**; equipment list **`EQUIPMENT_LIST_FETCH_TIMEOUT_MS = 5_000`**; task dashboards **`TASKS_FETCH_TIMEOUT_MS = 5_000`** (`src/lib/api.ts`) — pass **`timeoutMs`** for operational screens.
-- **401:** GET-like handling triggers soft navigation to **`/signin`** guarded by **`authRedirectInProgress`** to avoid redirect storms (`src/lib/api.ts`).
+- New endpoints: typed **`request<T>`** wrapper in **`src/lib/api.ts`** + types under **`src/types/`** (and/or **`shared/`** where already imported).
+- **`FETCH_TIMEOUT_MS = 30_000`** default; **`EQUIPMENT_LIST_FETCH_TIMEOUT_MS = 5_000`**; **`TASKS_FETCH_TIMEOUT_MS = 5_000`** — pass `timeoutMs` for operational dashboards (see `tasks.*` helpers).
+- **401:** `authRedirectInProgress` guard + soft navigate to **`/signin`** (`src/lib/api.ts`) — avoid redirect storms.
 
 ## Frontend routing
 
-- Route-level pages live under **`src/pages/`** and are **`lazy(() => import(...))`**-loaded from **`src/app/routes.tsx`**.
-- **Chunk load failures:** global handling lives in **`main.tsx`** — do not duplicate chunk error handlers in individual pages.
+- Pages live under **`src/pages/`**; route registration uses **`lazy(() => import(...))`** in **`src/app/routes.tsx`** (wouter `<Route>`). Use **`React.lazy`** pattern as in that file.
+- Global chunk / dynamic import failure handling is described in **`CLAUDE.md`** / **`replit.md`** for **`main.tsx`**; **do not** add duplicate chunk-error handlers on individual pages — keep a **single** global strategy.
 
 ## Technology constraints
 
-- **UI:** **Shadcn** patterns / existing primitives — do not add alternate component frameworks (MUI/Chakra/Ant) unless explicitly directed.
-- **Icons:** **Lucide React** only.
-- **Animation:** **Framer Motion** for motion primitives in this codebase.
-- **ORM:** **Drizzle** query builder — avoid new raw **`db.execute`** strings for app logic.
-- **HTTP:** **Express** only for the API server.
-- **Jobs:** **BullMQ** (+ Redis) for queue workers; use **`setInterval`** only for **small in-process schedulers** already used (ER scans, inventory job recovery) — not as a substitute for BullMQ domain queues.
-- **Offline DB:** **Dexie** (see **`src/lib/offline-db.ts`**).
-- **Auth provider:** **Clerk** — no custom JWT minting for production auth.
+- **UI:** Shadcn/Radix patterns already in repo; **Lucide** icons only; **Framer Motion** for motion; **Tailwind** utilities.
+- **ORM:** **Drizzle** only for app queries — avoid new raw `db.execute` strings for features (`vettrack-architecture-invariants.mdc` exception: existing migration/outbox patterns).
+- **HTTP:** **Express** only.
+- **Queues:** **BullMQ** for worker queues; in-process `setInterval` only for the **small schedulers** already used (ER, outbox is poll-based, recovery in `index.ts`).
+- **Offline DB:** **Dexie** in **`src/lib/offline-db.ts`** (current schema versions **3** and **4** with explicit `stores()`).
+- **Auth provider:** **Clerk** in production; no custom JWT minting.
 
 ## Internationalization
 
-- Hebrew copy only in **`locales/he.json`**, **`locales/en.json`**, and UI strings — **not** in identifiers, filenames, logs, or DB/API field names.
-- Frontend **`import { t } from '@/lib/i18n'`**; backend uses **`i18nMiddleware`** / **`req.locale`** (`server/index.ts`, `lib/i18n/middleware.js`) for localized **responses** — avoid hardcoding Hebrew in route strings.
+- Locales: **`locales/en.json`**, **`locales/he.json`**. Hebrew user-facing text only in JSON + UI — not in identifiers, file names, logs, or API field names.
+- Frontend: **`import { t } from "@/lib/i18n"`** (see `src/lib/i18n.ts` — re-exports dictionary keys with dot notation).
+- Backend: `req.locale` from i18n middleware (`server/index.ts` mounts `i18nMiddleware` on `/api`).
 
 ## Security
 
-- **XSS:** global JSON body sanitization with **`xss`** runs before handlers (`server/index.ts` after **`express.json()`**).
-- **Rate limits** (`server/middleware/rate-limiters.ts`): global **`120`** req/min per IP on `/api`; **`scanLimiter`** **`10`**/min; **`checkoutLimiter`** **`20`**/min; add scoped limiters for new sensitive write endpoints.
-- **Integration secrets:** encrypt at rest when **`DB_CONFIG_ENCRYPTION_KEY`** is set; never log secrets.
-- **Integration webhooks:** verify **HMAC** on raw body routes (`server/index.ts` mounts **`/api/integration-webhooks/:adapterId`** before JSON parser).
-- **CSP / Helmet:** extending **`connectSrc`**, **`scriptSrc`**, etc. requires updating **`server/index.ts`** Helmet `contentSecurityPolicy.directives`.
+- **XSS:** after `express.json()`, body passes through recursive `xss()` sanitizer in `server/index.ts` — do not bypass by manual body parsing for JSON routes.
+- **Rate limits** (`server/middleware/rate-limiters.ts`): **global** `globalApiLimiter` **120**/min; `scanLimiter` **10**/min; `checkoutLimiter` **20**/min; add scoped limiters for new sensitive writes.
+- **Integration secrets:** encrypt at rest with **`DB_CONFIG_ENCRYPTION_KEY`** when set; never log secrets.
+- **Webhooks:** Clerk and integration webhooks use raw body + signature verification where implemented — verify before trusting payload.
+- **Helmet CSP** in `server/index.ts` — extend `connectSrc` / `scriptSrc` when adding new external origins.
 
 ## Development workflow
 
 1. Schema / enum change → **`server/db.ts`**
-2. **`npx drizzle-kit generate`** → SQL under **`migrations/`**
-3. **`pnpm db:migrate`**
-4. New Express router → **`server/routes/*.ts`** → register in **`server/app/routes.ts`**
-5. New BullMQ worker → wire **`startXxxWorker`** in **`server/app/start-schedulers.ts`**
-6. Client **`src/lib/api.ts`** + **`src/types/`**
-7. New page → **`src/pages/`** + **`src/app/routes.tsx`** `lazy` route
-8. **`npx tsc --noEmit`** — must pass with **zero** errors before commit/PR
+2. `npx drizzle-kit generate` → SQL under **`migrations/`**
+3. `pnpm db:migrate`
+4. **`server/routes/*.ts`** → register in **`server/app/routes.ts`**
+5. New BullMQ worker → **`await startXxxWorker()`** in **`server/app/start-schedulers.ts`**
+6. **`src/lib/api.ts`** + **`src/types/`** (and **`shared/`** if shared contract)
+7. Page **`src/pages/`** → **`src/app/routes.tsx`**
+8. **`npx tsc --noEmit`** — zero errors before merge
 
 ---
 
-*Canonical deep docs: `CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`. Feature-specific rules also live under `.cursor/rules/`.*
+# Dead code prevention (VetTrack-specific)
+
+## API functions (`src/lib/api.ts`)
+
+- Every exported API helper must be referenced from **`src/`** (component, hook, or another helper). Verify with ripgrep/`knip`; zero references ⇒ remove or wire in the same PR.
+- Unused imports of API helpers count as dead if the symbol is never used.
+
+## Frontend routes (`src/app/routes.tsx`)
+
+- Every `<Route>` must point to a real lazy module under **`src/pages/`** or **`src/features/`** (compile-time resolves); broken lazy paths cause **`ChunkLoadError`** at runtime — treat as **P0**.
+- “Ghost routes” (no navigation) should be flagged for product review before deletion.
+
+## Types (`src/types/`, `server/`, `shared/`)
+
+- Remove unused `interface` / `type` / `enum` left from deleted features. Avoid dormant `type Old = New` aliases unless something imports them.
+
+## Backend routes (`server/app/routes.ts`, `server/routes/`)
+
+- Every Express router under **`server/routes/`** must be mounted in **`registerApiRoutes`** (`server/app/routes.ts`). Unmounted files never receive traffic.
+- Prefer **`src/lib/api.ts`** coverage for staff UI endpoints; webhooks/integrations may omit frontend callers but must be documented.
+
+## Workers (`server/workers/`, `server/app/start-schedulers.ts`)
+
+- Each worker file exposes **`startXxxWorker()`** (or equivalent) called from **`startBackgroundSchedulers`** in **`server/app/start-schedulers.ts`**. Unregistered workers never run.
+- Queues with **no** `queue.add` producers are idle — delete or wire producers.
+
+## Services (`server/services/`)
+
+- Exported functions must be called from at least one route, worker, scheduler, or other service. Subset-only imports: remove unused named exports.
+
+## Schema (`server/db.ts`)
+
+- New columns need at least one **query** in the same PR (select/insert/update/where). Before dropping a column, check **`migrations/`**, **`src/lib/offline-db.ts`**, and **`server/integrations/`**.
+
+## Translations (`locales/en.json`, `locales/he.json`)
+
+- Keep keys **paired** across locales. Every key should be reachable via `t...` from TS/TSX (or server template). No `TODO` / empty placeholder strings as “final” copy.
+
+## Commented code and debug noise
+
+- Delete commented-out implementation blocks; keep comments that document **why** something is intentionally not done.
+- Remove stray `console.log` from hot paths; boot/worker lifecycle logging is acceptable.
+
+## Shims and flags
+
+- Remove unused re-exports; remove hardcoded feature flags stuck `true`/`false` by deleting the dead branch.
+
+## Unreachable guards
+
+- Middleware after an unconditional `res.json` / `return` is dead. Parent `requireAuth` + child `requireRole` may be redundant — review before removing.
+
+## Dexie (`src/lib/offline-db.ts`, `src/lib/sync-engine.ts`)
+
+- Tables in the Dexie schema must be read/written from **`api.ts`**, **`sync-engine.ts`**, or hooks. Each **`PendingSyncType`** value in **`src/lib/offline-db.ts`** must appear in at least one `addPendingSync` / processing path.
+
+## Removal protocol
+
+When removing a feature, delete in order (same PR or sequenced): **UI components** → **route entries in `src/app/routes.tsx`** → **API exports in `src/lib/api.ts`** → **types in `src/types/` / `shared/`** → **route handlers in `server/routes/`** → **unregister router from `server/app/routes.ts` if file deleted** → **service functions** → **worker + `start-schedulers.ts`** if dedicated → **DB column/table via migration** → **locale keys** (both files). Then run **`knip`** and **`npx tsc --noEmit`**.
+
+## Enforcement (agents)
+
+1. Before adding an export, confirm an importer in the same PR.  
+2. Before adding a handler, confirm **`src/lib/api.ts`** (or external consumer) exists/planned.  
+3. Before adding a BullMQ worker file, update **`server/app/start-schedulers.ts`** in the same commit.  
+4. Before adding a DB column, add a query using it.  
+5. Before adding a locale key, add **`t.`** usage.  
+6. After structural removal, **`knip`** + **`npx tsc --noEmit`**; TS errors may expose missed dependents — fix or revert deletion scope.

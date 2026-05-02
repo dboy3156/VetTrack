@@ -18,6 +18,8 @@ export const ER_MODE_API_PATH_PREFIX_ALLOWLIST: readonly string[] = [
   "/session",
   "/realtime",
   "/push",
+  /** Cabinet dispense + inventory (bedside / ER workflows must stay reachable under concealment). */
+  "/containers",
 ];
 
 /**

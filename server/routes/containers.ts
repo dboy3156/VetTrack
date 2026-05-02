@@ -2,7 +2,18 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { billingItems, billingLedger, containerItems, containers, db, inventoryItems, inventoryLogs, users } from "../db.js";
+import {
+  billingItems,
+  billingLedger,
+  containerItems,
+  containers,
+  db,
+  idempotencyKeys,
+  inventoryItems,
+  inventoryLogs,
+  operationalTasks,
+  users,
+} from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { seedDefaultContainersIfEmpty } from "../lib/ensure-clinic-phase2-defaults.js";
@@ -16,6 +27,11 @@ import {
   type DispenseLineForValidation,
 } from "../lib/dispense-order-validation.js";
 import { captureConsumableBillingForDispenseLine } from "../lib/container-consumable-billing.js";
+import {
+  DISPENSE_IDEMPOTENCY_ENDPOINT,
+  dispenseIdempotencyMiddleware,
+} from "../middleware/container-dispense-idempotency.js";
+import { hashDispenseRequestBody } from "../lib/dispense-idempotency-hash.js";
 
 const router = Router();
 
@@ -228,16 +244,24 @@ router.post(
 
 // ─── Dispense schemas ─────────────────────────────────────────────────────────
 
-const dispenseSchema = z.object({
-  items: z.array(
-    z.object({
-      itemId: z.string().min(1),
-      quantity: z.number().int().min(1),
-    }),
-  ),
-  animalId: z.string().nullable().optional(),
-  isEmergency: z.boolean().optional().default(false),
-});
+const dispenseSchema = z
+  .object({
+    items: z.array(
+      z.object({
+        itemId: z.string().min(1),
+        quantity: z.number().int().min(1),
+      }),
+    ),
+    /** Legacy field; prefer `patientId` for new clients. */
+    animalId: z.string().nullable().optional(),
+    patientId: z.string().uuid().optional(),
+    isEmergency: z.boolean().default(false),
+    bypassReason: z.enum(["EMERGENCY_CPR", "PROTOCOL_OVERRIDE", "TECH_ERROR"]).optional(),
+  })
+  .refine((d) => !d.isEmergency || !!d.bypassReason, {
+    message: "bypassReason is required when isEmergency is true",
+    path: ["bypassReason"],
+  });
 
 const completeEmergencySchema = z.object({
   items: z.array(
@@ -255,6 +279,7 @@ router.post(
   requireAuth,
   requireEffectiveRole("technician"),
   validateUuid("id"),
+  dispenseIdempotencyMiddleware,
   validateBody(dispenseSchema),
   async (req, res) => {
     const requestId = resolveRequestId(res, req.headers["x-request-id"]);
@@ -264,12 +289,21 @@ router.post(
       const actorDisplayName = req.authUser!.name || req.authUser!.email;
       const containerId = req.params.id;
       const body = req.body as z.infer<typeof dispenseSchema>;
-      const { isEmergency, animalId } = body;
+      const { isEmergency } = body;
+      const animalId = body.animalId ?? body.patientId ?? null;
+      const requestIdempotencyKey = res.locals.dispenseIdempotencyKey;
       const takenAt = new Date();
+      const allowTestBillingFail =
+        process.env.VETTRACK_TEST_FORCE_BILLING_FAIL === "1" &&
+        typeof req.headers["x-test-force-billing-fail"] === "string" &&
+        req.headers["x-test-force-billing-fail"].trim() === "1";
 
-      if (isEmergency) {
-        // Emergency dispense: just log it, no stock changes
+      const dispenseRequestHash = hashDispenseRequestBody(req.body);
+
+      if (isEmergency && body.items.length === 0) {
+        // Standalone emergency tap: log event only, no stock changes (complete later)
         const emergencyEventId = randomUUID();
+        const bypassReason = body.bypassReason;
         await db.transaction(async (tx) => {
           const [container] = await tx
             .select()
@@ -290,7 +324,12 @@ router.post(
             animalId: null,
             roomId: container.roomId,
             note: "emergency",
-            metadata: { isEmergency: true, containerId, pendingCompletion: true },
+            metadata: {
+              isEmergency: true,
+              containerId,
+              pendingCompletion: true,
+              ...(bypassReason ? { bypassReason } : {}),
+            },
             createdByUserId: actorUserId,
           });
         });
@@ -303,10 +342,12 @@ router.post(
         });
       }
 
-      // Normal dispense
+      // Normal dispense — stock, logs, billing, idempotency replay row (single transaction).
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
       let autoBilledCents = 0;
+
+      let responsePayload: Record<string, unknown>;
 
       await db.transaction(async (tx) => {
         const [container] = await tx
@@ -316,33 +357,35 @@ router.post(
           .limit(1);
         if (!container) throw Object.assign(new Error("CONTAINER_NOT_FOUND"), { statusCode: 404 });
 
-        const validationLines: DispenseLineForValidation[] = [];
-        for (const lineItem of body.items) {
-          const inv = await loadInventoryItemLabelCode(tx, clinicId, lineItem.itemId);
-          if (!inv) {
-            throw Object.assign(new Error("INVENTORY_ITEM_NOT_FOUND"), { statusCode: 404, itemId: lineItem.itemId });
+        if (!body.isEmergency) {
+          const validationLines: DispenseLineForValidation[] = [];
+          for (const lineItem of body.items) {
+            const inv = await loadInventoryItemLabelCode(tx, clinicId, lineItem.itemId);
+            if (!inv) {
+              throw Object.assign(new Error("INVENTORY_ITEM_NOT_FOUND"), { statusCode: 404, itemId: lineItem.itemId });
+            }
+            validationLines.push({
+              itemId: lineItem.itemId,
+              quantity: lineItem.quantity,
+              label: inv.label,
+              code: inv.code,
+            });
           }
-          validationLines.push({
-            itemId: lineItem.itemId,
-            quantity: lineItem.quantity,
-            label: inv.label,
-            code: inv.code,
-          });
-        }
 
-        const { orphanLines } = await evaluateDispenseAgainstOrders(tx, {
-          clinicId,
-          animalId: animalId ?? null,
-          containerId,
-          lines: validationLines,
-        });
-
-        if (orphanLines.length > 0 && !isEmergency) {
-          throw Object.assign(new Error("ORPHAN_DISPENSE_BLOCKED"), {
-            statusCode: 400,
-            reason: "ORPHAN_DISPENSE_BLOCKED",
-            orphanLines,
+          const { orphanLines } = await evaluateDispenseAgainstOrders(tx, {
+            clinicId,
+            animalId: animalId ?? null,
+            containerId,
+            lines: validationLines,
           });
+
+          if (orphanLines.length > 0 && !body.bypassReason) {
+            throw Object.assign(new Error("ORPHAN_DISPENSE_BLOCKED"), {
+              statusCode: 400,
+              reason: "ORPHAN_DISPENSE_BLOCKED",
+              orphanLines,
+            });
+          }
         }
 
         for (const lineItem of body.items) {
@@ -414,7 +457,11 @@ router.post(
             animalId: animalId ?? null,
             roomId: container.roomId,
             note: null,
-            metadata: { isEmergency: false, itemId: lineItem.itemId },
+            metadata: {
+              isEmergency: Boolean(body.bypassReason) || Boolean(body.isEmergency),
+              itemId: lineItem.itemId,
+              ...(body.bypassReason ? { bypassReason: body.bypassReason } : {}),
+            },
             createdByUserId: actorUserId,
           });
 
@@ -425,20 +472,73 @@ router.post(
             newStock: newQty,
           });
 
+          const ledgerIdempotencyKey =
+            requestIdempotencyKey && requestIdempotencyKey.length > 0
+              ? `${requestIdempotencyKey}:adj:${inventoryLogId}`
+              : `adjustment_${inventoryLogId}`;
+
           const capture = await captureConsumableBillingForDispenseLine(tx, {
             clinicId,
             billingItemId: container.billingItemId,
             inventoryLogId,
             itemId: lineItem.itemId,
-            quantity: lineItem.quantity,
-            animalId: animalId ?? null,
+            patientId: animalId ?? null,
+            qty: lineItem.quantity,
+            idempotencyKey: ledgerIdempotencyKey,
+            testForceBillingFail: allowTestBillingFail,
           });
           if (capture.billingEventId) {
             billingIds.push(capture.billingEventId);
+            await tx
+              .update(inventoryLogs)
+              .set({ billingEventId: capture.billingEventId })
+              .where(and(eq(inventoryLogs.clinicId, clinicId), eq(inventoryLogs.id, inventoryLogId)));
           }
           autoBilledCents += capture.rowTotalCents;
         }
+
+        if (body.isEmergency && body.bypassReason) {
+          await tx.insert(operationalTasks).values({
+            id: randomUUID(),
+            clinicId,
+            patientId: animalId ?? null,
+            type: "SYSTEM",
+            tag: "BILLING_RECONCILIATION_REQUIRED",
+            title: "Emergency dispense — billing reconciliation required",
+          });
+        }
+
+        responsePayload = {
+          success: true,
+          dispensed: dispensedItems,
+          takenBy: { userId: actorUserId, displayName: actorDisplayName },
+          takenAt: takenAt.toISOString(),
+          billingIds,
+          autoBilledCents,
+        };
+
+        await tx
+          .insert(idempotencyKeys)
+          .values({
+            clinicId,
+            key: requestIdempotencyKey!,
+            endpoint: DISPENSE_IDEMPOTENCY_ENDPOINT,
+            requestHash: dispenseRequestHash,
+            statusCode: 200,
+            responseBody: responsePayload,
+          })
+          .onConflictDoUpdate({
+            target: [idempotencyKeys.clinicId, idempotencyKeys.key],
+            set: {
+              endpoint: DISPENSE_IDEMPOTENCY_ENDPOINT,
+              requestHash: dispenseRequestHash,
+              statusCode: 200,
+              responseBody: responsePayload,
+            },
+          });
       });
+
+      res.locals.dispenseIdempotencyPersistedInTransaction = true;
 
       // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
@@ -477,18 +577,12 @@ router.post(
           dispensedItemCount: dispensedItems.length,
           autoBilledCents,
           animalId: animalId ?? null,
-          isEmergency: false,
+          isEmergency: Boolean(body.bypassReason) || Boolean(body.isEmergency),
+          ...(body.bypassReason ? { bypassReason: body.bypassReason } : {}),
         },
       });
 
-      return res.json({
-        success: true,
-        dispensed: dispensedItems,
-        takenBy: { userId: actorUserId, displayName: actorDisplayName },
-        takenAt: takenAt.toISOString(),
-        billingIds,
-        autoBilledCents,
-      });
+      return res.json(responsePayload);
     } catch (err: unknown) {
       const e = err as Record<string, unknown> & { statusCode?: number; reason?: string; orphanLines?: unknown; itemId?: string };
       if (e.code === "INSUFFICIENT_STOCK") {

@@ -89,7 +89,8 @@ interface NavItem {
 interface LayoutProps {
   children: React.ReactNode;
   title?: string;
-  onScan?: () => void;
+  /** Page-controlled scan: optional patient/animal id when opening from a contextual action (e.g. ER card). Bottom nav calls with no args. */
+  onScan?: (patientId?: string) => void;
   /** When `onScan` is used, pass open state so the bottom nav scan control matches the page scanner. */
   scannerOpen?: boolean;
   /** When `onScan` is used, call to close the scanner from the bottom nav (e.g. setState false). */

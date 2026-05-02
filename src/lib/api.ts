@@ -207,6 +207,91 @@ function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = FETCH_TIME
     });
 }
 
+/** Success body from POST /api/containers/:id/dispense */
+export type ContainerDispenseSuccessPayload = {
+  success: boolean;
+  emergencyEventId?: string;
+  dispensed?: Array<{ itemId: string; label: string; quantity: number; newStock: number }>;
+  takenBy: { userId: string; displayName: string };
+  takenAt: string;
+  billingIds?: string[];
+  autoBilledCents?: number;
+};
+
+export type ContainerDispenseClientResult =
+  | { ok: true; data: ContainerDispenseSuccessPayload }
+  | { ok: false; error: string; message: string };
+
+/**
+ * Dispense with structured result (no throw on ORPHAN_DISPENSE_BLOCKED) for UI bypass flows.
+ * Caller supplies a fresh `idempotencyKey` per user attempt.
+ */
+export async function containerDispenseWithResult(
+  containerId: string,
+  body: {
+    items: Array<{ itemId: string; quantity: number }>;
+    animalId?: string | null;
+    patientId?: string;
+    isEmergency?: boolean;
+    bypassReason?: "EMERGENCY_CPR" | "PROTOCOL_OVERRIDE" | "TECH_ERROR";
+  },
+  idempotencyKey: string,
+): Promise<ContainerDispenseClientResult> {
+  const url = `/api/containers/${containerId}/dispense`;
+  const init: RequestInit = {
+    method: "POST",
+    body: JSON.stringify(body),
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+    },
+  };
+  const headers = mergeRequestHeaders(init);
+  try {
+    const res = await fetchWithTimeout(url, { ...init, headers });
+    const json = (await res.json().catch(() => ({}))) as ApiErrorPayload & Record<string, unknown>;
+
+    if (res.status === 401) {
+      const method = String(init.method ?? "GET").toUpperCase();
+      if (method === "GET") {
+        if (!authRedirectInProgress) {
+          authRedirectInProgress = true;
+          toast.error(t.api.sessionExpired);
+        }
+        if (authRedirectInProgress) {
+          redirectToSignInSoft();
+        }
+        throw new Error("Session expired");
+      }
+      throw new Error("UNAUTHORIZED");
+    }
+
+    if (res.ok) {
+      return { ok: true, data: json as ContainerDispenseSuccessPayload };
+    }
+
+    const errCode =
+      (typeof json.error === "string" && json.error) ||
+      (typeof json.code === "string" && json.code) ||
+      "UNKNOWN";
+    const message = toApiErrorMessage(res.status, json);
+
+    if (res.status === 400 && errCode === "ORPHAN_DISPENSE_BLOCKED") {
+      return { ok: false, error: "ORPHAN_DISPENSE_BLOCKED", message };
+    }
+
+    if (res.status >= 500) {
+      toast.error(t.api.serverError);
+    }
+
+    return { ok: false, error: errCode, message };
+  } catch (err) {
+    if (isNetworkError(err)) {
+      toast.error(t.api.networkUnavailable);
+    }
+    throw err;
+  }
+}
+
 export async function request<T>(
   url: string,
   init: RequestInit = {},
@@ -1092,8 +1177,11 @@ export const api = {
       data: {
         items: Array<{ itemId: string; quantity: number }>;
         animalId?: string | null;
+        patientId?: string;
         isEmergency?: boolean;
+        bypassReason?: "EMERGENCY_CPR" | "PROTOCOL_OVERRIDE" | "TECH_ERROR";
       },
+      options?: { idempotencyKey?: string },
     ) =>
       request<{
         success: boolean;
@@ -1106,6 +1194,9 @@ export const api = {
       }>(`/api/containers/${containerId}/dispense`, {
         method: "POST",
         body: JSON.stringify(data),
+        headers: {
+          "Idempotency-Key": options?.idempotencyKey ?? crypto.randomUUID(),
+        },
       }),
     completeEmergency: (
       eventId: string,

@@ -357,6 +357,15 @@
     "networkUnavailable": "Cannot reach the server. You may be offline or the server is down."
   },
 
+  "dispenseSheet": {
+    "orphanOverrideTitle": "No matching order found — is this an emergency?",
+    "orphanOverrideHint": "Select a reason to enable emergency dispense. This action is audited.",
+    "bypassEmergencyCpr": "Emergency / CPR",
+    "bypassProtocol": "Protocol override",
+    "bypassTechError": "Tech / entry error",
+    "confirmEmergencyDispense": "Confirm emergency dispense"
+  },
+
   "syncEngine": {
     "pausedTooManyErrors": "Sync paused — too many errors",
     "resumedTryingPending": "Sync resumed — retrying pending changes",
@@ -1432,6 +1441,9 @@
       "next15m": "Next 15 min",
       "handoffRisk": "Handoff risk"
     },
+    "quickScan": "Quick scan",
+    "quickScanNoPatient": "Link an animal to this intake before quick scan.",
+    "quickScanPickPatientFirst": "Tap Quick scan on a patient card first.",
     "quickIntake": "Quick intake",
     "species": "Species",
     "severity": "Severity",

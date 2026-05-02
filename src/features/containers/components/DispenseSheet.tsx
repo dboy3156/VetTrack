@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { t } from "@/lib/i18n";
-import { api } from "@/lib/api";
+import { api, containerDispenseWithResult, type ContainerDispenseSuccessPayload } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,9 +28,13 @@ interface DispenseSheetProps {
   onClose: () => void;
   /** If provided, opens directly in STATE 4 (emergency complete) */
   emergencyEventId?: string;
+  /** Pre-select this animal (patient) on the patient step — e.g. ER Command Center quick scan. */
+  patientId?: string | null;
 }
 
 type SheetState = "items" | "patient" | "confirm" | "success" | "emergency-success" | "emergency-complete";
+
+type BypassReason = "EMERGENCY_CPR" | "PROTOCOL_OVERRIDE" | "TECH_ERROR";
 
 interface ItemSelection {
   itemId: string;
@@ -55,7 +59,13 @@ function isEnglishLabel(label: string | null): boolean {
   return /^[a-zA-Z0-9\s/\-.]+$/.test(label);
 }
 
-export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }: DispenseSheetProps) {
+export function DispenseSheet({
+  containerId,
+  isOpen,
+  onClose,
+  emergencyEventId,
+  patientId: patientIdProp,
+}: DispenseSheetProps) {
   const qc = useQueryClient();
 
   const [sheetState, setSheetState] = useState<SheetState>(emergencyEventId ? "emergency-complete" : "items");
@@ -64,6 +74,10 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   const [successData, setSuccessData] = useState<DispenseSuccessData | null>(null);
   const [emergencyLoading, setEmergencyLoading] = useState(false);
   const [completedEventId, setCompletedEventId] = useState<string | undefined>(emergencyEventId);
+  const [showBypassOptions, setShowBypassOptions] = useState(false);
+  const [bypassReason, setBypassReason] = useState<BypassReason | null>(null);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [dispenseBusy, setDispenseBusy] = useState(false);
 
   // Reset state when sheet opens/closes
   useEffect(() => {
@@ -75,10 +89,13 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
         setSheetState("items");
       }
       setSelections(new Map());
-      setSelectedAnimalId(undefined);
+      setSelectedAnimalId(patientIdProp !== undefined ? patientIdProp : undefined);
       setSuccessData(null);
+      setShowBypassOptions(false);
+      setBypassReason(null);
+      setIsEmergency(false);
     }
-  }, [isOpen, emergencyEventId]);
+  }, [isOpen, emergencyEventId, patientIdProp]);
 
   // Fetch container with items via restock containerItems (provides live quantities)
   const containerItemsQ = useQuery({
@@ -113,10 +130,8 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
 
   const activePatients: ActivePatient[] = activePatientsQ.data?.animals ?? [];
 
-  const dispenseMut = useMutation({
-    mutationFn: (data: { items: Array<{ itemId: string; quantity: number }>; animalId?: string | null; isEmergency?: boolean }) =>
-      api.containers.dispense(containerId, data),
-    onSuccess: (result) => {
+  const applyDispenseSuccess = useCallback(
+    (result: ContainerDispenseSuccessPayload) => {
       qc.invalidateQueries({ queryKey: ["/api/containers/detail", containerId] });
       qc.invalidateQueries({ queryKey: ["/api/shift-handover"] });
       setSuccessData({
@@ -134,16 +149,8 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
         toast.success("✓ Dispense recorded");
       }
     },
-    onError: (err: unknown) => {
-      const e = err as { message?: string };
-      if (e.message?.includes("INSUFFICIENT_STOCK")) {
-        setSheetState("items");
-        toast.error("מלאי לא מספיק לפריט המבוקש");
-      } else {
-        toast.error("שגיאה בשרת — נסה שוב");
-      }
-    },
-  });
+    [qc, containerId],
+  );
 
   const completeEmergencyMut = useMutation({
     mutationFn: (data: { items: Array<{ itemId: string; quantity: number }>; animalId?: string | null }) =>
@@ -175,11 +182,25 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
   const handleEmergencyTap = useCallback(async () => {
     setEmergencyLoading(true);
     try {
-      await dispenseMut.mutateAsync({ items: [], animalId: null, isEmergency: true });
+      const res = await containerDispenseWithResult(
+        containerId,
+        {
+          items: [],
+          animalId: null,
+          isEmergency: true,
+          bypassReason: "EMERGENCY_CPR",
+        },
+        crypto.randomUUID(),
+      );
+      if (!res.ok) {
+        toast.error(res.message || "שגיאה בשרת — נסה שוב");
+        return;
+      }
+      applyDispenseSuccess(res.data);
     } finally {
       setEmergencyLoading(false);
     }
-  }, [dispenseMut]);
+  }, [containerId, applyDispenseSuccess]);
 
   const updateQuantity = useCallback((itemId: string, delta: number, maxQty: number) => {
     setSelections((prev) => {
@@ -197,6 +218,39 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
 
   const totalSelected = [...selections.values()].reduce((sum, q) => sum + q, 0);
   const selectedItems: ItemSelection[] = [...selections.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
+
+  const handleDispense = useCallback(async () => {
+    const idempotencyKey = crypto.randomUUID();
+    setDispenseBusy(true);
+    try {
+      const res = await containerDispenseWithResult(
+        containerId,
+        {
+          items: selectedItems,
+          animalId: selectedAnimalId,
+          isEmergency,
+          bypassReason: bypassReason ?? undefined,
+        },
+        idempotencyKey,
+      );
+      if (!res.ok) {
+        if (res.error === "ORPHAN_DISPENSE_BLOCKED") {
+          setShowBypassOptions(true);
+          return;
+        }
+        if (res.error === "INSUFFICIENT_STOCK") {
+          setSheetState("items");
+          toast.error("מלאי לא מספיק לפריט המבוקש");
+          return;
+        }
+        toast.error(res.message || "שגיאה בשרת — נסה שוב");
+        return;
+      }
+      applyDispenseSuccess(res.data);
+    } finally {
+      setDispenseBusy(false);
+    }
+  }, [containerId, selectedItems, selectedAnimalId, isEmergency, bypassReason, applyDispenseSuccess]);
 
   const container = containerItemsQ.data;
   const items = container?.items ?? [];
@@ -450,24 +504,89 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
                   ללא שיוך למטופל
                 </button>
 
+                {showBypassOptions && (
+                  <div
+                    style={{
+                      border: "1.5px solid hsl(var(--destructive))",
+                      borderRadius: "var(--radius)",
+                      padding: "1rem 1.25rem",
+                      background: "hsl(var(--destructive) / 0.12)",
+                      marginTop: "1rem",
+                    }}
+                  >
+                    <p style={{ fontWeight: 500, color: "hsl(var(--destructive))", marginBottom: 8 }}>
+                      {t.dispenseSheet.orphanOverrideTitle}
+                    </p>
+                    <p style={{ fontSize: 13, color: "hsl(var(--destructive))", marginBottom: 12, opacity: 0.95 }}>
+                      {t.dispenseSheet.orphanOverrideHint}
+                    </p>
+                    {(
+                      [
+                        ["EMERGENCY_CPR", t.dispenseSheet.bypassEmergencyCpr],
+                        ["PROTOCOL_OVERRIDE", t.dispenseSheet.bypassProtocol],
+                        ["TECH_ERROR", t.dispenseSheet.bypassTechError],
+                      ] as const
+                    ).map(([val, label]) => (
+                      <label
+                        key={val}
+                        style={{ display: "flex", gap: 8, marginBottom: 8, cursor: "pointer", alignItems: "flex-start" }}
+                      >
+                        <input
+                          type="radio"
+                          name="bypassReason"
+                          value={val}
+                          checked={bypassReason === val}
+                          onChange={() => {
+                            setBypassReason(val);
+                            setIsEmergency(true);
+                          }}
+                          className="mt-1"
+                        />
+                        <span style={{ fontSize: 14 }}>{label}</span>
+                      </label>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={!bypassReason || dispenseBusy}
+                      onClick={() => void handleDispense()}
+                      style={{
+                        marginTop: 12,
+                        width: "100%",
+                        minHeight: 48,
+                        borderRadius: "var(--radius)",
+                        fontWeight: 600,
+                        background: "hsl(var(--destructive))",
+                        color: "hsl(var(--destructive-foreground))",
+                        opacity: !bypassReason ? 0.5 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                      }}
+                    >
+                      {dispenseBusy ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : null}
+                      {t.dispenseSheet.confirmEmergencyDispense}
+                    </button>
+                  </div>
+                )}
+
                 <div className="sticky bottom-0 bg-background pt-2 pb-2 space-y-2">
                   <Button
                     className="w-full min-h-[52px] text-lg font-bold rounded-xl"
-                    disabled={selectedAnimalId === undefined || dispenseMut.isPending}
-                    onClick={() =>
-                      dispenseMut.mutate({
-                        items: selectedItems,
-                        animalId: selectedAnimalId,
-                        isEmergency: false,
-                      })
+                    disabled={
+                      selectedAnimalId === undefined || dispenseBusy || showBypassOptions
                     }
+                    onClick={() => void handleDispense()}
                   >
-                    {dispenseMut.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                    {dispenseBusy ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                     אשר לקיחה
                   </Button>
                   <button
                     onClick={() => {
                       setSelectedAnimalId(undefined);
+                      setShowBypassOptions(false);
+                      setBypassReason(null);
+                      setIsEmergency(false);
                       setSheetState("items");
                     }}
                     className="w-full text-sm text-muted-foreground py-2 min-h-[44px]"
@@ -577,6 +696,9 @@ export function DispenseSheet({ containerId, isOpen, onClose, emergencyEventId }
               disabled={totalSelected === 0}
               onClick={() => {
                 setSelectedAnimalId(undefined);
+                setShowBypassOptions(false);
+                setBypassReason(null);
+                setIsEmergency(false);
                 setSheetState("confirm");
               }}
             >

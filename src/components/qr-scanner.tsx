@@ -232,7 +232,8 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
           if (containerId) {
             await stopScannerRef.current();
             haptics.scanSuccess();
-            onClose();
+            // Parent closes the scanner via state after onDispense — do not call onClose()
+            // here or it may clear page-held context (e.g. ER quick-scan patient) before onDispense runs.
             onDispense(containerId);
             return;
           }
@@ -427,7 +428,6 @@ export function QrScanner({ onClose, onDispense }: QrScannerProps) {
         const containerId = await resolveAsContainer(equipmentId);
         if (containerId) {
           haptics.scanSuccess();
-          onClose();
           onDispense(containerId);
           return;
         }

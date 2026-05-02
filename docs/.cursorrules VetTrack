@@ -1,0 +1,7 @@
+# VetTrack architecture invariants
+
+This document is a **pointer**. The full text is maintained as an **always-applied** Cursor rule so it loads in every IDE chat:
+
+**`.cursor/rules/vettrack-architecture-invariants.mdc`** (`alwaysApply: true`)
+
+Edit that `.mdc` file to change these invariants. Root `.cursorrules` (if present) is separate from Cursor’s rules engine; the `.mdc` rule is what makes the content always-on for agents.

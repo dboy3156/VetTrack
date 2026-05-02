@@ -1358,6 +1358,25 @@ export const erBaselineSnapshots = pgTable(
   }),
 );
 
+/** Operational / system follow-ups (e.g. billing reconciliation). */
+export const operationalTasks = pgTable(
+  "vt_tasks",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    patientId: text("patient_id").references(() => animals.id, { onDelete: "set null" }),
+    type: text("type").notNull(),
+    tag: text("tag").notNull(),
+    title: text("title").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicCreatedIdx: index("idx_vt_tasks_clinic_created").on(table.clinicId, table.createdAt),
+  }),
+);
+
 /** Cached HTTP responses for Idempotency-Key replays (financial / clinical mutations). */
 export const idempotencyKeys = pgTable(
   "vt_idempotency_keys",
@@ -1368,6 +1387,8 @@ export const idempotencyKeys = pgTable(
     key: text("key").notNull(),
     endpoint: text("endpoint").notNull(),
     requestHash: text("request_hash").notNull(),
+    /** HTTP status captured when the handler finished (replay must match). */
+    statusCode: integer("status_code").notNull(),
     responseBody: jsonb("response_body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

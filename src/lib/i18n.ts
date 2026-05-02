@@ -207,6 +207,8 @@ const translations = {
 
   api: d.api,
 
+  dispenseSheet: d.dispenseSheet,
+
   syncEngine: d.syncEngine,
 
   errorCard: d.errorCard,
@@ -403,6 +405,9 @@ const translations = {
   erCommandCenter: {
     title: d.erCommandCenter.title,
     lanes: d.erCommandCenter.lanes,
+    quickScan: d.erCommandCenter.quickScan,
+    quickScanNoPatient: d.erCommandCenter.quickScanNoPatient,
+    quickScanPickPatientFirst: d.erCommandCenter.quickScanPickPatientFirst,
     quickIntake: d.erCommandCenter.quickIntake,
     species: d.erCommandCenter.species,
     severity: d.erCommandCenter.severity,

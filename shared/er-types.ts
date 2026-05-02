@@ -53,6 +53,8 @@ export interface ErModeResponse {
 // ── GET /api/er/board ─────────────────────────────────────────────────────────
 export interface ErBoardItem {
   id: string;
+  /** Linked animal (patient) when known — used for bedside dispense / quick scan. */
+  animalId?: string | null;
   type: "intake" | "hospitalization";
   lane: ErLane;
   severity: ErSeverity;
