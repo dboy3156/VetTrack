@@ -140,7 +140,7 @@ async function computeHandoffIntegrity(
   const forcedAckOverrideCount = Number(row?.forcedOverride ?? 0);
   const directAckRate = total === 0 ? null : Math.round((directAckCount / total) * 10000) / 10000;
 
-  return { total, directAckCount, forcedAckOverrideCount, directAckRate, baselineDirectAckRate };
+  return { totalHandoffs: total, directAckCount, forcedAckOverrideCount, directAckRate, baselineDirectAckRate };
 }
 
 /** Handoff Integrity wrapper — also computes baseline direct-ack rate from baseline window. */
