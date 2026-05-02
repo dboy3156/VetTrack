@@ -471,7 +471,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     ...(canManageErMode
       ? [
           {
-            href: "/er-command-center",
+            href: "/er",
             label: t.layout.nav.operationalCommandCenter,
             icon: <Siren className="w-5 h-5 text-amber-500" />,
             menuOnly: true,
@@ -554,7 +554,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     () =>
       erConcealment
         ? []
-        : ["/er-command-center"]
+        : ["/er"]
             .map((href) => visibleItems.find((i) => i.href === href))
             .filter((x): x is NavItem => x != null),
     [erConcealment, visibleItems],
@@ -959,28 +959,22 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 );
               })}
 
-              {erConcealment && canManageErMode ? (
-                <>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">
-                    {t.layout.nav.operationalControlSection}
-                  </p>
-                  <div className="px-3 pb-2">
-                    <ErModeToggle />
-                  </div>
-                </>
-              ) : null}
-
               {erConcealment && !canManageErMode ? (
                 <p className="text-xs text-ivory-text3 px-3 py-2 leading-snug border-t border-ivory-border/40 mt-1">
                   {t.layout.nav.erConcealmentStaffHint}
                 </p>
               ) : null}
 
-              {operationalControlMenuItems.length > 0 ? (
+              {canManageErMode || operationalControlMenuItems.length > 0 ? (
                 <>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">
                     {t.layout.nav.operationalControlSection}
                   </p>
+                  {canManageErMode ? (
+                    <div className="px-3 pb-2">
+                      <ErModeToggle />
+                    </div>
+                  ) : null}
                   {operationalControlMenuItems.map((item, index) => {
                     const isActive = isNavItemActive(item.href);
                     const stagger = operationMenuItems.length + index;

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { setPostSignupLandingFlag } from "@/lib/post-signup-landing";
 import { Helmet } from "react-helmet-async";
 import { Loader2, QrCode } from "lucide-react";
 import { ClerkFailed, ClerkLoaded, ClerkLoading, SignUp } from "@clerk/clerk-react";
@@ -14,7 +15,8 @@ export default function SignUpPage() {
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      navigate("/home");
+      setPostSignupLandingFlag();
+      navigate("/", { replace: true });
     }
   }, [isLoaded, isSignedIn, navigate]);
 
@@ -60,7 +62,7 @@ export default function SignUpPage() {
                   <SignUp
                     routing="hash"
                     signInUrl="/signin"
-                    fallbackRedirectUrl="/home"
+                    fallbackRedirectUrl="/"
                     appearance={clerkAppearance}
                   />
                 </div>

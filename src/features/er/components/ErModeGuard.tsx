@@ -31,11 +31,12 @@ function toUiState(mode: ErModeState): "enforced" | "none" {
  * on reconnect, `getErStatus` resyncs after server restarts. Falls back to polling on errors.
  */
 export function ErModeGuard({ children }: { children: ReactNode }) {
-  const [pathname] = useLocation();
+  const [pathname, navigate] = useLocation();
   const { isSignedIn, isLoaded } = useAuth();
   const queryClient = useQueryClient();
   const { erModeState, setErModeState } = useErModeStore();
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevEnforcedRef = useRef(false);
 
   const { data: erMode, isLoading } = useQuery({
     queryKey: ER_MODE_QUERY_KEY,
@@ -124,6 +125,20 @@ export function ErModeGuard({ children }: { children: ReactNode }) {
     };
   }, [isLoaded, isSignedIn, queryClient, setErModeState, erMode?.clinicId]);
 
+  const enforced = erModeState === "enforced";
+  const concealmentPending = isLoading || erModeState === "loading";
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || concealmentPending) {
+      return;
+    }
+    const nowEnforced = enforced;
+    if (prevEnforcedRef.current && !nowEnforced) {
+      navigate("/home", { replace: true });
+    }
+    prevEnforcedRef.current = nowEnforced;
+  }, [isLoaded, isSignedIn, concealmentPending, enforced, navigate]);
+
   if (!isLoaded) {
     return children;
   }
@@ -131,9 +146,6 @@ export function ErModeGuard({ children }: { children: ReactNode }) {
   if (!isSignedIn) {
     return children;
   }
-
-  const enforced = erModeState === "enforced";
-  const concealmentPending = isLoading || erModeState === "loading";
 
   if (concealmentPending) {
     return (

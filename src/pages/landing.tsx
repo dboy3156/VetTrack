@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { MarketingLayout } from "@/components/marketing-layout";
+import { clearPostSignupLandingFlag } from "@/lib/post-signup-landing";
 
 const CLERK_ENABLED = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
@@ -151,6 +152,9 @@ export default function LandingPage() {
                     {showAppCta && (
                       <Link
                         href="/home"
+                        onClick={() => {
+                          clearPostSignupLandingFlag();
+                        }}
                         className={cn(
                           "inline-flex items-center justify-center gap-2 rounded-2xl font-bold px-7 py-3.5 min-h-[52px]",
                           "bg-primary text-primary-foreground shadow-lg shadow-primary/25",
@@ -518,6 +522,9 @@ export default function LandingPage() {
                 {showAppCta && (
                   <Link
                     href="/home"
+                    onClick={() => {
+                      clearPostSignupLandingFlag();
+                    }}
                     className={cn(
                       "w-full sm:w-auto inline-flex items-center justify-center gap-2",
                       "rounded-2xl font-bold px-8 py-3.5 min-h-[52px] bg-background text-foreground",

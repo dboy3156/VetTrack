@@ -1,8 +1,10 @@
-import { Route, Switch } from "wouter";
+import { Redirect, Route, Switch } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { ErModeGuard } from "@/guards/ErModeGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
+import { useAuth } from "@/hooks/use-auth";
+import { shouldShowPostSignupLanding } from "@/lib/post-signup-landing";
 
 const HomePage = lazy(() => import("@/pages/home"));
 const LandingPage = lazy(() => import("@/pages/landing"));
@@ -58,8 +60,18 @@ const ErCommandCenterPage = lazy(() => import("@/pages/er-command-center"));
 const ErImpactPage = lazy(() => import("@/pages/er-impact"));
 const ErImpactKpisPage = lazy(() => import("@/pages/er-impact-kpis"));
 
-// Root path stays public landing for all visitors.
+/** `/` — marketing shell for guests; returning signed-in users go to `/home`; new signups see landing once (session flag). */
 function RootRoute() {
+  const { isLoaded, isSignedIn, isOfflineSession } = useAuth();
+
+  if (!isLoaded && !isOfflineSession) {
+    return null;
+  }
+
+  if (isSignedIn && !shouldShowPostSignupLanding()) {
+    return <Redirect to="/home" />;
+  }
+
   return <LandingPage />;
 }
 
