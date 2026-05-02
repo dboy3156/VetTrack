@@ -34,7 +34,9 @@
   "layout": {
     "nav": {
       "alerts": "Alerts",
-      "mine": "Mine"
+      "mine": "Mine",
+      "operationalControlSection": "Operational control",
+      "operationalCommandCenter": "ER command center"
     },
     "settings": {
       "darkMode": "Dark mode",
@@ -1566,6 +1568,24 @@
       "temp": "T°C",
       "unitTemp": "°C"
     }
+  },
+
+  "erOperationalControl": {
+    "sectionTitle": "Operational control",
+    "currentMode": "Clinic ER mode",
+    "states": {
+      "disabled": "Normal operations",
+      "preview": "Preview (visibility only)",
+      "enforced": "ER enforced — concealment active"
+    },
+    "targetLabel": "Target mode",
+    "apply": "Apply change…",
+    "confirmTitle": "Confirm ER mode change",
+    "confirmBody": "Switch clinic ER mode from {{from}} to {{to}}? API concealment updates immediately for all staff.",
+    "confirmAction": "Confirm",
+    "cancel": "Cancel",
+    "toggleFailed": "Could not update ER mode",
+    "ariaOperationalToggle": "Global ER mode control"
   },
 
   "appointmentsPage": {

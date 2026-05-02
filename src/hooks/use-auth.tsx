@@ -32,6 +32,8 @@ interface AuthState {
   accessDeniedReason: AccessDeniedReason;
   isLoaded: boolean;
   isSignedIn: boolean; isAdmin: boolean; isOfflineSession: boolean;
+  /** Server-derived — clinic-wide ER lock toggle (owner allowlist when configured). */
+  canManageErMode: boolean;
 }
 
 interface AuthContextType extends AuthState {
@@ -50,6 +52,7 @@ interface SyncedUserResponse {
   activeShift?: Shift | null;
   resolvedAt?: string;
   status: UserStatus;
+  canManageErMode?: boolean;
   error?: string;
   reason?: string;
   message?: string;
@@ -59,6 +62,7 @@ const AuthContext = createContext<AuthContextType>({
   userId: null, email: null, name: null, role: "technician", secondaryRole: null,
   effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
   isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+  canManageErMode: false,
   signOut: async () => {},
   refreshAuth: () => {},
 });
@@ -95,6 +99,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
         isSignedIn: true,
         isAdmin: offlineSnapshot.role === "admin",
         isOfflineSession: true,
+        canManageErMode: false,
       };
     }
 
@@ -102,6 +107,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
       userId: null, email: null, name: null, role: "technician", secondaryRole: null,
       effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+      canManageErMode: false,
     };
   });
   const [authRefreshNonce, setAuthRefreshNonce] = useState(0);
@@ -130,6 +136,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
       userId: null, email: null, name: null, role: "technician", secondaryRole: null,
       effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+      canManageErMode: false,
     });
     if (typeof window !== "undefined") {
       safeReloadPage({ minIntervalMs: 1000 });
@@ -204,6 +211,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
           isSignedIn: true,
           isAdmin: role === "admin" || (data.secondaryRole ?? null) === "admin",
           isOfflineSession: false,
+          canManageErMode: data.canManageErMode === true,
         });
 
         processQueue().catch(() => {});
@@ -216,6 +224,7 @@ function DevAuthProviderInner({ children }: { children: ReactNode }) {
           userId: null, email: null, name: null, role: "technician", secondaryRole: null,
           effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
           isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+          canManageErMode: false,
         });
       }
     }
@@ -262,6 +271,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
         isSignedIn: true,
         isAdmin: offlineSnapshot.role === "admin",
         isOfflineSession: true,
+        canManageErMode: false,
       };
     }
 
@@ -269,6 +279,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
       userId: null, email: null, name: null, role: "technician", secondaryRole: null,
       effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
       isLoaded: false, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+      canManageErMode: false,
     };
   });
   const [authRefreshNonce, setAuthRefreshNonce] = useState(0);
@@ -324,6 +335,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
         userId: null, email: null, name: null, role: "technician", secondaryRole: null,
         effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
         isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+        canManageErMode: false,
       });
       return;
     }
@@ -411,7 +423,8 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
             accessDeniedReason: null,
             isLoaded: true, isSignedIn: true,
             isAdmin: role === "admin" || (data.secondaryRole ?? null) === "admin",
-            isOfflineSession: false
+            isOfflineSession: false,
+            canManageErMode: data.canManageErMode === true,
           });
 
           processQueue().catch(() => {});
@@ -431,6 +444,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
             status: resolvedStatus,
             accessDeniedReason: reason,
             isOfflineSession: false,
+            canManageErMode: false,
           }));
         } else if (res.status === 401) {
           // Clerk reports signed-in, but backend rejected auth token/session.
@@ -443,6 +457,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
             userId: null, email: null, name: null, role: "technician", secondaryRole: null,
             effectiveRole: "technician", roleSource: "permanent", activeShift: null, resolvedAt: null, status: null, accessDeniedReason: null,
             isLoaded: true, isSignedIn: false, isAdmin: false, isOfflineSession: false,
+            canManageErMode: false,
           });
         } else {
           // Resolve auth state without forcing a local sign-out.
@@ -457,6 +472,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
             status: "pending",
             accessDeniedReason: null,
             isOfflineSession: false,
+            canManageErMode: false,
           }));
         }
       } catch (err) {
@@ -469,6 +485,7 @@ function ClerkModeAuthProvider({ children }: { children: ReactNode }) {
           status: "pending",
           accessDeniedReason: null,
           isOfflineSession: false,
+          canManageErMode: false,
         }));
       } finally {
         clearTimeout(timeoutId);

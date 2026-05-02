@@ -56,3 +56,33 @@ export async function getClinicErModeStateCached(clinicId: string): Promise<ErMo
 export function invalidateClinicErModeCache(clinicId: string): void {
   modeCache.delete(clinicId);
 }
+
+/**
+ * Pushes a known state into the hot path cache (e.g. after an admin toggle or SSE fan-out)
+ * so concealment stays aligned without waiting for TTL or an extra DB read.
+ */
+export function setCachedClinicErMode(clinicId: string, state: ErModeState): void {
+  const now = Date.now();
+  modeCache.set(clinicId, { state, expiresAt: now + MODE_CACHE_TTL_MS });
+}
+
+/**
+ * On server boot, seed the ER mode cache from `vt_clinics.er_mode_state` so a process restart
+ * during an active shift does not briefly misread `enforced` as the fail-open `disabled` path
+ * on the first few requests before the DB is hit.
+ */
+export async function preloadClinicErModeCaches(): Promise<void> {
+  try {
+    const rows = await db
+      .select({ id: clinics.id, erModeState: clinics.erModeState })
+      .from(clinics);
+    const now = Date.now();
+    for (const row of rows) {
+      const state = parseState(row.erModeState);
+      modeCache.set(row.id, { state, expiresAt: now + MODE_CACHE_TTL_MS });
+    }
+    console.log(`[er-mode] preloaded ER mode cache for ${rows.length} clinic(s)`);
+  } catch (err) {
+    console.error("[er-mode] preloadClinicErModeCaches failed (non-fatal)", err);
+  }
+}
