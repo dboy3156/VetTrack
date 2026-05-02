@@ -36,7 +36,8 @@
       "alerts": "Alerts",
       "mine": "Mine",
       "operationalControlSection": "Operational control",
-      "operationalCommandCenter": "ER command center"
+      "operationalCommandCenter": "ER command center",
+      "erConcealmentStaffHint": "The full clinic app is hidden while ER mode is on. Ask an operations lead to turn off ER mode to restore the usual navigation."
     },
     "settings": {
       "darkMode": "Dark mode",

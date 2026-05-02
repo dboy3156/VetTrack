@@ -76,6 +76,7 @@ import {
   safeStorageSetItem,
 } from "@/lib/safe-browser";
 import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
+import { ErModeToggle } from "@/features/er-admin/ErModeToggle";
 
 interface NavItem {
   href: string;
@@ -957,6 +958,23 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                   </Link>
                 );
               })}
+
+              {erConcealment && canManageErMode ? (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">
+                    {t.layout.nav.operationalControlSection}
+                  </p>
+                  <div className="px-3 pb-2">
+                    <ErModeToggle />
+                  </div>
+                </>
+              ) : null}
+
+              {erConcealment && !canManageErMode ? (
+                <p className="text-xs text-ivory-text3 px-3 py-2 leading-snug border-t border-ivory-border/40 mt-1">
+                  {t.layout.nav.erConcealmentStaffHint}
+                </p>
+              ) : null}
 
               {operationalControlMenuItems.length > 0 ? (
                 <>

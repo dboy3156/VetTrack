@@ -36,7 +36,8 @@
       "alerts": "התראות",
       "mine": "שלי",
       "operationalControlSection": "בקרה תפעולית",
-      "operationalCommandCenter": "מרכז פיקוד חירום"
+      "operationalCommandCenter": "מרכז פיקוד חירום",
+      "erConcealmentStaffHint": "בזמן מצב חירום הממשק המלא מוסתר. בקש ממנהל תפעול לכבות את מצב החירום כדי לשחזר את הניווט הרגיל."
     },
     "settings": {
       "darkMode": "מצב לילה",
