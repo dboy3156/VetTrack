@@ -9,6 +9,8 @@ import {
   completeAdmission,
   createErHandoff,
   createErIntake,
+  enrichErIntake,
+  enterAdmissionState,
   getErAssignees,
   getErBoard,
   getErEligibleHospitalizations,
@@ -131,6 +133,7 @@ function LaneColumn({
   onAcceptPatient,
   onAdmissionComplete,
   onSubmitHandoff,
+  onEnrichOwner,
 }: {
   title: string;
   items: ErBoardItem[];
@@ -147,6 +150,7 @@ function LaneColumn({
   onAcceptPatient?: (intakeId: string) => void;
   onAdmissionComplete?: (intakeId: string) => void;
   onSubmitHandoff?: (intakeId: string) => void;
+  onEnrichOwner?: (intakeId: string, ownerName: string) => void;
 }) {
   return (
     <Card className="flex min-h-[320px] flex-1 flex-col">
@@ -174,6 +178,7 @@ function LaneColumn({
               onAccept={onAcceptPatient}
               onAdmissionComplete={onAdmissionComplete}
               onSubmitHandoff={onSubmitHandoff}
+              onEnrichOwner={onEnrichOwner}
             />
           ))
         )}
@@ -327,13 +332,27 @@ export default function ErCommandCenterPage() {
   const canDoctorAdmissionActions = ["admin", "vet"].includes(effectiveRole);
 
   const acceptMut = useMutation({
-    mutationFn: ({ intakeId, userId }: { intakeId: string; userId: string | null }) =>
-      acceptErPatient(intakeId, userId),
+    mutationFn: async ({ intakeId, userId }: { intakeId: string; userId: string | null }) => {
+      await acceptErPatient(intakeId, userId);
+      if (userId !== null) {
+        await enterAdmissionState(intakeId);
+      }
+    },
     onSuccess: () => {
       invalidateEr();
       void qc.invalidateQueries({ queryKey: ["er", "admission-state"] });
     },
     onError: () => toast.error("Accept failed"),
+  });
+
+  const enrichMut = useMutation({
+    mutationFn: ({ intakeId, ownerName }: { intakeId: string; ownerName: string }) =>
+      enrichErIntake(intakeId, { ownerName }),
+    onSuccess: () => {
+      toast.success(t.er.ownerLinked);
+      invalidateEr();
+    },
+    onError: () => toast.error(t.er.enrichFailed),
   });
 
   const admissionCompleteMut = useMutation({
@@ -714,6 +733,11 @@ export default function ErCommandCenterPage() {
                 onSubmitHandoff={(_intakeId) => {
                   setHandoffOpen(true);
                 }}
+                onEnrichOwner={
+                  canDoctorAdmissionActions
+                    ? (intakeId, ownerName) => enrichMut.mutate({ intakeId, ownerName })
+                    : undefined
+                }
               />
               <LaneColumn
                 title={t.erCommandCenter.lanes.next15m}
@@ -744,6 +768,11 @@ export default function ErCommandCenterPage() {
                 onSubmitHandoff={(_intakeId) => {
                   setHandoffOpen(true);
                 }}
+                onEnrichOwner={
+                  canDoctorAdmissionActions
+                    ? (intakeId, ownerName) => enrichMut.mutate({ intakeId, ownerName })
+                    : undefined
+                }
               />
               <LaneColumn
                 title={t.erCommandCenter.lanes.handoffRisk}
@@ -774,6 +803,11 @@ export default function ErCommandCenterPage() {
                 onSubmitHandoff={(_intakeId) => {
                   setHandoffOpen(true);
                 }}
+                onEnrichOwner={
+                  canDoctorAdmissionActions
+                    ? (intakeId, ownerName) => enrichMut.mutate({ intakeId, ownerName })
+                    : undefined
+                }
               />
             </div>
           </>

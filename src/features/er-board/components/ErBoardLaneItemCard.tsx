@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import type { ErBoardItem, ErSeverity } from "../../../../shared/er-types";
 import { ActiveAssistancePanel } from "@/components/er/active-assistance-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -164,6 +166,7 @@ export function ErBoardLaneItemCard({
   onAccept,
   onAdmissionComplete,
   onSubmitHandoff,
+  onEnrichOwner,
 }: {
   item: ErBoardItem;
   assignees: { id: string; name: string }[];
@@ -179,7 +182,13 @@ export function ErBoardLaneItemCard({
   onAccept?: (intakeId: string) => void;
   onAdmissionComplete?: (intakeId: string) => void;
   onSubmitHandoff?: (intakeId: string) => void;
+  onEnrichOwner?: (intakeId: string, ownerName: string) => void;
 }): JSX.Element {
+  const [ownerDraft, setOwnerDraft] = useState("");
+  useEffect(() => {
+    setOwnerDraft("");
+  }, [item.id]);
+
   const ant = useErEscalationAnticipation(item.escalatesAt, item.type);
   const pulse = ant.urgency === "imminent" || ant.urgency === "past";
 
@@ -278,6 +287,28 @@ export function ErBoardLaneItemCard({
             {item.badges.map((b) => (
               <RiskBadge key={b} badge={b} />
             ))}
+          </div>
+        ) : null}
+
+        {item.type === "intake" && !item.animalId && onEnrichOwner ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-2 py-1.5">
+            <Input
+              value={ownerDraft}
+              onChange={(e) => setOwnerDraft(e.target.value)}
+              placeholder={t.er.ownerNamePlaceholder}
+              className="h-8 min-w-0 flex-1 text-xs"
+              aria-label={t.er.ownerNamePlaceholder}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-8 shrink-0 text-xs"
+              disabled={!ownerDraft.trim()}
+              onClick={() => onEnrichOwner(item.id, ownerDraft.trim())}
+            >
+              {t.er.saveOwnerName}
+            </Button>
           </div>
         ) : null}
 

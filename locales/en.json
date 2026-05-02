@@ -1468,7 +1468,11 @@
     "handoffPendingAfterComplete": "Handoff pending — please submit handoff for this patient",
     "nonAmbulatory": "Non-ambulatory",
     "patient": "Patient",
-    "filePending": "file pending"
+    "filePending": "file pending",
+    "ownerNamePlaceholder": "Owner name",
+    "saveOwnerName": "Save",
+    "ownerLinked": "Owner name saved",
+    "enrichFailed": "Could not save owner"
   },
 
   "erCommandCenter": {

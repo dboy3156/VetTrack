@@ -102,7 +102,7 @@ These rules govern all AI-assisted work on this repository. They extend the focu
 ## Technology constraints
 
 - **UI:** Shadcn/Radix patterns already in repo; **Lucide** icons only; **Framer Motion** for motion; **Tailwind** utilities.
-- **ORM:** **Drizzle** only for app queries — avoid new raw `db.execute` strings for features (`vettrack-architecture-invariants.mdc` exception: existing migration/outbox patterns).
+- **ORM:** **Drizzle** only for app queries — avoid new raw `db.execute` strings for features (`.cursor/skills/vettrack-architecture-invariants/SKILL.md` exception: existing migration/outbox patterns).
 - **HTTP:** **Express** only.
 - **Queues:** **BullMQ** for worker queues; in-process `setInterval` only for the **small schedulers** already used (ER, outbox is poll-based, recovery in `index.ts`).
 - **Offline DB:** **Dexie** in **`src/lib/offline-db.ts`** (current schema versions **3** and **4** with explicit `stores()`).

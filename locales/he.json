@@ -1469,7 +1469,11 @@
     "handoffPendingAfterComplete": "העברה ממתינה — יש להגיש העברה למטופל זה",
     "nonAmbulatory": "לא הולך",
     "patient": "מטופל",
-    "filePending": "תיק ממתין"
+    "filePending": "תיק ממתין",
+    "ownerNamePlaceholder": "שם בעלים",
+    "saveOwnerName": "שמור",
+    "ownerLinked": "שם בעלים נשמר",
+    "enrichFailed": "לא ניתן לשמור את שם הבעלים"
   },
 
   "erCommandCenter": {
