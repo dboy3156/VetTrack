@@ -1450,6 +1450,28 @@
     }
   },
 
+  "er": {
+    "inAdmission": "בקבלה",
+    "admissionComplete": "✓ קבלה הושלמה",
+    "available": "פנוי",
+    "completing": "מסיים…",
+    "acceptPatient": "קבל מטופל",
+    "releasePatient": "שחרר",
+    "unassigned": "לא משויך",
+    "assignedToYou": "משויך אליך",
+    "assignedToOther": "משויך",
+    "readyForHandoff": "מוכן להעברה",
+    "inTreatment": "בטיפול",
+    "submitHandoff": "הגש העברה",
+    "completed": "הושלם",
+    "handoffPending": "העברה ממתינה — לחץ להגשה",
+    "handoffDebtWarning": "העברות פתוחות ממתינות",
+    "handoffPendingAfterComplete": "העברה ממתינה — יש להגיש העברה למטופל זה",
+    "nonAmbulatory": "לא הולך",
+    "patient": "מטופל",
+    "filePending": "תיק ממתין"
+  },
+
   "erCommandCenter": {
     "title": "מרכז פיקוד חדר מיון",
     "lanes": {

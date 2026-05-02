@@ -2,7 +2,16 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth.js";
+import { and, eq, sql } from "drizzle-orm";
+import { db, erIntakeEvents, shiftHandoffs } from "../db.js";
+import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
+import {
+  clearAdmissionStateForUser,
+  enterAdmissionState,
+  exitAdmissionState,
+  getAdmissionState,
+} from "../services/er-admission-state.service.js";
 import { applyGlobalErModeToggle } from "../lib/er-mode-toggle.js";
 import { canManageErModeForUser } from "../lib/er-mode-permissions.js";
 import { getClinicErModeState } from "../lib/er-mode.js";
@@ -55,6 +64,23 @@ const ackHandoffSchema = z.object({
   // Forced Ack Override — admin/vet must supply a non-empty reason for audit purposes.
   overrideReason: z.string().trim().min(1).max(500).optional(),
 });
+
+const acceptIntakeSchema = z.object({
+  userId: z.string().trim().min(1).nullable(),
+});
+
+const enterAdmissionSchema = z.object({
+  intakeEventId: z.string().trim().min(1),
+});
+
+const enrichIntakeSchema = z
+  .object({
+    animalId: z.string().trim().min(1).optional(),
+    ownerName: z.string().trim().min(1).optional(),
+  })
+  .refine((d) => d.animalId !== undefined || d.ownerName !== undefined, {
+    message: "At least one of animalId or ownerName is required",
+  });
 
 function apiError(params: { code: string; reason: string; message: string; requestId: string }) {
   return { error: params.code, reason: params.reason, message: params.message, requestId: params.requestId };
@@ -370,6 +396,320 @@ router.patch("/intake/:id/assign", requireAssignableRole, async (req: Request, r
   }
 });
 
+router.patch(
+  "/intake/:id/accept",
+  requireEffectiveRole("vet"),
+  async (req: Request, res: Response) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    const clinicId = req.clinicId!;
+    const { id } = req.params;
+
+    const parsed = acceptIntakeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json(
+          apiError({
+            code: "VALIDATION_ERROR",
+            reason: "INVALID_BODY",
+            message: parsed.error.message,
+            requestId,
+          }),
+        );
+    }
+
+    const { userId } = parsed.data;
+
+    const [intake] = await db
+      .select({ id: erIntakeEvents.id, status: erIntakeEvents.status })
+      .from(erIntakeEvents)
+      .where(and(eq(erIntakeEvents.id, id), eq(erIntakeEvents.clinicId, clinicId)))
+      .limit(1);
+
+    if (!intake) {
+      return res
+        .status(404)
+        .json(
+          apiError({ code: "NOT_FOUND", reason: "INTAKE_NOT_FOUND", message: "Intake not found", requestId }),
+        );
+    }
+
+    if (!["waiting", "assigned"].includes(intake.status ?? "")) {
+      return res
+        .status(409)
+        .json(
+          apiError({
+            code: "CONFLICT",
+            reason: "INVALID_STATUS_FOR_ACCEPT",
+            message: "Intake must be waiting or assigned to accept",
+            requestId,
+          }),
+        );
+    }
+
+    await db
+      .update(erIntakeEvents)
+      .set({ acceptedByUserId: userId, updatedAt: new Date() })
+      .where(and(eq(erIntakeEvents.id, id), eq(erIntakeEvents.clinicId, clinicId)));
+
+    await insertRealtimeDomainEvent(db, {
+      clinicId,
+      type: "er:intake:accepted",
+      payload: { intakeId: id, acceptedByUserId: userId },
+    });
+
+    logAudit({
+      clinicId,
+      actionType: userId ? "er_intake_patient_accepted" : "er_intake_patient_accept_released",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "er_intake",
+      metadata: { acceptedByUserId: userId },
+    });
+
+    return res.json({ id, acceptedByUserId: userId, updatedAt: new Date().toISOString() });
+  },
+);
+
+router.post("/admission-state", requireEffectiveRole("vet"), async (req: Request, res: Response) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const userId = req.authUser!.id;
+
+  const parsed = enterAdmissionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json(
+        apiError({
+          code: "VALIDATION_ERROR",
+          reason: "INVALID_BODY",
+          message: parsed.error.message,
+          requestId,
+        }),
+      );
+  }
+
+  const row = await enterAdmissionState(clinicId, userId, parsed.data.intakeEventId);
+
+  await insertRealtimeDomainEvent(db, {
+    clinicId,
+    type: "er:admission-state:entered",
+    payload: { userId, intakeEventId: parsed.data.intakeEventId },
+  });
+
+  logAudit({
+    clinicId,
+    actionType: "er_admission_state_entered",
+    performedBy: userId,
+    performedByEmail: req.authUser!.email ?? "",
+    targetId: parsed.data.intakeEventId,
+    targetType: "er_intake",
+  });
+
+  return res.json({
+    id: row.id,
+    userId,
+    intakeEventId: row.intakeEventId,
+    enteredAt: row.enteredAt.toISOString(),
+  });
+});
+
+router.delete("/admission-state", requireEffectiveRole("vet"), async (req: Request, res: Response) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  const clinicId = req.clinicId!;
+  const userId = req.authUser!.id;
+
+  const result = await exitAdmissionState(clinicId, userId);
+
+  await insertRealtimeDomainEvent(db, {
+    clinicId,
+    type: "er:admission-state:cleared",
+    payload: { userId },
+  });
+
+  logAudit({
+    clinicId,
+    actionType: "er_admission_state_cleared",
+    performedBy: userId,
+    performedByEmail: req.authUser!.email ?? "",
+    metadata: { manual: true },
+  });
+
+  return res.json({
+    cleared: result.cleared,
+    handoffDebtWarning: result.handoffDebtWarning,
+    pendingCount: result.pendingCount,
+  });
+});
+
+router.get("/admission-state", async (req: Request, res: Response) => {
+  const clinicId = req.clinicId!;
+  const userId = req.authUser!.id;
+  const row = await getAdmissionState(clinicId, userId);
+
+  if (!row) return res.json({ active: false, state: null });
+
+  return res.json({
+    active: true,
+    state: {
+      id: row.id,
+      intakeEventId: row.intakeEventId,
+      enteredAt: row.enteredAt.toISOString(),
+    },
+  });
+});
+
+router.post(
+  "/intake/:id/admission-complete",
+  requireEffectiveRole("vet"),
+  async (req: Request, res: Response) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    const clinicId = req.clinicId!;
+    const userId = req.authUser!.id;
+    const { id } = req.params;
+
+    const [intake] = await db
+      .select({
+        id: erIntakeEvents.id,
+        status: erIntakeEvents.status,
+        assignedUserId: erIntakeEvents.assignedUserId,
+        animalId: erIntakeEvents.animalId,
+      })
+      .from(erIntakeEvents)
+      .where(and(eq(erIntakeEvents.id, id), eq(erIntakeEvents.clinicId, clinicId)))
+      .limit(1);
+
+    if (!intake) {
+      return res
+        .status(404)
+        .json(
+          apiError({ code: "NOT_FOUND", reason: "INTAKE_NOT_FOUND", message: "Intake not found", requestId }),
+        );
+    }
+
+    await db
+      .update(erIntakeEvents)
+      .set({ status: "admission_complete", updatedAt: new Date() })
+      .where(and(eq(erIntakeEvents.id, id), eq(erIntakeEvents.clinicId, clinicId)));
+
+    await clearAdmissionStateForUser(clinicId, userId);
+
+    if (intake.assignedUserId) {
+      await insertRealtimeDomainEvent(db, {
+        clinicId,
+        type: "er:admission-complete:notify-staff",
+        payload: { intakeId: id, notifyUserId: intake.assignedUserId },
+      });
+    }
+
+    await insertRealtimeDomainEvent(db, {
+      clinicId,
+      type: "er:intake:admission-complete",
+      payload: { intakeId: id, completedByUserId: userId },
+    });
+
+    const handoffRows = await db
+      .select({ id: shiftHandoffs.id })
+      .from(shiftHandoffs)
+      .where(
+        and(
+          eq(shiftHandoffs.clinicId, clinicId),
+          sql`${shiftHandoffs.status} != 'cancelled'`,
+        ),
+      )
+      .limit(1);
+    const handoffPending = handoffRows.length === 0;
+
+    logAudit({
+      clinicId,
+      actionType: "er_intake_admission_complete",
+      performedBy: userId,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "er_intake",
+      metadata: { handoffPending },
+    });
+
+    return res.json({
+      id,
+      status: "admission_complete",
+      handoffPending,
+      completedAt: new Date().toISOString(),
+    });
+  },
+);
+
+router.patch(
+  "/intake/:id/enrich",
+  requireEffectiveRole("vet"),
+  async (req: Request, res: Response) => {
+    const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+    const clinicId = req.clinicId!;
+    const { id } = req.params;
+
+    const parsed = enrichIntakeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json(
+          apiError({
+            code: "VALIDATION_ERROR",
+            reason: "INVALID_BODY",
+            message: parsed.error.message,
+            requestId,
+          }),
+        );
+    }
+
+    const [intake] = await db
+      .select({ id: erIntakeEvents.id })
+      .from(erIntakeEvents)
+      .where(and(eq(erIntakeEvents.id, id), eq(erIntakeEvents.clinicId, clinicId)))
+      .limit(1);
+
+    if (!intake) {
+      return res
+        .status(404)
+        .json(
+          apiError({ code: "NOT_FOUND", reason: "INTAKE_NOT_FOUND", message: "Intake not found", requestId }),
+        );
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (parsed.data.animalId !== undefined) updates.animalId = parsed.data.animalId;
+    if (parsed.data.ownerName !== undefined) updates.ownerName = parsed.data.ownerName;
+
+    await db
+      .update(erIntakeEvents)
+      .set(updates)
+      .where(and(eq(erIntakeEvents.id, id), eq(erIntakeEvents.clinicId, clinicId)));
+
+    await insertRealtimeDomainEvent(db, {
+      clinicId,
+      type: "er:intake:enriched",
+      payload: {
+        intakeId: id,
+        animalId: parsed.data.animalId ?? null,
+        ownerName: parsed.data.ownerName ?? null,
+      },
+    });
+
+    logAudit({
+      clinicId,
+      actionType: "er_intake_enriched",
+      performedBy: req.authUser!.id,
+      performedByEmail: req.authUser!.email ?? "",
+      targetId: id,
+      targetType: "er_intake",
+      metadata: { animalId: parsed.data.animalId, ownerName: parsed.data.ownerName },
+    });
+
+    return res.json({ id, enrichedAt: new Date().toISOString() });
+  },
+);
+
 router.get("/handoffs/eligible-hospitalizations", requireAssignableRole, async (req: Request, res: Response) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
@@ -399,6 +739,7 @@ router.post("/handoffs", requireAssignableRole, async (req: Request, res: Respon
   try {
     const clinicId = req.authUser!.clinicId;
     const row = await createErHandoff(clinicId, req.authUser!.id, parsed.data);
+    await clearAdmissionStateForUser(clinicId, req.authUser!.id);
     logAudit({
       clinicId,
       actionType: "er_handoff_created",

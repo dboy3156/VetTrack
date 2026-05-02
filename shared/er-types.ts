@@ -2,7 +2,13 @@
 // Do not change field names or remove fields; add optional fields only.
 export type ErModeState = "disabled" | "preview" | "enforced";
 export type ErSeverity = "low" | "medium" | "high" | "critical";
-export type ErIntakeStatus = "waiting" | "assigned" | "in_progress" | "discharged" | "cancelled";
+export type ErIntakeStatus =
+  | "waiting"
+  | "assigned"
+  | "in_progress"
+  | "admission_complete"
+  | "discharged"
+  | "cancelled";
 export type ErHandoffStatus = "open" | "acknowledged" | "overdue";
 export type ErLane = "criticalNow" | "next15m" | "handoffRisk";
 export type ErNextActionCode =
@@ -75,6 +81,18 @@ export interface ErBoardItem {
   overdueAt: string | null;
   /** Latest ICU monitor snapshot for this stay when `type === "hospitalization"` and source data exists. */
   icuSignals?: ErPhysiologicSnapshot | null;
+  /** Set at intake creation; never mutated. */
+  ambulation?: "ambulatory" | "non_ambulatory" | null;
+  /** userId of the doctor who claimed this patient via Accept Patient. */
+  acceptedByUserId?: string | null;
+  acceptedByUserName?: string | null;
+  /**
+   * Server-derived: true when intake.status = "admission_complete" AND no
+   * vt_shift_handoffs row exists for this intake (status != "cancelled").
+   */
+  admissionComplete?: boolean;
+  /** Mirrors `vt_er_intake_events.status` when `type === "intake"` (card state / CTAs). */
+  intakeWorkflowStatus?: string | null;
 }
 export interface ErBoardResponse {
   clinicId: string;

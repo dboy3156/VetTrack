@@ -1,4 +1,5 @@
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   animals,
   db,
@@ -68,6 +69,7 @@ export function nextActionForIntake(params: {
     return { code: "monitor", label: "Immediate attention" };
   }
   const st = params.status.trim().toLowerCase();
+  if (st === "admission_complete") return { code: "prepare_handoff", label: "Prepare handoff" };
   if (st === "waiting") return { code: "assign_vet", label: "Assign vet" };
   if (st === "assigned") return { code: "start_treatment", label: "Start treatment" };
   if (st === "in_progress") return { code: "monitor", label: "Monitor" };
@@ -135,6 +137,10 @@ export interface IntakeBoardInput {
   ownerName: string | null;
   animalName: string | null;
   chiefComplaint: string;
+  ambulation?: string | null;
+  acceptedByUserId?: string | null;
+  acceptedByDisplayName?: string | null;
+  hasOpenHandoff?: boolean;
 }
 
 export interface HandoffItemBoardInput {
@@ -169,6 +175,10 @@ export function intakeRowToBoardItem(row: IntakeBoardInput, now: Date): ErBoardI
         ? new Date(esc).toISOString()
         : null;
 
+  const st = row.status.trim().toLowerCase();
+  const hasOpen = row.hasOpenHandoff === true;
+  const admissionComplete = st === "admission_complete" && !hasOpen;
+
   return {
     id: row.id,
     animalId: row.animalId,
@@ -184,6 +194,11 @@ export function intakeRowToBoardItem(row: IntakeBoardInput, now: Date): ErBoardI
     nextActionLabel: action.label,
     badges: badgesForIntake({ assignedUserId: row.assignedUserId, overdue }),
     overdueAt: overdue ? overdueAtIso(row.waitingSince) : null,
+    ambulation: (row.ambulation as "ambulatory" | "non_ambulatory" | null | undefined) ?? null,
+    acceptedByUserId: row.acceptedByUserId ?? null,
+    acceptedByUserName: row.acceptedByDisplayName?.trim() || null,
+    admissionComplete,
+    intakeWorkflowStatus: row.status,
   };
 }
 
@@ -257,10 +272,11 @@ export function assembleErBoardResponse(
 /** Caps each source query so the board endpoint stays bounded under load. */
 export const ER_BOARD_QUERY_ROW_CAP = 500;
 
-const ACTIVE_INTAKE_STATUSES: readonly string[] = ["waiting", "assigned", "in_progress"];
+const ACTIVE_INTAKE_STATUSES: readonly string[] = ["waiting", "assigned", "in_progress", "admission_complete"];
 
 export async function getErBoard(clinicId: string, now: Date = new Date()): Promise<ErBoardResponse> {
   const cap = ER_BOARD_QUERY_ROW_CAP;
+  const acceptedByUser = alias(users, "er_accepted_by_user");
 
   const [intakeRows, hoRows, reconRows] = await Promise.all([
     db
@@ -269,9 +285,20 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
         assigneeDisplay: users.displayName,
         assigneeName: users.name,
         animalName: animals.name,
+        acceptedByDisplay: acceptedByUser.displayName,
+        acceptedByName: acceptedByUser.name,
+        hasOpenHandoff: sql<boolean>`CASE
+          WHEN ${erIntakeEvents.animalId} IS NULL THEN false
+          ELSE EXISTS (
+            SELECT 1 FROM vt_shift_handoffs sh
+            INNER JOIN vt_hospitalizations h ON h.id = sh.hospitalization_id AND h.animal_id = ${erIntakeEvents.animalId}
+            WHERE sh.clinic_id = ${clinicId} AND sh.status <> 'cancelled'
+          )
+        END`,
       })
       .from(erIntakeEvents)
       .leftJoin(users, eq(erIntakeEvents.assignedUserId, users.id))
+      .leftJoin(acceptedByUser, eq(erIntakeEvents.acceptedByUserId, acceptedByUser.id))
       .leftJoin(animals, eq(erIntakeEvents.animalId, animals.id))
       .where(
         and(
@@ -340,6 +367,10 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
       ownerName: r.row.ownerName,
       animalName: r.animalName,
       chiefComplaint: r.row.chiefComplaint,
+      ambulation: r.row.ambulation,
+      acceptedByUserId: r.row.acceptedByUserId,
+      acceptedByDisplayName: r.acceptedByDisplay?.trim() || r.acceptedByName?.trim() || null,
+      hasOpenHandoff: r.hasOpenHandoff,
     };
   });
 

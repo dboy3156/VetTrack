@@ -107,6 +107,48 @@ function resolveAckAccess(
   return { canAck: false, requiresOverride: false };
 }
 
+type CardState =
+  | "unassigned"
+  | "assigned_to_me"
+  | "assigned_to_other"
+  | "ready_for_handoff"
+  | "completed";
+
+function resolveCardState(params: {
+  assignedUserId: string | null;
+  acceptedByUserId?: string | null;
+  admissionComplete?: boolean;
+  status: string;
+  currentUserId: string;
+}): CardState {
+  const { assignedUserId, acceptedByUserId, admissionComplete, status, currentUserId } = params;
+  if (status === "discharged" || status === "cancelled") return "completed";
+  if (admissionComplete) return "ready_for_handoff";
+  if (!assignedUserId && !acceptedByUserId) return "unassigned";
+  const owner = acceptedByUserId ?? assignedUserId;
+  return owner === currentUserId ? "assigned_to_me" : "assigned_to_other";
+}
+
+function formatWaitingTimer(waitingSince: string, escalatesAt: string | null): {
+  label: string;
+  urgent: boolean;
+  warn: boolean;
+} {
+  const now = Date.now();
+  const since = new Date(waitingSince).getTime();
+  const elapsedMin = Math.floor((now - since) / 60_000);
+
+  if (escalatesAt) {
+    const dueMs = new Date(escalatesAt).getTime() - now;
+    const dueMin = Math.floor(dueMs / 60_000);
+    if (dueMin < 0) return { label: `Overdue ${Math.abs(dueMin)} min`, urgent: false, warn: true };
+    if (dueMin <= 5) return { label: `Due in ${dueMin} min`, urgent: true, warn: false };
+    return { label: `Due in ${dueMin} min`, urgent: false, warn: false };
+  }
+  if (elapsedMin < 2) return { label: "Just arrived", urgent: false, warn: false };
+  return { label: `${elapsedMin} min ago`, urgent: elapsedMin > 30, warn: false };
+}
+
 export function ErBoardLaneItemCard({
   item,
   assignees,
@@ -119,6 +161,9 @@ export function ErBoardLaneItemCard({
   assigningId,
   ackingId,
   onScan,
+  onAccept,
+  onAdmissionComplete,
+  onSubmitHandoff,
 }: {
   item: ErBoardItem;
   assignees: { id: string; name: string }[];
@@ -131,6 +176,9 @@ export function ErBoardLaneItemCard({
   assigningId: string | null;
   ackingId: string | null;
   onScan: (patientId: string) => void;
+  onAccept?: (intakeId: string) => void;
+  onAdmissionComplete?: (intakeId: string) => void;
+  onSubmitHandoff?: (intakeId: string) => void;
 }): JSX.Element {
   const ant = useErEscalationAnticipation(item.escalatesAt, item.type);
   const pulse = ant.urgency === "imminent" || ant.urgency === "past";
@@ -142,6 +190,21 @@ export function ErBoardLaneItemCard({
 
   const hasOpenReconciliationTask = item.hasOpenReconciliationTask === true;
 
+  const workflowStatus = item.intakeWorkflowStatus ?? "waiting";
+  const cardState =
+    item.type === "intake"
+      ? resolveCardState({
+          assignedUserId: item.assignedUserId ?? null,
+          acceptedByUserId: item.acceptedByUserId,
+          admissionComplete: item.admissionComplete === true,
+          status: workflowStatus,
+          currentUserId: currentUserId ?? "",
+        })
+      : null;
+
+  const assignedUserName = item.assignedUserName ?? null;
+  const acceptedByUserName = item.acceptedByUserName ?? null;
+
   return (
     <Card
       className={cn(
@@ -152,18 +215,42 @@ export function ErBoardLaneItemCard({
       )}
     >
       <CardContent className="space-y-2 p-3 text-sm">
-        {/* dir/inheritance: board cards follow document `<html dir>` (see index.html); no per-card dir override. */}
         <div className="flex items-center gap-1" style={{ direction: "inherit" }}>
           <span className="animal-name">{item.patientLabel}</span>
           {hasOpenReconciliationTask ? (
             <ReconciliationWarningIcon label={t.erCommandCenter.reconciliationWarning} />
           ) : null}
         </div>
+
+        {item.type === "intake" && item.ambulation === "non_ambulatory" ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-400 text-[10px] font-bold uppercase tracking-wide">
+            ⚑ {t.er.nonAmbulatory}
+          </span>
+        ) : null}
+
         <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
           <span className="font-medium uppercase tracking-wide">{item.severity}</span>
           <span>·</span>
           <span>{item.nextActionLabel}</span>
         </div>
+
+        {item.type === "intake"
+          ? (() => {
+              const timer = formatWaitingTimer(item.waitingSince, item.escalatesAt);
+              return (
+                <div
+                  className={cn("text-xs font-mono mb-2", {
+                    "text-red-400 font-bold": timer.urgent,
+                    "text-amber-400 font-bold": timer.warn,
+                    "text-slate-500": !timer.urgent && !timer.warn,
+                  })}
+                >
+                  ⏱ {timer.label}
+                </div>
+              );
+            })()
+          : null}
+
         {item.type === "intake" && ant.formattedCountdown && ant.urgency !== "past" ? (
           <div
             className={cn(
@@ -193,6 +280,89 @@ export function ErBoardLaneItemCard({
             ))}
           </div>
         ) : null}
+
+        {item.type === "intake" && cardState ? (
+          <>
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className={cn("w-2 h-2 rounded-full flex-shrink-0", {
+                  "bg-slate-500": cardState === "unassigned",
+                  "bg-blue-500": cardState === "assigned_to_me",
+                  "bg-slate-400": cardState === "assigned_to_other",
+                  "bg-amber-500": cardState === "ready_for_handoff",
+                })}
+              />
+              <span
+                className={cn("text-xs font-medium", {
+                  "text-slate-500": cardState === "unassigned",
+                  "text-blue-400 font-semibold": cardState === "assigned_to_me",
+                  "text-slate-400": cardState === "assigned_to_other",
+                })}
+              >
+                {cardState === "unassigned" && t.er.unassigned}
+                {cardState === "assigned_to_me" && t.er.assignedToYou}
+                {cardState === "assigned_to_other" &&
+                  (acceptedByUserName ?? assignedUserName ?? t.er.assignedToOther)}
+                {cardState === "ready_for_handoff" && t.er.readyForHandoff}
+                {cardState === "completed" && t.er.completed}
+              </span>
+            </div>
+
+            {cardState === "unassigned" && onAccept ? (
+              <button
+                type="button"
+                onClick={() => onAccept(item.id)}
+                className="w-full py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+              >
+                {t.er.acceptPatient}
+              </button>
+            ) : null}
+            {cardState === "assigned_to_me" && onAdmissionComplete ? (
+              <button
+                type="button"
+                onClick={() => onAdmissionComplete(item.id)}
+                className="w-full py-2 rounded-md bg-blue-900 border border-blue-600 text-blue-300 hover:text-blue-100 text-xs font-semibold transition-colors"
+              >
+                {t.er.admissionComplete}
+              </button>
+            ) : null}
+            {cardState === "assigned_to_other" ? (
+              <button
+                type="button"
+                disabled
+                className="w-full py-2 rounded-md bg-slate-800 text-slate-500 text-xs font-medium cursor-not-allowed"
+              >
+                {t.er.inTreatment}
+              </button>
+            ) : null}
+            {cardState === "ready_for_handoff" && onSubmitHandoff ? (
+              <button
+                type="button"
+                onClick={() => onSubmitHandoff(item.id)}
+                className="w-full py-2 rounded-md bg-amber-950 border border-amber-700 text-amber-300 hover:text-amber-100 text-xs font-semibold transition-colors"
+              >
+                {t.er.submitHandoff}
+              </button>
+            ) : null}
+
+            {item.admissionComplete && onSubmitHandoff ? (
+              <button
+                type="button"
+                onClick={() => onSubmitHandoff(item.id)}
+                className={cn(
+                  "w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-md",
+                  "bg-amber-950 border border-amber-700",
+                  "text-amber-300 text-xs font-semibold",
+                  "hover:bg-amber-900 transition-colors",
+                )}
+              >
+                <span>📋</span>
+                <span>{t.er.handoffPending}</span>
+              </button>
+            ) : null}
+          </>
+        ) : null}
+
         {item.type === "intake" && canAssign ? (
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Select

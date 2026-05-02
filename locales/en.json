@@ -1449,6 +1449,28 @@
     }
   },
 
+  "er": {
+    "inAdmission": "In Admission",
+    "admissionComplete": "✓ Admission Complete",
+    "available": "Available",
+    "completing": "Completing…",
+    "acceptPatient": "Accept Patient",
+    "releasePatient": "Release",
+    "unassigned": "Unassigned",
+    "assignedToYou": "Assigned to you",
+    "assignedToOther": "Assigned",
+    "readyForHandoff": "Ready for handoff",
+    "inTreatment": "In Treatment",
+    "submitHandoff": "Submit Handoff",
+    "completed": "Completed",
+    "handoffPending": "Handoff pending — tap to submit",
+    "handoffDebtWarning": "Outstanding handoffs pending",
+    "handoffPendingAfterComplete": "Handoff pending — please submit handoff for this patient",
+    "nonAmbulatory": "Non-ambulatory",
+    "patient": "Patient",
+    "filePending": "file pending"
+  },
+
   "erCommandCenter": {
     "title": "ER Command Center",
     "lanes": {

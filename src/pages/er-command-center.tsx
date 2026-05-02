@@ -3,8 +3,10 @@ import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  acceptErPatient,
   ackErHandoff,
   assignErIntake,
+  completeAdmission,
   createErHandoff,
   createErIntake,
   getErAssignees,
@@ -50,6 +52,7 @@ import { AlertTriangle } from "lucide-react";
 import { QrScanner } from "@/components/qr-scanner";
 import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
 import { ErBoardLaneItemCard } from "@/features/er-board/components/ErBoardLaneItemCard";
+import { InAdmissionStrip } from "@/components/er/InAdmissionStrip";
 
 const ER_QUERY = ER_BOARD_QUERY_KEY;
 const ASSIGNEES_QUERY = ER_ASSIGNEES_QUERY_KEY;
@@ -125,6 +128,9 @@ function LaneColumn({
   assigningId,
   ackingId,
   onScan,
+  onAcceptPatient,
+  onAdmissionComplete,
+  onSubmitHandoff,
 }: {
   title: string;
   items: ErBoardItem[];
@@ -138,6 +144,9 @@ function LaneColumn({
   assigningId: string | null;
   ackingId: string | null;
   onScan: (patientId: string) => void;
+  onAcceptPatient?: (intakeId: string) => void;
+  onAdmissionComplete?: (intakeId: string) => void;
+  onSubmitHandoff?: (intakeId: string) => void;
 }) {
   return (
     <Card className="flex min-h-[320px] flex-1 flex-col">
@@ -162,6 +171,9 @@ function LaneColumn({
               assigningId={assigningId}
               ackingId={ackingId}
               onScan={onScan}
+              onAccept={onAcceptPatient}
+              onAdmissionComplete={onAdmissionComplete}
+              onSubmitHandoff={onSubmitHandoff}
             />
           ))
         )}
@@ -310,6 +322,27 @@ export default function ErCommandCenterPage() {
       invalidateEr();
     },
     onError: () => toast.error("Assign failed"),
+  });
+
+  const canDoctorAdmissionActions = ["admin", "vet"].includes(effectiveRole);
+
+  const acceptMut = useMutation({
+    mutationFn: ({ intakeId, userId }: { intakeId: string; userId: string | null }) =>
+      acceptErPatient(intakeId, userId),
+    onSuccess: () => {
+      invalidateEr();
+      void qc.invalidateQueries({ queryKey: ["er", "admission-state"] });
+    },
+    onError: () => toast.error("Accept failed"),
+  });
+
+  const admissionCompleteMut = useMutation({
+    mutationFn: (intakeId: string) => completeAdmission(intakeId),
+    onSuccess: () => {
+      invalidateEr();
+      void qc.invalidateQueries({ queryKey: ["er", "admission-state"] });
+    },
+    onError: () => toast.error("Admission complete failed"),
   });
 
   const handoffMut = useMutation({
@@ -649,59 +682,101 @@ export default function ErCommandCenterPage() {
         ) : boardQ.isError ? (
           <p className="text-destructive">Load failed</p>
         ) : (
-          <div className="flex flex-col gap-4 lg:flex-row">
-            <LaneColumn
-              title={t.erCommandCenter.lanes.criticalNow}
-              items={lanes.criticalNow}
-              assignees={assignees}
-              canAssign={assignRole}
-              currentUserId={auth.userId}
-              currentRole={effectiveRole}
-              assigningId={assigningId}
-              ackingId={ackingId}
-              onAssign={(id, uid) => assignMut.mutate({ id, uid })}
-              onAck={(id) => ackMut.mutate(id)}
-              onForcedAckOverride={(id) => {
-                setOverrideTargetId(id);
-                setOverrideReason("");
-              }}
-              onScan={handleScan}
-            />
-            <LaneColumn
-              title={t.erCommandCenter.lanes.next15m}
-              items={lanes.next15m}
-              assignees={assignees}
-              canAssign={assignRole}
-              currentUserId={auth.userId}
-              currentRole={effectiveRole}
-              assigningId={assigningId}
-              ackingId={ackingId}
-              onAssign={(id, uid) => assignMut.mutate({ id, uid })}
-              onAck={(id) => ackMut.mutate(id)}
-              onForcedAckOverride={(id) => {
-                setOverrideTargetId(id);
-                setOverrideReason("");
-              }}
-              onScan={handleScan}
-            />
-            <LaneColumn
-              title={t.erCommandCenter.lanes.handoffRisk}
-              items={lanes.handoffRisk}
-              assignees={assignees}
-              canAssign={assignRole}
-              currentUserId={auth.userId}
-              currentRole={effectiveRole}
-              assigningId={assigningId}
-              ackingId={ackingId}
-              onAssign={(id, uid) => assignMut.mutate({ id, uid })}
-              onAck={(id) => ackMut.mutate(id)}
-              onForcedAckOverride={(id) => {
-                setOverrideTargetId(id);
-                setOverrideReason("");
-              }}
-              onScan={handleScan}
-            />
-          </div>
+          <>
+            <InAdmissionStrip />
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <LaneColumn
+                title={t.erCommandCenter.lanes.criticalNow}
+                items={lanes.criticalNow}
+                assignees={assignees}
+                canAssign={assignRole}
+                currentUserId={auth.userId}
+                currentRole={effectiveRole}
+                assigningId={assigningId}
+                ackingId={ackingId}
+                onAssign={(id, uid) => assignMut.mutate({ id, uid })}
+                onAck={(id) => ackMut.mutate(id)}
+                onForcedAckOverride={(id) => {
+                  setOverrideTargetId(id);
+                  setOverrideReason("");
+                }}
+                onScan={handleScan}
+                onAcceptPatient={
+                  canDoctorAdmissionActions && auth.userId
+                    ? (intakeId) => acceptMut.mutate({ intakeId, userId: auth.userId })
+                    : undefined
+                }
+                onAdmissionComplete={
+                  canDoctorAdmissionActions
+                    ? (intakeId) => admissionCompleteMut.mutate(intakeId)
+                    : undefined
+                }
+                onSubmitHandoff={(_intakeId) => {
+                  setHandoffOpen(true);
+                }}
+              />
+              <LaneColumn
+                title={t.erCommandCenter.lanes.next15m}
+                items={lanes.next15m}
+                assignees={assignees}
+                canAssign={assignRole}
+                currentUserId={auth.userId}
+                currentRole={effectiveRole}
+                assigningId={assigningId}
+                ackingId={ackingId}
+                onAssign={(id, uid) => assignMut.mutate({ id, uid })}
+                onAck={(id) => ackMut.mutate(id)}
+                onForcedAckOverride={(id) => {
+                  setOverrideTargetId(id);
+                  setOverrideReason("");
+                }}
+                onScan={handleScan}
+                onAcceptPatient={
+                  canDoctorAdmissionActions && auth.userId
+                    ? (intakeId) => acceptMut.mutate({ intakeId, userId: auth.userId })
+                    : undefined
+                }
+                onAdmissionComplete={
+                  canDoctorAdmissionActions
+                    ? (intakeId) => admissionCompleteMut.mutate(intakeId)
+                    : undefined
+                }
+                onSubmitHandoff={(_intakeId) => {
+                  setHandoffOpen(true);
+                }}
+              />
+              <LaneColumn
+                title={t.erCommandCenter.lanes.handoffRisk}
+                items={lanes.handoffRisk}
+                assignees={assignees}
+                canAssign={assignRole}
+                currentUserId={auth.userId}
+                currentRole={effectiveRole}
+                assigningId={assigningId}
+                ackingId={ackingId}
+                onAssign={(id, uid) => assignMut.mutate({ id, uid })}
+                onAck={(id) => ackMut.mutate(id)}
+                onForcedAckOverride={(id) => {
+                  setOverrideTargetId(id);
+                  setOverrideReason("");
+                }}
+                onScan={handleScan}
+                onAcceptPatient={
+                  canDoctorAdmissionActions && auth.userId
+                    ? (intakeId) => acceptMut.mutate({ intakeId, userId: auth.userId })
+                    : undefined
+                }
+                onAdmissionComplete={
+                  canDoctorAdmissionActions
+                    ? (intakeId) => admissionCompleteMut.mutate(intakeId)
+                    : undefined
+                }
+                onSubmitHandoff={(_intakeId) => {
+                  setHandoffOpen(true);
+                }}
+              />
+            </div>
+          </>
         )}
       </div>
 

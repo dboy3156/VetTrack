@@ -593,6 +593,35 @@ export const shiftImports = pgTable("vt_shift_imports", {
   rowCount: integer("row_count").notNull(),
 });
 
+export const doctorShifts = pgTable(
+  "vt_doctor_shifts",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    date: date("date", { mode: "string" }).notNull(),
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+    shiftName: text("shift_name").notNull(),
+    operationalRole: varchar("operational_role", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicDateRoleIdx: index("idx_doctor_shifts_clinic_date_role").on(
+      table.clinicId,
+      table.date,
+      table.operationalRole,
+    ),
+  }),
+);
+
+export type DoctorShift = typeof doctorShifts.$inferSelect;
+export type NewDoctorShift = typeof doctorShifts.$inferInsert;
+
 export const scanLogs = pgTable("vt_scan_logs", {
   id: text("id").primaryKey(),
   clinicId: text("clinic_id").notNull().references(() => clinics.id, { onDelete: "restrict" }),
@@ -1171,6 +1200,10 @@ export const erIntakeEvents = pgTable(
       .notNull(),
 
     escalatesAt: timestamp("escalates_at", { withTimezone: true }),
+
+    ambulation: varchar("ambulation", { length: 20 }),
+    acceptedByUserId: text("accepted_by_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
   },
   (table) => ({
     clinicStatusIdx: index("idx_er_intake_clinic_status").on(
@@ -1189,6 +1222,31 @@ export const erIntakeEvents = pgTable(
       ),
   }),
 );
+
+export const doctorAdmissionState = pgTable(
+  "vt_doctor_admission_state",
+  {
+    id: text("id").primaryKey(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    intakeEventId: text("intake_event_id")
+      .references(() => erIntakeEvents.id, { onDelete: "set null" }),
+    enteredAt: timestamp("entered_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    clinicUserUnique: uniqueIndex("idx_doctor_admission_state_clinic_user").on(
+      table.clinicId,
+      table.userId,
+    ),
+  }),
+);
+
+export type DoctorAdmissionState = typeof doctorAdmissionState.$inferSelect;
+export type NewDoctorAdmissionState = typeof doctorAdmissionState.$inferInsert;
 
 export const shiftHandoffs = pgTable(
   "vt_shift_handoffs",

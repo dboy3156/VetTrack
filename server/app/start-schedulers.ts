@@ -9,6 +9,7 @@ import { startSystemWatchdog } from "../lib/system-watchdog.js";
 import { startExpiryCheckWorker } from "../workers/expiryCheckWorker.js";
 import { startChargeAlertWorker } from "../workers/chargeAlertWorker.js";
 import { startInventoryDeductionWorker } from "../workers/inventory-deduction.worker.js";
+import { startAdmissionFanoutWorker } from "../workers/admission-fanout.worker.js";
 import { startIntegrationWorker } from "../workers/integration.worker.js";
 import { startIntegrationScheduleJobs } from "../integrations/jobs/integration-schedules.js";
 import { startIntegrationRetentionCron } from "../integrations/jobs/integration-retention.js";
@@ -36,6 +37,7 @@ export async function startBackgroundSchedulers() {
   await startExpiryCheckWorker();
   await startChargeAlertWorker();
   await startInventoryDeductionWorker();
+  await startAdmissionFanoutWorker();
   await startIntegrationWorker();
   startIntegrationScheduleJobs();
   startIntegrationRetentionCron();

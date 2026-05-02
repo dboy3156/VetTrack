@@ -409,6 +409,8 @@ const translations = {
 
   adminOpsDashboard: d.adminOpsDashboard,
 
+  er: d.er,
+
   erCommandCenter: {
     title: d.erCommandCenter.title,
     lanes: d.erCommandCenter.lanes,

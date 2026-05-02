@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { eq, and } from "drizzle-orm";
 import { animals, clinics, db, erIntakeEvents, users } from "../db.js";
 import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
+import { getAdmissionPoolUserIds } from "./er-doctor-shifts.service.js";
+import { admissionFanoutQueue } from "../queues/admission-fanout.queue.js";
 import {
   computeInitialEscalatesAt,
   DEFAULT_ER_INTAKE_ESCALATE_LOW_MINUTES,
@@ -44,7 +46,7 @@ export async function createErIntake(
   const id = randomUUID();
   const now = new Date();
 
-  return await db.transaction(async (tx) => {
+  const mapped = await db.transaction(async (tx) => {
     const [clinicRow] = await tx
       .select({
         escalateLowMinutes: clinics.erIntakeEscalateLowMinutes,
@@ -105,6 +107,10 @@ export async function createErIntake(
 
     return mapRow(row);
   });
+
+  const recipientUserIds = await getAdmissionPoolUserIds(clinicId);
+  await admissionFanoutQueue.tryAdd({ clinicId, intakeEventId: mapped.id, recipientUserIds });
+  return mapped;
 }
 
 export async function assignErIntake(

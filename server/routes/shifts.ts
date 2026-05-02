@@ -2,9 +2,10 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { createHash, randomUUID } from "crypto";
 import multer from "multer";
 import { and, desc, eq } from "drizzle-orm";
-import { db, shiftImports, shifts, users } from "../db.js";
+import { db, doctorShifts, shiftImports, shifts, users } from "../db.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import { detectDoctorOperationalShiftRole } from "../../shared/doctor-operational-shift.js";
 
 type ShiftRole = "technician" | "senior_technician" | "admin";
 
@@ -21,7 +22,7 @@ interface ParsedShiftRow {
 interface ShiftRowIssue {
   rowNumber: number;
   reason: string;
-  data: Record<string, string>;
+  data: Record<string, unknown>;
 }
 
 interface ShiftParseResult {
@@ -101,7 +102,18 @@ const CSV_HEADER_VARIANTS = {
   endTime: ["end", "endtime", "to", "totime", "שעתסיום", "סיום", "עדשעה"],
   employeeName: ["employee", "employeename", "name", "fullname", "שם", "שםעובד", "עובד", "שםמלא"],
   shiftName: ["shift", "shiftname", "rolename", "תפקיד", "משמרת", "שםמשמרת", "תורה"],
+  userId: ["user_id", "userid", "מזהה משתמש", "מזהה_משתמש"],
 } as const;
+
+interface ParsedDoctorShiftRow {
+  rowNumber: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  userId: string;
+  shiftName: string;
+  operationalRole: import("../../shared/doctor-operational-shift.js").DoctorOperationalShiftRole;
+}
 
 function normalizeWhitespace(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -222,6 +234,87 @@ function parseTime(value: string): string | null {
   }
 
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function isDoctorCsv(normalizedHeaders: string[]): boolean {
+  return CSV_HEADER_VARIANTS.userId.some((v) =>
+    normalizedHeaders.includes(normalizeHeader(v)),
+  );
+}
+
+async function parseDoctorShiftRows(
+  headers: string[],
+  rows: string[][],
+  clinicId: string,
+): Promise<{ validRows: ParsedDoctorShiftRow[]; issues: ShiftRowIssue[] }> {
+  const normalizedHeaders = headers.map(normalizeHeader);
+
+  function colIdx(variants: readonly string[]): number {
+    for (const v of variants) {
+      const i = normalizedHeaders.indexOf(normalizeHeader(v));
+      if (i !== -1) return i;
+    }
+    return -1;
+  }
+
+  const dateIdx = colIdx(CSV_HEADER_VARIANTS.date);
+  const startIdx = colIdx(CSV_HEADER_VARIANTS.startTime);
+  const endIdx = colIdx(CSV_HEADER_VARIANTS.endTime);
+  const userIdIdx = colIdx(CSV_HEADER_VARIANTS.userId);
+  const shiftNameIdx = colIdx(CSV_HEADER_VARIANTS.shiftName);
+
+  const clinicUsers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.clinicId, clinicId));
+  const validUserIds = new Set(clinicUsers.map((u) => u.id));
+
+  const validRows: ParsedDoctorShiftRow[] = [];
+  const issues: ShiftRowIssue[] = [];
+
+  rows.forEach((row, idx) => {
+    const rowNumber = idx + 2;
+    const rawDate = row[dateIdx] ?? "";
+    const rawStart = row[startIdx] ?? "";
+    const rawEnd = row[endIdx] ?? "";
+    const rawUserId = normalizeWhitespace(row[userIdIdx] ?? "");
+    const rawShiftName = normalizeWhitespace(row[shiftNameIdx] ?? "");
+
+    const date = parseDate(rawDate);
+    const startTime = parseTime(rawStart);
+    const endTime = parseTime(rawEnd);
+
+    if (!date || !startTime || !endTime || !rawUserId || !rawShiftName) {
+      issues.push({
+        rowNumber,
+        reason: "MISSING_OR_INVALID_FIELDS",
+        data: { date: rawDate, start: rawStart, end: rawEnd, userId: rawUserId, shiftName: rawShiftName },
+      });
+      return;
+    }
+
+    if (!validUserIds.has(rawUserId)) {
+      issues.push({
+        rowNumber,
+        reason: "USER_NOT_FOUND",
+        data: { userId: rawUserId },
+      });
+      return;
+    }
+
+    const operationalRole = detectDoctorOperationalShiftRole(rawShiftName);
+    if (operationalRole === "unknown") {
+      issues.push({
+        rowNumber,
+        reason: "UNKNOWN_OPERATIONAL_ROLE",
+        data: { shiftName: rawShiftName, note: "imported but will not route" },
+      });
+    }
+
+    validRows.push({ rowNumber, date, startTime, endTime, userId: rawUserId, shiftName: rawShiftName, operationalRole });
+  });
+
+  return { validRows, issues };
 }
 
 function detectShiftRole(shiftName: string): ShiftRole | null {
@@ -607,6 +700,52 @@ router.post("/import", requireAuth, requireAdmin, uploadCsvFile, async (req, res
     }
 
     const csvText = req.file.buffer.toString("utf-8");
+    const { headers, rows } = parseCsv(csvText);
+    const normalizedHeaders = headers.map((h: string) => normalizeHeader(h));
+
+    if (isDoctorCsv(normalizedHeaders)) {
+      const { validRows: doctorRows, issues } = await parseDoctorShiftRows(headers, rows, clinicId);
+      const importId = randomUUID();
+
+      if (doctorRows.length > 0) {
+        await db.insert(shiftImports).values({
+          id: importId,
+          clinicId,
+          importedBy: req.authUser!.id,
+          filename: req.file!.originalname,
+          rowCount: doctorRows.length,
+        });
+
+        await db.insert(doctorShifts).values(
+          doctorRows.map((r) => ({
+            id: randomUUID(),
+            clinicId,
+            userId: r.userId,
+            date: r.date,
+            startTime: r.startTime,
+            endTime: r.endTime,
+            shiftName: r.shiftName,
+            operationalRole: r.operationalRole,
+          })),
+        );
+      }
+
+      logAudit({
+        clinicId,
+        actionType: "doctor_shifts_csv_imported",
+        performedBy: req.authUser!.id,
+        performedByEmail: req.authUser!.email ?? "",
+        metadata: { rowCount: doctorRows.length, issueCount: issues.length },
+      });
+
+      return res.json({
+        filename: req.file!.originalname,
+        totalRows: rows.length,
+        validRows: doctorRows,
+        issues,
+      });
+    }
+
     const parsed = parseShiftsCsvContent(csvText, req.file.originalname || "shifts.csv");
     if (parsed.totalRows === 0) {
       return res.status(400).json(
