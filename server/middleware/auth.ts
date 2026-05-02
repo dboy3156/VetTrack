@@ -457,6 +457,31 @@ export async function resolveAuthUser(req: Request): Promise<ResolveResult> {
   };
 }
 
+/**
+ * Best-effort session attachment for global `/api` middleware registered before route-level `requireAuth`.
+ * Populates `req.authUser` and `req.clinicId` when credentials resolve so downstream middleware
+ * (e.g. ER Mode Concealment 404) can scope clinic policy without spurious errors.
+ * Does not send 401/403 — unauthenticated requests continue; routes still use `requireAuth` where required.
+ */
+export async function sessionContextMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await resolveAuthUser(req);
+    if (result.ok) {
+      req.authUser = result.user;
+      req.clinicId = result.user.clinicId;
+      req.locale = resolveRequestLocale(req, result.user.locale);
+      Sentry.setUser({ id: result.user.id, email: result.user.email });
+    }
+  } catch (err) {
+    console.error("[auth] sessionContextMiddleware failed (fail-open)", err);
+  }
+  next();
+}
+
 export function createRequireAuth(resolver: AuthResolver = resolveAuthUser) {
   return async function requireAuthHandler(req: Request, res: Response, next: NextFunction) {
     const requestId = resolveRequestId(req, res);

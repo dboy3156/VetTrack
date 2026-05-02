@@ -25,6 +25,7 @@ import { globalApiLimiter } from "./middleware/rate-limiters.js";
 import { i18nMiddleware } from "../lib/i18n/middleware.js";
 import { tenantContext } from "./middleware/tenant-context.js";
 import { erModeConcealmentMiddleware } from "./middleware/er-mode-concealment.js";
+import { sessionContextMiddleware } from "./middleware/auth.js";
 import { registerApiRoutes } from "./app/routes.js";
 import clerkWebhookRoutes from "./routes/webhooks.js";
 import inboundIntegrationWebhooks from "./integrations/webhooks/inbound.router.js";
@@ -229,6 +230,8 @@ if (authModeResolution.mode === "clerk") {
 app.use("/api", globalApiLimiter);
 app.use("/api", i18nMiddleware);
 app.use("/api", tenantContext);
+// Session before Concealment 404 so `req.authUser` / `req.clinicId` are available for ER policy.
+app.use("/api", sessionContextMiddleware);
 app.use("/api", erModeConcealmentMiddleware);
 
 registerApiRoutes(app);

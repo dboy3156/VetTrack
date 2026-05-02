@@ -10,7 +10,7 @@ Treat VetTrack as a **clinical-grade operational layer**: 24/7 hospital use requ
 ## Quick start
 
 1. Read `CONTEXT.md` and the domain section of the change (ER, meds, equipment, billing).
-2. If the change adds or moves **routes, APIs, or entry points**, verify **ER Mode**: critical paths must appear in `shared/er-allowlist.ts` (and related guards); run or extend `tests/er-allowlist.test.ts` when behavior changes.
+2. If the change adds or moves **routes, APIs, or entry points**, verify **ER Mode**: critical paths must appear in `shared/er-mode-access.ts` (and related guards); add or extend Vitest coverage for `shared/er-mode-access.ts` / Concealment 404 when path rules change.
 3. Classify findings **P0–P4** (use project audit convention: severity, file:line, risk, effort).
 4. Run the smoke script in `scripts/verify-stack.ps1` after substantive edits.
 5. Deep checklists and repo map: [REFERENCE.md](REFERENCE.md).
@@ -43,7 +43,7 @@ Trace **one clinical action** end-to-end (e.g. complete medication task, NFC che
 
 ## Workflow E — ER Mode & resilience
 
-- **Allowlist**: When adding or changing a route, API surface, or staff-facing entry, check `shared/er-allowlist.ts`. Features on critical paths (Code Blue, medication dispensing, ward display, core ER boards) **must** stay allowlisted so they work under restricted ER Mode—avoid Concealment 404 lockout for bedside workflows.
+- **Allowlist**: When adding or changing a route, API surface, or staff-facing entry, check `shared/er-mode-access.ts`. Features on critical paths (Code Blue, medication dispensing, ward display, core ER boards) **must** stay allowlisted so they work under restricted ER Mode—avoid **Concealment 404** lockout for bedside workflows.
 - **Graceful degradation**: Analytics, reporting, or other non-urgent dependencies must **not** throw uncaught errors that abort billing, inventory, or active treatment flows; fail soft or isolate behind timeouts.
 - **Emergency UI state reliability**: Code Blue / emergency overlays must not hide the patient or queue facts staff need for decisions; avoid extra navigation layers during an active emergency—see Workflow C for display spec.
 

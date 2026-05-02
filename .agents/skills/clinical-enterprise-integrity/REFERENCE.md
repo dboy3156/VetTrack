@@ -14,7 +14,7 @@
 | Offline client | `src/lib/offline-db.ts`, `src/lib/sync-engine.ts` |
 | Ward + Code Blue UI behavior | `docs/superpowers/specs/2026-04-27-ward-display-design.md`, Code Blue routes under `server/routes/` |
 | Asset Radar / rooms | `replit.md` (Asset Radar section), `src/` rooms pages |
-| ER Mode / allowlist | `shared/er-allowlist.ts`, `server/lib/er-mode.ts`, `src/features/er/components/ErModeGuard.tsx`, `tests/er-allowlist.test.ts` |
+| ER Mode / allowlist | `shared/er-mode-access.ts`, `server/lib/er-mode.ts`, `src/features/er/components/ErModeGuard.tsx` |
 
 ## Clinical–financial sync — review prompts
 
@@ -55,11 +55,11 @@ if ($env:DATABASE_URL) {
 }
 ```
 
-Apply migrations before relying on DB-heavy tests. Vitest **excludes** some paths by default (e.g. certain DB and live-server tests); see `vite.config.ts` `test.exclude`. For a single file: `pnpm test -- tests/er-allowlist.test.ts`.
+Apply migrations before relying on DB-heavy tests. Vitest **excludes** some paths by default (e.g. certain DB and live-server tests); see `vite.config.ts` `test.exclude`. When changing **ER Allowlist** / **Concealment 404** rules, run or extend tests that cover `shared/er-mode-access.ts` and `server/middleware/er-mode-concealment.ts`.
 
 ## Risk label rubric (enhanced)
 
-- **P0/P1**: Critical feature path (meds, billing, Code Blue, core ER) **missing** from `shared/er-allowlist.ts`, risking functional lockout during ER Mode; wrong dose path, wrong patient/clinic, missing audit on controlled action, duplicate billing.
+- **P0/P1**: Critical feature path (meds, billing, Code Blue, core ER) **missing** from `shared/er-mode-access.ts`, risking functional lockout during ER Mode; wrong dose path, wrong patient/clinic, missing audit on controlled action, duplicate billing.
 - **P1**: Schema or migration changes that break **backward compatibility** with `src/lib/offline-db.ts` / sync payloads for clients already in the field.
 - **P2**: Non-allowlisted or peripheral UI that hurts performance or clarity in high-stress flows; degraded UX with recovery path.
 - **P3/P4**: Hygiene, logging noise, docs-only gaps.
