@@ -627,7 +627,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   };
 
   return (
-    <div className="min-h-[100dvh] bg-ivory-bg">
+    <div className="min-h-[100dvh] min-w-0 bg-ivory-bg">
       <header
         className={cn(
           "sticky top-safe z-40 border-b bg-ivory-navy backdrop-blur supports-[backdrop-filter]:bg-ivory-navy/95",
@@ -647,7 +647,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         <div className="flex h-14 items-center justify-between px-4 max-w-2xl mx-auto">
           <Link
             href={erConcealment ? "/er" : "/home"}
-            className="flex items-center gap-2 group select-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex cursor-pointer items-center gap-2 group select-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div
               className={cn(
@@ -909,7 +909,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 : "opacity-0 pointer-events-none"
             )}
           >
-            <nav className="flex flex-col gap-1">
+            <nav className="vt-header-menu flex flex-col gap-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-1 pb-0.5">Operations</p>
               {operationMenuItems.map((item, index) => {
                 const isActive = isNavItemActive(item.href);
@@ -919,7 +919,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
                     data-testid={`nav-${item.href.replace("/", "") || "home"}`}
-                    className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                    className="cursor-pointer block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
                     style={{ animationDelay: menuVisible ? `${index * 16}ms` : "0ms" }}
                   >
                     <div
@@ -984,7 +984,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                         href={item.href}
                         onClick={() => setMenuOpen(false)}
                         data-testid={`nav-${item.href.replace("/", "") || "home"}`}
-                        className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                        className="cursor-pointer block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
                         style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
                       >
                         <div
@@ -1033,7 +1033,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
                     data-testid={`nav-${item.href.replace("/", "") || "home"}`}
-                    className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                    className="cursor-pointer block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
                     style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
                   >
                     <div
@@ -1124,7 +1124,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
                     data-testid={`nav-${item.href.replace("/", "") || "home"}`}
-                    className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                    className="cursor-pointer block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
                     style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
                   >
                     <div
@@ -1168,7 +1168,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 }}
                 data-testid="nav-report-issue"
                 className={cn(
-                  "w-full text-left min-h-[44px] relative overflow-hidden",
+                  "w-full cursor-pointer text-left min-h-[44px] relative overflow-hidden",
                   "opacity-0 [animation:navItemFade_160ms_ease-out_forwards] rounded-xl",
                   "text-ivory-text hover:bg-ivory-border/40 active:bg-ivory-border/60 pl-3 hover:pl-4 pr-3",
                   "flex items-center gap-3 transition-all duration-150 py-2.5"
@@ -1193,15 +1193,15 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
       <main
         className={cn(
-          "max-w-2xl mx-auto px-4 pb-nav-safe",
-          settings.density === "compact" ? "py-3" : "py-6"
+          "max-w-2xl mx-auto min-w-0 px-3.5 sm:px-4 pb-nav-safe",
+          settings.density === "compact" ? "py-2.5" : "py-4"
         )}
       >
         {children}
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-ivory-border bg-ivory-surface/98 backdrop-blur-md shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]"
+        className="bottom-bar fixed bottom-0 left-0 right-0 z-50 border-t border-ivory-border bg-ivory-surface/98 backdrop-blur-md shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]"
         style={{
           paddingBottom: "env(safe-area-inset-bottom)",
           willChange: "transform",
@@ -1231,7 +1231,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             <>
               <Link
                 href="/er"
-                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
                 data-testid="bottom-nav-er-command"
               >
                 <Monitor
@@ -1253,7 +1253,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
               <Link
                 href="/er/impact"
-                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
                 data-testid="bottom-nav-er-impact"
               >
                 <Gauge
@@ -1278,7 +1278,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 onClick={() => setMenuOpen((o) => !o)}
                 className={cn(
                   "flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full",
-                  "active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100",
+                  "transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100",
                   "rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   "cursor-pointer",
                   navigationLocked && "opacity-40",
@@ -1304,7 +1304,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
             <>
               <Link
                 href="/home"
-                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
                 data-testid="bottom-nav-home"
               >
                 <Home
@@ -1326,7 +1326,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
               <Link
                 href="/equipment"
-                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
                 data-testid="bottom-nav-equipment"
               >
                 <Package
@@ -1402,7 +1402,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
 
               <Link
                 href="/rooms"
-                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
+                className="flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ivory-surface cursor-pointer"
                 data-testid="bottom-nav-rooms"
               >
                 <Map
@@ -1427,7 +1427,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 onClick={() => setMenuOpen((o) => !o)}
                 className={cn(
                   "flex flex-col items-center justify-end gap-0.5 pb-2 min-h-[52px] w-full",
-                  "active:scale-95 motion-reduce:active:scale-100 transition-transform duration-100",
+                  "transition-opacity duration-150 active:opacity-80 motion-reduce:active:opacity-100",
                   "rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   "cursor-pointer",
                   navigationLocked && "opacity-40",

@@ -68,7 +68,8 @@ export function UpdateBanner() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 shrink-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+        data-no-touch-min
+        className="h-6 w-6 min-h-0 min-w-0 shrink-0 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
         onClick={dismiss}
         aria-label={t.updateBanner.dismissAria}
         data-testid="update-banner-dismiss"

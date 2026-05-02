@@ -222,10 +222,10 @@ export default function HomePage() {
         <meta name="description" content="Real-time veterinary equipment dashboard. View status at a glance, scan QR codes, triage active alerts, and track checked-out equipment across your clinic." />
         <link rel="canonical" href="https://vettrack.replit.app/" />
       </Helmet>
-      <div className="motion-safe:animate-page-enter pb-20">
-        <div className="flex w-full flex-col gap-8">
-          <section className="rounded-3xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 px-5 py-6 shadow-sm sm:px-7 sm:py-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="motion-safe:animate-page-enter pb-8">
+        <div className="flex w-full flex-col gap-5">
+          <section className="rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 px-4 py-4 shadow-sm sm:px-5 sm:py-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1 space-y-1.5">
                 <p className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -265,7 +265,7 @@ export default function HomePage() {
           {shiftTotal?.shiftActive && shiftTotal.totalCents > 0 && (
             <Link href="/billing">
               <div
-                className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                 data-testid="shift-capture-badge"
               >
                 <div className="flex items-center gap-3">
@@ -294,7 +294,7 @@ export default function HomePage() {
                   className="h-full border-border/60 bg-card/95 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                   data-testid={`kpi-${card.id}`}
                 >
-                  <CardContent className="flex min-h-[128px] flex-col justify-between p-4 sm:p-5">
+                  <CardContent className="flex min-h-[120px] flex-col justify-between p-4 sm:p-4">
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         {card.title}
@@ -335,7 +335,7 @@ export default function HomePage() {
                   className="group border-border/60 bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                   data-testid={`quick-action-${action.id}`}
                 >
-                  <CardContent className="flex min-h-[92px] items-center justify-between gap-3 p-4">
+                  <CardContent className="flex min-h-[88px] items-center justify-between gap-2.5 p-4">
                     <div className="space-y-0.5">
                       <p className="text-sm font-semibold text-foreground">{action.label}</p>
                       <p className="text-xs text-muted-foreground">{action.hint}</p>
@@ -367,11 +367,11 @@ export default function HomePage() {
             })}
           </section>
 
-          <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-            <div className="space-y-5 lg:col-span-7">
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="space-y-4 lg:col-span-7">
               <Card className="border-border/60 bg-card shadow-sm">
-                <CardContent className="p-5 sm:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-3">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
                     <h2 className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
                       <Activity className="h-4 w-4 text-primary" />
                       Live Activity
@@ -418,8 +418,8 @@ export default function HomePage() {
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-10 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
-                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-background/80 shadow-inner ring-1 ring-border/50">
+                    <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
+                      <div className="mx-auto mb-2.5 flex h-11 w-11 items-center justify-center rounded-xl bg-background/80 shadow-inner ring-1 ring-border/50">
                         <Activity className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <p className="text-sm font-medium text-foreground">No recent activity</p>
@@ -433,12 +433,12 @@ export default function HomePage() {
 
               {!isLoading && totalCount === 0 && (
                 <Card className="border-border/60 bg-card shadow-sm">
-                  <CardContent className="p-8 text-center">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                  <CardContent className="p-6 text-center">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
                       <Zap className="h-7 w-7 text-muted-foreground" />
                     </div>
                     <h3 className="mb-1 text-lg font-bold">{t.homePage.getStarted}</h3>
-                    <p className="mb-5 text-sm text-muted-foreground">
+                    <p className="mb-4 text-sm text-muted-foreground">
                       {t.homePage.getStartedDescription}
                     </p>
                     <Link href="/equipment/new">
@@ -452,10 +452,10 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="space-y-5 lg:col-span-5">
+            <div className="space-y-4 lg:col-span-5">
               <Card className="border-border/60 bg-card shadow-sm">
-                <CardContent className="p-5 sm:p-6">
-                  <div className="mb-4 flex items-center justify-between">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="mb-3 flex items-center justify-between">
                     <h2 className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
                       <AlertTriangle className="h-4 w-4 text-destructive" />
                       Inventory Alerts
@@ -497,8 +497,8 @@ export default function HomePage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-10 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
-                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 shadow-inner ring-1 ring-emerald-500/25">
+                    <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
+                      <div className="mx-auto mb-2.5 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 shadow-inner ring-1 ring-emerald-500/25">
                         <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                       </div>
                       <p className="text-sm font-medium text-foreground">No inventory alerts</p>
@@ -511,8 +511,8 @@ export default function HomePage() {
               </Card>
 
               <Card className="border-border/60 bg-card shadow-sm">
-                <CardContent className="p-5">
-                  <h3 className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CardContent className="p-4">
+                  <h3 className="mb-2.5 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
                     <BadgePlus className="h-4 w-4 text-primary" />
                     At a glance
                   </h3>

@@ -102,9 +102,9 @@ export default {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
-        /** Route / sheet entrance: slightly more deliberate than fade-in */
+        /** Route entrance — small translate only (large values feel like jump / CLS with lazy routes) */
         "page-enter": {
-          from: { opacity: "0", transform: "translateY(10px)" },
+          from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
         "slide-in": {
@@ -116,7 +116,7 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.3s ease-out",
-        "page-enter": "page-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "page-enter": "page-enter 0.22s ease-out both",
         "slide-in": "slide-in 0.3s ease-out",
       },
     },

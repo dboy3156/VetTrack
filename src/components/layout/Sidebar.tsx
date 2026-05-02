@@ -20,7 +20,7 @@ export function Sidebar({ sidebarItems }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex flex-row shrink-0 min-h-0 overflow-x-visible overflow-y-auto max-h-[100dvh]",
+        "flex flex-row shrink-0 min-h-0 min-w-0 overflow-x-visible overflow-y-auto max-h-[100dvh]",
         showOps && "border-e border-ivory-border bg-[#f0ede6]",
       )}
     >

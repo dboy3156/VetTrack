@@ -19,11 +19,11 @@ export function PageShell({ sidebarItems, children }: PageShellProps) {
   const dir = useDirection();
 
   return (
-    <div dir={dir} className="min-h-screen bg-ivory-bg text-ivory-text flex flex-col">
+    <div dir={dir} className="min-h-screen min-w-0 bg-ivory-bg text-ivory-text flex flex-col">
       <Topbar />
-      <div className="flex flex-1 min-h-0 overflow-x-hidden overflow-y-hidden">
+      <div className="flex flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-hidden">
         <Sidebar sidebarItems={sidebarItems} />
-        <section className="flex-1 min-h-0 px-7 pt-[14px] pb-6 overflow-y-auto">
+        <section className="flex-1 min-h-0 min-w-0 px-5 sm:px-6 pt-3 pb-5 overflow-x-hidden overflow-y-auto overscroll-contain">
           {children}
         </section>
       </div>
