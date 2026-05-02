@@ -20,10 +20,19 @@ Phase **1** delivers the audit report and gap matrix only. Phase **2** (implemen
 
 | Term | Source | Audit usage |
 |------|--------|-------------|
-| **ER Mode**, **ER Allowlist**, **Concealment 404** | [CONTEXT.md](../../../CONTEXT.md) | Use verbatim when describing visibility/access. |
-| **Smart COP** (orphan/order mismatch, realtime alerts) | Code comments, `.agents/skills/clinical-enterprise-integrity/SKILL.md` | Map to concrete symbols and routes. |
-| **Dose Hard-Stop**, **Interaction Alert** | Not defined in CONTEXT.md | Audit records whether behavior exists in code; names match glossary **only after** product adds them to a canonical doc — do not invent UI strings in phase 1. |
+| **ER Mode**, **ER Allowlist**, **Concealment 404** | [CONTEXT.md](../../../CONTEXT.md) § ER Wedge | Use verbatim when describing visibility/access. |
+| **Smart COP**, **Orphan Usage**, **Dose Hard-Stop** | [CONTEXT.md](../../../CONTEXT.md) § Glossary + § Invariants | Align audit findings with these definitions; map to concrete symbols and routes in code. |
+| **Interaction Alert** (drug–drug / duplicate therapy surfacing) | Not in CONTEXT.md glossary (as of this doc) | Record whether authoritative checks exist; if product later adds a CONTEXT entry, reconcile wording — do not invent UI copy in phase 1. |
 | **Formulary / dose-range** | `vt_drug_formulary`, `src/lib/medicationHelpers.ts`, formulary API | Audit traces reads vs enforcement at mutation boundaries. |
+| Deep workflow checklists | `.agents/skills/clinical-enterprise-integrity/SKILL.md`, [REFERENCE.md](../../../.agents/skills/clinical-enterprise-integrity/REFERENCE.md) | Use for P-tier framing and mutation-path tracing; code remains source of truth. |
+
+---
+
+## 2.1 Methodology (phase 1)
+
+**Primary:** Tool-assisted inventory + manual trace (**approach 1**): structured ripgrep/code search (dispense, `completeTask`, `evaluateDispenseAgainstOrders`, `er_mode`, `clinicId`, formulary), then file-by-file confirmation of authoritative mutation paths and a short **wiring map** (route → service → DB).
+
+**Optional slice:** Thin documentation-first invariant list (**approach 3**): derive an appendix of intended Smart COP invariants **from findings**, not aspiration alone, and diff the repo against that list in the gap matrix.
 
 ---
 
@@ -80,7 +89,7 @@ Reference implementation seams from existing formulary work: **`vt_drug_formular
 3. **ER decoupling section** — Table of ER-related branches vs clinical validation branches.
 4. **Formulary / dose-range section** — Trace matrix: mutation path × formulary lookup × min/max enforcement × block vs warn.
 5. **Gap matrix** — **P0–P4**, file:line where possible, risk, effort (**XS–L**), recommended fix or test (no code).
-6. **Glossary alignment** — Map findings to **CONTEXT.md** where applicable; list undefined terms (**Dose Hard-Stop**, **Interaction Alert**) as **spec gaps**, not as implemented features.
+6. **Glossary alignment** — Map findings to **CONTEXT.md** where applicable (**Smart COP**, **Dose Hard-Stop**, **Orphan Usage** are defined there); list terms **still absent from CONTEXT.md** (e.g. **Interaction Alert**) as **documentation gaps** vs **implemented vs missing behavior** in code.
 
 ---
 
@@ -96,6 +105,7 @@ Implementation work (**writing-plans** → code) starts only after:
 ## 7. Self-review (2026-05-02)
 
 - **Placeholders:** None; phase 1 is an audit process with concrete sections.
-- **Consistency:** ER vocabulary from CONTEXT.md; Smart COP / formulary from code and enterprise-integrity skill.
-- **Scope:** Single cohesive audit; formulary/dose-range explicitly included per stakeholder request.
+- **Consistency:** ER vocabulary from CONTEXT.md; Smart COP / Dose Hard-Stop / Orphan Usage aligned with CONTEXT glossary; formulary from code and formulary routes; clinical-enterprise-integrity skill for workflow framing.
+- **Scope:** Single cohesive audit; formulary/dose-range explicitly included; methodology (§2.1) documents tool-assisted inventory + optional invariant appendix.
 - **Ambiguity:** “Hard-stop” means **HTTP rejection of the mutating request with a clinical reason code**, not toast-only or SSE-only.
+- **Note:** If CONTEXT.md gains an **Interaction Alert** glossary entry before phase 2, update §2 table accordingly.
