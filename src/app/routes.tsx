@@ -1,7 +1,7 @@
 import { Route, Switch } from "wouter";
 import { lazy } from "react";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
-import { ErModeGuard } from "@/features/er/components/ErModeGuard";
+import { ErModeGuard } from "@/guards/ErModeGuard";
 import { PageErrorBoundary } from "@/components/ui/page-error-boundary";
 
 const HomePage = lazy(() => import("@/pages/home"));

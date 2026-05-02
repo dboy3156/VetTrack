@@ -37,6 +37,7 @@ import { recoverPendingInventoryJobs } from "./lib/inventory-job-recovery.js";
 import { releaseStaleMedicationTasks } from "./services/medication-tasks.service.js";
 import healthRoutes from "./routes/health.js";
 import { resolveAuthModeFromEnv, describeAuthMode } from "./lib/auth-mode.js";
+import { preloadClinicErModeCaches } from "./lib/er-mode.js";
 
 const { version: appVersion } = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf-8")) as { version?: string };
 const isProduction = process.env.NODE_ENV === "production";
@@ -173,7 +174,16 @@ app.use(
     credentials: true,
   }),
 );
-app.use(compression());
+app.use(
+  compression({
+    // SSE (GET /api/er/stream) must not be buffered by gzip.
+    filter: (req, res) => {
+      const path = (req.originalUrl ?? req.url ?? "").split("?")[0] ?? "";
+      if (path.includes("/api/er/stream")) return false;
+      return compression.filter(req, res);
+    },
+  }),
+);
 
 // Clerk webhook MUST be mounted before express.json() so the raw body is
 // available for svix signature verification.
@@ -314,6 +324,12 @@ runMigrations()
       console.log("✅ Clinic billing / inventory defaults ensured");
     } catch (err) {
       console.error("Clinic Phase 2 defaults failed (non-fatal)", err);
+    }
+
+    try {
+      await preloadClinicErModeCaches();
+    } catch (err) {
+      console.error("ER mode cache preload failed (non-fatal)", err);
     }
     startBackgroundSchedulers().catch((err) => {
       console.error("Failed to initialize push notifications", err);

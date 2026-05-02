@@ -535,6 +535,21 @@ const translations = {
     confidence: d.erImpact.confidence,
   },
 
+  erOperationalControl: {
+    sectionTitle: d.erOperationalControl.sectionTitle,
+    currentMode: d.erOperationalControl.currentMode,
+    states: d.erOperationalControl.states,
+    targetLabel: d.erOperationalControl.targetLabel,
+    apply: d.erOperationalControl.apply,
+    confirmTitle: d.erOperationalControl.confirmTitle,
+    confirmBody: (from: string, to: string) =>
+      tr(d.erOperationalControl.confirmBody, { from, to }),
+    confirmAction: d.erOperationalControl.confirmAction,
+    cancel: d.erOperationalControl.cancel,
+    toggleFailed: d.erOperationalControl.toggleFailed,
+    ariaOperationalToggle: d.erOperationalControl.ariaOperationalToggle,
+  },
+
 } as const;
 
 return translations;

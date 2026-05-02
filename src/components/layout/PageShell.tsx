@@ -4,7 +4,8 @@
 // Use this for desktop-first pages.
 
 import { Topbar } from "@/components/layout/Topbar";
-import { IconSidebar, SidebarDivider } from "@/components/layout/IconSidebar";
+import { SidebarDivider } from "@/components/layout/IconSidebar";
+import { Sidebar } from "@/components/layout/Sidebar";
 import { useDirection } from "@/hooks/useDirection";
 import type { SidebarItem } from "@/components/layout/IconSidebar";
 
@@ -20,11 +21,9 @@ export function PageShell({ sidebarItems, children }: PageShellProps) {
   return (
     <div dir={dir} className="min-h-screen bg-ivory-bg text-ivory-text flex flex-col">
       <Topbar />
-      <div className="flex flex-1 overflow-hidden">
-        {sidebarItems && sidebarItems.length > 0 && (
-          <IconSidebar items={sidebarItems} />
-        )}
-        <section className="flex-1 px-7 pt-[14px] pb-6 overflow-y-auto">
+      <div className="flex flex-1 min-h-0 overflow-x-hidden overflow-y-hidden">
+        <Sidebar sidebarItems={sidebarItems} />
+        <section className="flex-1 min-h-0 px-7 pt-[14px] pb-6 overflow-y-auto">
           {children}
         </section>
       </div>

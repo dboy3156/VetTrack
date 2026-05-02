@@ -82,6 +82,8 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   adminOnly?: boolean;
+  /** Product-owner / configured allowlist — clinic-wide ER lock control surface */
+  erModeManagerOnly?: boolean;
   menuOnly?: boolean;
   badgeCount?: number;
 }
@@ -137,7 +139,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
   const [dispenseContainerId, setDispenseContainerId] = useState<string | null>(null);
   const navLockToastDebounceRef = useRef(false);
   const prevAlertCountRef = useRef(0);
-  const { isAdmin, role, userId, effectiveRole } = useAuth();
+  const { isAdmin, role, userId, effectiveRole, canManageErMode } = useAuth();
   const { data: erMode } = useQuery({
     queryKey: ER_MODE_QUERY_KEY,
     queryFn: getErMode,
@@ -465,6 +467,17 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         } satisfies NavItem]
       : []),
     { href: "/rooms", label: lh.radar, icon: <Radar className="w-5 h-5" /> },
+    ...(canManageErMode
+      ? [
+          {
+            href: "/er-command-center",
+            label: t.layout.nav.operationalCommandCenter,
+            icon: <Siren className="w-5 h-5 text-amber-500" />,
+            menuOnly: true,
+            erModeManagerOnly: true,
+          } satisfies NavItem,
+        ]
+      : []),
     ...(canAccessHandoverInventory
       ? [
           { href: "/shift-handover", label: lh.shiftHandover, icon: <ClipboardList className="w-5 h-5" /> } satisfies NavItem,
@@ -507,12 +520,16 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
     canAccessCodeBlue,
     canAccessHandoverInventory,
     canAccessPharmacyForecastNav,
+    canManageErMode,
     myCount,
     lh,
     t,
   ]);
 
-  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
+  const visibleItems = navItems.filter(
+    (item) =>
+      (!item.adminOnly || isAdmin) && (!item.erModeManagerOnly || canManageErMode),
+  );
 
   const operationMenuItems = useMemo(
     () =>
@@ -528,6 +545,15 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
       erConcealment
         ? []
         : ["/analytics", "/billing", "/dashboard", "/inventory-items", "/procurement", "/admin", "/admin/shifts", "/stability", "/print"]
+            .map((href) => visibleItems.find((i) => i.href === href))
+            .filter((x): x is NavItem => x != null),
+    [erConcealment, visibleItems],
+  );
+  const operationalControlMenuItems = useMemo(
+    () =>
+      erConcealment
+        ? []
+        : ["/er-command-center"]
             .map((href) => visibleItems.find((i) => i.href === href))
             .filter((x): x is NavItem => x != null),
     [erConcealment, visibleItems],
@@ -932,12 +958,63 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 );
               })}
 
+              {operationalControlMenuItems.length > 0 ? (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">
+                    {t.layout.nav.operationalControlSection}
+                  </p>
+                  {operationalControlMenuItems.map((item, index) => {
+                    const isActive = isNavItemActive(item.href);
+                    const stagger = operationMenuItems.length + index;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMenuOpen(false)}
+                        data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                        className="block w-full text-left opacity-0 [animation:navItemFade_160ms_ease-out_forwards]"
+                        style={{ animationDelay: menuVisible ? `${stagger * 16}ms` : "0ms" }}
+                      >
+                        <div
+                          className={cn(
+                            "flex items-center justify-between gap-2 py-2.5 rounded-xl transition-all duration-150 min-h-[44px] w-full",
+                            "relative overflow-hidden",
+                            isActive
+                              ? "bg-ivory-greenBg text-ivory-green font-semibold pl-4 pr-3"
+                              : "text-ivory-text hover:bg-ivory-border/40 active:bg-ivory-border/60 pl-3 hover:pl-4 pr-3",
+                          )}
+                        >
+                          {isActive && (
+                            <span
+                              className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-ivory-green pointer-events-none"
+                              style={{ animation: "accentGrow 200ms ease-out forwards", transformOrigin: "top" }}
+                              aria-hidden
+                            />
+                          )}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span
+                              className={cn(
+                                "transition-all duration-150 flex-shrink-0",
+                                isActive ? "opacity-100 scale-110" : "opacity-60 scale-100",
+                              )}
+                            >
+                              {item.icon}
+                            </span>
+                            <span className="text-sm font-medium">{item.label}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </>
+              ) : null}
+
               {managementMenuItems.length > 0 ? (
                 <>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">Management</p>
               {managementMenuItems.map((item, index) => {
                 const isActive = isNavItemActive(item.href);
-                const stagger = operationMenuItems.length + index;
+                const stagger = operationMenuItems.length + operationalControlMenuItems.length + index;
                 return (
                   <Link
                     key={item.href}
@@ -986,7 +1063,8 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ivory-text3 px-3 pt-2 pb-0.5">System</p>
               {systemMenuItems.map((item, index) => {
                 const isActive = isNavItemActive(item.href);
-                const stagger = operationMenuItems.length + managementMenuItems.length + index;
+                const stagger =
+                  operationMenuItems.length + operationalControlMenuItems.length + managementMenuItems.length + index;
                 if (item.href === "/settings") {
                   return (
                     <button
@@ -1085,7 +1163,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
                 )}
                 style={{
                   animationDelay: menuVisible
-                    ? `${(operationMenuItems.length + managementMenuItems.length + systemMenuItems.length) * 16}ms`
+                    ? `${(operationMenuItems.length + operationalControlMenuItems.length + managementMenuItems.length + systemMenuItems.length) * 16}ms`
                     : "0ms",
                 }}
               >

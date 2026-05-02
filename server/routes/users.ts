@@ -11,6 +11,7 @@ import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
 import { resolveCurrentRole } from "../lib/role-resolution.js";
 import { ensureUserEmail } from "../services/user-sync.service.js";
 import { countPurgeCandidates, purgeDeletedUsers, PURGE_AFTER_DAYS } from "../lib/cleanup-scheduler.js";
+import { canManageErModeForUser } from "../lib/er-mode-permissions.js";
 
 /*
  * PERMISSIONS MATRIX — /api/users
@@ -142,6 +143,7 @@ router.get("/me", requireAuth, async (req, res) => {
       roleSource: resolved.source,
       activeShift: resolved.activeShift,
       resolvedAt: resolved.resolvedAt.toISOString(),
+      canManageErMode: canManageErModeForUser(req.authUser),
     });
   } catch (err) {
     console.error("[users:me] resolveCurrentRole failed", err);

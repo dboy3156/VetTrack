@@ -34,7 +34,9 @@
   "layout": {
     "nav": {
       "alerts": "התראות",
-      "mine": "שלי"
+      "mine": "שלי",
+      "operationalControlSection": "בקרה תפעולית",
+      "operationalCommandCenter": "מרכז פיקוד חירום"
     },
     "settings": {
       "darkMode": "מצב לילה",
@@ -1567,6 +1569,24 @@
       "temp": "טמפ׳",
       "unitTemp": "°C"
     }
+  },
+
+  "erOperationalControl": {
+    "sectionTitle": "בקרה תפעולית",
+    "currentMode": "מצב ER למרפאה",
+    "states": {
+      "disabled": "פעילות רגילה",
+      "preview": "תצוגה מקדימה (נראות בלבד)",
+      "enforced": "אכיפת ER — הסתרת API פעילה"
+    },
+    "targetLabel": "מצב יעד",
+    "apply": "החלה…",
+    "confirmTitle": "אישור שינוי מצב ER",
+    "confirmBody": "להחליף את מצב ה-ER של המרפאה מ-{{from}} ל-{{to}}? ההסתרה מתעדכנת מיד לכל הצוות.",
+    "confirmAction": "אשר",
+    "cancel": "ביטול",
+    "toggleFailed": "לא ניתן לעדכן את מצב ה-ER",
+    "ariaOperationalToggle": "בקרת מצב ER גלובלי"
   },
 
   "appointmentsPage": {
