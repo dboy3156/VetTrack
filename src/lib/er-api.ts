@@ -13,6 +13,7 @@ import type {
   ErIntakeResponse,
   ErKpiWindowDays,
   ErModeResponse,
+  ErModeState,
 } from "../../shared/er-types.js";
 
 /** React Query key — shared by ER concealment guard and layout. */
@@ -28,6 +29,10 @@ export class ErApiNotImplementedError extends Error {
 /** Implemented REST paths for diagnostics / admin tooling. */
 export const ER_API_IMPLEMENTED_ROUTES = [
   "GET /api/er/mode",
+  "GET /api/er/status",
+  "GET /api/er/stream",
+  "GET /api/er/events",
+  "POST /api/er/admin/toggle-global-mode",
   "PATCH /api/er/mode",
   "GET /api/er/board",
   "GET /api/er/assignees",
@@ -54,6 +59,21 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
 
 export async function getErMode(): Promise<ErModeResponse> {
   return apiRequest<ErModeResponse>("/api/er/mode");
+}
+
+/** Same payload as {@link getErMode}; prefer after SSE reconnect to resync without waiting for broadcast. */
+export async function getErStatus(): Promise<ErModeResponse> {
+  return apiRequest<ErModeResponse>("/api/er/status");
+}
+
+/** Admin toggle — body matches `POST /api/er/admin/toggle-global-mode`. */
+export async function toggleErGlobalMode(body: {
+  activate: boolean;
+}): Promise<{ erModeState: ErModeState; requestId: string }> {
+  return apiRequest<{ erModeState: ErModeState; requestId: string }>("/api/er/admin/toggle-global-mode", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function getErBoard(): Promise<ErBoardResponse> {

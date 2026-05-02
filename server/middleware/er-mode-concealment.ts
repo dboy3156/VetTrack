@@ -4,6 +4,8 @@ import { isErApiPathAllowlisted, normalizeApiPathAfterPrefix } from "../config/e
 import { getClinicErModeStateCached, isErConcealmentEnforced } from "../lib/er-mode.js";
 import { incrementMetric } from "../lib/metrics.js";
 
+/** ER concealment cache is seeded at boot (`preloadClinicErModeCaches`) and hot-updated on toggle (`broadcastErModeChange` in `server/lib/er-mode-broadcaster.ts`). */
+
 function resolveClinicId(req: Request): string | undefined {
   const fromUser = req.authUser?.clinicId?.trim();
   if (fromUser) return fromUser;

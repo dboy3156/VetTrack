@@ -2,10 +2,13 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth } from "../middleware/auth.js";
+import { applyGlobalErModeToggle } from "../lib/er-mode-toggle.js";
+import { canManageErModeForUser } from "../lib/er-mode-permissions.js";
 import { getClinicErModeState } from "../lib/er-mode.js";
+import { ER_MODE_SSE_EVENT, registerErModeSseClient } from "../lib/er-mode-broadcaster.js";
 import { createErIntakeSchema } from "../lib/er-intake-schema.js";
-import type { ErKpiWindowDays, ErModeResponse } from "../../shared/er-types.js";
+import type { ErKpiWindowDays, ErModeResponse, ErModeState } from "../../shared/er-types.js";
 import { getErImpactSummary } from "../services/er-impact.service.js";
 import { getErBoard } from "../services/er-board.service.js";
 import { createErIntake, assignErIntake } from "../services/er-intake.service.js";
@@ -16,12 +19,17 @@ import {
   listErHandoffEligibleHospitalizations,
 } from "../services/er-handoff.service.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import erAdminRoutes from "./er-admin.js";
 
 const router = Router();
 router.use(requireAuth);
 
 const assignIntakeSchema = z.object({
   assignedUserId: z.string().trim().min(1),
+});
+
+const erModeActivateSchema = z.object({
+  activate: z.boolean(),
 });
 
 const createHandoffSchema = z.object({
@@ -116,9 +124,139 @@ router.get("/mode", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/mode", requireRole("admin"), async (req: Request, res: Response) => {
+/** Lightweight alias for clients reconnecting SSE — same payload as GET /mode. */
+router.get("/status", async (req: Request, res: Response) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
-  return notImplemented(res, requestId);
+  try {
+    const clinicId = req.authUser!.clinicId;
+    const state = await getClinicErModeState(clinicId);
+    const body: ErModeResponse = { clinicId, state };
+    res.status(200).json(body);
+  } catch (err) {
+    console.error("[er] GET /status failed", err);
+    res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ER_MODE_FETCH_FAILED",
+        message: "Failed to fetch ER mode state",
+        requestId,
+      }),
+    );
+  }
+});
+
+/**
+ * SSE: pushes `ER_MODE_CHANGED` when operators toggle global ER mode.
+ * Initial event repeats current state so new tabs align without waiting for a broadcast.
+ */
+function mountErModeSse(req: Request, res: Response): void {
+  const clinicId = req.authUser!.clinicId;
+
+  void (async () => {
+    let state: ErModeState;
+    try {
+      state = await getClinicErModeState(clinicId);
+    } catch (err) {
+      console.error("[er] SSE initial snapshot failed", err);
+      if (!res.headersSent) {
+        res.status(500).end();
+      }
+      return;
+    }
+
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const hello = JSON.stringify({
+      type: ER_MODE_SSE_EVENT,
+      clinicId,
+      state,
+      at: new Date().toISOString(),
+    });
+    if (!safeWriteSse(res, `data: ${hello}\n\n`)) return;
+
+    const detach = registerErModeSseClient(clinicId, res);
+    const ping = setInterval(() => {
+      try {
+        res.write(": ping\n\n");
+      } catch {
+        clearInterval(ping);
+      }
+    }, 25_000);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      clearInterval(ping);
+      detach();
+    };
+    req.once("close", cleanup);
+    res.once("close", cleanup);
+  })();
+}
+
+router.get("/events", mountErModeSse);
+router.get("/stream", mountErModeSse);
+
+function safeWriteSse(res: Response, chunk: string): boolean {
+  try {
+    res.write(chunk);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+router.use("/admin", erAdminRoutes);
+
+router.patch("/mode", async (req: Request, res: Response) => {
+  const requestId = resolveRequestId(res, req.headers["x-request-id"]);
+  if (!req.authUser || !canManageErModeForUser(req.authUser)) {
+    return res.status(403).json(
+      apiError({
+        code: "FORBIDDEN",
+        reason: "INSUFFICIENT_PRIVILEGE",
+        message: "Insufficient privileges to manage ER mode",
+        requestId,
+      }),
+    );
+  }
+  const parsed = erModeActivateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(
+      apiError({
+        code: "VALIDATION_ERROR",
+        reason: "INVALID_BODY",
+        message: parsed.error.message,
+        requestId,
+      }),
+    );
+  }
+  try {
+    const { erModeState } = await applyGlobalErModeToggle({
+      clinicId: req.authUser.clinicId,
+      activate: parsed.data.activate,
+      actorId: req.authUser.id,
+      actorEmail: req.authUser.email ?? "",
+      actorRole: resolveAuditActorRole(req),
+    });
+    const body: ErModeResponse = { clinicId: req.authUser.clinicId, state: erModeState };
+    return res.status(200).json(body);
+  } catch (err) {
+    console.error("[er] PATCH /mode failed", err);
+    return res.status(500).json(
+      apiError({
+        code: "INTERNAL_ERROR",
+        reason: "ER_MODE_UPDATE_FAILED",
+        message: "Failed to update ER mode",
+        requestId,
+      }),
+    );
+  }
 });
 
 router.get("/board", async (req: Request, res: Response) => {

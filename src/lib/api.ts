@@ -1598,4 +1598,6 @@ export {
   getErBoard,
   getErImpact,
   getErMode,
+  getErStatus,
+  toggleErGlobalMode,
 } from "./er-api";

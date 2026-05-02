@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 
-import { getErAssignees, getErBoard, getErEligibleHospitalizations } from "@/lib/er-api";
+import { ER_MODE_QUERY_KEY, getErAssignees, getErBoard, getErEligibleHospitalizations, getErMode } from "@/lib/er-api";
 
 import type {
   CopAlertEntry,
@@ -54,6 +54,18 @@ export async function applyEvent(client: QueryClient, event: RealtimeEvent): Pro
       await resetRealtimeCaches(client);
 
       return;
+
+
+
+    case "ER_MODE_CHANGED": {
+
+      const mode = await getErMode();
+
+      client.setQueryData(ER_MODE_QUERY_KEY, mode);
+
+      return;
+
+    }
 
 
 
