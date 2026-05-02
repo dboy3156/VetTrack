@@ -28,7 +28,7 @@ export async function runMigrations(): Promise<void> {
     await lockClient.query("SELECT pg_advisory_lock($1)", [MIGRATION_ADVISORY_LOCK_ID]);
 
     await ensureMigrationsTable();
-    const applied = await getAppliedMigrations();
+    let applied = await getAppliedMigrations();
 
     const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../migrations");
     if (!fs.existsSync(migrationsDir)) {
@@ -36,10 +36,17 @@ export async function runMigrations(): Promise<void> {
       return;
     }
 
+    const extractNum = (f: string) => {
+      const m = f.match(/^(\d+)/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
     const files = fs
       .readdirSync(migrationsDir)
       .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql") && !f.startsWith("meta/"))
-      .sort();
+      .sort((a, b) => {
+        const diff = extractNum(a) - extractNum(b);
+        return diff !== 0 ? diff : a.localeCompare(b);
+      });
 
     for (const filename of files) {
       if (applied.has(filename)) {
@@ -57,6 +64,7 @@ export async function runMigrations(): Promise<void> {
         await client.query("INSERT INTO vt_migrations (filename) VALUES ($1)", [filename]);
         await client.query("COMMIT");
         console.log(`✅ Applied migration: ${filename}`);
+        applied = await getAppliedMigrations();
       } catch (error) {
         await client.query("ROLLBACK");
         console.error(`❌ Migration failed: ${filename}`);
