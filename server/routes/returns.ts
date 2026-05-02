@@ -4,6 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, equipment, equipmentReturns } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import { checkoutLimiter } from "../middleware/rate-limiters.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import {
@@ -76,6 +77,7 @@ router.post(
   requireAuth,
   checkoutLimiter,
   requireEffectiveRole("technician"),
+  idempotencyMiddleware("returns:create"),
   validateBody(createReturnSchema),
   async (req, res) => {
     const requestId = resolveRequestId(res, req.headers["x-request-id"]);
@@ -157,6 +159,7 @@ router.patch(
   requireAuth,
   checkoutLimiter,
   requireEffectiveRole("technician"),
+  idempotencyMiddleware("returns:patch"),
   validateUuid("id"),
   validateBody(patchReturnSchema),
   async (req, res) => {

@@ -54,8 +54,8 @@ describe("Phase 3.1 Task Engine (static checks)", () => {
 
   it("Tasks routes expose start, complete, me, active", () => {
     expect(
-      tasksRoute.includes('router.post("/:id/start"') &&
-        tasksRoute.includes('router.post("/:id/complete"') &&
+      tasksRoute.includes('"/:id/start"') &&
+        tasksRoute.includes('"/:id/complete"') &&
         tasksRoute.includes('router.get("/me"') &&
         tasksRoute.includes('router.get("/active"')
     ).toBe(true);

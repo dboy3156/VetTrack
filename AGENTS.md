@@ -5,6 +5,9 @@
 ### Cloud agent starter skill
 Use `docs/cloud-agent-starter-skill.md` as the default quickstart runbook for environment setup, auth/login modes, and test workflows by code area.
 
+### Cursor project rules (IDE agents)
+Persistent guidance for Cursor (and compatible agents) lives under `.cursor/rules/*.mdc`. The umbrella rule **`engineering-and-agent-principles.mdc`** is always applied and stacks with focused rules such as `typescript-standards.mdc`, `express-server.mdc`, and `vettrack-stabilization-plan.mdc`. For rationale, impact, and how to maintain these rules over time, see `docs/engineering-rules-rollout.md`.
+
 ### Architecture
 VetTrack is a single full-stack app: React 18 + Vite frontend (port 5000) and Express + TypeScript backend (port 3001), backed by PostgreSQL. See `replit.md` for full architecture details.
 

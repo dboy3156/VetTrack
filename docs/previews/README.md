@@ -13,4 +13,4 @@ pnpm exec tsx scripts/capture-css-preview-screenshots.ts
 
 Output: `docs/previews/landing-css-preview.png`
 
-The marketing shell always loads [`src/landing-theme.css`](../../src/landing-theme.css) via `MarketingLayout`; scoped rules do not change the signed-in app theme.
+The marketing route uses the same global styles as the app (`src/main.tsx` → `index.css`); `MarketingLayout` does not load a separate landing-only stylesheet.

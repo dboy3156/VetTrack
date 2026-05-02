@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "drizzle": false,
+  "ignore": [
+    "src/lib/tokens.ts",
+    "drizzle.config.ts",
+    "server/seed.ts",
+    "server/tests/validate.ts",
+    "scripts/**",
+    "tests/ui-smoke-*.ts",
+    "server/integrations/adapters/priza.ts"
+  ]
+}

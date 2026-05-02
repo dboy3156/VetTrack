@@ -1,3 +1,7 @@
+/**
+ * Server barrel for pharmacy approval gating — re-exports the canonical implementation in
+ * `src/lib/forecast/approveGate.ts` (single source of truth; avoids duplicate modules).
+ */
 export {
   validateMergedForecastForApproval,
   type ApprovalError,
@@ -5,4 +9,4 @@ export {
   PHARMACIST_ONLY_FLAGS,
   WEIGHT_RESOLVABLE_FLAGS,
   patientFlagAckKey,
-} from "./approve-gate.js";
+} from "../../../src/lib/forecast/approveGate.js";

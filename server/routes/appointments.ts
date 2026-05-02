@@ -4,6 +4,7 @@ import { and, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { appointments, db, shifts, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import { toServiceTask, type AppointmentLike } from "../domain/service-task.adapter.js";
 import { isServiceTaskModeForUser } from "../lib/feature-flags.js";
 import { logServiceChange } from "../lib/service-change-log.js";
@@ -211,7 +212,12 @@ function readPositiveWeightKgFromMetadata(metadata: Record<string, unknown>): nu
   return parsed;
 }
 
-router.post("/", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+router.post(
+  "/",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  idempotencyMiddleware("appointments:create"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const parsed = createAppointmentSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -633,7 +639,12 @@ router.get("/meta", requireAuth, requireEffectiveRole("technician"), async (req,
   }
 });
 
-router.patch("/:id", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+router.patch(
+  "/:id",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  idempotencyMiddleware("appointments:update"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!req.params.id || !req.params.id.trim()) {
     return res.status(400).json(

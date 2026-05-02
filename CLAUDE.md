@@ -179,3 +179,7 @@ E2E tests use Playwright: `pnpm test:signup` (requires Chromium).
 4. API function in `src/lib/api.ts` + type in `src/types/`
 5. Page in `src/pages/` → add lazy import + `<Route>` in `src/app/routes.tsx`
 6. Run `npx tsc --noEmit` — must pass zero errors
+
+### Cursor project rules
+
+Claude Code and other IDE agents should respect `.cursor/rules/*.mdc`. Start from **`engineering-and-agent-principles.mdc`** (cross-cutting style, security posture, tests, workflow), then apply folder-specific rules in the same directory. Human summary of rollout and ongoing compliance: `docs/engineering-rules-rollout.md`.

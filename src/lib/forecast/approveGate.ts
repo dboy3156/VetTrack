@@ -1,7 +1,7 @@
 import type { ForecastFlagReason, ForecastResult } from "../../types/index.js";
+import { normalizeQuantityKey } from "../../shared/normalizeQuantityKey.js";
 
 type FlagReason = ForecastFlagReason;
-import { normalizeQuantityKey } from "../../shared/normalizeQuantityKey.js";
 
 export type ApprovalError = { code: string; message: string };
 

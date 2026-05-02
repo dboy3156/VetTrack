@@ -7,6 +7,8 @@ process.on("unhandledRejection", (r) =>
 // other module is evaluated (e.g. ./lib/envValidation, ./db which read
 // DATABASE_URL / SMTP_* at import time).
 import "./lib/env-bootstrap.js";
+// Sentry init reads SENTRY_DSN from env — must follow env-bootstrap.
+import "./instrument.js";
 
 import { validateEnv } from "./lib/envValidation.js";
 validateEnv();

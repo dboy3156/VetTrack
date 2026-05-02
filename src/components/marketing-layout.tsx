@@ -12,8 +12,7 @@ type MarketingLayoutProps = {
 
 /**
  * Public marketing shell: mesh background, sticky nav, footer. Copy from `t.landingPage`.
- * Applies `landing-theme.css` (`.vt-premium-landing`) so the public landing palette/typography
- * stays scoped and does not override the signed-in app theme.
+ * Uses shared semantic tokens from `index.css` so the landing route stays aligned with the app theme.
  */
 export function MarketingLayout({ children, showAppCta, showAuthCta }: MarketingLayoutProps) {
   const lp = t.landingPage;

@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import { randomUUID } from "crypto";
 import { getAuth } from "@clerk/express";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import {
   AppointmentServiceError,
   completeTask,
@@ -142,7 +143,12 @@ function normalizeMedicationExecutionPayload(input: unknown): MedicationExecutio
   return Object.keys(execution).length > 0 ? execution : undefined;
 }
 
-router.post("/:id/vet-approve", requireAuth, requireEffectiveRole("vet"), async (req, res) => {
+router.post(
+  "/:id/vet-approve",
+  requireAuth,
+  requireEffectiveRole("vet"),
+  idempotencyMiddleware("tasks:vet-approve"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!req.params.id?.trim()) {
     return res.status(400).json(
@@ -211,7 +217,12 @@ router.get("/dashboard", requireAuth, requireEffectiveRole("technician"), async 
   }
 });
 
-router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+router.post(
+  "/:id/start",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  idempotencyMiddleware("tasks:start"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskOrMedicationActionPermission(req, res, "task.start", "med.start")) return;
   if (!req.params.id?.trim()) {
@@ -256,7 +267,12 @@ router.post("/:id/start", requireAuth, requireEffectiveRole("technician"), async
   }
 });
 
-router.post("/:id/complete", requireAuth, requireEffectiveRole("technician"), async (req, res) => {
+router.post(
+  "/:id/complete",
+  requireAuth,
+  requireEffectiveRole("technician"),
+  idempotencyMiddleware("tasks:complete"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   if (!requireTaskOrMedicationActionPermission(req, res, "task.complete", "med.complete")) return;
   if (!req.params.id?.trim()) {

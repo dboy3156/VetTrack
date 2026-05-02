@@ -58,8 +58,6 @@ export function normaliseToMgPerKg(
   return dose;
 }
 
-export const normaliseTomgPerKg = normaliseToMgPerKg;
-
 export function resolveFormularyData(
   formulary: FormularyEntry,
   clinical?: ClinicalEnrichment,

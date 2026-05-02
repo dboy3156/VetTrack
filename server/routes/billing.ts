@@ -4,6 +4,7 @@ import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { billingLedger, db, pool, inventoryJobs } from "../db.js";
 import { requireAuth, requireAdmin, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import { validateBody, validateUuid } from "../middleware/validate.js";
 import { enqueueBillingWebhookJob } from "../lib/queue.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
@@ -376,7 +377,13 @@ router.get("/:id", requireAuth, requireEffectiveRole("vet"), validateUuid("id"),
 });
 
 // POST /api/billing — create a manual charge (animalId optional for unlinked captures)
-router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createChargeSchema), async (req, res) => {
+router.post(
+  "/",
+  requireAuth,
+  requireEffectiveRole("vet"),
+  idempotencyMiddleware("billing:create"),
+  validateBody(createChargeSchema),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -439,7 +446,13 @@ router.post("/", requireAuth, requireEffectiveRole("vet"), validateBody(createCh
 });
 
 // PATCH /api/billing/:id/void — void a charge
-router.patch("/:id/void", requireAuth, requireAdmin, validateUuid("id"), async (req, res) => {
+router.patch(
+  "/:id/void",
+  requireAuth,
+  requireAdmin,
+  idempotencyMiddleware("billing:void"),
+  validateUuid("id"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -487,7 +500,13 @@ const bulkSyncSchema = z.object({
 });
 
 // PATCH /api/billing/bulk-sync — mark billing entries as synced
-router.patch("/bulk-sync", requireAuth, requireAdmin, validateBody(bulkSyncSchema), async (req, res) => {
+router.patch(
+  "/bulk-sync",
+  requireAuth,
+  requireAdmin,
+  idempotencyMiddleware("billing:bulk-sync"),
+  validateBody(bulkSyncSchema),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const clinicId = req.clinicId!;
@@ -558,7 +577,12 @@ router.get("/inventory-jobs", requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/billing/inventory-jobs/:id/retry — reset a failed job to pending (admin only)
-router.post("/inventory-jobs/:id/retry", requireAuth, requireAdmin, async (req, res) => {
+router.post(
+  "/inventory-jobs/:id/retry",
+  requireAuth,
+  requireAdmin,
+  idempotencyMiddleware("billing:inventory-job-retry"),
+  async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const { id } = req.params;
   const clinicId = req.clinicId!;
