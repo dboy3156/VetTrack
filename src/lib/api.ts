@@ -129,6 +129,18 @@ interface ApiErrorPayload {
   requestId?: string;
 }
 
+/** Error codes may be top-level (`error`, `code`) or nested (`data.code`) depending on handler. */
+function extractApiErrorCode(json: ApiErrorPayload & Record<string, unknown>): string {
+  if (typeof json.error === "string" && json.error) return json.error;
+  if (typeof json.code === "string" && json.code) return json.code;
+  const data = json.data;
+  if (data && typeof data === "object" && data !== null && "code" in data) {
+    const c = (data as { code?: unknown }).code;
+    if (typeof c === "string" && c) return c;
+  }
+  return "UNKNOWN";
+}
+
 class TimeoutError extends Error {
   constructor(ms: number) {
     super(`Request timed out after ${ms}ms`);
@@ -269,10 +281,7 @@ export async function containerDispenseWithResult(
       return { ok: true, data: json as ContainerDispenseSuccessPayload };
     }
 
-    const errCode =
-      (typeof json.error === "string" && json.error) ||
-      (typeof json.code === "string" && json.code) ||
-      "UNKNOWN";
+    const errCode = extractApiErrorCode(json);
     const message = toApiErrorMessage(res.status, json);
 
     if (res.status === 400 && errCode === "ORPHAN_DISPENSE_BLOCKED") {

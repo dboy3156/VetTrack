@@ -55,6 +55,11 @@ export interface ErBoardItem {
   id: string;
   /** Linked animal (patient) when known — used for bedside dispense / quick scan. */
   animalId?: string | null;
+  /**
+   * True when an open operational task (`BILLING_RECONCILIATION_REQUIRED`) exists for this patient.
+   * Resolved server-side in GET /api/er/board (no per-card fetch).
+   */
+  hasOpenReconciliationTask?: boolean;
   type: "intake" | "hospitalization";
   lane: ErLane;
   severity: ErSeverity;

@@ -207,7 +207,14 @@ const translations = {
 
   api: d.api,
 
-  dispenseSheet: d.dispenseSheet,
+  dispense: {
+    errors: d.dispense.errors,
+    bypass: d.dispense.bypass,
+    errorMessage: (code: string) => {
+      const map = d.dispense.errors as Record<string, string>;
+      return map[code] ?? map.fallback;
+    },
+  },
 
   syncEngine: d.syncEngine,
 
@@ -445,6 +452,7 @@ const translations = {
     badges: d.erCommandCenter.badges,
     escalationTimer: (time: string) => tr(d.erCommandCenter.escalationTimer, { time }),
     escalationOverdue: d.erCommandCenter.escalationOverdue,
+    reconciliationWarning: d.erCommandCenter.reconciliationWarning,
     activeAssistance: {
       title: d.erCommandCenter.activeAssistance.title,
       toggleOn: d.erCommandCenter.activeAssistance.toggleOn,

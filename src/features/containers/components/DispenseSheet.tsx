@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { t } from "@/lib/i18n";
 import { api, containerDispenseWithResult, type ContainerDispenseSuccessPayload } from "@/lib/api";
@@ -30,6 +30,8 @@ interface DispenseSheetProps {
   emergencyEventId?: string;
   /** Pre-select this animal (patient) on the patient step — e.g. ER Command Center quick scan. */
   patientId?: string | null;
+  /** True when opened from QR/quick scan — enables auto-focus on the confirm primary action. */
+  openedViaScan?: boolean;
 }
 
 type SheetState = "items" | "patient" | "confirm" | "success" | "emergency-success" | "emergency-complete";
@@ -65,8 +67,13 @@ export function DispenseSheet({
   onClose,
   emergencyEventId,
   patientId: patientIdProp,
+  openedViaScan = false,
 }: DispenseSheetProps) {
   const qc = useQueryClient();
+
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const bypassBtnRef = useRef<HTMLInputElement>(null);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const [sheetState, setSheetState] = useState<SheetState>(emergencyEventId ? "emergency-complete" : "items");
   const [selections, setSelections] = useState<Map<string, number>>(new Map());
@@ -79,9 +86,19 @@ export function DispenseSheet({
   const [isEmergency, setIsEmergency] = useState(false);
   const [dispenseBusy, setDispenseBusy] = useState(false);
 
-  // Reset state when sheet opens/closes
+  const fieldProps = useCallback(
+    (extra?: { disabled?: boolean } & Record<string, unknown>) => ({
+      ...extra,
+      disabled: dispenseBusy || Boolean(extra?.disabled),
+      ...(dispenseBusy ? { "aria-busy": true as const } : {}),
+    }),
+    [dispenseBusy],
+  );
+
+  // Reset state when sheet opens/closes; fresh idempotency key each open and after close.
   useEffect(() => {
     if (isOpen) {
+      idempotencyKeyRef.current = crypto.randomUUID();
       if (emergencyEventId) {
         setSheetState("emergency-complete");
         setCompletedEventId(emergencyEventId);
@@ -94,8 +111,28 @@ export function DispenseSheet({
       setShowBypassOptions(false);
       setBypassReason(null);
       setIsEmergency(false);
+    } else {
+      setBypassReason(null);
+      setShowBypassOptions(false);
+      setIsEmergency(false);
+      idempotencyKeyRef.current = crypto.randomUUID();
     }
   }, [isOpen, emergencyEventId, patientIdProp]);
+
+  // Orphan bypass: focus first reason radio when the bypass panel appears (same Sheet step; onOpenAutoFocus does not re-fire).
+  useEffect(() => {
+    if (!showBypassOptions) return;
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) bypassBtnRef.current?.focus();
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [showBypassOptions]);
 
   // Fetch container with items via restock containerItems (provides live quantities)
   const containerItemsQ = useQuery({
@@ -132,6 +169,7 @@ export function DispenseSheet({
 
   const applyDispenseSuccess = useCallback(
     (result: ContainerDispenseSuccessPayload) => {
+      idempotencyKeyRef.current = crypto.randomUUID();
       qc.invalidateQueries({ queryKey: ["/api/containers/detail", containerId] });
       qc.invalidateQueries({ queryKey: ["/api/shift-handover"] });
       setSuccessData({
@@ -193,7 +231,7 @@ export function DispenseSheet({
         crypto.randomUUID(),
       );
       if (!res.ok) {
-        toast.error(res.message || "שגיאה בשרת — נסה שוב");
+        toast.error(res.message?.trim() || t.dispense.errorMessage(res.error));
         return;
       }
       applyDispenseSuccess(res.data);
@@ -220,7 +258,6 @@ export function DispenseSheet({
   const selectedItems: ItemSelection[] = [...selections.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
 
   const handleDispense = useCallback(async () => {
-    const idempotencyKey = crypto.randomUUID();
     setDispenseBusy(true);
     try {
       const res = await containerDispenseWithResult(
@@ -231,7 +268,7 @@ export function DispenseSheet({
           isEmergency,
           bypassReason: bypassReason ?? undefined,
         },
-        idempotencyKey,
+        idempotencyKeyRef.current,
       );
       if (!res.ok) {
         if (res.error === "ORPHAN_DISPENSE_BLOCKED") {
@@ -240,10 +277,10 @@ export function DispenseSheet({
         }
         if (res.error === "INSUFFICIENT_STOCK") {
           setSheetState("items");
-          toast.error("מלאי לא מספיק לפריט המבוקש");
+          toast.error(t.dispense.errorMessage("INSUFFICIENT_STOCK"));
           return;
         }
-        toast.error(res.message || "שגיאה בשרת — נסה שוב");
+        toast.error(res.message?.trim() || t.dispense.errorMessage(res.error));
         return;
       }
       applyDispenseSuccess(res.data);
@@ -296,8 +333,9 @@ export function DispenseSheet({
                         </div>
                         <div className="flex items-center gap-2">
                           <button
+                            type="button"
+                            {...fieldProps({ disabled: qty === 0 })}
                             onClick={() => updateQuantity(item.itemId, -1, item.quantity)}
-                            disabled={qty === 0}
                             className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center disabled:opacity-30"
                             aria-label="הפחת"
                           >
@@ -305,8 +343,9 @@ export function DispenseSheet({
                           </button>
                           <span className="w-8 text-center text-lg font-bold tabular-nums">{qty}</span>
                           <button
+                            type="button"
+                            {...fieldProps({ disabled: qty >= item.quantity })}
                             onClick={() => updateQuantity(item.itemId, 1, item.quantity)}
-                            disabled={qty >= item.quantity}
                             className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-30"
                             aria-label="הוסף"
                           >
@@ -325,6 +364,8 @@ export function DispenseSheet({
                     {activePatients.map((p) => (
                       <button
                         key={p.animalId}
+                        type="button"
+                        {...fieldProps()}
                         onClick={() => setSelectedAnimalId(p.animalId)}
                         className={cn(
                           "p-3 rounded-xl border text-right min-h-[80px] transition-colors",
@@ -342,6 +383,8 @@ export function DispenseSheet({
                     ))}
                   </div>
                   <button
+                    type="button"
+                    {...fieldProps()}
                     onClick={() => setSelectedAnimalId(null)}
                     className={cn(
                       "w-full py-3 px-4 rounded-xl border text-sm text-right transition-colors min-h-[48px]",
@@ -355,7 +398,12 @@ export function DispenseSheet({
                 <div className="sticky bottom-0 bg-background pt-2 pb-2 space-y-2">
                   <Button
                     className="w-full min-h-[52px] text-lg font-bold rounded-xl"
-                    disabled={totalSelected === 0 || selectedAnimalId === undefined || completeEmergencyMut.isPending}
+                    {...fieldProps({
+                      disabled:
+                        totalSelected === 0 ||
+                        selectedAnimalId === undefined ||
+                        completeEmergencyMut.isPending,
+                    })}
                     onClick={() => completeEmergencyMut.mutate({ items: selectedItems, animalId: selectedAnimalId })}
                   >
                     {completeEmergencyMut.isPending ? (
@@ -363,7 +411,12 @@ export function DispenseSheet({
                     ) : null}
                     אשר פירוט חירום
                   </Button>
-                  <button onClick={onClose} className="w-full text-sm text-muted-foreground py-2 min-h-[44px]">
+                  <button
+                    type="button"
+                    {...fieldProps()}
+                    onClick={onClose}
+                    className="w-full text-sm text-muted-foreground py-2 min-h-[44px]"
+                  >
                     {t.common.cancel}
                   </button>
                 </div>
@@ -402,7 +455,12 @@ export function DispenseSheet({
               </div>
             )}
             <p className="text-xs text-muted-foreground">נסגר אוטומטית בעוד שניות...</p>
-            <Button variant="outline" onClick={onClose} className="min-h-[48px] w-full rounded-xl">
+            <Button
+              variant="outline"
+              {...fieldProps()}
+              onClick={onClose}
+              className="min-h-[48px] w-full rounded-xl"
+            >
               סגור
             </Button>
           </div>
@@ -427,6 +485,7 @@ export function DispenseSheet({
             )}
             <Button
               variant="outline"
+              {...fieldProps()}
               className="w-full min-h-[52px] rounded-xl border-red-300 text-red-700"
               onClick={() => {
                 setCompletedEventId(successData?.emergencyEventId);
@@ -439,6 +498,8 @@ export function DispenseSheet({
               תוכל להשלים גם מדף חפיפת משמרת
             </p>
             <button
+              type="button"
+              {...fieldProps()}
               onClick={onClose}
               className="text-sm text-muted-foreground py-2 min-h-[44px]"
             >
@@ -454,7 +515,16 @@ export function DispenseSheet({
   if (sheetState === "confirm") {
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="bottom" dir="rtl" className="max-h-[90dvh] overflow-y-auto p-0 rounded-t-2xl">
+        <SheetContent
+          side="bottom"
+          dir="rtl"
+          className="max-h-[90dvh] overflow-y-auto p-0 rounded-t-2xl"
+          onOpenAutoFocus={(e) => {
+            if (!openedViaScan) return;
+            e.preventDefault();
+            requestAnimationFrame(() => confirmBtnRef.current?.focus());
+          }}
+        >
           {renderDragHandle()}
           <div className="px-4 pb-6 space-y-4">
             <SheetHeader>
@@ -472,6 +542,8 @@ export function DispenseSheet({
                   {activePatients.map((p) => (
                     <button
                       key={p.animalId}
+                      type="button"
+                      {...fieldProps()}
                       onClick={() => setSelectedAnimalId(p.animalId)}
                       className={cn(
                         "p-3 rounded-xl border text-right min-h-[80px] transition-colors",
@@ -495,6 +567,8 @@ export function DispenseSheet({
                 </div>
 
                 <button
+                  type="button"
+                  {...fieldProps()}
                   onClick={() => setSelectedAnimalId(null)}
                   className={cn(
                     "w-full py-3 px-4 rounded-xl border text-sm text-right transition-colors min-h-[48px]",
@@ -506,32 +580,30 @@ export function DispenseSheet({
 
                 {showBypassOptions && (
                   <div
-                    style={{
-                      border: "1.5px solid hsl(var(--destructive))",
-                      borderRadius: "var(--radius)",
-                      padding: "1rem 1.25rem",
-                      background: "hsl(var(--destructive) / 0.12)",
-                      marginTop: "1rem",
-                    }}
+                    className="mt-4 rounded-[var(--radius)] border-[1.5px] border-destructive bg-destructive/10 p-4 text-right"
                   >
-                    <p style={{ fontWeight: 500, color: "hsl(var(--destructive))", marginBottom: 8 }}>
-                      {t.dispenseSheet.orphanOverrideTitle}
+                    <p className="font-medium text-destructive mb-2">
+                      {t.dispense.bypass.sectionTitle}
                     </p>
-                    <p style={{ fontSize: 13, color: "hsl(var(--destructive))", marginBottom: 12, opacity: 0.95 }}>
-                      {t.dispenseSheet.orphanOverrideHint}
+                    <p className="text-sm text-destructive/95 mb-3">
+                      {t.dispense.bypass.auditWarning}
+                    </p>
+                    <p className="text-sm font-medium text-foreground mb-2">
+                      {t.dispense.bypass.reasonPrompt}
                     </p>
                     {(
                       [
-                        ["EMERGENCY_CPR", t.dispenseSheet.bypassEmergencyCpr],
-                        ["PROTOCOL_OVERRIDE", t.dispenseSheet.bypassProtocol],
-                        ["TECH_ERROR", t.dispenseSheet.bypassTechError],
+                        ["EMERGENCY_CPR", t.dispense.bypass.reasons.EMERGENCY_CPR],
+                        ["PROTOCOL_OVERRIDE", t.dispense.bypass.reasons.PROTOCOL_OVERRIDE],
+                        ["TECH_ERROR", t.dispense.bypass.reasons.TECH_ERROR],
                       ] as const
-                    ).map(([val, label]) => (
+                    ).map(([val, label], idx) => (
                       <label
                         key={val}
-                        style={{ display: "flex", gap: 8, marginBottom: 8, cursor: "pointer", alignItems: "flex-start" }}
+                        className="flex gap-2 mb-2 cursor-pointer items-start"
                       >
                         <input
+                          ref={idx === 0 ? bypassBtnRef : undefined}
                           type="radio"
                           name="bypassReason"
                           value={val}
@@ -541,47 +613,39 @@ export function DispenseSheet({
                             setIsEmergency(true);
                           }}
                           className="mt-1"
+                          {...fieldProps()}
                         />
-                        <span style={{ fontSize: 14 }}>{label}</span>
+                        <span className="text-sm">{label}</span>
                       </label>
                     ))}
-                    <button
+                    <Button
                       type="button"
-                      disabled={!bypassReason || dispenseBusy}
+                      variant="destructive"
+                      {...fieldProps({ disabled: !bypassReason })}
+                      className="mt-3 w-full min-h-12"
                       onClick={() => void handleDispense()}
-                      style={{
-                        marginTop: 12,
-                        width: "100%",
-                        minHeight: 48,
-                        borderRadius: "var(--radius)",
-                        fontWeight: 600,
-                        background: "hsl(var(--destructive))",
-                        color: "hsl(var(--destructive-foreground))",
-                        opacity: !bypassReason ? 0.5 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                      }}
                     >
                       {dispenseBusy ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : null}
-                      {t.dispenseSheet.confirmEmergencyDispense}
-                    </button>
+                      {t.dispense.bypass.confirmButton}
+                    </Button>
                   </div>
                 )}
 
                 <div className="sticky bottom-0 bg-background pt-2 pb-2 space-y-2">
                   <Button
+                    ref={confirmBtnRef}
                     className="w-full min-h-[52px] text-lg font-bold rounded-xl"
-                    disabled={
-                      selectedAnimalId === undefined || dispenseBusy || showBypassOptions
-                    }
+                    {...fieldProps({
+                      disabled: selectedAnimalId === undefined || showBypassOptions,
+                    })}
                     onClick={() => void handleDispense()}
                   >
                     {dispenseBusy ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                     אשר לקיחה
                   </Button>
                   <button
+                    type="button"
+                    {...fieldProps()}
                     onClick={() => {
                       setSelectedAnimalId(undefined);
                       setShowBypassOptions(false);
@@ -616,8 +680,9 @@ export function DispenseSheet({
 
           {/* STATE 0: Emergency button — always at top, always visible */}
           <button
+            type="button"
+            {...fieldProps({ disabled: emergencyLoading })}
             onClick={handleEmergencyTap}
-            disabled={emergencyLoading}
             className="w-full min-h-[64px] rounded-xl bg-red-600 text-white text-xl font-bold flex items-center justify-center gap-3 active:bg-red-700 disabled:opacity-70"
           >
             {emergencyLoading ? (
@@ -659,8 +724,9 @@ export function DispenseSheet({
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
+                        {...fieldProps({ disabled: qty === 0 })}
                         onClick={() => updateQuantity(item.itemId, -1, item.quantity)}
-                        disabled={qty === 0}
                         className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center disabled:opacity-30"
                         aria-label="הפחת"
                       >
@@ -668,8 +734,9 @@ export function DispenseSheet({
                       </button>
                       <span className="w-8 text-center text-lg font-bold tabular-nums">{qty}</span>
                       <button
+                        type="button"
+                        {...fieldProps({ disabled: qty >= item.quantity })}
                         onClick={() => updateQuantity(item.itemId, 1, item.quantity)}
-                        disabled={qty >= item.quantity}
                         className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-30"
                         aria-label="הוסף"
                       >
@@ -693,7 +760,7 @@ export function DispenseSheet({
             </div>
             <Button
               className="w-full min-h-[52px] text-lg font-bold rounded-xl"
-              disabled={totalSelected === 0}
+              {...fieldProps({ disabled: totalSelected === 0 })}
               onClick={() => {
                 setSelectedAnimalId(undefined);
                 setShowBypassOptions(false);
@@ -705,6 +772,8 @@ export function DispenseSheet({
               המשך
             </Button>
             <button
+              type="button"
+              {...fieldProps()}
               onClick={onClose}
               className="w-full text-sm text-muted-foreground py-2 min-h-[44px]"
             >

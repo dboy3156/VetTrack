@@ -34,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { t } from "@/lib/i18n";
 import { toast } from "sonner";
@@ -45,16 +44,12 @@ import {
   ER_ELIGIBLE_HOSP_QUERY_KEY,
 } from "@/lib/event-reducer";
 import { CopDiscrepancyBanner } from "@/components/cop-discrepancy-banner";
-import { ActiveAssistancePanel } from "@/components/er/active-assistance-panel";
 import { CodeBlueAssistancePanel } from "@/components/er/code-blue-assistance-panel";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
 import { QrScanner } from "@/components/qr-scanner";
 import { DispenseSheet } from "@/features/containers/components/DispenseSheet";
-import {
-  erEscalationCardClass,
-  useErEscalationAnticipation,
-} from "@/hooks/useErEscalationAnticipation";
+import { ErBoardLaneItemCard } from "@/features/er-board/components/ErBoardLaneItemCard";
 
 const ER_QUERY = ER_BOARD_QUERY_KEY;
 const ASSIGNEES_QUERY = ER_ASSIGNEES_QUERY_KEY;
@@ -113,221 +108,8 @@ function deduplicateByPrimaryLane(
   return result;
 }
 
-/**
- * Queue Severity urgency styling: applied as the base card border/background to reflect
- * clinical severity. This is independent of Primary Lane placement — a patient in `next15m`
- * with `critical` severity still renders with a critical border.
- * Escalation-countdown urgency (erEscalationCardClass) is applied after and overrides when
- * an active SLA countdown is in progress.
- */
-function severityCardClass(severity: ErSeverity): string {
-  switch (severity) {
-    case "critical":
-      return "border-red-600/55 bg-red-500/[0.05]";
-    case "high":
-      return "border-orange-500/45 bg-orange-500/[0.04]";
-    case "medium":
-      return "border-yellow-500/30";
-    case "low":
-      return "";
-  }
-}
-
-/**
- * Risk Badge: secondary clinical status indicator displayed on a card without changing its
- * Primary Lane. Distinct visual weight per badge type:
- *   overdue      — destructive red  (SLA breached — requires immediate attention)
- *   handoffRisk  — amber warning    (pending handoff, incoming assignee not yet acknowledged)
- *   unassigned   — muted gray       (no responsible clinician assigned)
- */
-function RiskBadge({ badge }: { badge: "overdue" | "handoffRisk" | "unassigned" }) {
-  const label =
-    badge === "overdue"
-      ? t.erCommandCenter.badges.overdue
-      : badge === "handoffRisk"
-        ? t.erCommandCenter.badges.handoffRisk
-        : t.erCommandCenter.badges.unassigned;
-
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "text-xs font-medium",
-        badge === "overdue" &&
-          "border-destructive/40 bg-destructive/10 text-destructive dark:bg-destructive/20",
-        badge === "handoffRisk" &&
-          "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-        badge === "unassigned" && "border-border bg-muted text-muted-foreground",
-      )}
-    >
-      {label}
-    </Badge>
-  );
-}
-
 function canAssignRole(role: string): boolean {
   return ["admin", "vet", "senior_technician", "technician"].includes(role);
-}
-
-function canForceAck(role: string): boolean {
-  return role === "admin" || role === "vet";
-}
-
-/** Incoming Assignee Ack enforcement: determines if the current user can ack
- *  an item directly (as owner) or via Forced Ack Override (admin/vet only). */
-function resolveAckAccess(
-  itemAssignedUserId: string | null,
-  currentUserId: string | null,
-  currentRole: string,
-): { canAck: boolean; requiresOverride: boolean } {
-  const isOwner = !!currentUserId && itemAssignedUserId === currentUserId;
-  if (isOwner) return { canAck: true, requiresOverride: false };
-  if (canForceAck(currentRole)) return { canAck: true, requiresOverride: true };
-  return { canAck: false, requiresOverride: false };
-}
-
-function ErBoardLaneItemCard({
-  item,
-  assignees,
-  canAssign,
-  currentUserId,
-  currentRole,
-  onAssign,
-  onAck,
-  onForcedAckOverride,
-  assigningId,
-  ackingId,
-  onScan,
-}: {
-  item: ErBoardItem;
-  assignees: { id: string; name: string }[];
-  canAssign: boolean;
-  currentUserId: string | null;
-  currentRole: string;
-  onAssign: (intakeId: string, userId: string) => void;
-  onAck: (itemId: string) => void;
-  onForcedAckOverride: (itemId: string) => void;
-  assigningId: string | null;
-  ackingId: string | null;
-  onScan: (patientId: string) => void;
-}) {
-  const ant = useErEscalationAnticipation(item.escalatesAt, item.type);
-  const pulse = ant.urgency === "imminent" || ant.urgency === "past";
-
-  const ackAccess =
-    item.type === "hospitalization"
-      ? resolveAckAccess(item.assignedUserId, currentUserId, currentRole)
-      : null;
-
-  return (
-    <Card
-      className={cn(
-        "border-border shadow-sm transition-colors",
-        // Queue Severity sets the base urgency styling (border + subtle background).
-        // Escalation-countdown urgency is applied after and overrides when SLA is active.
-        severityCardClass(item.severity),
-        erEscalationCardClass(ant.urgency),
-        pulse && "motion-reduce:animate-none animate-pulse",
-      )}
-    >
-      <CardContent className="space-y-2 p-3 text-sm">
-        <div className="font-medium leading-snug">{item.patientLabel}</div>
-        <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
-          {/* Severity label only — Primary Lane determines column placement, not displayed here */}
-          <span className="font-medium uppercase tracking-wide">{item.severity}</span>
-          <span>·</span>
-          <span>{item.nextActionLabel}</span>
-        </div>
-        {item.type === "intake" && ant.formattedCountdown && ant.urgency !== "past" ? (
-          <div
-            className={cn(
-              "text-xs font-medium tabular-nums",
-              ant.urgency === "none"
-                ? "text-muted-foreground"
-                : "text-amber-700 dark:text-amber-400",
-            )}
-          >
-            {t.erCommandCenter.escalationTimer(ant.formattedCountdown)}
-          </div>
-        ) : null}
-        {item.type === "intake" && ant.urgency === "past" ? (
-          <div className="text-xs font-medium text-amber-800 dark:text-amber-300">
-            {t.erCommandCenter.escalationOverdue}
-          </div>
-        ) : null}
-        {item.type === "hospitalization" && item.icuSignals != null ? (
-          <div className="pt-0.5">
-            <ActiveAssistancePanel icuSignals={item.icuSignals} severity={item.severity} />
-          </div>
-        ) : null}
-        {/* Risk Badges — secondary clinical status indicators. Do not affect Primary Lane placement. */}
-        {item.badges.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {item.badges.map((b) => (
-              <RiskBadge key={b} badge={b} />
-            ))}
-          </div>
-        ) : null}
-        {item.type === "intake" && canAssign ? (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Select
-              onValueChange={(uid) => onAssign(item.id, uid)}
-              disabled={assigningId === item.id}
-            >
-              <SelectTrigger className="h-8 max-w-[200px] text-xs">
-                <SelectValue placeholder={t.erCommandCenter.assign} />
-              </SelectTrigger>
-              <SelectContent>
-                {assignees.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
-        {/* Incoming Assignee Ack — button is disabled for non-owners without admin/vet role. */}
-        {item.animalId ? (
-          <button
-            type="button"
-            className="border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors"
-            onClick={() => onScan(item.animalId!)}
-          >
-            {t.erCommandCenter.quickScan}
-          </button>
-        ) : null}
-        {item.type === "hospitalization" && ackAccess ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-8"
-            disabled={!ackAccess.canAck || ackingId === item.id}
-            title={
-              !ackAccess.canAck
-                ? t.erCommandCenter.ackDeniedTooltip
-                : ackAccess.requiresOverride
-                  ? t.erCommandCenter.ackOverrideTooltip
-                  : undefined
-            }
-            onClick={() => {
-              if (ackAccess.requiresOverride) {
-                onForcedAckOverride(item.id);
-              } else {
-                onAck(item.id);
-              }
-            }}
-          >
-            {ackingId === item.id
-              ? t.erCommandCenter.ack
-              : ackAccess.requiresOverride
-                ? t.erCommandCenter.ackOverride
-                : t.erCommandCenter.ack}
-          </Button>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
 }
 
 function LaneColumn({

@@ -1,9 +1,10 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import {
   animals,
   db,
   erIntakeEvents,
   hospitalizations,
+  operationalTasks,
   shiftHandoffItems,
   shiftHandoffs,
   users,
@@ -109,6 +110,17 @@ function sortBoardItems(items: ErBoardItem[]): ErBoardItem[] {
   });
 }
 
+function applyReconciliationTaskFlag(
+  items: ErBoardItem[],
+  reconciliationPatientIds: ReadonlySet<string>,
+): ErBoardItem[] {
+  return items.map((item) => ({
+    ...item,
+    hasOpenReconciliationTask:
+      item.animalId != null && reconciliationPatientIds.has(item.animalId),
+  }));
+}
+
 export interface IntakeBoardInput {
   id: string;
   animalId: string | null;
@@ -212,14 +224,24 @@ export function assembleErBoardResponse(
   intakes: IntakeBoardInput[],
   handoffItems: HandoffItemBoardInput[],
   now: Date,
+  reconciliationPatientIds: ReadonlySet<string> = new Set(),
 ): ErBoardResponse {
   const intakeItems = intakes.map((r) => intakeRowToBoardItem(r, now));
   const hoItems = handoffItems.map((r) => handoffItemRowToBoardItem(r, now));
 
   const all = [...intakeItems, ...hoItems];
-  const criticalNow = sortBoardItems(all.filter((i) => i.lane === "criticalNow"));
-  const next15m = sortBoardItems(all.filter((i) => i.lane === "next15m"));
-  const handoffRisk = sortBoardItems(all.filter((i) => i.lane === "handoffRisk"));
+  const criticalNow = applyReconciliationTaskFlag(
+    sortBoardItems(all.filter((i) => i.lane === "criticalNow")),
+    reconciliationPatientIds,
+  );
+  const next15m = applyReconciliationTaskFlag(
+    sortBoardItems(all.filter((i) => i.lane === "next15m")),
+    reconciliationPatientIds,
+  );
+  const handoffRisk = applyReconciliationTaskFlag(
+    sortBoardItems(all.filter((i) => i.lane === "handoffRisk")),
+    reconciliationPatientIds,
+  );
 
   return {
     clinicId,
@@ -240,7 +262,7 @@ const ACTIVE_INTAKE_STATUSES: readonly string[] = ["waiting", "assigned", "in_pr
 export async function getErBoard(clinicId: string, now: Date = new Date()): Promise<ErBoardResponse> {
   const cap = ER_BOARD_QUERY_ROW_CAP;
 
-  const [intakeRows, hoRows] = await Promise.all([
+  const [intakeRows, hoRows, reconRows] = await Promise.all([
     db
       .select({
         row: erIntakeEvents,
@@ -280,7 +302,22 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
         ),
       )
       .limit(cap),
+    db
+      .select({ patientId: operationalTasks.patientId })
+      .from(operationalTasks)
+      .where(
+        and(
+          eq(operationalTasks.clinicId, clinicId),
+          eq(operationalTasks.tag, "BILLING_RECONCILIATION_REQUIRED"),
+          isNotNull(operationalTasks.patientId),
+        ),
+      )
+      .limit(cap),
   ]);
+
+  const reconciliationPatientIds = new Set(
+    reconRows.map((r) => r.patientId).filter((id): id is string => id != null && id.length > 0),
+  );
 
   const intakes: IntakeBoardInput[] = intakeRows.map((r) => {
     const esc = r.row.escalatesAt;
@@ -326,5 +363,5 @@ export async function getErBoard(clinicId: string, now: Date = new Date()): Prom
     };
   });
 
-  return assembleErBoardResponse(clinicId, intakes, handoffItems, now);
+  return assembleErBoardResponse(clinicId, intakes, handoffItems, now, reconciliationPatientIds);
 }

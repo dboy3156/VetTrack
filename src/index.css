@@ -58,6 +58,10 @@
     --ivory-warn:     #d97706;
     --ivory-err:      #dc2626;
     --ivory-info:     #2563eb;
+    /* Warning semantic tokens (inline SVG / ER reconciliation triangle) */
+    --color-background-warning: #fef3c7;
+    --color-border-warning: #d97706;
+    --color-text-warning: #92400e;
   }
 
   .dark {
@@ -81,6 +85,9 @@
     --border: 130 14% 22%;
     --input: 130 14% 24%;
     --ring: 125 38% 45%;
+    --color-background-warning: hsl(32 45% 22%);
+    --color-border-warning: hsl(38 92% 50%);
+    --color-text-warning: hsl(48 96% 88%);
   }
 }
 

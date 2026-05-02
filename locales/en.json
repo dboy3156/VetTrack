@@ -357,13 +357,25 @@
     "networkUnavailable": "Cannot reach the server. You may be offline or the server is down."
   },
 
-  "dispenseSheet": {
-    "orphanOverrideTitle": "No matching order found — is this an emergency?",
-    "orphanOverrideHint": "Select a reason to enable emergency dispense. This action is audited.",
-    "bypassEmergencyCpr": "Emergency / CPR",
-    "bypassProtocol": "Protocol override",
-    "bypassTechError": "Tech / entry error",
-    "confirmEmergencyDispense": "Confirm emergency dispense"
+  "dispense": {
+    "errors": {
+      "ORPHAN_DISPENSE_BLOCKED": "No matching medication order found. Is this an emergency?",
+      "STOCK_DEPLETED": "No stock available for this item.",
+      "INSUFFICIENT_STOCK": "No stock available for this item.",
+      "ALREADY_DISPENSED": "Item already dispensed (duplicate request).",
+      "fallback": "An unexpected error occurred."
+    },
+    "bypass": {
+      "sectionTitle": "Emergency override",
+      "reasonPrompt": "Select a reason to proceed:",
+      "confirmButton": "Confirm emergency dispense",
+      "auditWarning": "This action is audited and will be reviewed by the clinical team.",
+      "reasons": {
+        "EMERGENCY_CPR": "Emergency / CPR",
+        "PROTOCOL_OVERRIDE": "Protocol override",
+        "TECH_ERROR": "Tech / entry error"
+      }
+    }
   },
 
   "syncEngine": {
@@ -1485,6 +1497,7 @@
     },
     "escalationTimer": "Queue escalates in {{time}}",
     "escalationOverdue": "Escalation due — syncing…",
+    "reconciliationWarning": "Billing reconciliation required",
     "activeAssistance": {
       "title": "Active assistance — CPR & emergency",
       "toggleOn": "Code Blue: On",

@@ -347,9 +347,7 @@ router.post(
       const billingIds: string[] = [];
       let autoBilledCents = 0;
 
-      let responsePayload: Record<string, unknown>;
-
-      await db.transaction(async (tx) => {
+      const responsePayload = await db.transaction(async (tx) => {
         const [container] = await tx
           .select()
           .from(containers)
@@ -508,7 +506,7 @@ router.post(
           });
         }
 
-        responsePayload = {
+        const payload: Record<string, unknown> = {
           success: true,
           dispensed: dispensedItems,
           takenBy: { userId: actorUserId, displayName: actorDisplayName },
@@ -525,7 +523,7 @@ router.post(
             endpoint: DISPENSE_IDEMPOTENCY_ENDPOINT,
             requestHash: dispenseRequestHash,
             statusCode: 200,
-            responseBody: responsePayload,
+            responseBody: payload,
           })
           .onConflictDoUpdate({
             target: [idempotencyKeys.clinicId, idempotencyKeys.key],
@@ -533,9 +531,11 @@ router.post(
               endpoint: DISPENSE_IDEMPOTENCY_ENDPOINT,
               requestHash: dispenseRequestHash,
               statusCode: 200,
-              responseBody: responsePayload,
+              responseBody: payload,
             },
           });
+
+        return payload;
       });
 
       res.locals.dispenseIdempotencyPersistedInTransaction = true;

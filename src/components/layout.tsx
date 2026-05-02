@@ -1390,6 +1390,7 @@ export function Layout({ children, title: _title, onScan, scannerOpen: scannerOp
         <DispenseSheet
           containerId={dispenseContainerId}
           isOpen={Boolean(dispenseContainerId)}
+          openedViaScan
           onClose={() => setDispenseContainerId(null)}
         />
       )}

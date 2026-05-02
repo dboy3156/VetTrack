@@ -358,13 +358,25 @@
     "networkUnavailable": "לא ניתן לגשת לשרת. ייתכן שאתה לא מחובר או שהשרת נפל."
   },
 
-  "dispenseSheet": {
-    "orphanOverrideTitle": "לא נמצאה הזמנה תואמת — האם זה חירום?",
-    "orphanOverrideHint": "בחר סיבה לאשר משיכת חירום. הפעולה מתועדת בביקורת.",
-    "bypassEmergencyCpr": "חירום / החייאה",
-    "bypassProtocol": "חריגה מהפרוטוקול",
-    "bypassTechError": "טעות טכנית / רישום",
-    "confirmEmergencyDispense": "אשר משיכת חירום"
+  "dispense": {
+    "errors": {
+      "ORPHAN_DISPENSE_BLOCKED": "לא נמצאה פקודה רפואית תואמת. האם מדובר במקרה חירום?",
+      "STOCK_DEPLETED": "אין מלאי זמין לפריט זה.",
+      "INSUFFICIENT_STOCK": "אין מלאי זמין לפריט זה.",
+      "ALREADY_DISPENSED": "הפריט כבר נמסר (מפתח אידמפוטנסי קיים).",
+      "fallback": "אירעה שגיאה בלתי צפויה. נסה שוב."
+    },
+    "bypass": {
+      "sectionTitle": "עקיפת חירום",
+      "reasonPrompt": "בחר סיבה להמשך:",
+      "confirmButton": "אשר מתן חירום",
+      "auditWarning": "פעולה זו מתועדת ותסוקר על ידי הצוות הרפואי.",
+      "reasons": {
+        "EMERGENCY_CPR": "חירום / החייאה",
+        "PROTOCOL_OVERRIDE": "עקיפת פרוטוקול",
+        "TECH_ERROR": "שגיאת טכנאי / הזנה"
+      }
+    }
   },
 
   "syncEngine": {
@@ -1486,6 +1498,7 @@
     },
     "escalationTimer": "עליית חומרה בעוד {{time}}",
     "escalationOverdue": "הגיע זמן העלייה — מסתנכרן…",
+    "reconciliationWarning": "נדרשת התאמת חיוב",
     "activeAssistance": {
       "title": "סיוע פעיל — החייאה וחירום",
       "toggleOn": "קוד כחול: פעיל",
