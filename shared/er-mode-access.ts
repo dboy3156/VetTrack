@@ -4,10 +4,18 @@
  * plus session, realtime, and push endpoints required for the ER shell.
  */
 
-/** Path segments after `/api` allowed when ER concealment is enforced for a clinic. */
+/**
+ * Path segments after `/api` allowed when ER concealment is enforced for a clinic.
+ *
+ * Auth-critical paths are explicitly listed to prevent circular authentication
+ * failures when enforcement is active:
+ *   - `/users`  → covers `/users/me` (session identity) and user management
+ *   - `/session` → reserved for future session/token refresh endpoints
+ */
 export const ER_MODE_API_PATH_PREFIX_ALLOWLIST: readonly string[] = [
   "/er",
   "/users",
+  "/session",
   "/realtime",
   "/push",
 ];
