@@ -40,6 +40,30 @@ _Avoid_: Forbidden mode, visible-disabled route
 A fast triage intake record created at patient arrival with minimal required fields.  
 _Avoid_: Full registration, admission form
 
+**Clinical onset**:  
+The moment bedside care begins for the patient. For critical presentations, this may precede reception; the same **Intake Event** can still be opened at the bedside (minimal identity, **`critical`** **Queue Severity**) and enriched later at the desk—consistent with ER wedge and emergency intake patterns (including workflows adjacent to **Code Blue**).  
+_Avoid_: Assuming the desk timestamp is the start of the clinical clock_
+
+**Formal intake completion**:  
+Reception-led capture of owner details, file number, and administrative completeness. May lag **Clinical onset** when stabilization comes first.  
+_Avoid_: Using this timestamp alone as **waitingSince** for critical cases_
+
+**Intake notification phases**:  
+On the critical path, **Clinical onset** may surface first as an **in-app / realtime** signal (bedside **Intake Event**); **Formal intake completion** then **enriches** the same item (file number, owner, administrative fields) and may upgrade or replace the outward notification so staff are not **duplicate-spammed**. Push/in-app copy may show **“file pending”** until completion.  
+_Avoid_: Two unrelated notification threads for the same patient_
+
+**Accept Patient (intake claim)**:  
+A doctor **claims** a specific pending patient (same exclusivity idea as equipment **alert acknowledgment**—others stop seeing the active **claim**). Distinct from **In Admission (busy)**.
+
+**In Admission (operational busy)**:  
+After handling a new admission, a doctor may mark themselves **in admission** so they are **temporarily removed** from the **Admission doctor** notification pool and do not receive further **new patient** fan-outs while occupied—analogous in spirit to **“I’m on it”**, but targeting **pool membership / availability**, not a single equipment alert.  
+**Re-entry (agreed):** **Automatic** return to the admission pool when **any** of: **(4)** the doctor confirms **Admission complete** (explicit control for when the admission phase is done but documentation may continue), or **(1)** a **Structured Clinical Handoff** is **submitted** for the case (`POST /api/er/handoffs` / `CreateErHandoffRequest` in `shared/er-types.ts`)—**whichever happens first** for that admission (OR semantics; **first event clears** **In Admission** for pool purposes). **Manual** **Available for admissions** remains **always** available so staff can correct mistakes or step back early. Optional **time-based** cap may be added later as a fail-safe if someone forgets (human factors).  
+**Admission complete before handoff (agreed):** **(4)** may precede **(1)**. The admitting doctor can return to the **new patient** fan-out while **Structured Clinical Handoff** is still **outstanding**—the product must **persistently surface** **handoff pending** (or equivalent) for that case so continuity is not lost.  
+**Technician notification (agreed):** **Hybrid A+B** — On **(4) Admission complete**, send a **lightweight** signal to the **assigned** technician (standby / “admission closed, handoff coming”) that is **not** a substitute for **Structured Clinical Handoff**. On **(1)** (`POST /api/er/handoffs`), submit the **authoritative** handoff payload; the UI/backend **supersedes** or **enriches** the placeholder so the tech’s real work queue and audit trail remain grounded in **(1)**.  
+**Handoff debt (agreed):** **Soft limit** — when a doctor has **2–3** concurrent **handoff pending** (after **(4)** without **(1)**), show a **strong visible warning** (debt counter / banner). **Do not** block **Accept Patient** or **(4)** by default. A **hard block** (policy **B**) may be turned on **per clinic** only if needed.  
+**Escalation (agreed):** **In Admission** mutes **routine** fan-out to the **Admission doctor** pool only; **Senior doctor shift** and other **escalation** paths remain governed by policy—doctors in **In Admission** are **not** excluded from escalations when the situation requires it.  
+_Avoid_: Confusing with **Account role** or **Accept Patient** on a single case_
+
 **Queue Severity**:  
 The clinical urgency level assigned to an intake item (`low`, `medium`, `high`, `critical`).  
 _Avoid_: Priority score, risk rank
@@ -86,7 +110,7 @@ _Avoid_: Per-screen polling mesh
 
 - A clinic in **ER Mode** is constrained by the **ER Allowlist**
 - In ER Mode, non-allowlisted routes resolve through **Concealment 404**
-- An **Intake Event** starts in a **Queue Severity** level and may change via **Time Aging Escalation**
+- An **Intake Event** starts in a **Queue Severity** level and may change via **Time Aging Escalation**; **Clinical onset** may precede **Formal intake completion** on the critical path
 - Each board item has exactly one **Primary Lane** and zero or more **Risk Badges**
 - A **Structured Clinical Handoff** closes through **Incoming Assignee Ack** or **Forced Ack Override**
 - **Outcome KPI** values are interpreted against the **Pre-Go-Live Baseline**
@@ -105,10 +129,43 @@ _Avoid_: Per-screen polling mesh
 
 ---
 
+## Identity vs duty (RBAC vs operational shift)
+
+**Account role (RBAC)**:  
+The user’s **global** identity in VetTrack (`vet`, `technician`, …)—what they may **see and mutate** in the system. Typically set at **signup/onboarding** or by **admin**; stable across days.  
+_Avoid_: Treating “today’s CSV shift label” as the same thing as account permissions_
+
+**Operational shift role (the job)**:  
+What this user is **doing in this time window**—e.g. **Admission doctor**, **Ward doctor**, **Senior doctor shift**—from **schedule import**, used for **routing, notifications, and pools**. Same **account role** (still a **vet**); different **job** tomorrow → different alerts (e.g. **New patient** only while **Admission**).  
+_Avoid_: “Role” without qualifier — specify **account** vs **operational**_
+
+---
+
+## Clinical ops staffing (admissions routing — domain)
+
+These describe **how the hospital divides doctor responsibility** for routing pending admissions and managerial coverage; they are **not** necessarily persisted verbatim in current schema.
+
+**Senior doctor shift**:  
+Shift lead responsible for **managerial** coordination of **new admissions** and **existing inpatients** during typical day staffing.  
+_Avoid_: Equating with “always the assignee for every new admission notification”_
+
+**Admission doctor pool**:  
+Doctors **dedicated to new admissions** (distinct from doctors primarily covering existing patients). Day shift: several admission doctors vs several ward/existing-patient doctors.  
+_Avoid_: “ICU” as a synonym unless ICU is the physical routing target_
+
+**Night staffing compression**:  
+When only **two** doctors are on: one operates in the **senior doctor shift** capacity **without** taking admissions; the other is **admissions-only**.  
+_Avoid_: Applying day-shift routing rules without a time window_
+
+---
+
 ## Flagged ambiguities
 
 - "priority" was used to mean both **Queue Severity** and **Primary Lane** — resolved: severity drives urgency, lane is the board placement outcome.
 - "handoff acknowledged" was used to mean either any team member or assigned owner — resolved: default is **Incoming Assignee Ack**, with **Forced Ack Override** for admin/vet only.
+- **Staffing vs schema:** `vt_shifts.role` today allows only technician-tier roles (`technician`, `senior_technician`, `admin`) — it does **not** encode vet roles such as **Admission doctor pool** or **Senior doctor shift**. Pending-patient routing that depends on those roles needs an explicit **source of truth** (see design decisions in flight).
+- **Shift import (operational) vs account RBAC:** Technicians’ schedules are loaded from CSV into `vt_shifts` with a **shift-name → shift-role** map (`server/routes/shifts.ts` — e.g. “בכיר” → `senior_technician`). The same **import pattern** can be extended for **doctors** so the app knows who is on **Senior doctor shift** vs **Admission doctor** vs **Ward** for a given time window. **Binding:** prefer an explicit **`user_id`** column matching **`vt_users.id`** (deterministic; avoids fragile name-only joins). **Policy (agreed):** the same import pipeline may **both** drive **operational routing** (who receives admission notifications in a time window) **and** apply updates to a user’s **global `vt_users.role`** when the product defines how that is triggered—**guardrails required** so operational labels (e.g. reception-style shift names) do not accidentally rewrite account permissions (see open design decision below).
+- **Resolved — two layers:** **Account role** (RBAC) and **Operational shift role** (CSV **job** for routing) are **different**. Shift CSV primarily drives **who gets which notifications** by **job**; it must **not** infer permission changes from shift labels. **Account role** changes remain **exceptional** (admin, onboarding, or a **dedicated** controlled process)—not routine weekly shift rows.
 
 ---
 

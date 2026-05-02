@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
-import { db, erIntakeEvents, shiftHandoffs } from "../db.js";
+import { db, erIntakeEvents, shiftHandoffs, users } from "../db.js";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
 import { insertRealtimeDomainEvent } from "../lib/realtime-outbox.js";
 import {
@@ -420,6 +420,21 @@ router.patch(
 
     const { userId } = parsed.data;
 
+    if (userId !== null) {
+      const [acceptor] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, userId), eq(users.clinicId, clinicId)))
+        .limit(1);
+      if (!acceptor) {
+        return res
+          .status(404)
+          .json(
+            apiError({ code: "NOT_FOUND", reason: "USER_NOT_FOUND", message: "Accepting user not found in clinic", requestId }),
+          );
+      }
+    }
+
     const [intake] = await db
       .select({ id: erIntakeEvents.id, status: erIntakeEvents.status })
       .from(erIntakeEvents)
@@ -488,6 +503,20 @@ router.post("/admission-state", requireEffectiveRole("vet"), async (req: Request
           message: parsed.error.message,
           requestId,
         }),
+      );
+  }
+
+  const [intakeCheck] = await db
+    .select({ id: erIntakeEvents.id })
+    .from(erIntakeEvents)
+    .where(and(eq(erIntakeEvents.id, parsed.data.intakeEventId), eq(erIntakeEvents.clinicId, clinicId)))
+    .limit(1);
+
+  if (!intakeCheck) {
+    return res
+      .status(404)
+      .json(
+        apiError({ code: "NOT_FOUND", reason: "INTAKE_NOT_FOUND", message: "Intake event not found", requestId }),
       );
   }
 
@@ -616,6 +645,7 @@ router.post(
       .where(
         and(
           eq(shiftHandoffs.clinicId, clinicId),
+          eq(shiftHandoffs.outgoingUserId, userId),
           sql`${shiftHandoffs.status} != 'cancelled'`,
         ),
       )

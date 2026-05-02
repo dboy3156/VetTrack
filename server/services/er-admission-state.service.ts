@@ -64,21 +64,19 @@ export async function exitAdmissionState(
       ),
     );
 
-  let pendingCount = 0;
-  for (const _row of pendingRows) {
-    void _row;
-    const handoffRows = await db
-      .select({ id: shiftHandoffs.id })
-      .from(shiftHandoffs)
-      .where(
-        and(
-          eq(shiftHandoffs.clinicId, clinicId),
-          sql`${shiftHandoffs.status} != 'cancelled'`,
-        ),
-      )
-      .limit(1);
-    if (handoffRows.length === 0) pendingCount++;
-  }
+  // Count non-cancelled handoffs submitted by this doctor (each covers one pending admission).
+  const [handoffCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(shiftHandoffs)
+    .where(
+      and(
+        eq(shiftHandoffs.clinicId, clinicId),
+        eq(shiftHandoffs.outgoingUserId, userId),
+        sql`${shiftHandoffs.status} != 'cancelled'`,
+      ),
+    );
+  const handoffCount = handoffCountRow?.count ?? 0;
+  const pendingCount = Math.max(0, pendingRows.length - handoffCount);
 
   const warnAtRaw = await getServerConfigValue(clinicId, "er_handoff_debt_warn_at");
   const warnAt = warnAtRaw === "3" ? 3 : 2;
