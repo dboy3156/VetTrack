@@ -1,4 +1,8 @@
-import "dotenv/config";
+// Only load .env locally; Railway injects variables at runtime
+if (!process.env.RAILWAY_ENVIRONMENT_ID) {
+  const dotenv = await import("dotenv");
+  dotenv.config();
+}
 
 function resolveDbUrl(): string | undefined {
   const pg = process.env.POSTGRES_URL?.trim();
