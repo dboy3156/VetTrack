@@ -20,8 +20,13 @@ export const ER_MODE_API_PATH_PREFIX_ALLOWLIST: readonly string[] = [
   "/push",
 ];
 
-export function normalizeApiPathAfterPrefix(originalUrl: string): string {
-  const q = originalUrl.split("?")[0] ?? "";
+/**
+ * Normalize `req.originalUrl` / `req.url` to the path after `/api`.
+ * Tolerates missing `originalUrl` (avoids throwing on undefined).
+ */
+export function normalizeApiPathAfterPrefix(originalUrl: string | undefined): string {
+  const raw = typeof originalUrl === "string" ? originalUrl : "";
+  const q = raw.split("?")[0] ?? "";
   if (!q.startsWith("/api")) return "";
   const rest = q.slice("/api".length);
   if (rest === "") return "/";
