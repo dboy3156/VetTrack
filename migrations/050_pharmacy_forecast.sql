@@ -5,6 +5,12 @@ CREATE TABLE IF NOT EXISTS vt_clinics (
   pharmacy_email TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Fallback column additions: if 0022_add_er_mode_state.sql ran first (numeric
+-- sort / fresh DB) it pre-created vt_clinics with only the primary key.
+-- These guards add pharmacy columns that the CREATE TABLE above would have
+-- supplied had it run first.
+ALTER TABLE vt_clinics ADD COLUMN IF NOT EXISTS pharmacy_email TEXT;
+ALTER TABLE vt_clinics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 INSERT INTO vt_clinics (id)
 SELECT DISTINCT clinic_id FROM vt_users
