@@ -45,7 +45,9 @@ import {
   ER_ELIGIBLE_HOSP_QUERY_KEY,
 } from "@/lib/event-reducer";
 import { CopDiscrepancyBanner } from "@/components/cop-discrepancy-banner";
+import { ActiveAssistancePanel } from "@/components/er/active-assistance-panel";
 import { cn } from "@/lib/utils";
+import { AlertTriangle } from "lucide-react";
 import {
   erEscalationCardClass,
   useErEscalationAnticipation,
@@ -54,6 +56,8 @@ import {
 const ER_QUERY = ER_BOARD_QUERY_KEY;
 const ASSIGNEES_QUERY = ER_ASSIGNEES_QUERY_KEY;
 const ELIGIBLE_HOSP_QUERY = ER_ELIGIBLE_HOSP_QUERY_KEY;
+
+const ACTIVE_ASSISTANCE_STORAGE_KEY = "vt_er_code_blue_assistance";
 
 type HandoffFormRow = {
   currentStability: string;
@@ -381,6 +385,23 @@ export default function ErCommandCenterPage() {
   // Forced Ack Override modal state.
   const [overrideTargetId, setOverrideTargetId] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
+  const [activeAssistanceOpen, setActiveAssistanceOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return sessionStorage.getItem(ACTIVE_ASSISTANCE_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (activeAssistanceOpen) sessionStorage.setItem(ACTIVE_ASSISTANCE_STORAGE_KEY, "1");
+      else sessionStorage.removeItem(ACTIVE_ASSISTANCE_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }, [activeAssistanceOpen]);
 
   const boardQ = useQuery({
     queryKey: ER_QUERY,
@@ -537,7 +558,26 @@ export default function ErCommandCenterPage() {
       <div className="flex flex-col gap-4 p-4 md:p-6">
         <CopDiscrepancyBanner />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-2xl font-bold">{t.erCommandCenter.title}</h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 md:gap-3">
+            <h1 className="text-2xl font-bold">{t.erCommandCenter.title}</h1>
+            <Button
+              type="button"
+              variant={activeAssistanceOpen ? "destructive" : "outline"}
+              className={cn(
+                "min-h-11 shrink-0 gap-2 border-2 font-semibold",
+                activeAssistanceOpen && "shadow-md shadow-red-900/35",
+              )}
+              aria-pressed={activeAssistanceOpen}
+              aria-expanded={activeAssistanceOpen}
+              title={t.erCommandCenter.activeAssistance.toggleHint}
+              onClick={() => setActiveAssistanceOpen((v) => !v)}
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+              {activeAssistanceOpen
+                ? t.erCommandCenter.activeAssistance.toggleOn
+                : t.erCommandCenter.activeAssistance.toggleOff}
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {assignRole ? (
               <Dialog
@@ -764,6 +804,8 @@ export default function ErCommandCenterPage() {
             </Button>
           </div>
         </div>
+
+        {activeAssistanceOpen ? <ActiveAssistancePanel /> : null}
 
         {boardQ.isLoading ? (
           <p className="text-muted-foreground">{t.erCommandCenter.loadingBoard}</p>

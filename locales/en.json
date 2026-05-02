@@ -1472,7 +1472,44 @@
       "handoffRisk": "Handoff"
     },
     "escalationTimer": "Queue escalates in {{time}}",
-    "escalationOverdue": "Escalation due — syncing…"
+    "escalationOverdue": "Escalation due — syncing…",
+    "activeAssistance": {
+      "title": "Active assistance — CPR & emergency",
+      "toggleOn": "Code Blue: On",
+      "toggleOff": "Code Blue",
+      "toggleHint": "CPR metronome, medication timers, quick intervention log",
+      "noSession": "No active Code Blue session. Start one on the Code Blue page to sync intervention logs.",
+      "openCodeBlue": "Open Code Blue",
+      "activePatient": "{{name}}",
+      "weightHint": "{{weight}} kg",
+      "metronome": "CPR metronome",
+      "bpm": "BPM",
+      "bpmIncrease": "Increase tempo",
+      "bpmDecrease": "Decrease tempo",
+      "metronomeStart": "Start",
+      "metronomePause": "Pause",
+      "soundOn": "Metronome sound on",
+      "soundOff": "Metronome sound off",
+      "beatIndicator": "CPR compression beat",
+      "medTimers": "Medication timers",
+      "epiTimerLabel": "Epinephrine interval (≈3 min)",
+      "adjTimerLabel": "Adjunct / atropine window (≈5 min)",
+      "reset": "Reset",
+      "timerDue": "DUE",
+      "quickLog": "Quick log",
+      "unitsMg": "mg",
+      "unitsU": "U",
+      "logDisabled": "Start a Code Blue session to log",
+      "drugs": {
+        "epinephrine": "Epinephrine",
+        "atropine": "Atropine",
+        "vasopressin": "Vasopressin"
+      },
+      "logLabels": {
+        "shock": "Defibrillation",
+        "compressor": "Compressor swap"
+      }
+    }
   },
 
   "appointmentsPage": {
