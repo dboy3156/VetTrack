@@ -46,7 +46,12 @@ export function erModeConcealmentMiddleware(req: Request, res: Response, next: N
         message: "Not found",
       });
     } catch (err) {
-      console.error("[er-mode-concealment] resolver failed", err);
+      console.error("[er-mode-concealment] state_resolver_failed — fail open", {
+        method: req.method,
+        path: req.originalUrl,
+        clinicId: resolveClinicId(req) ?? "unknown",
+        error: err instanceof Error ? err.message : String(err),
+      });
       incrementMetric("er_mode_fail_open", 1);
       next();
     }
