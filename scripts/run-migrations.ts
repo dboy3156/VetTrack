@@ -6,9 +6,16 @@ function resolveDbUrl(): string | undefined {
   return pg || db;
 }
 
+function isOnRailway(): boolean {
+  // Railway injects RAILWAY_ENVIRONMENT_ID into every service at runtime.
+  // Its presence means we're executing inside Railway infrastructure, where
+  // private DNS (*.railway.internal) is fully resolvable.
+  return Boolean(process.env.RAILWAY_ENVIRONMENT_ID);
+}
+
 async function main(): Promise<void> {
   const dbUrl = resolveDbUrl();
-  if (dbUrl?.includes(".railway.internal")) {
+  if (dbUrl?.includes(".railway.internal") && !isOnRailway()) {
     console.error(`
 Cannot run migrations from your PC: DATABASE_URL uses Railway private DNS (*.railway.internal).
 
