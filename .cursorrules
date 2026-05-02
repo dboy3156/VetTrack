@@ -1,635 +1,144 @@
-# VetTrack — Cursor AI Master Prompt
+# VetTrack — Cursor rules (architecture invariants)
 
-## Senior Software Architect Implementation Guide
+These rules govern **all AI-assisted development** on this repository: a production veterinary hospital operations stack (React/Vite + Express + PostgreSQL + Drizzle + BullMQ/Redis + Clerk + Dexie offline sync). They supplement stacked project rules under `.cursor/rules/*.mdc` (especially `engineering-and-agent-principles.mdc`, `typescript-standards.mdc`, `express-server.mdc`). Prefer **evidence from `server/`, `src/`, `shared/`** over generic advice.
 
------
+**How to use:** Keep this file at the repo root; work **one focused feature at a time**; after substantive edits run `npx tsc --noEmit` (zero errors before merge). Schema-first: start with `server/db.ts` before routes/UI.
 
-## 🚀 HOW TO USE THIS PROMPT (READ FIRST)
+---
 
-1. **Add as `.cursorrules`** — place this file at the root of the VetTrack repo as `.cursorrules`, OR open it as a pinned context document in Cursor before starting any work.
-1. **One feature at a time** — do NOT ask Cursor to implement all 6 features in a single prompt. Instead, after loading this file as context, send one focused instruction per session:
-- `"Implement Feature 1 — Code Blue Mode"`
-- `"Implement Feature 2 — Expiry Tracking"`
-- etc.
-  Implementing features one at a time prevents cross-feature hallucinations and keeps diffs reviewable.
-1. **Validate between features** — after each feature, run `npx tsc --noEmit` before moving to the next. Do not skip this step.
-1. **Schema changes are always step zero** — if Cursor tries to write frontend code before updating `server/db.ts`, stop it and redirect: `"Start with the schema change in server/db.ts first."`
-1. **If Cursor produces partial diffs** — remind it: `"Provide the complete file content, not a partial diff."`
+## Multi-tenancy
 
------
+- Treat **`clinicId` as a security boundary**, not a stylistic filter: every `select` / `insert` / `update` / `delete` against tenant data must constrain rows by the **request’s** `clinicId` (from `req.authUser.clinicId` / `req.clinicId` after auth middleware — see `server/middleware/auth.ts`).
+- **Never infer tenant scope only from a join** on another table; the **target row’s table** must include `eq(table.clinicId, clinicId)` (or equivalent) so OR conditions cannot widen tenancy.
+- The string **`dev-clinic-default`** is the dev-bypass default clinic (`server/middleware/auth.ts` `DEV_USER`); **never hardcode** it in production-only code paths. Production **must** have `CLERK_SECRET_KEY` or the server refuses to start (`server/middleware/auth.ts`).
+- Cross-clinic reads/writes are **security defects**, not style issues.
+- New `pgTable` definitions in **`server/db.ts`** must include **`clinicId`** scoped to the clinic/tenant (pattern used across `vt_*` tables). Follow existing table ordering in that file for consistency.
 
-## 🧠 CONTEXT & GROUND RULES
+## Auth
 
-You are implementing a set of production features for **VetTrack**, a veterinary equipment tracking PWA.
-Before writing a single line of code, read and internalize the following rules. They are non-negotiable.
+- **Auth mode (contract):** `server/lib/auth-mode.ts` — `clerk` when `CLERK_SECRET_KEY` is set **and** `CLERK_ENABLED !== "false"`; otherwise `dev-bypass`. **`resolveAuthModeFromEnv()`** is used for startup logging and tooling.
+- **Runtime API auth (`resolveAuthUser`):** Development bypass applies when **`NODE_ENV !== "production"`** and **`CLERK_SECRET_KEY` is absent** (`server/middleware/auth.ts`). Clerk middleware is mounted only when `authModeResolution.mode === "clerk"` (`server/index.ts`).
+- **`sessionContextMiddleware`** (`server/middleware/auth.ts`) runs globally on `/api` and **best-effort** attaches `req.authUser`, `req.clinicId`, `req.locale` without returning 401; routes that require authentication must still use **`requireAuth`** / **`requireAuthAny`**.
+- **Role source of truth:** After Clerk upsert, **`role` is always read from `vt_users.role`** in the database; JWT/session claims are **not** trusted for authorization (`server/middleware/auth.ts` comment near upsert).
+- **Numeric role floor** (`ROLE_HIERARCHY` in `server/middleware/auth.ts`): `admin` **40**, `vet` **30**, `senior_technician` **25**, `lead_technician` **22**, `technician` / `vet_tech` **20**, `student` **10**. **`requireRole(minRole)`** compares these floors.
+- **Middleware:** `requireAuth` — active users only (`status === "pending"` → 403 `ACCOUNT_PENDING_APPROVAL`; `status === "blocked"` → 403 `ACCOUNT_BLOCKED`); `requireAdmin` — **`role === "admin"`** only; `requireRole(minRole)` — DB role hierarchy; **`requireEffectiveRole(minRole)`** — uses **`resolveCurrentRole`** (`server/lib/role-resolution.js`) for shift-context effective role; admins short-circuit.
+- **Deleted users:** `deletedAt` set → 403 with **`ACCOUNT_DELETED`** (`server/middleware/auth.ts`).
+- **Dev-only headers** (`X-Dev-Role-Override`, `X-Dev-User-ID-Override`, `X-Dev-Clinic-ID-Override`): honored only in **development bypass** path (`server/middleware/auth.ts`).
 
-### Tech Stack (do not deviate)
+## Database schema
 
-|Layer          |Technology                                                                                            |
-|---------------|------------------------------------------------------------------------------------------------------|
-|Frontend       |React 18 + Vite + TypeScript + Tailwind CSS                                                           |
-|UI Components  |**Shadcn UI** (existing components only, do not add new registry items unless instructed)             |
-|Icons          |**Lucide React** (never substitute with other icon sets)                                              |
-|Animation      |**Framer Motion**                                                                                     |
-|Backend        |Node.js + **Express** via `tsx`                                                                       |
-|ORM            |**Drizzle ORM** — schema lives in `server/db.ts`                                                      |
-|Database       |**PostgreSQL**                                                                                        |
-|Background Jobs|**BullMQ** + **Redis** — workers live in `server/workers/`, schedulers boot from `start-schedulers.ts`|
-|Offline-First  |**Dexie.js** (v3.2.7) + **TanStack Query** with Optimistic UI                                         |
-|API Client     |`src/lib/api.ts` — all server calls go through here                                                   |
-|Auth           |**Clerk**                                                                                             |
-|Multi-tenancy  |Every DB table has a `clinicId` column — every query MUST filter by it                                |
+- **Single source of truth:** all Drizzle table definitions live in **`server/db.ts`** only.
+- **Authoring workflow:** edit **`server/db.ts`** → **`npx drizzle-kit generate`** → **`pnpm db:migrate`**. Use **`npx drizzle-kit push`** only for **local dev** — never against production (`CLAUDE.md`).
+- **Boot behavior:** **`server/index.ts`** calls **`runMigrations()`** from **`server/migrate.ts`** before starting background schedulers; pending SQL migrations apply at process start.
+- Table names use the **`vt_`** prefix (e.g. `vt_users`, `vt_billing_ledger`).
+- **Soft delete:** pattern `deletedAt` / `deletedBy` where present — queries must filter **`isNull(table.deletedAt)`** unless intentionally including deleted rows (users, equipment, folders, formulary, etc.).
+- **`vt_equipment`:** optimistic locking via **`version`** — updates must increment **`version`** and enforce expected version on write where the codebase already does (follow existing equipment routes/services).
+- **Formulary uniqueness:** filtered unique on **`(clinicId, genericName, concentrationMgMl)`** with **`WHERE deleted_at IS NULL`** (see `server/db.ts` `drugFormulary` indexes).
+- **JSONB** (`metadata`, `calculationSnapshot`, payloads): pass **typed objects** through Drizzle; never build SQL by concatenating JSON strings.
 
-### Coding Style Rules
+## Service layer
 
-1. **Database First** — every feature starts with a Schema change in `server/db.ts`. Run `npx drizzle-kit generate` and `npx drizzle-kit push` after schema changes.
-1. **Never use `python3`** — validate TypeScript with `npx tsc --noEmit` after every file change.
-1. **Hebrew only in JSX text/UI labels** — all identifiers, variables, function names, types, and file names must be in English.
-1. **Complete files only** — never output partial diffs. Always provide the full corrected file content.
-1. **No unrelated refactoring** — touch only what is needed for the feature being implemented.
-1. **Minimal fix philosophy** — the smallest change that correctly solves the problem.
-1. **Every new API endpoint** must be registered in `src/lib/api.ts` and typed in `src/types/`.
-1. **Every new BullMQ worker** must be imported and initialized in `start-schedulers.ts`.
-1. **Every Dexie table addition** must be versioned with a migration block.
+- **`server/services/`** exports **async functions** (no service classes); **`clinicId` is an explicit parameter** — never read from global/env for tenant scope.
+- Return **typed DTOs** or throw **domain errors** (e.g. **`MedTaskError`**, **`MedicationCalculationError`**, **`InventoryError`** patterns).
+- Multi-step writes: **`await db.transaction(async (tx) => { ... })`** for atomicity.
+- **`logAudit()`** (`server/lib/audit.ts`): **do not `await`** on critical paths unless passing **`tx`** for same-transaction audit; non-tx call wraps its own transaction and **swallows errors** — treat as fire-and-forget from handlers.
+- **`insertRealtimeDomainEvent(tx, { clinicId, type, payload })`** (`server/lib/realtime-outbox.ts`): call **inside the same transaction** as the domain write so outbox rows roll back with failed commits.
 
------
+## Transactional event outbox
 
-## 📦 FEATURE IMPLEMENTATION PLAN
+- Domain-facing realtime: insert into **`vt_event_outbox`** via **`insertRealtimeDomainEvent`** in the **same DB transaction** as the mutation (`server/lib/realtime-outbox.ts`).
+- **Publisher:** **`server/lib/event-publisher.ts`** polls every **`750`** ms (`POLL_MS`), batch size **100**, backoff constants **`OUTBOX_MAX_RETRY_COUNT = 50`** for DLQ — do not build parallel polling loops for the same table.
+- **`outboxEmitter`** (`server/lib/event-publisher.ts`) emits after publish; consumers attach there for push/SSE fan-out — follow existing patterns instead of ad-hoc DB polling for “live” UX.
+- **`logAudit`** without `tx` also inserts **`vt_event_outbox`** rows with type **`audit_log`** (`OUTBOX_TYPE_AUDIT_LOG`).
 
-Implement the 6 features below **in the exact order listed**. Complete each feature fully (Schema → Migration → Worker → API → Frontend) before starting the next.
+## Background workers (BullMQ / schedulers)
 
------
+- Register every new worker/scheduler startup path in **`server/app/start-schedulers.ts`** (e.g. **`await startExpiryCheckWorker()`**, **`await startChargeAlertWorker()`**, **`await startInventoryDeductionWorker()`**, **`await startIntegrationWorker()`**, plus **`startErIntakeEscalationScheduler`**, **`startErHandoffSlaScheduler`**, etc.). If it is not started here, it does not run in production.
+- **Redis:** optional in dev — workers log disabled when Redis is missing; production expects Redis for queues (`server/workers/chargeAlertWorker.ts`, `inventory-deduction.worker.ts` patterns).
+- **Charge alert queue:** `charge-alert`, job name **`check-plug`**, deterministic **`jobId`** via **`buildChargeAlertJobId(returnId)`** (`plug-check-${returnId}`); enqueue with **`delay`** from deadline minutes; cancel with **`cancelChargeAlertJob`** / **`job.remove()`** when plug-in state clears (`server/workers/chargeAlertWorker.ts`).
+- **Cron-style queues:** e.g. expiry worker uses BullMQ **repeat** / cron patterns — do not replace with **`setInterval`** for those domains (see `server/workers/expiryCheckWorker.ts`).
+- **Inventory deduction:** medication task completion enqueues **`vt_inventory_jobs`** and BullMQ processes **`inventory-deduction`** queue (`server/workers/inventory-deduction.worker.ts`); **`recoverPendingInventoryJobs`** runs on startup and on a **`10 * 60 * 1000`** ms interval (`server/index.ts`, `server/lib/inventory-job-recovery.ts`) — keep this recovery path.
+- **ER schedulers (not BullMQ):** intake escalation **`startErIntakeEscalationScheduler`** — **`setInterval(..., 60 * 1000)`** (`server/services/er-intake-escalation.service.ts`); handoff SLA **`startErHandoffSlaScheduler`** — **`setInterval(..., 5 * 60 * 1000)`** (`server/services/er-handoff-sla.service.ts`).
 
-## FEATURE 1 — Code Blue Mode (Emergency Equipment View)
+## Medication safety
 
-### Goal
+- **Liquid draw volume:** **`volumeMl = (weightKg * prescribedDoseMgPerKg) / concentrationMgPerMl`** with **`prescribedDoseMgPerKg`** derived from prescribed dose + unit (`server/services/medication-calculation.service.ts` **`calculateMedicationVolumeMl`**). Tablet flows use tablet math — see same file when `doseUnit === "tablet"`.
+- **Hard upper bound:** calculated volume must satisfy **`volumeMl > 0`** and **`volumeMl < 100`** ml (**`MAX_SAFE_VOLUME_ML`** / **`MAX_EXCLUSIVE_VOLUME_ML`**); validation errors use **`MedicationCalculationError`** / **`MedTaskError`** with statuses defined on those classes (routes map them — see `server/routes/medication-tasks.ts`).
+- **Safety levels** from dose deviation: **`blocked`** / **`critical`** / **`warning`** / **`safe`** (`medication-calculation.service.ts`). **`blocked`** doses **cannot be created** as tasks (`createMedicationTask` throws **`DOSE_BLOCKED`**).
+- **Warnings:** when **`requiresReason`** is true, **`overrideReason`** must be provided on create (`REASON_REQUIRED`).
+- **Snapshot shape** stored on **`vt_medication_tasks.calculationSnapshot`:** **`{ version: 1, data: CalculationResult }`** (`server/services/medication-tasks.service.ts`).
+- **Completion:** **`validateCompletionVolume`** enforces finite volume, **`> 0`**, **`< 100`**, and **at most two decimal places** (`server/services/medication-tasks.service.ts`).
+- **Duplicate open tasks:** one row per **`(clinicId, animalId, drugId, route)`** with **`status IN ('pending','in_progress')`** — enforced by DB partial unique index + **`findOpenMedicationTaskDuplicate`** (`server/services/medication-tasks.service.ts`).
+- **Valid routes:** **`IV`**, **`IM`**, **`PO`**, **`SC`** (normalized uppercase).
 
-A dedicated fullscreen view that surfaces only **critical, operationally ready** equipment nearby, optimized for high-stress situations.
+## Billing & idempotency
 
-### Schema (server/db.ts)
+- **`vt_billing_ledger`:** **`idempotency_key`** is **`notNull().unique()`** — duplicates must be handled by **idempotent read-or-insert** / **`ON CONFLICT`** patterns (`server/lib/equipment-seen.ts`, `server/services/appointments.service.ts` patterns).
+- **`animalId`** is **nullable** on **`vt_billing_ledger`** for pre-patient captures (`server/db.ts` comment).
+- **Status enum:** **`pending` → `synced` → `voided`** (`billingLedgerStatusEnum` in `server/db.ts`); design transitions explicitly — no silent backwards moves.
+- **`vt_usage_sessions`:** billing lifecycle uses **`startedAt`**, **`lastBilledThrough`**, **`endedAt`**, **`status`** — follow existing session billing services when closing sessions.
 
-No schema change required. Use existing `status`, `lastSeenLocation`, and `clinicId` fields.
+## ER (emergency)
 
-### API
+- **Escalation timing:** per-clinic columns **`erIntakeEscalateLowMinutes`** and **`erIntakeEscalateMediumMinutes`** on **`vt_clinics`** (defaults **15** / **15** in `server/db.ts`). **`computeInitialEscalatesAt`** (`server/services/er-intake-escalation.service.ts`): **`low`** → now + low minutes; **`medium`** → now + medium minutes; **`high`** → **`escalatesAt = null`** (no auto timer). Scheduler runs **`scanErIntakeEscalations`** on a **`60`** second tick (same file).
+- **Handoff SLA:** constant **`ER_HANDOFF_SLA_MINUTES = 60`** (`server/services/er-board.service.ts`); breach scan sets **`slaBreachedAt`** and emits **`ER_HANDOFF_SLA_BREACHED`** via outbox (`server/services/er-handoff-sla.service.ts`). Scheduler interval **`5`** minutes.
+- **Routes:** **`server/routes/er.ts`** uses **`requireAuth`** globally; **`requireAssignableRole`** allows **`admin` | `vet` | `senior_technician` | `technician`** for assign/handoff POST/PATCH; **`PATCH /mode`** uses **`requireRole("admin")`**.
+- **`vt_er_board_event_log`:** **append-only** event history (`server/db.ts`) — do not **`UPDATE`** / **`DELETE`** rows; insert new events only.
 
-Add endpoint `GET /api/equipment/critical` that:
+## Offline-first & sync
 
-- Filters by `clinicId` (from Clerk session)
-- Returns equipment where `status = 'critical'` OR `status = 'needs_attention'`
-- Includes `lastSeenLocation`, `lastSeenTimestamp`, `name`, `category`, `id`
-- Sorted by `lastSeenTimestamp DESC`
+- All browser API traffic goes through **`src/lib/api.ts`** **`request()`** / helpers — do not scatter raw **`fetch()`** for backend calls in feature code.
+- When **`request()`** receives **`offline`** options and the failure is a **network** error, the call **must** enqueue **`pendingSync`** in Dexie (**`addPendingSync`** / **`offline-db.ts`**) — never drop the mutation silently.
+- **`src/lib/sync-engine.ts`:** **`MAX_RETRIES = 5`**; delay bases **`RETRY_DELAYS_MS = [2000, 5000, 10000]`** (additional retries reuse the last delay); **`CIRCUIT_THRESHOLD = 5`** consecutive transient failures opens circuit **`20000`** ms; items use **`ITEM_TIMEOUT_MS = 30000`** for fetch attempts.
+- Dexie: **`offline-db.ts`** — bump **`this.version(n)`** when adding stores/indexes; never edit a lower version in place.
 
-Register in `src/lib/api.ts` as `getCriticalEquipment()`.
+## API client & types
 
-### Frontend
+- New endpoints: add a typed **`request<T>()`** wrapper in **`src/lib/api.ts`** and types under **`src/types/`** (import pattern at top of `api.ts`).
+- Use **`request<MyType>(...)`** generics for JSON responses.
+- **Timeouts:** default **`FETCH_TIMEOUT_MS = 30_000`**; equipment list **`EQUIPMENT_LIST_FETCH_TIMEOUT_MS = 5_000`**; task dashboards **`TASKS_FETCH_TIMEOUT_MS = 5_000`** (`src/lib/api.ts`) — pass **`timeoutMs`** for operational screens.
+- **401:** GET-like handling triggers soft navigation to **`/signin`** guarded by **`authRedirectInProgress`** to avoid redirect storms (`src/lib/api.ts`).
 
-Create `src/pages/CodeBluePage.tsx`:
+## Frontend routing
 
-- Triggered by a dedicated route `/code-blue`
-- Full-screen dark overlay using Framer Motion `AnimatePresence` with a pulsing red border animation
-- Header: red pulsing badge “CODE BLUE — ציוד קריטי” with `AlertTriangle` (Lucide)
-- Equipment cards using Shadcn `Card` with:
-  - Equipment name + category icon (Lucide)
-  - `lastSeenLocation` displayed prominently
-  - `lastSeenTimestamp` as a relative time string (“לפני 4 דקות”)
-  - Status badge using Tailwind: `bg-red-900 text-red-200` for critical
-- Auto-refresh every 15 seconds using TanStack Query `refetchInterval`
-- Dismiss button (`X`) that navigates back
-- Add a “Code Blue” button to the main navigation/header (Lucide `Siren` icon, red, visible only to users with `role = 'admin' | 'vet'`)
+- Route-level pages live under **`src/pages/`** and are **`lazy(() => import(...))`**-loaded from **`src/app/routes.tsx`**.
+- **Chunk load failures:** global handling lives in **`main.tsx`** — do not duplicate chunk error handlers in individual pages.
 
-### Tests (Feature 1)
+## Technology constraints
 
-Create `server/tests/codeBlueModeEquipment.test.ts`:
+- **UI:** **Shadcn** patterns / existing primitives — do not add alternate component frameworks (MUI/Chakra/Ant) unless explicitly directed.
+- **Icons:** **Lucide React** only.
+- **Animation:** **Framer Motion** for motion primitives in this codebase.
+- **ORM:** **Drizzle** query builder — avoid new raw **`db.execute`** strings for app logic.
+- **HTTP:** **Express** only for the API server.
+- **Jobs:** **BullMQ** (+ Redis) for queue workers; use **`setInterval`** only for **small in-process schedulers** already used (ER scans, inventory job recovery) — not as a substitute for BullMQ domain queues.
+- **Offline DB:** **Dexie** (see **`src/lib/offline-db.ts`**).
+- **Auth provider:** **Clerk** — no custom JWT minting for production auth.
 
-```typescript
-// ✅ Returns only equipment with status 'critical' or 'needs_attention'
-// ✅ Filters by clinicId — never returns equipment from another clinic
-// ✅ Returns empty array (not 404) when no critical equipment exists
-// ✅ Response includes: id, name, category, lastSeenLocation, lastSeenTimestamp
-// ✅ Results are sorted by lastSeenTimestamp DESC
-// ✅ Unauthenticated request returns 401
-```
+## Internationalization
 
-Create `src/tests/CodeBluePage.test.tsx`:
+- Hebrew copy only in **`locales/he.json`**, **`locales/en.json`**, and UI strings — **not** in identifiers, filenames, logs, or DB/API field names.
+- Frontend **`import { t } from '@/lib/i18n'`**; backend uses **`i18nMiddleware`** / **`req.locale`** (`server/index.ts`, `lib/i18n/middleware.js`) for localized **responses** — avoid hardcoding Hebrew in route strings.
 
-```typescript
-// ✅ Page renders without crashing when equipment list is empty
-// ✅ Renders one card per critical equipment item
-// ✅ lastSeenTimestamp is displayed as relative time string, not raw ISO
-// ✅ Auto-refresh fires after 15 seconds (mock timers)
-// ✅ Dismiss button navigates back (mock useNavigate)
-// ✅ "Code Blue" nav button is hidden for users without 'admin' or 'vet' role
-```
+## Security
 
------
+- **XSS:** global JSON body sanitization with **`xss`** runs before handlers (`server/index.ts` after **`express.json()`**).
+- **Rate limits** (`server/middleware/rate-limiters.ts`): global **`120`** req/min per IP on `/api`; **`scanLimiter`** **`10`**/min; **`checkoutLimiter`** **`20`**/min; add scoped limiters for new sensitive write endpoints.
+- **Integration secrets:** encrypt at rest when **`DB_CONFIG_ENCRYPTION_KEY`** is set; never log secrets.
+- **Integration webhooks:** verify **HMAC** on raw body routes (`server/index.ts` mounts **`/api/integration-webhooks/:adapterId`** before JSON parser).
+- **CSP / Helmet:** extending **`connectSrc`**, **`scriptSrc`**, etc. requires updating **`server/index.ts`** Helmet `contentSecurityPolicy.directives`.
 
-## FEATURE 2 — Expiry Tracking
+## Development workflow
 
-### Goal
+1. Schema / enum change → **`server/db.ts`**
+2. **`npx drizzle-kit generate`** → SQL under **`migrations/`**
+3. **`pnpm db:migrate`**
+4. New Express router → **`server/routes/*.ts`** → register in **`server/app/routes.ts`**
+5. New BullMQ worker → wire **`startXxxWorker`** in **`server/app/start-schedulers.ts`**
+6. Client **`src/lib/api.ts`** + **`src/types/`**
+7. New page → **`src/pages/`** + **`src/app/routes.tsx`** `lazy` route
+8. **`npx tsc --noEmit`** — must pass with **zero** errors before commit/PR
 
-Track equipment expiry dates and send push notifications 7 days before expiry via a BullMQ worker.
+---
 
-### Schema (server/db.ts)
-
-Add to the `equipment` table:
-
-```typescript
-expiryDate: date('expiry_date'),
-expiryNotifiedAt: timestamp('expiry_notified_at'),
-```
-
-Run `npx drizzle-kit generate` then `npx drizzle-kit push`.
-
-### Worker (server/workers/expiryCheckWorker.ts)
-
-Create a new BullMQ repeatable job:
-
-- Queue name: `"expiry-check"`
-- Repeat pattern (cron): `"0 8 * * *"` (daily at 08:00)
-- Job logic:
-1. Query all equipment where `expiryDate IS NOT NULL AND expiryDate <= NOW() + INTERVAL '7 days' AND expiryNotifiedAt IS NULL`
-1. Group results by `clinicId`
-1. For each equipment item, call the existing push notification service to send a notification:
-  - Title: `"⚠️ תוקף ציוד פג בקרוב"`
-  - Body: `"${equipment.name} — תוקף ב-${formattedDate}"`
-  - Data payload: `{ type: 'expiry', equipmentId: equipment.id }`
-1. Set `expiryNotifiedAt = NOW()` for each notified item
-1. Log results with `console.log` (worker name, count notified, timestamp)
-
-Register worker in `start-schedulers.ts`:
-
-```typescript
-import './workers/expiryCheckWorker';
-```
-
-### API
-
-- `PATCH /api/equipment/:id` — extend to accept `expiryDate` (ISO date string, nullable)
-
-### Frontend
-
-- In the equipment edit/create form, add a Shadcn `DatePicker` field labeled `"תאריך תפוגה"` (optional)
-- In equipment list/detail cards, show an `expiryDate` badge:
-  - **Expired**: `bg-red-100 text-red-800` + `CalendarX` icon (Lucide)
-  - **< 7 days**: `bg-orange-100 text-orange-800` + `CalendarClock` icon
-  - **> 7 days**: `bg-green-100 text-green-800` + `CalendarCheck` icon
-- Add types to `src/types/equipment.ts`: `expiryDate?: string | null; expiryNotifiedAt?: string | null;`
-
-### Tests (Feature 2)
-
-Create `server/tests/expiryCheckWorker.test.ts`:
-
-```typescript
-// ✅ Worker sends notification for equipment expiring within 7 days
-// ✅ Worker does NOT send notification for equipment expiring in 8+ days
-// ✅ Worker does NOT re-notify equipment where expiryNotifiedAt IS NOT NULL
-// ✅ After notification, expiryNotifiedAt is set to NOW() in the DB
-// ✅ Worker groups equipment by clinicId before sending (no cross-clinic notifications)
-// ✅ Equipment with null expiryDate is completely ignored
-```
-
-Create `server/tests/expiryApi.test.ts`:
-
-```typescript
-// ✅ PATCH /api/equipment/:id accepts a valid ISO date string for expiryDate
-// ✅ PATCH /api/equipment/:id accepts null to clear expiryDate
-// ✅ PATCH /api/equipment/:id rejects malformed date strings with 400
-// ✅ clinicId ownership is verified — cannot patch equipment from another clinic
-```
-
-Create `src/tests/ExpiryBadge.test.tsx`:
-
-```typescript
-// ✅ Renders red 'CalendarX' badge when expiryDate is in the past
-// ✅ Renders orange 'CalendarClock' badge when expiryDate is within 7 days
-// ✅ Renders green 'CalendarCheck' badge when expiryDate is 8+ days away
-// ✅ Renders nothing when expiryDate is null
-```
-
------
-
-## FEATURE 3 — Charge & Power Tracking
-
-### Goal
-
-Track whether returned equipment is plugged in. Alert staff if a device is not plugged in within a configurable time window.
-
-### Schema (server/db.ts)
-
-Add to the `equipment_returns` (or equivalent checkout/return) table:
-
-```typescript
-isPluggedIn: boolean('is_plugged_in').default(false),
-plugInDeadlineMinutes: integer('plug_in_deadline_minutes').default(30),
-plugInAlertSentAt: timestamp('plug_in_alert_sent_at'),
-```
-
-Run `npx drizzle-kit generate` then `npx drizzle-kit push`.
-
-### Worker (server/workers/chargeAlertWorker.ts)
-
-Create a BullMQ **delayed job** (not repeatable):
-
-- Queue name: `"charge-alert"`
-- Triggered immediately on a Return event where `isPluggedIn = false`
-- Delayed by `plugInDeadlineMinutes` minutes using BullMQ’s `delay` option:
-  
-  ```typescript
-  await chargeAlertQueue.add('check-plug', { returnId, equipmentId, clinicId }, {
-    delay: plugInDeadlineMinutes * 60 * 1000,
-    jobId: `plug-check-${returnId}`, // idempotent
-  });
-  ```
-- Job processor logic:
-1. Re-fetch the return record by `returnId`
-1. If `isPluggedIn` is now `true` — do nothing (user plugged it in)
-1. If still `false` — send push notification to clinic staff:
-  - Title: `"🔋 ציוד לא מחובר לחשמל"`
-  - Body: `"${equipment.name} לא חובר לחשמל תוך ${plugInDeadlineMinutes} דקות`
-1. Set `plugInAlertSentAt = NOW()`
-
-When a return is **updated** and `isPluggedIn` changes to `true`, remove the pending job:
-
-```typescript
-await chargeAlertQueue.remove(`plug-check-${returnId}`);
-```
-
-Register worker in `start-schedulers.ts`.
-
-### API
-
-- `POST /api/returns` — extend to accept `isPluggedIn: boolean` and `plugInDeadlineMinutes?: number`
-- `PATCH /api/returns/:id` — accept `isPluggedIn: boolean`; if `true`, cancel the BullMQ job
-
-### Frontend
-
-- In the return/check-in form, add a toggle (`Switch` from Shadcn) labeled `"חובר לחשמל?"`
-- Default value: `false`
-- If `false`, show a subtle warning: `"התראה תישלח לאחר X דקות אם לא יחובר"`
-- In the equipment detail view, show a power status badge:
-  - Plugged: `Plug` icon (Lucide), green
-  - Not plugged: `BatteryWarning` icon (Lucide), orange/red
-
-### Tests (Feature 3)
-
-Create `server/tests/chargeAlertWorker.test.ts`:
-
-```typescript
-// ✅ Delayed BullMQ job is enqueued when return is created with isPluggedIn = false
-// ✅ Job is NOT enqueued when return is created with isPluggedIn = true
-// ✅ Job uses jobId 'plug-check-{returnId}' (idempotency — no duplicates)
-// ✅ Job processor: does nothing if isPluggedIn is true when job fires
-// ✅ Job processor: sends push notification if isPluggedIn is still false when job fires
-// ✅ Job processor: sets plugInAlertSentAt = NOW() after sending notification
-// ✅ PATCH /api/returns/:id with isPluggedIn=true removes the pending BullMQ job
-```
-
-Create `server/tests/returnsApi.test.ts`:
-
-```typescript
-// ✅ POST /api/returns accepts isPluggedIn boolean field
-// ✅ POST /api/returns accepts optional plugInDeadlineMinutes (defaults to 30)
-// ✅ PATCH /api/returns/:id rejects requests from a different clinic
-// ✅ Unauthenticated POST /api/returns returns 401
-```
-
-Create `src/tests/ChargeToggle.test.tsx`:
-
-```typescript
-// ✅ Switch defaults to false (not plugged in)
-// ✅ Warning text is visible when isPluggedIn = false
-// ✅ Warning text is hidden when isPluggedIn = true
-// ✅ Correct Lucide icon displayed per plug state
-```
-
------
-
-## FEATURE 4 — Crowdsourced Location (Passive Scan Updates)
-
-### Goal
-
-Every time a QR or NFC scan occurs (regardless of whether it triggers a Checkout), silently update the equipment’s `lastSeenLocation` and `lastSeenTimestamp`.
-
-### Schema (server/db.ts)
-
-No new columns required. `lastSeenLocation` and `lastSeenTimestamp` are assumed to already exist on the `equipment` table. If they do not, add:
-
-```typescript
-lastSeenLocation: text('last_seen_location'),
-lastSeenTimestamp: timestamp('last_seen_timestamp'),
-lastSeenBy: text('last_seen_by'), // Clerk userId
-```
-
-### API
-
-Add endpoint `POST /api/equipment/:id/seen`:
-
-```typescript
-// Body: { location: string }
-// Auth: Clerk session (extract userId and clinicId)
-// Action: UPDATE equipment SET lastSeenLocation = $1, lastSeenTimestamp = NOW(), lastSeenBy = $2
-//         WHERE id = $3 AND clinicId = $4
-```
-
-### Deep Link Integration
-
-In the existing QR/NFC scan handler (`/scan?id=XXX` or `?verify=true` handler):
-
-1. After resolving the equipment ID from the URL
-1. Before any Checkout/Verify logic
-1. Silently call `POST /api/equipment/:id/seen` with the current `location` (from device, room selector, or URL param)
-1. This call must be **fire-and-forget** — never block the main scan flow. Use `.catch(() => {})`.
-
-### Frontend
-
-- Add a small “last seen” line to equipment cards: `"נסרק לאחרונה: [location] — לפני [relative time]"` with a `MapPin` icon (Lucide, gray)
-- In offline mode (Dexie), queue the `/seen` call in the existing sync engine’s outbox table
-
-### Tests (Feature 4)
-
-Create `server/tests/equipmentSeen.test.ts`:
-
-```typescript
-// ✅ POST /api/equipment/:id/seen updates lastSeenLocation and lastSeenTimestamp
-// ✅ POST /api/equipment/:id/seen sets lastSeenBy to the authenticated userId
-// ✅ Request for equipment belonging to a different clinic returns 403
-// ✅ Request with missing location field returns 400
-// ✅ Unauthenticated request returns 401
-// ✅ Endpoint does NOT create a checkout or modify equipment status
-```
-
-Create `src/tests/crowdsourcedLocation.test.ts`:
-
-```typescript
-// ✅ QR scan handler calls POST /api/equipment/:id/seen before checkout logic
-// ✅ The /seen call failure does NOT block or error the main scan flow (fire-and-forget)
-// ✅ In offline mode, /seen call is queued in Dexie outbox (not dropped silently)
-// ✅ Equipment card displays lastSeenLocation and relative lastSeenTimestamp
-// ✅ Equipment card shows nothing if lastSeenLocation is null
-```
-
------
-
-## FEATURE 5 — Shift Handover Report
-
-### Goal
-
-A read-only summary page for shift transitions, pulling from `audit_logs` and `vt_shifts`.
-
-### Schema (server/db.ts)
-
-Confirm the following columns exist (add if missing):
-
-- `audit_logs`: `id`, `clinicId`, `userId`, `action`, `entityType`, `entityId`, `metadata` (jsonb), `createdAt`
-- `vt_shifts`: `id`, `clinicId`, `startedAt`, `endedAt`, `handoverNotes` (text), `userId`
-
-If `vt_shifts` does not exist, create it:
-
-```typescript
-export const vtShifts = pgTable('vt_shifts', {
-  id: serial('id').primaryKey(),
-  clinicId: text('clinic_id').notNull(),
-  userId: text('user_id').notNull(),
-  startedAt: timestamp('started_at').notNull().defaultNow(),
-  endedAt: timestamp('ended_at'),
-  handoverNotes: text('handover_notes'),
-});
-```
-
-### API
-
-Add `GET /api/shifts/handover`:
-
-- Query param: `shiftId` (optional; defaults to most recent closed shift for the clinic)
-- Returns:
-  
-  ```typescript
-  {
-    shift: VtShift;
-    anomalies: AuditLog[]; // actions where metadata.anomaly = true OR action includes 'CRITICAL'
-    checkouts: AuditLog[]; // action = 'CHECKOUT' within shift window
-    returns: AuditLog[];   // action = 'RETURN' within shift window
-    unreturned: Equipment[]; // equipment checked out but not returned by shift end
-    expiringItems: Equipment[]; // expiryDate within 7 days
-  }
-  ```
-
-### Frontend
-
-Create `src/pages/ShiftHandoverPage.tsx`:
-
-- Route: `/shift-handover`
-- Header: `"דוח חפיפת משמרת"` with `ClipboardList` icon (Lucide)
-- Shift selector dropdown (Shadcn `Select`) showing last 5 shifts by date
-- Four sections using Shadcn `Accordion`:
-1. **ציוד שלא הוחזר** — `AlertCircle` icon, red header
-1. **חריגות במשמרת** — `ShieldAlert` icon, orange header
-1. **פעולות במשמרת** — `Activity` icon, blue header (checkout/return timeline)
-1. **ציוד שפג תוקפו בקרוב** — `CalendarClock` icon, yellow header
-- Print button: `window.print()` with print-specific Tailwind `print:` classes
-- Export button: generates a plain-text summary and copies to clipboard
-- Framer Motion `staggerChildren` entrance animation on section cards
-
-### Tests (Feature 5)
-
-Create `server/tests/shiftHandover.test.ts`:
-
-```typescript
-// ✅ GET /api/shifts/handover returns the most recent closed shift when no shiftId provided
-// ✅ GET /api/shifts/handover returns correct data when explicit shiftId is provided
-// ✅ anomalies array includes only logs where metadata.anomaly=true OR action includes 'CRITICAL'
-// ✅ unreturned array includes equipment checked out but not returned before shift endedAt
-// ✅ expiringItems array includes equipment with expiryDate within 7 days
-// ✅ All results are scoped to clinicId — no cross-clinic leakage
-// ✅ Returns 404 if shiftId does not belong to the requesting clinic
-// ✅ Returns 200 with empty arrays (not 404) when shift has no anomalies or unreturned items
-```
-
-Create `src/tests/ShiftHandoverPage.test.tsx`:
-
-```typescript
-// ✅ Page renders all 4 accordion sections
-// ✅ Shift selector populates with the last 5 shifts
-// ✅ Selecting a different shift refetches data for that shiftId
-// ✅ "Export" button copies plain-text summary to clipboard
-// ✅ Each section shows an empty state message when its array is empty
-```
-
------
-
-## FEATURE 6 — Patient Linking (Animal Context on Checkout)
-
-### Goal
-
-Link checked-out equipment to a specific patient (`vt_animals`) for clinical tracking and billing.
-
-### Schema (server/db.ts)
-
-Confirm `vt_animals` exists (if not, create minimal version):
-
-```typescript
-export const vtAnimals = pgTable('vt_animals', {
-  id: serial('id').primaryKey(),
-  clinicId: text('clinic_id').notNull(),
-  name: text('name').notNull(),
-  species: text('species'),
-  ownerId: text('owner_id'),
-  admittedAt: timestamp('admitted_at').defaultNow(),
-  dischargedAt: timestamp('discharged_at'),
-});
-```
-
-Add to the `checkouts` table (or equivalent):
-
-```typescript
-patientId: integer('patient_id').references(() => vtAnimals.id),
-patientNotes: text('patient_notes'),
-```
-
-Define Drizzle relation:
-
-```typescript
-export const checkoutsRelations = relations(checkouts, ({ one }) => ({
-  patient: one(vtAnimals, {
-    fields: [checkouts.patientId],
-    references: [vtAnimals.id],
-  }),
-}));
-```
-
-### API
-
-- `GET /api/animals/active` — returns animals currently admitted (`dischargedAt IS NULL`) for the clinic. Used for the patient search.
-- `POST /api/checkouts` — extend to accept `patientId?: number` and `patientNotes?: string`
-- `GET /api/checkouts/:id` — extend response to include `patient` (joined)
-
-### Frontend
-
-In the checkout form/modal:
-
-- Add a Shadcn `Combobox` (searchable dropdown) labeled `"שייך למטופל (אופציונלי)"`
-- Populated from `GET /api/animals/active`
-- Shows: `[name] — [species]` per option
-- If patient selected, show an optional `Textarea` for `patientNotes`
-- In equipment detail view, show active patient link if `checkout.patientId` exists:
-  - `PawPrint` icon (Lucide) + patient name + `"מאושפז כרגע"`
-  - Subtle `bg-blue-50 border-blue-200` card section
-- Add types to `src/types/checkout.ts`:
-  
-  ```typescript
-  patientId?: number | null;
-  patientNotes?: string | null;
-  patient?: { id: number; name: string; species?: string };
-  ```
-
-### Tests (Feature 6)
-
-Create `server/tests/patientLinking.test.ts`:
-
-```typescript
-// ✅ POST /api/checkouts saves patientId when provided
-// ✅ POST /api/checkouts succeeds with patientId omitted (optional field)
-// ✅ POST /api/checkouts rejects patientId that belongs to a different clinic
-// ✅ GET /api/checkouts/:id returns nested patient object when patientId is set
-// ✅ GET /api/checkouts/:id returns patient: null when patientId is null
-// ✅ GET /api/animals/active returns only animals where dischargedAt IS NULL
-// ✅ GET /api/animals/active is scoped to clinicId
-```
-
-Create `src/tests/PatientCombobox.test.tsx`:
-
-```typescript
-// ✅ Combobox renders with placeholder when no patient is selected
-// ✅ Combobox options display '[name] — [species]' format
-// ✅ Selecting a patient shows the patientNotes textarea
-// ✅ patientNotes textarea is hidden when no patient is selected
-// ✅ Patient badge renders in equipment detail view when patientId is set
-// ✅ Patient badge does not render when patientId is null
-```
-
------
-
-## ✅ FINAL VALIDATION CHECKLIST
-
-After implementing all 6 features, run the following:
-
-```bash
-# TypeScript validation — must pass with zero errors
-npx tsc --noEmit
-
-# Database schema sync
-npx drizzle-kit generate
-npx drizzle-kit push
-
-# Check all workers are imported in start-schedulers.ts
-grep -n "import" start-schedulers.ts
-
-# Verify all new endpoints are registered in api.ts
-grep -n "export" src/lib/api.ts
-```
-
-### Runtime Checks
-
-- [ ] Code Blue page loads and auto-refreshes without console errors
-- [ ] Expiry worker registers in BullMQ dashboard (or logs on startup)
-- [ ] Charge alert job appears in Redis queue after a return with `isPluggedIn = false`
-- [ ] QR scan silently updates `lastSeenTimestamp` without blocking the UI
-- [ ] Shift handover report renders all 4 accordion sections
-- [ ] Patient combobox populates and saves `patientId` to the checkout record
-- [ ] All new fields visible in existing Drizzle Studio / DB explorer
-- [ ] `clinicId` filter present on EVERY new DB query — no exceptions
-- [ ] Hebrew text appears only in JSX labels — zero Hebrew in identifiers
-
------
-
------
-
-## 🚀 HOW TO USE THIS PROMPT IN CURSOR
-
-### Setup
-
-1. Save this file as `.cursorrules` in the root of the VetTrack repository **or** open it as a pinned context document before starting work.
-1. Cursor will automatically treat `.cursorrules` as persistent background context for every prompt in the project.
-
-### Per-Feature Workflow
-
-**Do not ask Cursor to implement all features at once.** Issue one instruction per feature, in order:
-
-```
-Implement Feature 1 — Code Blue Mode, as defined in the master prompt.
-```
-
-Wait for full completion and validate before proceeding:
-
-```bash
-npx tsc --noEmit
-```
-
-Only then move to the next:
-
-```
-Implement Feature 2 — Expiry Tracking, as defined in the master prompt.
-```
-
-### Why This Matters
-
-Asking Cursor to implement multiple features in a single prompt significantly increases the risk of:
-
-- Cross-feature hallucinations (mixing up worker names, queue names, table references)
-- Skipped `clinicId` filters on new queries
-- Incomplete Dexie version migrations
-- Workers not registered in `start-schedulers.ts`
-
-One feature at a time keeps Cursor’s context window focused and its output verifiable.
-
-### After Each Feature
-
-- Run `npx tsc --noEmit` — zero errors required before continuing
-- Spot-check the `clinicId` filter on every new DB query
-- Confirm any new BullMQ worker is imported in `start-schedulers.ts`
-- Confirm any new API function is exported from `src/lib/api.ts`
-
------
-
-*Generated for VetTrack — vettrack.uk*
-*Stack: React + Vite + TypeScript + Drizzle ORM + BullMQ + Redis + Dexie.js*
+*Canonical deep docs: `CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`. Feature-specific rules also live under `.cursor/rules/`.*
