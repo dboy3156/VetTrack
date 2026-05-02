@@ -1509,6 +1509,37 @@
         "shock": "Defibrillation",
         "compressor": "Compressor swap"
       }
+    },
+    "icuTelemetry": {
+      "stripAria": "ICU monitor snapshot",
+      "stripHeading": "Monitor",
+      "asOf": "{{time}}",
+      "noVitals": "Snapshot received — no numeric vitals",
+      "vent": "Vent",
+      "ventOn": "Yes",
+      "panelAria": "ICU physiologic telemetry snapshot",
+      "signals": "Telemetry",
+      "hr": "HR",
+      "rr": "RR",
+      "spo2": "SpO₂",
+      "etco2": "EtCO₂",
+      "ventilated": "Ventilated",
+      "fio2": "FiO₂",
+      "peep": "PEEP",
+      "mode": "Mode",
+      "unitBpm": "bpm",
+      "unitRr": "/min",
+      "unitPct": "%",
+      "unitMmHg": "mmHg",
+      "unitPeep": "cmH₂O",
+      "lastUpdated": "Last updated {time}",
+      "staleBadge": "STALE",
+      "dataStaleRecheck": "DATA STALE — RECHECK PATIENT",
+      "ventilatorActive": "Ventilator active",
+      "bp": "BP",
+      "sysOverDia": "{sys}/{dia}",
+      "temp": "T°C",
+      "unitTemp": "°C"
     }
   },
 

@@ -912,5 +912,3 @@ export function MedicationCalculator({
     </div>
   );
 }
-
-export default MedicationCalculator;

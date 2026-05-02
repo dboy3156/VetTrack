@@ -46,6 +46,7 @@ import {
 } from "@/lib/event-reducer";
 import { CopDiscrepancyBanner } from "@/components/cop-discrepancy-banner";
 import { ActiveAssistancePanel } from "@/components/er/active-assistance-panel";
+import { CodeBlueAssistancePanel } from "@/components/er/code-blue-assistance-panel";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -248,6 +249,11 @@ function ErBoardLaneItemCard({
         {item.type === "intake" && ant.urgency === "past" ? (
           <div className="text-xs font-medium text-amber-800 dark:text-amber-300">
             {t.erCommandCenter.escalationOverdue}
+          </div>
+        ) : null}
+        {item.type === "hospitalization" && item.icuSignals != null ? (
+          <div className="pt-0.5">
+            <ActiveAssistancePanel icuSignals={item.icuSignals} severity={item.severity} />
           </div>
         ) : null}
         {/* Risk Badges — secondary clinical status indicators. Do not affect Primary Lane placement. */}
@@ -805,7 +811,7 @@ export default function ErCommandCenterPage() {
           </div>
         </div>
 
-        {activeAssistanceOpen ? <ActiveAssistancePanel /> : null}
+        {activeAssistanceOpen ? <CodeBlueAssistancePanel /> : null}
 
         {boardQ.isLoading ? (
           <p className="text-muted-foreground">{t.erCommandCenter.loadingBoard}</p>

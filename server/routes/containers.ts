@@ -10,6 +10,12 @@ import { restockContainerInTx } from "../services/inventory.service.js";
 import { resolveBlueprintEntryForContainerName } from "../config/inventoryBlueprint.js";
 import { enqueueBillingWebhookJob } from "../lib/queue.js";
 import { logAudit, resolveAuditActorRole } from "../lib/audit.js";
+import {
+  evaluateDispenseAgainstOrders,
+  loadInventoryItemLabelCode,
+  type DispenseLineForValidation,
+} from "../lib/dispense-order-validation.js";
+import { captureConsumableBillingForDispenseLine } from "../lib/container-consumable-billing.js";
 
 const router = Router();
 
@@ -300,8 +306,7 @@ router.post(
       // Normal dispense
       const dispensedItems: Array<{ itemId: string; label: string; quantity: number; newStock: number }> = [];
       const billingIds: string[] = [];
-      // Collect auto-billing candidates to insert after the transaction commits
-      const autoBillingCandidates: Array<{ inventoryLogId: string; billingItemId: string; quantity: number; itemId: string }> = [];
+      let autoBilledCents = 0;
 
       await db.transaction(async (tx) => {
         const [container] = await tx
@@ -310,6 +315,35 @@ router.post(
           .where(and(eq(containers.clinicId, clinicId), eq(containers.id, containerId)))
           .limit(1);
         if (!container) throw Object.assign(new Error("CONTAINER_NOT_FOUND"), { statusCode: 404 });
+
+        const validationLines: DispenseLineForValidation[] = [];
+        for (const lineItem of body.items) {
+          const inv = await loadInventoryItemLabelCode(tx, clinicId, lineItem.itemId);
+          if (!inv) {
+            throw Object.assign(new Error("INVENTORY_ITEM_NOT_FOUND"), { statusCode: 404, itemId: lineItem.itemId });
+          }
+          validationLines.push({
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            label: inv.label,
+            code: inv.code,
+          });
+        }
+
+        const { orphanLines } = await evaluateDispenseAgainstOrders(tx, {
+          clinicId,
+          animalId: animalId ?? null,
+          containerId,
+          lines: validationLines,
+        });
+
+        if (orphanLines.length > 0 && !isEmergency) {
+          throw Object.assign(new Error("ORPHAN_DISPENSE_BLOCKED"), {
+            statusCode: 400,
+            reason: "ORPHAN_DISPENSE_BLOCKED",
+            orphanLines,
+          });
+        }
 
         for (const lineItem of body.items) {
           // Verify container item exists and has sufficient quantity
@@ -391,55 +425,20 @@ router.post(
             newStock: newQty,
           });
 
-          // Billing is handled by the auto-billing block below via billingItems.
-          // containerItems has no unitPriceCents — direct billing here would produce ₪0 entries.
-
-          // Queue auto-billing candidate for post-transaction insert
-          if (container.billingItemId) {
-            autoBillingCandidates.push({ inventoryLogId, billingItemId: container.billingItemId, quantity: lineItem.quantity, itemId: lineItem.itemId });
+          const capture = await captureConsumableBillingForDispenseLine(tx, {
+            clinicId,
+            billingItemId: container.billingItemId,
+            inventoryLogId,
+            itemId: lineItem.itemId,
+            quantity: lineItem.quantity,
+            animalId: animalId ?? null,
+          });
+          if (capture.billingEventId) {
+            billingIds.push(capture.billingEventId);
           }
+          autoBilledCents += capture.rowTotalCents;
         }
       });
-
-      // Auto-billing: insert billing ledger rows after the transaction commits
-      // Failures must NOT fail the dispense — log and continue
-      let autoBilledCents = 0;
-      for (const candidate of autoBillingCandidates) {
-        try {
-          const [item] = await db
-            .select({ isBillable: inventoryItems.isBillable, minimumDispenseToCapture: inventoryItems.minimumDispenseToCapture })
-            .from(inventoryItems)
-            .where(and(eq(inventoryItems.clinicId, clinicId), eq(inventoryItems.id, candidate.itemId)))
-            .limit(1);
-          if (!item?.isBillable) continue;
-          if (candidate.quantity < (item.minimumDispenseToCapture ?? 1)) continue;
-          const [bi] = await db
-            .select({ id: billingItems.id, unitPriceCents: billingItems.unitPriceCents })
-            .from(billingItems)
-            .where(and(eq(billingItems.id, candidate.billingItemId), eq(billingItems.clinicId, clinicId)))
-            .limit(1);
-          if (bi && bi.unitPriceCents > 0) {
-            const autoBillingId = randomUUID();
-            const rowTotal = bi.unitPriceCents * candidate.quantity;
-            await db.insert(billingLedger).values({
-              id: autoBillingId,
-              clinicId,
-              animalId: animalId ?? null,
-              itemType: "CONSUMABLE",
-              itemId: bi.id,
-              quantity: candidate.quantity,
-              unitPriceCents: bi.unitPriceCents,
-              totalAmountCents: rowTotal,
-              idempotencyKey: `adjustment_${candidate.inventoryLogId}`,
-              status: "pending",
-            }).onConflictDoNothing();
-            billingIds.push(autoBillingId);
-            autoBilledCents += rowTotal;
-          }
-        } catch (autoBillingErr) {
-          console.error("[auto-billing] Failed to insert billing ledger row for dispense, continuing:", autoBillingErr);
-        }
-      }
 
       // Fire billing webhooks for all billed entries (config lookup handled inside)
       try {
@@ -491,7 +490,7 @@ router.post(
         autoBilledCents,
       });
     } catch (err: unknown) {
-      const e = err as Record<string, unknown>;
+      const e = err as Record<string, unknown> & { statusCode?: number; reason?: string; orphanLines?: unknown; itemId?: string };
       if (e.code === "INSUFFICIENT_STOCK") {
         return res.status(409).json({
           code: "INSUFFICIENT_STOCK",
@@ -504,7 +503,27 @@ router.post(
           requestId,
         });
       }
-      if ((e as { statusCode?: number }).statusCode === 404) {
+      if (e.reason === "ORPHAN_DISPENSE_BLOCKED" || (err as Error).message === "ORPHAN_DISPENSE_BLOCKED") {
+        return res.status(400).json({
+          code: "ORPHAN_DISPENSE_BLOCKED",
+          error: "ORPHAN_DISPENSE_BLOCKED",
+          reason: "ORPHAN_DISPENSE_BLOCKED",
+          message: "Dispense blocked: lines do not align with active orders or patient context.",
+          orphanLines: e.orphanLines ?? [],
+          requestId,
+        });
+      }
+      if ((err as Error).message === "INVENTORY_ITEM_NOT_FOUND") {
+        return res.status(404).json(
+          apiError({
+            code: "NOT_FOUND",
+            reason: "INVENTORY_ITEM_NOT_FOUND",
+            message: "Inventory item not found for dispense line",
+            requestId,
+          }),
+        );
+      }
+      if (e.statusCode === 404 || (err as Error).message === "CONTAINER_NOT_FOUND") {
         return res.status(404).json(apiError({ code: "NOT_FOUND", reason: "CONTAINER_NOT_FOUND", message: "Container not found", requestId }));
       }
       console.error(err);

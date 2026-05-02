@@ -1510,6 +1510,37 @@
         "shock": "הלם חשמלי",
         "compressor": "החלפת מדחס"
       }
+    },
+    "icuTelemetry": {
+      "stripAria": "תמונת מצב מוניטור טיפול נמרץ",
+      "stripHeading": "מוניטור",
+      "asOf": "{{time}}",
+      "noVitals": "התקבלה תמונה — ללא מדדים מספריים",
+      "vent": "אוונט",
+      "ventOn": "כן",
+      "panelAria": "צילום מצב פיזיולוגי מוסך טיפול נמרץ",
+      "signals": "טלמטריה",
+      "hr": "דופק",
+      "rr": "נשימות",
+      "spo2": "SpO₂",
+      "etco2": "EtCO₂",
+      "ventilated": "מונשם",
+      "fio2": "FiO₂",
+      "peep": "PEEP",
+      "mode": "מצב",
+      "unitBpm": "פ״ד",
+      "unitRr": "/דק׳",
+      "unitPct": "%",
+      "unitMmHg": "מ״מ כספית",
+      "unitPeep": "ס״מ מים",
+      "lastUpdated": "עודכן לאחרונה {time}",
+      "staleBadge": "לא עדכני",
+      "dataStaleRecheck": "נתונים לא עדכניים — יש לבדוק מחדש את המטופל",
+      "ventilatorActive": "מכונת נשימה פעילה",
+      "bp": "ל״ד",
+      "sysOverDia": "{sys}/{dia}",
+      "temp": "טמפ׳",
+      "unitTemp": "°C"
     }
   },
 

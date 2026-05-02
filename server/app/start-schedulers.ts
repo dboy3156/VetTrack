@@ -19,11 +19,13 @@ import { startShadowInventoryScheduler } from "../services/shadow-inventory.serv
 import { startSystemHealthMonitor } from "../services/system-health-monitor.js";
 import { startEventOutboxPublisher } from "../lib/event-publisher.js";
 import { startOutboxJanitor } from "../lib/outbox-janitor.js";
+import { startAlertReminderScheduler } from "../lib/alert-reminder.js";
 
 export async function startBackgroundSchedulers() {
   await initVapid();
   startEventOutboxPublisher();
   startOutboxJanitor();
+  startAlertReminderScheduler();
   startSystemHealthMonitor();
   startPushCleanupScheduler();
   startCleanupScheduler();

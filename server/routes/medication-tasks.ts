@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { requireAuth, requireEffectiveRole } from "../middleware/auth.js";
+import { idempotencyMiddleware } from "../middleware/idempotency.js";
 import { ensureUserClinicMembership } from "../middleware/ensure-user-clinic-membership.js";
 import { canPerformMedicationTaskAction } from "../lib/task-rbac.js";
 import {
@@ -137,7 +138,7 @@ function sendError(res: Response, err: unknown, requestId: string): void {
 
 router.use(requireAuth, requireEffectiveRole("technician"), ensureUserClinicMembership);
 
-router.post("/", async (req, res) => {
+router.post("/", idempotencyMiddleware("medication-tasks:create"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   const role = resolveTaskAuthRole(req);
   if (!canPerformMedicationTaskAction(role, "med.task.create")) {
@@ -183,7 +184,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/:id/take", async (req, res) => {
+router.post("/:id/take", idempotencyMiddleware("medication-tasks:take"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const task = await takeMedicationTask(
@@ -200,7 +201,7 @@ router.post("/:id/take", async (req, res) => {
   }
 });
 
-router.post("/:id/complete", async (req, res) => {
+router.post("/:id/complete", idempotencyMiddleware("medication-tasks:complete"), async (req, res) => {
   const requestId = resolveRequestId(res, req.headers["x-request-id"]);
   try {
     const task = await completeMedicationTask(
