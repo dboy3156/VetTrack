@@ -1446,7 +1446,44 @@
       "handoffRisk": "העברה"
     },
     "escalationTimer": "עליית חומרה בעוד {{time}}",
-    "escalationOverdue": "הגיע זמן העלייה — מסתנכרן…"
+    "escalationOverdue": "הגיע זמן העלייה — מסתנכרן…",
+    "activeAssistance": {
+      "title": "סיוע פעיל — החייאה וחירום",
+      "toggleOn": "קוד כחול: פעיל",
+      "toggleOff": "קוד כחול",
+      "toggleHint": "מטרונום החייאה, טיימרי תרופות, תיעוד התערבות מהיר",
+      "noSession": "אין מפגש קוד כחול פעיל. יש לפתוח מפגש בעמוד קוד כחול לסנכרון תיעוד.",
+      "openCodeBlue": "פתח קוד כחול",
+      "activePatient": "{{name}}",
+      "weightHint": "{{weight}} ק״ג",
+      "metronome": "מטרונום החייאה",
+      "bpm": "פעימות לדקה",
+      "bpmIncrease": "הגבר קצב",
+      "bpmDecrease": "הנמך קצב",
+      "metronomeStart": "התחל",
+      "metronomePause": "השהה",
+      "soundOn": "הפעל צליל מטרונום",
+      "soundOff": "כבה צליל מטרונום",
+      "beatIndicator": "קצב לחיצות החייאה",
+      "medTimers": "טיימרי תרופות",
+      "epiTimerLabel": "מרווח אפינפרין (כ־3 דק׳)",
+      "adjTimerLabel": "חלון תוסף / אטרופין (כ־5 דק׳)",
+      "reset": "איפוס",
+      "timerDue": "איחור",
+      "quickLog": "תיעוד מהיר",
+      "unitsMg": "מ״ג",
+      "unitsU": "יח׳",
+      "logDisabled": "יש לפתוח מפגש קוד כחול לתיעוד",
+      "drugs": {
+        "epinephrine": "אפינפרין",
+        "atropine": "אטרופין",
+        "vasopressin": "וזופרסין"
+      },
+      "logLabels": {
+        "shock": "הלם חשמלי",
+        "compressor": "החלפת מדחס"
+      }
+    }
   },
 
   "appointmentsPage": {
