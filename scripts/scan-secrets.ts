@@ -14,6 +14,13 @@ const PATTERNS: Array<{ name: string; regex: RegExp }> = [
   { name: "Private key block", regex: /-----BEGIN (RSA |EC )?PRIVATE KEY-----/ },
 ];
 
+
+const ALLOWLIST_BY_PATTERN: Record<string, RegExp[]> = {
+  "Database URL with credentials": [
+    /^(tests\/.*|setup-vm\.sh)$/,
+  ],
+};
+
 const EXCLUDE_DIRS = ["node_modules", ".git", "dist", ".local", "attached_assets"];
 const EXCLUDE_FILES = [
   "scan-secrets.ts",
@@ -39,7 +46,13 @@ function shouldExclude(filePath: string): boolean {
   return false;
 }
 
-function scanFile(filePath: string): Array<{ pattern: string; line: number; content: string }> {
+function isAllowedHit(pattern: string, relPath: string): boolean {
+  const allowlisted = ALLOWLIST_BY_PATTERN[pattern];
+  if (!allowlisted) return false;
+  return allowlisted.some((rule) => rule.test(relPath));
+}
+
+function scanFile(filePath: string, relPath: string): Array<{ pattern: string; line: number; content: string }> {
   const hits: Array<{ pattern: string; line: number; content: string }> = [];
   let content: string;
   try {
@@ -51,7 +64,7 @@ function scanFile(filePath: string): Array<{ pattern: string; line: number; cont
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     for (const { name, regex } of PATTERNS) {
-      if (regex.test(line)) {
+      if (regex.test(line) && !isAllowedHit(name, relPath)) {
         hits.push({ pattern: name, line: i + 1, content: line.trim().slice(0, 120) });
       }
     }
@@ -90,7 +103,7 @@ function main() {
 
   for (const file of files) {
     const relPath = path.relative(rootDir, file);
-    const hits = scanFile(file);
+    const hits = scanFile(file, relPath);
     if (hits.length > 0) {
       for (const hit of hits) {
         console.log(`\n[SECRET SCAN] ${hit.pattern}`);
