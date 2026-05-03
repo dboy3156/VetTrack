@@ -1,5 +1,5 @@
 import type { AuditDbExecutor } from "./audit.js";
-import { eventOutbox } from "../db.js";
+import { db, eventOutbox } from "../db.js";
 import { REALTIME_PAYLOAD_VERSION } from "./realtime-outbox-version.js";
 
 export { REALTIME_PAYLOAD_VERSION };
@@ -9,7 +9,7 @@ export { REALTIME_PAYLOAD_VERSION };
  * (same atomic unit as the clinical write).
  */
 export async function insertRealtimeDomainEvent(
-  tx: AuditDbExecutor,
+  tx: AuditDbExecutor | typeof db,
   params: {
     clinicId: string;
     type: string;
