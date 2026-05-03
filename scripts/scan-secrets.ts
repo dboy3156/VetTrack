@@ -1,4 +1,3 @@
-import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -15,9 +14,16 @@ const PATTERNS: Array<{ name: string; regex: RegExp }> = [
 ];
 
 
-const ALLOWLIST_BY_PATTERN: Record<string, RegExp[]> = {
+const ALLOWLIST_BY_PATTERN: Record<string, Array<{ path: RegExp; line: RegExp }>> = {
   "Database URL with credentials": [
-    /^(tests\/.*|setup-vm\.sh)$/,
+    {
+      path: /^tests\/.*$/,
+      line: /postgres:\/\/[^\s"']+@(?:localhost|127\.0\.0\.1):\d+\/[A-Za-z0-9_-]+/i,
+    },
+    {
+      path: /^setup-vm\.sh$/,
+      line: /DATABASE_URL=postgres:\/\/[^\s"']+@localhost:5432\/vettrack/i,
+    },
   ],
 };
 
@@ -46,10 +52,10 @@ function shouldExclude(filePath: string): boolean {
   return false;
 }
 
-function isAllowedHit(pattern: string, relPath: string): boolean {
+function isAllowedHit(pattern: string, relPath: string, line: string): boolean {
   const allowlisted = ALLOWLIST_BY_PATTERN[pattern];
   if (!allowlisted) return false;
-  return allowlisted.some((rule) => rule.test(relPath));
+  return allowlisted.some((rule) => rule.path.test(relPath) && rule.line.test(line));
 }
 
 function scanFile(filePath: string, relPath: string): Array<{ pattern: string; line: number; content: string }> {
@@ -64,7 +70,7 @@ function scanFile(filePath: string, relPath: string): Array<{ pattern: string; l
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     for (const { name, regex } of PATTERNS) {
-      if (regex.test(line) && !isAllowedHit(name, relPath)) {
+      if (regex.test(line) && !isAllowedHit(name, relPath, line)) {
         hits.push({ pattern: name, line: i + 1, content: line.trim().slice(0, 120) });
       }
     }
