@@ -1,4 +1,3 @@
-import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -13,6 +12,20 @@ const PATTERNS: Array<{ name: string; regex: RegExp }> = [
   { name: "Bearer token hardcoded", regex: /Authorization:\s*["']?Bearer\s+[A-Za-z0-9_\-.]{20,}["']?/i },
   { name: "Private key block", regex: /-----BEGIN (RSA |EC )?PRIVATE KEY-----/ },
 ];
+
+
+const ALLOWLIST_BY_PATTERN: Record<string, Array<{ path: RegExp; line: RegExp }>> = {
+  "Database URL with credentials": [
+    {
+      path: /^tests\/.*$/,
+      line: /postgres:\/\/[^\s"']+@(?:localhost|127\.0\.0\.1):\d+\/[A-Za-z0-9_-]+/i,
+    },
+    {
+      path: /^setup-vm\.sh$/,
+      line: /DATABASE_URL=postgres:\/\/[^\s"']+@localhost:5432\/vettrack/i,
+    },
+  ],
+};
 
 const EXCLUDE_DIRS = ["node_modules", ".git", "dist", ".local", "attached_assets"];
 const EXCLUDE_FILES = [
@@ -39,7 +52,13 @@ function shouldExclude(filePath: string): boolean {
   return false;
 }
 
-function scanFile(filePath: string): Array<{ pattern: string; line: number; content: string }> {
+function isAllowedHit(pattern: string, relPath: string, line: string): boolean {
+  const allowlisted = ALLOWLIST_BY_PATTERN[pattern];
+  if (!allowlisted) return false;
+  return allowlisted.some((rule) => rule.path.test(relPath) && rule.line.test(line));
+}
+
+function scanFile(filePath: string, relPath: string): Array<{ pattern: string; line: number; content: string }> {
   const hits: Array<{ pattern: string; line: number; content: string }> = [];
   let content: string;
   try {
@@ -51,7 +70,7 @@ function scanFile(filePath: string): Array<{ pattern: string; line: number; cont
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     for (const { name, regex } of PATTERNS) {
-      if (regex.test(line)) {
+      if (regex.test(line) && !isAllowedHit(name, relPath, line)) {
         hits.push({ pattern: name, line: i + 1, content: line.trim().slice(0, 120) });
       }
     }
@@ -90,7 +109,7 @@ function main() {
 
   for (const file of files) {
     const relPath = path.relative(rootDir, file);
-    const hits = scanFile(file);
+    const hits = scanFile(file, relPath);
     if (hits.length > 0) {
       for (const hit of hits) {
         console.log(`\n[SECRET SCAN] ${hit.pattern}`);
